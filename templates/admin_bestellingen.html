@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bestellingen — Krillo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.5;}
+  .wrap{max-width:900px; margin:0 auto; padding:48px 24px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:14px; margin-bottom:32px; font-family:var(--mono);}
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised); border-radius:12px; overflow:hidden; border:1px solid var(--line);}
+  th{text-align:left; font-family:var(--mono); font-size:11px; text-transform:uppercase; color:var(--ink-soft); padding:12px 14px; border-bottom:1px solid var(--line); background:var(--paper);}
+  td{padding:12px 14px; font-size:13.5px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .tag{font-family:var(--mono); font-size:10.5px; padding:3px 8px; border-radius:5px; background:var(--teal-dim); color:#085041;}
+  .empty{padding:40px; text-align:center; color:var(--ink-soft); background:var(--paper-raised); border-radius:12px; border:1px solid var(--line);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Bestellingen</h1>
+  <div class="sub">{{ orders|length }} betaalde bestelling(en), meest recent bovenaan</div>
+
+  {% if orders %}
+  <table>
+    <tr>
+      <th>Type</th>
+      <th>Webshop</th>
+      <th>E-mail</th>
+      <th>Bedrag</th>
+      <th>Betaald op</th>
+    </tr>
+    {% for o in orders %}
+    <tr>
+      <td><span class="tag">{{ o.type }}</span></td>
+      <td>{{ o.webshop_url }}</td>
+      <td>{{ o.email }}</td>
+      <td>€{{ o.amount }}</td>
+      <td>{{ o.paid_at }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">Nog geen betaalde bestellingen.</div>
+  {% endif %}
+</div>
+</body>
+</html>

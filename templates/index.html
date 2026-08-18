@@ -138,7 +138,21 @@
     font-family:var(--mono); font-size:11px; letter-spacing:0.06em;
     color:var(--coral); text-transform:uppercase; margin-bottom:10px;
   }
-  .checkout-title{font-family:var(--disp); font-weight:700; font-size:20px; margin-bottom:22px; letter-spacing:-0.01em;}
+  .checkout-title{font-family:var(--disp); font-weight:700; font-size:20px; margin-bottom:18px; letter-spacing:-0.01em;}
+  .checkout-includes{
+    background:var(--paper); border:1px solid var(--line); border-radius:10px;
+    padding:16px 16px 14px; margin-bottom:20px;
+  }
+  .checkout-includes-item{
+    display:flex; gap:9px; align-items:flex-start; font-size:13px; color:var(--ink-soft);
+    margin-bottom:9px; line-height:1.5;
+  }
+  .checkout-includes-item:last-child{margin-bottom:0;}
+  .checkout-includes-item .check{color:var(--teal); flex-shrink:0; font-weight:700;}
+  .checkout-delivery{
+    font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);
+    margin-top:12px; padding-top:12px; border-top:1px solid var(--line);
+  }
   .checkout-field{margin-bottom:16px;}
   .checkout-field label{display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px; font-weight:500;}
   .checkout-field input{
@@ -485,6 +499,7 @@
     <button class="checkout-close" id="checkoutClose" aria-label="Sluiten">&times;</button>
     <div class="checkout-eyebrow" id="checkoutEyebrow">Volledige audit</div>
     <h3 class="checkout-title" id="checkoutTitle">Waar mogen we de audit op uitvoeren?</h3>
+    <div class="checkout-includes" id="checkoutIncludes"></div>
     <div class="checkout-field">
       <label for="checkoutUrl">Webshop-URL</label>
       <input type="text" id="checkoutUrl" placeholder="jouwwebshop.nl">
@@ -718,6 +733,7 @@
   var overlay = document.getElementById('checkoutOverlay');
   var eyebrow = document.getElementById('checkoutEyebrow');
   var title = document.getElementById('checkoutTitle');
+  var includesBox = document.getElementById('checkoutIncludes');
   var urlInput = document.getElementById('checkoutUrl');
   var emailField = document.getElementById('checkoutEmailField');
   var emailInput = document.getElementById('checkoutEmail');
@@ -725,6 +741,27 @@
   var submitBtn = document.getElementById('checkoutSubmit');
   var closeBtn = document.getElementById('checkoutClose');
   var currentType = 'audit';
+
+  var includesContent = {
+    audit: {
+      items: [
+        'Alle verbeterpunten uit de scan opgelost, niet alleen de eerste 3',
+        'Herschreven titel, productomschrijvingen en veelgestelde vragen',
+        'Kant-en-klare technische code (structuurdata) om zelf te plakken',
+        'Stap-voor-stap uitgelegd, ook als je niet technisch bent'
+      ],
+      delivery: 'Levering: automatisch, direct na betaling ontvang je de audit per e-mail.'
+    },
+    monitoring: {
+      items: [
+        'Elke week een nieuwe scan van je site',
+        'Melding zodra er iets verandert of een concurrent je voorbijstreeft',
+        'Nieuwe verbeterpunten zodra die ontstaan',
+        'Op elk moment op te zeggen, geen minimale looptijd'
+      ],
+      delivery: 'Levering: je eerste scan ontvang je direct na aanmelding per e-mail, daarna elke week automatisch een update.'
+    }
+  };
 
   function prefillUrl(){
     var scanInput = document.getElementById('scanUrlInput');
@@ -746,10 +783,18 @@
     clearError();
     prefillUrl();
     emailInput.value = '';
+    var content = includesContent[type];
+    var html = '';
+    content.items.forEach(function(item){
+      html += '<div class="checkout-includes-item"><span class="check">&#10003;</span><span>' + item + '</span></div>';
+    });
+    html += '<div class="checkout-delivery">' + content.delivery + '</div>';
+    includesBox.innerHTML = html;
+
     if(type === 'audit'){
       eyebrow.textContent = 'Volledige audit \u00b7 \u20ac79 eenmalig';
       title.textContent = 'Waar mogen we de audit op uitvoeren?';
-      emailField.style.display = 'none';
+      emailField.style.display = 'block';
     } else {
       eyebrow.textContent = 'Monitoring \u00b7 \u20ac39 /maand';
       title.textContent = 'Start je maandelijkse monitoring';
@@ -771,20 +816,17 @@
       showError('Vul eerst je webshop-URL in.');
       return;
     }
-    var email = '';
-    if(currentType === 'monitoring'){
-      email = emailInput.value.trim();
-      if(!email){
-        showError('Vul een e-mailadres in, daarop sturen we je wekelijkse update.');
-        return;
-      }
+    var email = emailInput.value.trim();
+    if(!email){
+      showError(currentType === 'audit' ? 'Vul een e-mailadres in, daarop sturen we de audit.' : 'Vul een e-mailadres in, daarop sturen we je wekelijkse update.');
+      return;
     }
     clearError();
     submitBtn.disabled = true;
     submitBtn.textContent = 'Bezig...';
 
     var endpoint = currentType === 'audit' ? '/api/checkout/audit' : '/api/checkout/monitoring';
-    var body = currentType === 'audit' ? {url: url} : {url: url, email: email};
+    var body = {url: url, email: email};
 
     fetch(endpoint, {
       method: 'POST',

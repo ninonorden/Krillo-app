@@ -16,6 +16,7 @@ import os
 from flask import Flask, request, jsonify, render_template, redirect
 from scan_engine import run_scan
 import payments
+import emailing
 
 app = Flask(__name__)
 
@@ -60,10 +61,11 @@ def api_scan():
 def checkout_audit():
     data = request.get_json(silent=True) or {}
     webshop_url = (data.get("url") or "").strip()
-    if not webshop_url:
-        return jsonify({"error": "Vul eerst een webshop-URL in."}), 400
+    email = (data.get("email") or "").strip()
+    if not webshop_url or not email:
+        return jsonify({"error": "Vul een webshop-URL en e-mailadres in."}), 400
 
-    result = payments.create_audit_payment(get_base_url(), webshop_url)
+    result = payments.create_audit_payment(get_base_url(), webshop_url, email)
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
@@ -93,16 +95,54 @@ def mollie_webhook():
     status = payments.get_payment_status(payment_id)
     if status and status["is_paid"]:
         metadata = status.get("metadata") or {}
-        if metadata.get("type") == "monitoring_first_payment":
-            # Eerste betaling van het abonnement is gelukt: nu het echte,
-            # doorlopende abonnement aanmaken.
+        payment_type = metadata.get("type")
+        webshop_url = metadata.get("webshop_url")
+        email = metadata.get("email")
+
+        if payment_type == "audit" and webshop_url and email:
+            scan_result = run_scan(webshop_url)
+            if "error" not in scan_result:
+                fixes = scan_result.get("voorbeeldfixes", [])
+                emailing.send_audit_email(email, webshop_url, scan_result, fixes)
+
+        elif payment_type == "monitoring_first_payment":
             customer_id = metadata.get("customer_id")
             if customer_id:
                 payments.create_subscription(customer_id)
-        # Voor "audit": hier zou de audit-generatie en e-mail naar de klant
-        # getriggerd worden zodra dat gebouwd is.
+            if webshop_url and email:
+                scan_result = run_scan(webshop_url)
+                if "error" not in scan_result:
+                    emailing.send_monitoring_welcome_email(email, webshop_url, scan_result)
 
     return "", 200
+
+
+@app.route("/api/cron/weekly-scans", methods=["POST"])
+def weekly_scans():
+    """Wordt eenmaal per week aangeroepen (via een Render Cron Job) om alle
+    actieve monitoring-klanten opnieuw te scannen en een update te sturen."""
+    cron_key = os.environ.get("CRON_KEY")
+    if not cron_key or request.args.get("key") != cron_key:
+        return "", 404
+
+    customers = payments.list_active_monitoring_customers()
+    sent = 0
+    for c in customers:
+        scan_result = run_scan(c["webshop_url"])
+        if "error" not in scan_result:
+            emailing.send_weekly_update_email(c["email"], c["webshop_url"], scan_result)
+            sent += 1
+    return jsonify({"klanten_gevonden": len(customers), "emails_verstuurd": sent})
+
+
+@app.route("/admin/bestellingen")
+def admin_bestellingen():
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "Niet gevonden.", 404
+
+    orders = payments.list_recent_orders()
+    return render_template("admin_bestellingen.html", orders=orders)
 
 
 @app.route("/bedankt")
