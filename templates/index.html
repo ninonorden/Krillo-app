@@ -117,6 +117,46 @@
   .scan-cta-btn:hover{transform:translateY(-1px);}
   .scan-cta-good .scan-cta-btn{background:var(--ink); color:var(--paper);}
 
+  .checkout-overlay{
+    display:none; position:fixed; inset:0; z-index:100;
+    background:rgba(18,20,43,0.55); backdrop-filter:blur(3px);
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .checkout-overlay.open{display:flex;}
+  .checkout-modal{
+    background:var(--paper-raised); border-radius:16px; padding:32px;
+    max-width:400px; width:100%; position:relative;
+    box-shadow:0 20px 60px rgba(18,20,43,0.25);
+  }
+  .checkout-close{
+    position:absolute; top:16px; right:16px; background:none; border:none;
+    font-size:22px; color:var(--ink-soft); cursor:pointer; line-height:1;
+    width:28px; height:28px; border-radius:50%;
+  }
+  .checkout-close:hover{background:var(--paper);}
+  .checkout-eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:0.06em;
+    color:var(--coral); text-transform:uppercase; margin-bottom:10px;
+  }
+  .checkout-title{font-family:var(--disp); font-weight:700; font-size:20px; margin-bottom:22px; letter-spacing:-0.01em;}
+  .checkout-field{margin-bottom:16px;}
+  .checkout-field label{display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px; font-weight:500;}
+  .checkout-field input{
+    width:100%; height:46px; border-radius:9px; border:1.5px solid var(--line);
+    padding:0 14px; font-size:14.5px; font-family:var(--body); color:var(--ink); outline:none;
+  }
+  .checkout-field input:focus{border-color:var(--ink);}
+  .checkout-error{color:var(--coral); font-size:13px; margin-bottom:12px; display:none;}
+  .checkout-error.show{display:block;}
+  .checkout-submit{
+    width:100%; height:48px; border-radius:9px; border:none;
+    background:var(--ink); color:var(--paper); font-family:var(--body);
+    font-weight:600; font-size:14.5px; cursor:pointer; margin-top:4px;
+  }
+  .checkout-submit:hover{opacity:0.92;}
+  .checkout-submit:disabled{opacity:0.6; cursor:default;}
+  .checkout-note{font-size:12px; color:var(--ink-soft); text-align:center; margin-top:14px; font-family:var(--mono);}
+
   .fix-preview{
     border:1px solid var(--line); border-radius:10px; padding:14px 16px;
     margin-bottom:10px; background:var(--paper-raised);
@@ -440,6 +480,25 @@
   </div>
 </section>
 
+<div class="checkout-overlay" id="checkoutOverlay">
+  <div class="checkout-modal">
+    <button class="checkout-close" id="checkoutClose" aria-label="Sluiten">&times;</button>
+    <div class="checkout-eyebrow" id="checkoutEyebrow">Volledige audit</div>
+    <h3 class="checkout-title" id="checkoutTitle">Waar mogen we de audit op uitvoeren?</h3>
+    <div class="checkout-field">
+      <label for="checkoutUrl">Webshop-URL</label>
+      <input type="text" id="checkoutUrl" placeholder="jouwwebshop.nl">
+    </div>
+    <div class="checkout-field" id="checkoutEmailField">
+      <label for="checkoutEmail">E-mailadres</label>
+      <input type="email" id="checkoutEmail" placeholder="jij@jouwwebshop.nl">
+    </div>
+    <div class="checkout-error" id="checkoutError"></div>
+    <button class="checkout-submit" id="checkoutSubmit">Doorgaan naar betalen</button>
+    <div class="checkout-note">Je gaat door naar Mollie om veilig te betalen.</div>
+  </div>
+</div>
+
 <footer>
   <div class="wrap">
     <div class="footer-top">
@@ -656,73 +715,112 @@
 
 <script>
 (function(){
-  function currentUrl(){
-    var input = document.getElementById('scanUrlInput');
-    var val = input ? input.value.trim() : '';
-    if(!val){
-      val = window.prompt('Vul eerst je webshop-URL in (bijv. jouwwebshop.nl):') || '';
+  var overlay = document.getElementById('checkoutOverlay');
+  var eyebrow = document.getElementById('checkoutEyebrow');
+  var title = document.getElementById('checkoutTitle');
+  var urlInput = document.getElementById('checkoutUrl');
+  var emailField = document.getElementById('checkoutEmailField');
+  var emailInput = document.getElementById('checkoutEmail');
+  var errorBox = document.getElementById('checkoutError');
+  var submitBtn = document.getElementById('checkoutSubmit');
+  var closeBtn = document.getElementById('checkoutClose');
+  var currentType = 'audit';
+
+  function prefillUrl(){
+    var scanInput = document.getElementById('scanUrlInput');
+    urlInput.value = scanInput ? scanInput.value.trim() : '';
+  }
+
+  function showError(msg){
+    errorBox.textContent = msg;
+    errorBox.classList.add('show');
+  }
+
+  function clearError(){
+    errorBox.textContent = '';
+    errorBox.classList.remove('show');
+  }
+
+  function openModal(type){
+    currentType = type;
+    clearError();
+    prefillUrl();
+    emailInput.value = '';
+    if(type === 'audit'){
+      eyebrow.textContent = 'Volledige audit \u00b7 \u20ac79 eenmalig';
+      title.textContent = 'Waar mogen we de audit op uitvoeren?';
+      emailField.style.display = 'none';
+    } else {
+      eyebrow.textContent = 'Monitoring \u00b7 \u20ac39 /maand';
+      title.textContent = 'Start je maandelijkse monitoring';
+      emailField.style.display = 'block';
     }
-    return val.trim();
+    submitBtn.textContent = 'Doorgaan naar betalen';
+    submitBtn.disabled = false;
+    overlay.classList.add('open');
+    urlInput.focus();
   }
 
-  function startAuditCheckout(){
-    var url = currentUrl();
-    if(!url) return;
-    fetch('/api/checkout/audit', {
+  function closeModal(){
+    overlay.classList.remove('open');
+  }
+
+  function submitCheckout(){
+    var url = urlInput.value.trim();
+    if(!url){
+      showError('Vul eerst je webshop-URL in.');
+      return;
+    }
+    var email = '';
+    if(currentType === 'monitoring'){
+      email = emailInput.value.trim();
+      if(!email){
+        showError('Vul een e-mailadres in, daarop sturen we je wekelijkse update.');
+        return;
+      }
+    }
+    clearError();
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Bezig...';
+
+    var endpoint = currentType === 'audit' ? '/api/checkout/audit' : '/api/checkout/monitoring';
+    var body = currentType === 'audit' ? {url: url} : {url: url, email: email};
+
+    fetch(endpoint, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url: url})
+      body: JSON.stringify(body)
     })
     .then(function(res){ return res.json().then(function(data){ return {ok: res.ok, data: data}; }); })
     .then(function(result){
       if(!result.ok || !result.data.checkout_url){
-        alert(result.data.error || 'Kon de betaling nog niet starten.');
+        showError(result.data.error || 'Kon de betaling nog niet starten.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Doorgaan naar betalen';
         return;
       }
       window.location.href = result.data.checkout_url;
     })
     .catch(function(){
-      alert('Er ging iets mis. Probeer het zo nogmaals.');
-    });
-  }
-
-  function startMonitoringCheckout(){
-    var url = currentUrl();
-    if(!url) return;
-    var email = window.prompt('Op welk e-mailadres mogen we je wekelijkse update sturen?');
-    if(!email) return;
-    fetch('/api/checkout/monitoring', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url: url, email: email})
-    })
-    .then(function(res){ return res.json().then(function(data){ return {ok: res.ok, data: data}; }); })
-    .then(function(result){
-      if(!result.ok || !result.data.checkout_url){
-        alert(result.data.error || 'Kon het abonnement nog niet starten.');
-        return;
-      }
-      window.location.href = result.data.checkout_url;
-    })
-    .catch(function(){
-      alert('Er ging iets mis. Probeer het zo nogmaals.');
+      showError('Er ging iets mis. Probeer het zo nogmaals.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Doorgaan naar betalen';
     });
   }
 
   var auditBtn = document.getElementById('auditCheckoutBtn');
   var monitoringBtn = document.getElementById('monitoringCheckoutBtn');
   if(auditBtn){
-    auditBtn.addEventListener('click', function(e){
-      e.preventDefault();
-      startAuditCheckout();
-    });
+    auditBtn.addEventListener('click', function(e){ e.preventDefault(); openModal('audit'); });
   }
   if(monitoringBtn){
-    monitoringBtn.addEventListener('click', function(e){
-      e.preventDefault();
-      startMonitoringCheckout();
-    });
+    monitoringBtn.addEventListener('click', function(e){ e.preventDefault(); openModal('monitoring'); });
   }
+  closeBtn.addEventListener('click', closeModal);
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(); });
+  submitBtn.addEventListener('click', submitCheckout);
+  urlInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') submitCheckout(); });
+  emailInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') submitCheckout(); });
 })();
 </script>
 
