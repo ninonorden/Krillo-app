@@ -12,7 +12,8 @@ onder Settings > Environment, nooit in de code zelf.
 """
 
 import os
-from mollie.api.client import Client, RequestSetupError
+from mollie.api.client import Client
+from mollie.api.error import Error as MollieError
 
 AUDIT_PRICE = {"currency": "EUR", "value": "79.00"}
 MONITORING_PRICE = {"currency": "EUR", "value": "39.00"}
@@ -42,7 +43,7 @@ def create_audit_payment(base_url, webshop_url):
             "metadata": {"type": "audit", "webshop_url": webshop_url},
         })
         return {"checkout_url": payment.checkout_url, "payment_id": payment.id}
-    except RequestSetupError as e:
+    except (MollieError, Exception) as e:
         return {"error": str(e)}
 
 
@@ -60,7 +61,7 @@ def create_monitoring_signup(base_url, email, webshop_url):
             "email": email,
             "metadata": {"webshop_url": webshop_url},
         })
-        first_payment = client.customer_payments.on(customer).create({
+        first_payment = customer.payments.create({
             "amount": MONITORING_PRICE,
             "description": "Krillo monitoring, eerste maand",
             "redirectUrl": f"{base_url}/bedankt?type=monitoring",
@@ -69,7 +70,7 @@ def create_monitoring_signup(base_url, email, webshop_url):
             "metadata": {"type": "monitoring_first_payment", "webshop_url": webshop_url, "customer_id": customer.id},
         })
         return {"checkout_url": first_payment.checkout_url, "payment_id": first_payment.id, "customer_id": customer.id}
-    except RequestSetupError as e:
+    except (MollieError, Exception) as e:
         return {"error": str(e)}
 
 
@@ -82,13 +83,13 @@ def create_subscription(customer_id):
 
     try:
         customer = client.customers.get(customer_id)
-        subscription = client.customer_subscriptions.on(customer).create({
+        subscription = customer.subscriptions.create({
             "amount": MONITORING_PRICE,
             "interval": "1 month",
             "description": "Krillo monitoring-abonnement",
         })
         return {"subscription_id": subscription.id}
-    except RequestSetupError as e:
+    except (MollieError, Exception) as e:
         return {"error": str(e)}
 
 
@@ -103,5 +104,5 @@ def get_payment_status(payment_id):
             "is_paid": payment.is_paid(),
             "metadata": payment.metadata,
         }
-    except RequestSetupError:
+    except (MollieError, Exception):
         return None
