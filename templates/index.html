@@ -423,7 +423,7 @@
           <li>Automatisch herschreven teksten</li>
           <li>Kant-en-klare technische aanpassingen om te plakken</li>
         </ul>
-        <a class="price-btn solid" href="#scan">Vraag audit aan</a>
+        <a class="price-btn solid" href="#scan" id="auditCheckoutBtn">Vraag audit aan</a>
       </div>
       <div class="price-card">
         <div class="price-name">Monitoring</div>
@@ -434,7 +434,7 @@
           <li>Concurrenten die je voorbijstreven, direct gemeld</li>
           <li>Melding bij score-daling</li>
         </ul>
-        <a class="price-btn ghost" href="#scan">Start abonnement</a>
+        <a class="price-btn ghost" href="#scan" id="monitoringCheckoutBtn">Start abonnement</a>
       </div>
     </div>
   </div>
@@ -469,8 +469,8 @@
     <div class="footer-bottom">
       <div>© 2026 Krillo. Gebouwd in Nederland.</div>
       <div class="flinks">
-        <a href="#">Privacybeleid</a>
-        <a href="#">Algemene voorwaarden</a>
+        <a href="/privacybeleid">Privacybeleid</a>
+        <a href="/voorwaarden">Algemene voorwaarden</a>
       </div>
     </div>
   </div>
@@ -651,6 +651,78 @@
   input.addEventListener('keydown', function(e){
     if(e.key === 'Enter') runScan();
   });
+})();
+</script>
+
+<script>
+(function(){
+  function currentUrl(){
+    var input = document.getElementById('scanUrlInput');
+    var val = input ? input.value.trim() : '';
+    if(!val){
+      val = window.prompt('Vul eerst je webshop-URL in (bijv. jouwwebshop.nl):') || '';
+    }
+    return val.trim();
+  }
+
+  function startAuditCheckout(){
+    var url = currentUrl();
+    if(!url) return;
+    fetch('/api/checkout/audit', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: url})
+    })
+    .then(function(res){ return res.json().then(function(data){ return {ok: res.ok, data: data}; }); })
+    .then(function(result){
+      if(!result.ok || !result.data.checkout_url){
+        alert(result.data.error || 'Kon de betaling nog niet starten.');
+        return;
+      }
+      window.location.href = result.data.checkout_url;
+    })
+    .catch(function(){
+      alert('Er ging iets mis. Probeer het zo nogmaals.');
+    });
+  }
+
+  function startMonitoringCheckout(){
+    var url = currentUrl();
+    if(!url) return;
+    var email = window.prompt('Op welk e-mailadres mogen we je wekelijkse update sturen?');
+    if(!email) return;
+    fetch('/api/checkout/monitoring', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: url, email: email})
+    })
+    .then(function(res){ return res.json().then(function(data){ return {ok: res.ok, data: data}; }); })
+    .then(function(result){
+      if(!result.ok || !result.data.checkout_url){
+        alert(result.data.error || 'Kon het abonnement nog niet starten.');
+        return;
+      }
+      window.location.href = result.data.checkout_url;
+    })
+    .catch(function(){
+      alert('Er ging iets mis. Probeer het zo nogmaals.');
+    });
+  }
+
+  var auditBtn = document.getElementById('auditCheckoutBtn');
+  var monitoringBtn = document.getElementById('monitoringCheckoutBtn');
+  if(auditBtn){
+    auditBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      startAuditCheckout();
+    });
+  }
+  if(monitoringBtn){
+    monitoringBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      startMonitoringCheckout();
+    });
+  }
 })();
 </script>
 
