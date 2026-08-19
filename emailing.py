@@ -2,51 +2,58 @@
 Krillo - automatische e-mails.
 
 Verstuurt de audit-resultaten en monitoring-updates automatisch per e-mail,
-zodra een betaling is bevestigd. Gebruikt een gewoon e-mailaccount (SMTP),
-geen aparte e-maildienst nodig.
+zodra een betaling is bevestigd. Gebruikt Brevo's eigen API (via gewoon
+webverkeer/HTTPS) in plaats van klassieke SMTP, omdat veel hostingdiensten
+(waaronder Render) uitgaand SMTP-verkeer blokkeren.
 
-Vereist deze omgevingsvariabelen in Render:
-- SMTP_LOGIN: je Brevo-accountmail (waarmee je inlogt bij Brevo)
-- SMTP_PASSWORD: de SMTP-sleutel uit Brevo
-- SMTP_SERVER: smtp-relay.brevo.com
-- SMTP_FROM_EMAIL: optioneel, het afzenderadres (standaard: hallo@krillo.nl)
+Vereist deze omgevingsvariabele in Render:
+- BREVO_API_KEY: te vinden in Brevo onder 'SMTP & API' > tabblad 'API keys'
+  (dit is een andere sleutel dan de SMTP-sleutel die we eerst gebruikten)
+
+Optioneel:
+- SMTP_FROM_EMAIL: het afzenderadres (standaard: hallo@krillo.nl)
 """
 
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import requests
+
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 
-def _get_smtp_settings():
-    login = os.environ.get("SMTP_LOGIN")
-    password = os.environ.get("SMTP_PASSWORD")
-    server = os.environ.get("SMTP_SERVER")
-    from_email = os.environ.get("SMTP_FROM_EMAIL", "hallo@krillo.nl")
-    if not (login and password and server):
-        return None
-    return {"login": login, "password": password, "server": server, "from_email": from_email}
+def _get_api_key():
+    return os.environ.get("BREVO_API_KEY")
 
 
 def send_email(to_email, subject, html_body):
-    """Verstuurt een e-mail. Geeft True/False terug, faalt nooit hard
-    (een mislukte e-mail mag de rest van de afhandeling niet blokkeren)."""
-    settings = _get_smtp_settings()
-    if settings is None:
-        print("E-mail niet verstuurd: SMTP-instellingen ontbreken nog.")
+    """Verstuurt een e-mail via de Brevo API. Geeft True/False terug, faalt
+    nooit hard (een mislukte e-mail mag de rest van de afhandeling niet
+    blokkeren)."""
+    api_key = _get_api_key()
+    if not api_key:
+        print("E-mail niet verstuurd: BREVO_API_KEY ontbreekt nog.")
         return False
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"Krillo <{settings['from_email']}>"
-    msg["To"] = to_email
-    msg.attach(MIMEText(html_body, "html"))
+    from_email = os.environ.get("SMTP_FROM_EMAIL", "hallo@krillo.nl")
 
     try:
-        with smtplib.SMTP(settings["server"], 587, timeout=15) as server:
-            server.starttls()
-            server.login(settings["login"], settings["password"])
-            server.sendmail(settings["from_email"], to_email, msg.as_string())
+        response = requests.post(
+            BREVO_API_URL,
+            headers={
+                "accept": "application/json",
+                "api-key": api_key,
+                "content-type": "application/json",
+            },
+            json={
+                "sender": {"name": "Krillo", "email": from_email},
+                "to": [{"email": to_email}],
+                "subject": subject,
+                "htmlContent": html_body,
+            },
+            timeout=15,
+        )
+        if response.status_code >= 300:
+            print(f"E-mail versturen mislukt: {response.status_code} {response.text}")
+            return False
         return True
     except Exception as e:
         print(f"E-mail versturen mislukt: {e}")

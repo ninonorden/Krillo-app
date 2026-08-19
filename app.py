@@ -149,10 +149,14 @@ def admin_bestellingen():
 def bedankt():
     checkout_type = request.args.get("type", "audit")
     if checkout_type == "monitoring":
-        message = "Bedankt! Je Krillo-monitoringabonnement is gestart."
+        title = "Je monitoring is gestart"
+        message = "Je eerste scan is onderweg. Check zo je inbox voor de resultaten."
+        note = "Elke week ontvang je automatisch een nieuwe update."
     else:
-        message = "Bedankt! We gaan aan de slag met je audit."
-    return message
+        title = "Bedankt voor je audit"
+        message = "We gaan direct aan de slag. Je ontvangt de volledige audit binnen enkele minuten per e-mail."
+        note = "Niets ontvangen? Check ook je spamfolder, of mail hallo@krillo.nl."
+    return render_template("bedankt.html", title=title, message=message, note=note)
 
 
 if __name__ == "__main__":
