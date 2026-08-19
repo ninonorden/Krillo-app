@@ -103,6 +103,7 @@ def get_payment_status(payment_id):
             "status": payment.status,
             "is_paid": payment.is_paid(),
             "metadata": payment.metadata,
+            "created_at": payment.created_at,
         }
     except (MollieError, Exception):
         return None

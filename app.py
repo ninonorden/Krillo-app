@@ -14,6 +14,7 @@ Ga daarna naar http://127.0.0.1:5000 in je browser.
 
 import os
 import threading
+from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify, render_template, redirect, Response
 from scan_engine import run_scan
 import payments
@@ -181,9 +182,28 @@ def _verwerk_betaling(payment_id, base_url):
     rapport opslaan en e-mail versturen. Draait op de achtergrond zodat Mollie
     niet hoeft te wachten en de melding niet opnieuw stuurt."""
     try:
+        # Tweede blokkade: is er voor deze betaling al een rapport gemaakt?
+        if db.report_bestaat_al(payment_id):
+            print(f"Er bestaat al een rapport voor betaling {payment_id}, niets verstuurd.")
+            return
+
         status = payments.get_payment_status(payment_id)
         if not (status and status["is_paid"]):
             return
+
+        # Negeer late herhalingen van oude betalingen. Mollie blijft ongeveer een
+        # etmaal opnieuw melden, en zonder deze controle zou een betaling van
+        # uren geleden alsnog een nieuwe mail opleveren.
+        aangemaakt = status.get("created_at")
+        if aangemaakt:
+            try:
+                gemaakt_op = datetime.fromisoformat(aangemaakt.replace("Z", "+00:00"))
+                leeftijd = datetime.now(timezone.utc) - gemaakt_op
+                if leeftijd > timedelta(hours=3):
+                    print(f"Betaling {payment_id} is {leeftijd} oud, late herhaling genegeerd.")
+                    return
+            except Exception as e:
+                print(f"Kon de leeftijd van betaling {payment_id} niet bepalen: {e}")
 
         metadata = status.get("metadata") or {}
         payment_type = metadata.get("type")
@@ -198,7 +218,7 @@ def _verwerk_betaling(payment_id, base_url):
                 )
                 fixes = ai_fixes if ai_fixes is not None else scan_result.get("voorbeeldfixes", [])
                 token = db.save_report("audit", webshop_url, email, scan_result.get("score", 0),
-                                        scan_result.get("checks", []), fixes)
+                                        scan_result.get("checks", []), fixes, payment_id)
                 report_url = f"{base_url}/rapport/{token}" if token else None
                 emailing.send_audit_email(email, webshop_url, scan_result, fixes, report_url)
 
@@ -210,7 +230,7 @@ def _verwerk_betaling(payment_id, base_url):
                 scan_result = run_scan(webshop_url)
                 if "error" not in scan_result:
                     token = db.save_report("monitoring", webshop_url, email, scan_result.get("score", 0),
-                                            scan_result.get("checks", []))
+                                            scan_result.get("checks", []), None, payment_id)
                     report_url = f"{base_url}/rapport/{token}" if token else None
                     emailing.send_monitoring_welcome_email(email, webshop_url, scan_result, report_url)
     except Exception as e:

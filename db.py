@@ -42,9 +42,12 @@ def init_db():
                         score INTEGER NOT NULL,
                         checks JSONB NOT NULL,
                         fixes JSONB,
+                        payment_id TEXT,
                         aangemaakt_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                # Voor bestaande installaties: kolom toevoegen als die nog mist.
+                cur.execute("ALTER TABLE rapporten ADD COLUMN IF NOT EXISTS payment_id TEXT;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS verwerkte_betalingen (
                         payment_id TEXT PRIMARY KEY,
@@ -78,7 +81,27 @@ def claim_payment(payment_id):
         conn.close()
 
 
-def save_report(report_type, webshop_url, email, score, checks, fixes=None):
+def report_bestaat_al(payment_id):
+    """Tweede blokkade: kijkt of er voor deze betaling al een rapport gemaakt is.
+    Werkt ook als de eerste blokkade om wat voor reden dan ook niet aansloeg."""
+    if not payment_id:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM rapporten WHERE payment_id = %s LIMIT 1", (payment_id,))
+                return cur.fetchone() is not None
+    except Exception as e:
+        print(f"Controle op bestaand rapport mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def save_report(report_type, webshop_url, email, score, checks, fixes=None, payment_id=None):
     """Slaat een rapport op en geeft een uniek token terug waarmee het
     later opgehaald kan worden (via /rapport/<token>)."""
     conn = _get_connection()
@@ -89,10 +112,10 @@ def save_report(report_type, webshop_url, email, score, checks, fixes=None):
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO rapporten (token, type, webshop_url, email, score, checks, fixes)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    """INSERT INTO rapporten (token, type, webshop_url, email, score, checks, fixes, payment_id)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                     (token, report_type, webshop_url, email, score,
-                     json.dumps(checks), json.dumps(fixes) if fixes is not None else None),
+                     json.dumps(checks), json.dumps(fixes) if fixes is not None else None, payment_id),
                 )
         return token
     except Exception as e:
