@@ -105,6 +105,16 @@ nieuwe tekst, alsof die al voor deze specifieke webshop is geschreven. Voor
 technische problemen (ontbrekende code, sitemap, robots.txt): geef de exacte
 code of instructie die opgelost moet worden.
 
+HEEL BELANGRIJK: de lezer is een webshop-eigenaar zonder technische kennis. Leg
+bij elke oplossing in het veld "waar" stap voor stap uit waar hij dit precies
+moet neerzetten, in gewone taal, alsof je het aan iemand uitlegt die nog nooit
+in de instellingen van zijn webshop heeft gekeken. Noem waar mogelijk de
+concrete route in de meestgebruikte webshopsystemen (Shopify: Winkel beheren,
+Thema's, Code bewerken, theme.liquid. WooCommerce of WordPress: Weergave,
+Thema-bestanden, header.php, of een plugin voor kopteksten). Als het echt te
+technisch is om zelf te doen, zeg dat er eerlijk bij en adviseer om het door de
+bouwer van de site te laten doen, met de tekst die hij kan doorsturen.
+
 Antwoord ALLEEN met geldige JSON, in dit exacte formaat, niets ervoor of erna:
 
 {{
@@ -112,7 +122,8 @@ Antwoord ALLEEN met geldige JSON, in dit exacte formaat, niets ervoor of erna:
     {{
       "titel": "Korte titel van de fix",
       "uitleg": "Een of twee zinnen die uitleggen waarom dit belangrijk is voor deze webshop",
-      "oplossing": "De concrete tekst of code die het probleem oplost"
+      "oplossing": "De concrete tekst of code die het probleem oplost",
+      "waar": "Stap voor stap waar je dit neerzet, in gewone taal, zonder jargon"
     }}
   ]
 }}

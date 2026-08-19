@@ -425,6 +425,7 @@ def generate_fix_previews(url, checks, html):
             "titel": "Titel en omschrijving herschreven",
             "voor": voor_titel,
             "na": f'Titel: "{na_titel}"\nOmschrijving: "{na_omschrijving}"',
+            "waar": "Dit pas je aan in de instellingen van je webshop. In Shopify: Winkel beheren, Online winkel, Voorkeuren. In WooCommerce of WordPress: bij de pagina zelf, onder het kopje voor zoekmachines.",
         })
 
     # Voorbeeld 2: productinformatie als machine-leesbare code
@@ -442,6 +443,7 @@ def generate_fix_previews(url, checks, html):
             "titel": "Machine-leesbare bedrijfsinfo toegevoegd (code, klaar om te plakken)",
             "voor": "Geen machine-leesbare informatie gevonden.",
             "na": voorbeeld_code,
+            "waar": "Deze code hoort in de kop van je website, tussen de regels <head> en </head>. In Shopify vind je dat onder Winkel beheren, Thema's, Code bewerken, in het bestand theme.liquid. Kom je er niet uit, stuur dit dan door naar degene die je site heeft gebouwd.",
         })
 
     # Voorbeeld 3: FAQ-content
@@ -450,6 +452,7 @@ def generate_fix_previews(url, checks, html):
         previews.append({
             "titel": "Veelgestelde vragen omgezet naar AI-leesbare vorm",
             "voor": "Geen (of niet als zodanig gemarkeerde) veelgestelde vragen.",
+            "waar": "Zet de vragen en antwoorden gewoon als tekst op een pagina op je site, en plaats de bijbehorende code in de kop van diezelfde pagina, tussen <head> en </head>.",
             "na": f'Voorbeeldvraag toegevoegd: "Wat zijn de levertijden bij {naam}?" met een direct, kort antwoord, plus de bijbehorende FAQ-code zodat AI dit als officieel vraag-en-antwoord herkent.',
         })
 
