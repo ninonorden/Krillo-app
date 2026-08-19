@@ -79,35 +79,51 @@ def _base_html(title, intro, body_html):
 
 
 def send_audit_email(to_email, webshop_url, scan_result, fix_previews):
-    checks_html = ""
-    for check in scan_result.get("checks", []):
-        icon = "&#10003;" if check["status"] == "ok" else "&#8226;"
-        checks_html += f"""
-        <div style="padding:10px 0; border-top:1px solid #E4E2DA;">
-          <strong style="font-size:13.5px;">{icon} {check['titel']}</strong><br>
-          <span style="font-size:13px; color:#3B3D57;">{check['uitleg']}</span>
+    score = scan_result.get("score", 0)
+    problemen = [c for c in scan_result.get("checks", []) if c["status"] != "ok"]
+    goed = [c for c in scan_result.get("checks", []) if c["status"] == "ok"]
+
+    intro_line = (
+        f"We hebben {len(problemen)} verbeterpunten gevonden en meteen voor je opgelost."
+        if problemen else
+        "Sterk resultaat: er waren nauwelijks verbeterpunten te vinden."
+    )
+
+    score_color = "#1FB6A4" if score >= 80 else ("#C77D00" if score >= 40 else "#FF4B3E")
+
+    fixes_html = ""
+    for i, fix in enumerate(fix_previews, 1):
+        fixes_html += f"""
+        <div style="background:#FFFFFF; border:1px solid #E4E2DA; border-radius:10px; padding:18px 20px; margin-bottom:12px;">
+          <div style="font-family:'Courier New',monospace; font-size:11px; color:#FF4B3E; text-transform:uppercase; margin-bottom:6px;">Fix {i}</div>
+          <strong style="font-size:15px; display:block; margin-bottom:6px;">{fix.get('titel','')}</strong>
+          <p style="font-size:13px; color:#3B3D57; margin:0 0 10px;">{fix.get('uitleg', fix.get('voor',''))}</p>
+          <div style="background:#F6F5F1; border-radius:6px; padding:10px 12px; font-size:12.5px; color:#085041; font-family:'Courier New',monospace; white-space:pre-wrap;">{fix.get('oplossing', fix.get('na',''))}</div>
         </div>
         """
 
-    fixes_html = ""
-    for fix in fix_previews:
-        fixes_html += f"""
-        <div style="background:#F6F5F1; border-radius:8px; padding:14px; margin-bottom:10px;">
-          <strong style="font-size:13.5px;">{fix['titel']}</strong><br>
-          <span style="font-size:12.5px; color:#3B3D57;">Nu: {fix['voor']}</span><br>
-          <span style="font-size:12.5px; color:#085041;">Na: {fix['na']}</span>
-        </div>
+    goed_html = ""
+    if goed:
+        items = "".join(f"<li style='margin-bottom:4px;'>{c['titel']}</li>" for c in goed)
+        goed_html = f"""
+        <h3 style="font-size:15px; margin-top:28px; margin-bottom:10px;">Wat al goed staat</h3>
+        <ul style="font-size:13px; color:#3B3D57; padding-left:18px;">{items}</ul>
         """
 
     body = f"""
-    <p style="font-size:14.5px;"><strong>Score: {scan_result.get('score')}/100</strong> voor {webshop_url}</p>
-    {checks_html}
-    <h3 style="font-size:16px; margin-top:24px;">De aanpassingen</h3>
+    <div style="background:#12142B; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
+      <div style="font-family:'Courier New',monospace; font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;">AI-zichtbaarheidsscore</div>
+      <div style="font-size:40px; font-weight:700; color:{score_color};">{score}<span style="font-size:18px; color:#8B8DA8;">/100</span></div>
+      <div style="font-size:13px; color:#B9BBD4; margin-top:4px;">{webshop_url}</div>
+    </div>
+    <p style="font-size:14.5px;">{intro_line}</p>
+    <h3 style="font-size:16px; margin-top:24px; margin-bottom:12px;">De oplossingen, klaar om te gebruiken</h3>
     {fixes_html}
+    {goed_html}
     """
     html = _base_html(
         "Je Krillo-audit is klaar",
-        f"Hierbij de volledige audit voor {webshop_url}, met alle verbeterpunten en de aanpassingen om ze op te lossen.",
+        f"Hierbij de volledige audit voor {webshop_url}.",
         body,
     )
     return send_email(to_email, "Je Krillo-audit is klaar", html)

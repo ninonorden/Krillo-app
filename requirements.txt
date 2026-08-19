@@ -3,3 +3,4 @@ requests
 beautifulsoup4
 gunicorn
 mollie-api-python
+anthropic

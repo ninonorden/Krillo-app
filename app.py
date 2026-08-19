@@ -17,6 +17,7 @@ from flask import Flask, request, jsonify, render_template, redirect
 from scan_engine import run_scan
 import payments
 import emailing
+import ai_content
 
 app = Flask(__name__)
 
@@ -102,7 +103,8 @@ def mollie_webhook():
         if payment_type == "audit" and webshop_url and email:
             scan_result = run_scan(webshop_url)
             if "error" not in scan_result:
-                fixes = scan_result.get("voorbeeldfixes", [])
+                ai_fixes = ai_content.generate_ai_fixes(webshop_url, scan_result.get("checks", []))
+                fixes = ai_fixes if ai_fixes is not None else scan_result.get("voorbeeldfixes", [])
                 emailing.send_audit_email(email, webshop_url, scan_result, fixes)
 
         elif payment_type == "monitoring_first_payment":
