@@ -12,6 +12,8 @@ import os
 import json
 
 import anthropic
+import requests
+from bs4 import BeautifulSoup
 
 MODEL = "claude-sonnet-4-6"
 
@@ -29,6 +31,36 @@ Schrijfregels, altijd aanhouden:
 """
 
 
+def _get_page_context(webshop_url, extra_page_urls=None):
+    """Haalt de daadwerkelijke pagina('s) op en trekt er bruikbare context uit
+    (titel, omschrijving, en een stuk zichtbare tekst), zodat de AI de
+    sector en toon van de webshop kan meewegen, over meerdere pagina's heen
+    in plaats van alleen de homepage."""
+    alle_urls = [webshop_url] + (extra_page_urls or [])
+    context_stukken = []
+    for pagina_url in alle_urls[:4]:  # maximaal 4 pagina's, om de prompt behapbaar te houden
+        url = pagina_url
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        try:
+            resp = requests.get(url, headers={"User-Agent": "KrilloContentBot/0.1"}, timeout=10)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            title = soup.title.string.strip() if soup.title and soup.title.string else ""
+            desc_tag = soup.find("meta", attrs={"name": "description"})
+            description = desc_tag["content"].strip() if desc_tag and desc_tag.get("content") else ""
+            for tag in soup(["script", "style", "noscript"]):
+                tag.decompose()
+            visible_text = " ".join(soup.get_text(" ", strip=True).split())[:800]
+            context_stukken.append(
+                f"--- Pagina: {pagina_url} ---\nTitel: {title}\nOmschrijving: {description}\nTekst (fragment): {visible_text}"
+            )
+        except Exception:
+            continue
+    if not context_stukken:
+        return "Kon de pagina-inhoud niet ophalen, baseer je alleen op de bevindingen hieronder."
+    return "\n\n".join(context_stukken)
+
+
 def _get_client():
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -36,7 +68,7 @@ def _get_client():
     return anthropic.Anthropic(api_key=api_key)
 
 
-def generate_ai_fixes(webshop_url, checks):
+def generate_ai_fixes(webshop_url, checks, extra_page_urls=None):
     """Genereert voor elk probleem (status != ok) een concrete, site-specifieke
     oplossing via Claude. Geeft een lijst met fixes terug, of None als er geen
     AI-sleutel is (dan valt de aanroepende code terug op de sjabloon-versie)."""
@@ -51,14 +83,23 @@ def generate_ai_fixes(webshop_url, checks):
     problemen_tekst = "\n".join(
         f"- {p['titel']} ({p['categorie']}): {p['uitleg']}" for p in problemen
     )
+    pagina_context = _get_page_context(webshop_url, extra_page_urls)
 
     prompt = f"""{HUISSTIJL_INSTRUCTIES}
+
+Dit is de daadwerkelijke inhoud van de pagina, gebruik dit om de sector, toon
+en het soort producten van deze webshop mee te wegen in je tekst, zodat het
+niet generiek aanvoelt:
+
+{pagina_context}
 
 Dit zijn de gevonden problemen voor de webshop {webshop_url}:
 
 {problemen_tekst}
 
-Schrijf voor ELK van deze problemen een concrete oplossing. Voor tekstuele
+Schrijf voor ELK van deze problemen een concrete oplossing. Gebruik de sector,
+producten en toon van de pagina hierboven, zodat de tekst duidelijk over déze
+specifieke webshop gaat, niet over een willekeurige webshop. Voor tekstuele
 problemen (titel, omschrijving, veelgestelde vragen): schrijf de daadwerkelijke
 nieuwe tekst, alsof die al voor deze specifieke webshop is geschreven. Voor
 technische problemen (ontbrekende code, sitemap, robots.txt): geef de exacte
@@ -80,7 +121,7 @@ Antwoord ALLEEN met geldige JSON, in dit exacte formaat, niets ervoor of erna:
     try:
         response = client.messages.create(
             model=MODEL,
-            max_tokens=2000,
+            max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
         )
         raw_text = response.content[0].text.strip()

@@ -3,7 +3,90 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Krillo: word je webshop aanbevolen door AI?</title>
+<title>Krillo: wordt jouw webshop aanbevolen door ChatGPT en Gemini?</title>
+<meta name="description" content="Krillo scant je webshop en laat zien of AI-assistenten zoals ChatGPT en Gemini je vinden en aanbevelen. Gratis scan, en een audit die de verbeterpunten voor je oplost. Voor Nederlandse en Belgische webshops.">
+<link rel="canonical" href="https://www.krillo.nl/">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://www.krillo.nl/">
+<meta property="og:title" content="Krillo: wordt jouw webshop aanbevolen door ChatGPT en Gemini?">
+<meta property="og:description" content="Scan gratis of AI-assistenten jouw webshop vinden en aanbevelen, en los de verbeterpunten direct op.">
+<meta property="og:image" content="https://www.krillo.nl/static/krillo-share.png">
+<meta property="og:locale" content="nl_NL">
+<meta property="og:site_name" content="Krillo">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Krillo: wordt jouw webshop aanbevolen door ChatGPT en Gemini?">
+<meta name="twitter:description" content="Scan gratis of AI-assistenten jouw webshop vinden en aanbevelen.">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Krillo",
+  "url": "https://www.krillo.nl",
+  "email": "hallo@krillo.nl",
+  "description": "Krillo laat webshop-eigenaren zien of AI-assistenten zoals ChatGPT en Gemini hun webshop vinden en aanbevelen, en lost de verbeterpunten op.",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Gerard Doustraat 22-3V",
+    "addressLocality": "Amsterdam",
+    "addressCountry": "NL"
+  },
+  "areaServed": ["NL", "BE"]
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "name": "AI-zichtbaarheidsscan en audit",
+  "provider": {"@type": "Organization", "name": "Krillo", "url": "https://www.krillo.nl"},
+  "description": "Een scan die laat zien hoe goed een webshop gevonden en aanbevolen wordt door AI-assistenten, plus een audit die de verbeterpunten oplost.",
+  "areaServed": ["NL", "BE"],
+  "offers": [
+    {"@type": "Offer", "name": "Gratis scan", "price": "0", "priceCurrency": "EUR"},
+    {"@type": "Offer", "name": "Volledige audit", "price": "79", "priceCurrency": "EUR"},
+    {"@type": "Offer", "name": "Monitoring", "price": "39", "priceCurrency": "EUR"}
+  ]
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Wat is AI-zichtbaarheid?",
+      "acceptedAnswer": {"@type": "Answer", "text": "AI-zichtbaarheid gaat over de vraag of AI-assistenten zoals ChatGPT, Gemini en Perplexity jouw webshop kunnen vinden, begrijpen en aanbevelen. Steeds meer kopers vragen een AI om een aanbeveling in plaats van zelf te zoeken. Als de AI je shop niet kent, mis je die klant."}
+    },
+    {
+      "@type": "Question",
+      "name": "Is de scan echt gratis?",
+      "acceptedAnswer": {"@type": "Answer", "text": "Ja. Je vult je webshop-URL in en krijgt binnen een minuut je score en alle bevindingen te zien, zonder account en zonder betaalgegevens. Betalen doe je pas als je de audit of monitoring wil."}
+    },
+    {
+      "@type": "Question",
+      "name": "Wat krijg ik bij de volledige audit?",
+      "acceptedAnswer": {"@type": "Answer", "text": "Voor elk gevonden verbeterpunt een uitgeschreven oplossing: herschreven teksten die zijn geschreven voor jouw producten en sector, en technische code die je direct kan plakken. Alles staat op een eigen rapportpagina waar je altijd op terug kan komen."}
+    },
+    {
+      "@type": "Question",
+      "name": "Voor wie is Krillo bedoeld?",
+      "acceptedAnswer": {"@type": "Answer", "text": "Voor eigenaren van Nederlandse en Belgische webshops die dit zelf willen regelen, zonder marketingbureau en zonder technische kennis. Alles staat in gewone taal uitgelegd."}
+    },
+    {
+      "@type": "Question",
+      "name": "Kan ik het abonnement op elk moment opzeggen?",
+      "acceptedAnswer": {"@type": "Answer", "text": "Ja. Er is geen minimale looptijd. Je zegt op wanneer je wil, en houdt toegang tot het einde van de al betaalde periode."}
+    }
+  ]
+}
+</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -101,6 +184,10 @@
     color:var(--coral); margin:18px 0 6px; font-weight:500;
   }
   .scan-categorie-label:first-child{margin-top:0;}
+  .scan-vergelijking{
+    font-size:13px; color:var(--ink-soft); margin-bottom:16px;
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
   .scan-cta{
     margin-top:24px; padding:20px; border-radius:12px;
     background:var(--ink); color:var(--paper);
@@ -186,6 +273,15 @@
   .fix-preview-label.na{background:var(--teal-dim); color:#085041;}
   .fix-preview-text{font-size:13px; color:var(--ink-soft); line-height:1.5;}
   .fix-preview-code{font-family:var(--mono); font-size:11.5px; background:var(--paper); padding:8px 10px; border-radius:6px; display:block; white-space:pre-wrap;}
+  .fix-preview-blurred{
+    position:relative; filter:blur(4.5px); user-select:none; pointer-events:none;
+    max-height:60px; overflow:hidden;
+  }
+  .fix-preview-lock{
+    font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+    margin-top:8px; display:flex; align-items:center; gap:6px;
+  }
+  .fix-preview-lock .dot{width:5px; height:5px; border-radius:50%; background:var(--coral); flex-shrink:0;}
   .scan-result-score{
     display:flex; align-items:center; gap:14px; margin-bottom:14px;
   }
@@ -273,6 +369,18 @@
     background:var(--paper-raised); border:1px solid var(--line); border-radius:16px;
     padding:32px; display:grid; grid-template-columns:200px 1fr; gap:36px; align-items:center;
   }
+  .audit-teaser{
+    background:var(--ink); border-radius:16px; padding:32px; margin-top:20px; color:var(--paper);
+  }
+  .audit-teaser-head{margin-bottom:24px;}
+  .audit-teaser-badge{
+    font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.06em;
+    background:var(--coral); color:#fff; padding:4px 10px; border-radius:100px; display:inline-block; margin-bottom:12px;
+  }
+  .audit-teaser h3{font-family:var(--disp); font-weight:700; font-size:22px; letter-spacing:-0.01em;}
+  .audit-teaser-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px 28px;}
+  .audit-teaser-item strong{display:block; font-family:var(--disp); font-size:15px; margin-bottom:5px;}
+  .audit-teaser-item p{font-size:13.5px; color:#B9BBD4; line-height:1.6;}
   .score-ring-wrap{display:flex; flex-direction:column; align-items:center; gap:10px;}
   .score-num{font-family:var(--disp); font-weight:700; font-size:44px;}
   .score-of{font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
@@ -339,6 +447,7 @@
     h1{font-size:38px;}
     .stat-row, .how-grid, .price-grid{grid-template-columns:1fr;}
     .score-panel{grid-template-columns:1fr;}
+    .audit-teaser-grid{grid-template-columns:1fr;}
     .navlinks{display:none;}
     .footer-top{grid-template-columns:1fr 1fr; gap:28px 20px;}
     .footer-bottom{flex-direction:column; gap:10px; align-items:flex-start;}
@@ -432,7 +541,8 @@
 <section id="voorbeeld">
   <div class="wrap">
     <div class="section-label">Een voorbeeldresultaat</div>
-    <h2>Score, plus wat je er die dag nog aan doet.</h2>
+    <h2>Wat je ziet, en wat je krijgt.</h2>
+    <p class="section-sub">De gratis scan laat zien wat er mis is. De audit lost het op, met teksten en code die specifiek voor jouw shop geschreven zijn.</p>
     <div class="score-panel">
       <div class="score-ring-wrap">
         <svg width="140" height="140" viewBox="0 0 140 140">
@@ -450,6 +560,31 @@
         <div class="fix-item"><span class="fix-tag oplosbaar">automatisch op te lossen</span> Je veelgestelde vragen zijn niet herkenbaar voor AI. Dit lossen we automatisch op.</div>
       </div>
     </div>
+
+    <div class="audit-teaser">
+      <div class="audit-teaser-head">
+        <span class="audit-teaser-badge">In de audit</span>
+        <h3>Voor elk punt een kant-en-klare oplossing</h3>
+      </div>
+      <div class="audit-teaser-grid">
+        <div class="audit-teaser-item">
+          <strong>Herschreven teksten</strong>
+          <p>Titel, omschrijving en veelgestelde vragen, geschreven voor jouw producten en jouw sector, niet uit een sjabloon.</p>
+        </div>
+        <div class="audit-teaser-item">
+          <strong>Technische code om te plakken</strong>
+          <p>De ontbrekende productinformatie als kant-en-klare code, met uitleg waar je het neerzet.</p>
+        </div>
+        <div class="audit-teaser-item">
+          <strong>Meerdere pagina's gecheckt</strong>
+          <p>Niet alleen je homepage, ook je product- en categoriepagina's, want daar staat wat AI echt moet vinden.</p>
+        </div>
+        <div class="audit-teaser-item">
+          <strong>Een eigen rapportpagina</strong>
+          <p>Alles overzichtelijk op een eigen pagina waar je altijd op terug kan komen, niet alleen in een mail.</p>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -462,9 +597,10 @@
         <div class="price-name">Gratis scan</div>
         <div class="price-amount">€0</div>
         <ul class="price-feats">
-          <li>Score in 60 seconden</li>
-          <li>Top 3 verbeterpunten</li>
-          <li>Eén scan per week</li>
+          <li>Je score binnen een minuut</li>
+          <li>Alle 13 controlepunten met uitleg</li>
+          <li>Je ziet welke problemen er zijn</li>
+          <li>Geen account, geen betaalgegevens</li>
         </ul>
         <a class="price-btn ghost" href="#scan">Start gratis</a>
       </div>
@@ -473,9 +609,11 @@
         <div class="price-name">Volledige audit</div>
         <div class="price-amount">€79 <span>eenmalig</span></div>
         <ul class="price-feats">
-          <li>Alle verbeterpunten</li>
-          <li>Automatisch herschreven teksten</li>
-          <li>Kant-en-klare technische aanpassingen om te plakken</li>
+          <li>Voor elk verbeterpunt een uitgeschreven oplossing</li>
+          <li>Teksten geschreven voor jouw producten, niet uit een sjabloon</li>
+          <li>Technische code die je direct kan plakken</li>
+          <li>Ook je product- en categoriepagina's gecheckt</li>
+          <li>Eigen rapportpagina waar je op terug kan komen</li>
         </ul>
         <a class="price-btn solid" href="#scan" id="auditCheckoutBtn">Vraag audit aan</a>
       </div>
@@ -483,10 +621,11 @@
         <div class="price-name">Monitoring</div>
         <div class="price-amount">€39 <span>/maand</span></div>
         <ul class="price-feats">
-          <li>Wekelijkse her-scan</li>
-          <li>Nieuwe verbeterpunten sinds vorige scan</li>
-          <li>Concurrenten die je voorbijstreven, direct gemeld</li>
-          <li>Melding bij score-daling</li>
+          <li>Elke week automatisch opnieuw gescand</li>
+          <li>Je scoreverloop op een eigen pagina</li>
+          <li>Melding zodra je score daalt</li>
+          <li>Nieuwe verbeterpunten zodra ze ontstaan</li>
+          <li>Maandelijks opzegbaar, geen looptijd</li>
         </ul>
         <a class="price-btn ghost" href="#scan" id="monitoringCheckoutBtn">Start abonnement</a>
       </div>
@@ -523,21 +662,20 @@
       </div>
       <div class="footer-col">
         <h4>Product</h4>
-        <a href="#scan">Gratis scan</a>
-        <a href="#hoe">Hoe het werkt</a>
-        <a href="#voorbeeld">Voorbeeld</a>
-        <a href="#prijzen">Prijzen</a>
+        <a href="/#scan">Gratis scan</a>
+        <a href="/#hoe">Hoe het werkt</a>
+        <a href="/#voorbeeld">Voorbeeld</a>
+        <a href="/#prijzen">Prijzen</a>
       </div>
       <div class="footer-col">
         <h4>Bedrijf</h4>
-        <a href="#">Over ons</a>
-        <a href="#">Contact</a>
-        <a href="#">Veelgestelde vragen</a>
+        <a href="/over-ons">Over Krillo</a>
+        <a href="/veelgestelde-vragen">Veelgestelde vragen</a>
       </div>
       <div class="footer-col">
         <h4>Contact</h4>
         <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a>
-        <a href="#">Plan een gesprek</a>
+        <a href="/over-ons">Adres en gegevens</a>
       </div>
     </div>
     <div class="footer-bottom">
@@ -648,6 +786,16 @@
     html += '<div class="label">AI-zichtbaarheidsscore voor<br>' + data.url + '</div>';
     html += '</div>';
 
+    if(typeof data.vorige_score !== 'undefined'){
+      var verschil = data.verschil;
+      var kleur = verschil > 0 ? 'goed' : (verschil < 0 ? 'probleem' : 'deels');
+      var teken = verschil > 0 ? '+' : '';
+      html += '<div class="scan-vergelijking">';
+      html += 'Vorige score: ' + data.vorige_score + '/100 &rarr; nu: ' + data.score + '/100 ';
+      html += '<span class="tag ' + kleur + '">' + teken + verschil + '</span>';
+      html += '</div>';
+    }
+
     var byCategorie = {};
     data.checks.forEach(function(check){
       var cat = check.categorie || 'overig';
@@ -670,12 +818,13 @@
     var totalCount = data.checks.length;
 
     if(data.voorbeeldfixes && data.voorbeeldfixes.length > 0){
-      html += '<div class="scan-categorie-label">Zo lost de audit dit voor je op, een voorbeeld</div>';
+      html += '<div class="scan-categorie-label">Wat de audit voor je oplost</div>';
       data.voorbeeldfixes.forEach(function(fix){
         html += '<div class="fix-preview">';
         html += '<div class="fix-preview-title">' + fix.titel + '</div>';
         html += '<div class="fix-preview-row"><span class="fix-preview-label voor">nu</span><span class="fix-preview-text">' + fix.voor + '</span></div>';
-        html += '<div class="fix-preview-row"><span class="fix-preview-label na">na de audit</span><span class="fix-preview-text fix-preview-code">' + fix.na.replace(/\n/g, '<br>') + '</span></div>';
+        html += '<div class="fix-preview-row"><span class="fix-preview-label na">na de audit</span><span class="fix-preview-text fix-preview-code fix-preview-blurred">' + fix.na.replace(/\n/g, '<br>') + '</span></div>';
+        html += '<div class="fix-preview-lock"><span class="dot"></span>De volledige oplossing zit in de audit</div>';
         html += '</div>';
       });
     }
@@ -683,7 +832,7 @@
     if(issueCount > 0){
       html += '<div class="scan-cta">';
       html += '<div class="scan-cta-text"><strong>' + issueCount + ' van de ' + totalCount + ' punten kunnen beter.</strong> ';
-      html += 'De volledige audit lost dit automatisch voor je op: herschreven teksten en kant-en-klare technische aanpassingen, klaar om te plakken.</div>';
+      html += 'De audit schrijft voor elk punt de oplossing uit: herschreven teksten voor jouw producten, en technische code die je direct kan plakken.</div>';
       html += '<a href="#prijzen" class="scan-cta-btn">Bekijk de volledige audit &rarr;</a>';
       html += '</div>';
     } else {
@@ -754,9 +903,9 @@
     },
     monitoring: {
       items: [
-        'Elke week een nieuwe scan van je site',
-        'Melding zodra er iets verandert of een concurrent je voorbijstreeft',
-        'Nieuwe verbeterpunten zodra die ontstaan',
+        'Elke week automatisch opnieuw gescand',
+        'Je scoreverloop overzichtelijk op een eigen pagina',
+        'Melding zodra je score daalt of er iets verandert',
         'Op elk moment op te zeggen, geen minimale looptijd'
       ],
       delivery: 'Levering: je eerste scan ontvang je direct na aanmelding per e-mail, daarna elke week automatisch een update.'

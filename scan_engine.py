@@ -36,14 +36,30 @@ def normalize_url(url):
     return url
 
 
-def fetch(url, measure_time=False):
-    try:
-        start = time.monotonic()
-        resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-        elapsed = time.monotonic() - start
-        return (resp, elapsed) if measure_time else resp
-    except requests.RequestException:
-        return (None, None) if measure_time else None
+def fetch(url, measure_time=False, pogingen=3):
+    """Haalt een pagina op, met meerdere pogingen. Een tijdelijke storing mag
+    niet leiden tot een verkeerde score, dus we proberen het opnieuw voordat
+    we opgeven. Bij de tijdmeting nemen we de snelste poging, want dat is het
+    eerlijkste beeld van hoe snel de site echt is."""
+    snelste = None
+    laatste_resp = None
+    for poging in range(pogingen):
+        try:
+            start = time.monotonic()
+            resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+            elapsed = time.monotonic() - start
+            laatste_resp = resp
+            if snelste is None or elapsed < snelste:
+                snelste = elapsed
+            if not measure_time:
+                return resp
+        except requests.RequestException:
+            if poging < pogingen - 1:
+                time.sleep(0.5)
+            continue
+    if measure_time:
+        return (laatste_resp, snelste)
+    return laatste_resp
 
 
 def status_from_score(score):
@@ -107,12 +123,17 @@ def check_speed(elapsed):
     if elapsed is None:
         return make_check("snelheid", "Laadt de pagina snel genoeg?", "toegang", "gemiddeld", 0, "Kon de laadtijd niet meten.")
     ms = round(elapsed * 1000)
-    if ms <= 800:
+    # Ruimere grenzen dan voorheen: netwerkschommelingen mogen niet steeds een
+    # andere score opleveren voor dezelfde website. Dit is de snelste van
+    # meerdere metingen, dus het beste beeld van wat de site echt kan.
+    if ms <= 1500:
         score, uitleg = 100, f"De pagina reageerde in {ms} ms, dat is snel genoeg om geen probleem te zijn."
-    elif ms <= 2000:
-        score, uitleg = 65, f"De pagina reageerde in {ms} ms. Dat kan sneller, maar is geen groot probleem."
+    elif ms <= 3000:
+        score, uitleg = 70, f"De pagina reageerde in {ms} ms. Dat kan sneller, maar is geen groot probleem."
+    elif ms <= 5000:
+        score, uitleg = 40, f"De pagina reageerde pas na {ms} ms. Dat is traag, bezoekers en AI-robots haken hierdoor eerder af."
     else:
-        score, uitleg = 25, f"De pagina reageerde pas na {ms} ms. Trage pagina's worden door zowel zoekmachines als AI-robots minder vaak volledig bezocht."
+        score, uitleg = 15, f"De pagina reageerde pas na {ms} ms. Trage pagina's worden door zowel zoekmachines als AI-robots minder vaak volledig bezocht."
     return make_check("snelheid", "Laadt de pagina snel genoeg?", "toegang", "gemiddeld", score, uitleg)
 
 
@@ -180,16 +201,28 @@ def check_structured_data(html):
     soup = BeautifulSoup(html, "html.parser")
     scripts = soup.find_all("script", type="application/ld+json")
     found_types = set()
+
+    def verzamel_types(node):
+        """Loopt de hele structuur door, ook geneste onderdelen, want veel
+        webshops zetten bijvoorbeeld Offer of Product genest in een groter blok."""
+        if isinstance(node, dict):
+            t = node.get("@type")
+            if isinstance(t, list):
+                found_types.update(t)
+            elif t:
+                found_types.add(t)
+            for waarde in node.values():
+                verzamel_types(waarde)
+        elif isinstance(node, list):
+            for item in node:
+                verzamel_types(item)
+
     for tag in scripts:
         try:
             data = json.loads(tag.string or "{}")
         except (json.JSONDecodeError, TypeError):
             continue
-        items = data if isinstance(data, list) else [data]
-        for item in items:
-            if isinstance(item, dict):
-                t = item.get("@type")
-                found_types.update(t) if isinstance(t, list) else (found_types.add(t) if t else None)
+        verzamel_types(data)
 
     core_types = {"Product", "Offer", "FAQPage"}
     bonus_types = {"Organization", "BreadcrumbList", "LocalBusiness", "Article", "WebPage"}
@@ -206,6 +239,41 @@ def check_structured_data(html):
     else:
         uitleg = "Er is geen machine-leesbare informatie (schema.org) gevonden op deze pagina. Let op: dit checkt de opgegeven pagina zelf; op een homepage is dit vaak leeg terwijl productpagina's dit wel hebben."
     return make_check("productinfo", "Kan AI de inhoud van deze pagina betrouwbaar uitlezen?", "structuur", "hoog", score, uitleg)
+
+
+def check_structured_data_multi(base_url, homepage_html, extra_pages):
+    """Zelfde check als check_structured_data, maar dan over de homepage EN
+    alle gevonden relevante pagina's heen. Telt mee zodra ergens goede
+    productinformatie staat, en rapporteert specifiek waar."""
+    alle_paginas = [(base_url, homepage_html)] + extra_pages
+    beste_check = None
+    beste_score = -1
+    gevonden_op = []
+
+    for pagina_url, pagina_html in alle_paginas:
+        check = check_structured_data(pagina_html)
+        if check["score"] > 0:
+            gevonden_op.append(pagina_url)
+        if check["score"] > beste_score:
+            beste_score = check["score"]
+            beste_check = check
+
+    if beste_check is None:
+        beste_check = check_structured_data(homepage_html)
+
+    if len(alle_paginas) > 1:
+        aantal_gecheckt = len(alle_paginas)
+        if gevonden_op:
+            beste_check["uitleg"] = (
+                f"Gecheckt over {aantal_gecheckt} pagina's (homepage + {aantal_gecheckt - 1} gevonden pagina's). "
+                f"Machine-leesbare informatie gevonden op: {', '.join(gevonden_op)}."
+            )
+        else:
+            beste_check["uitleg"] = (
+                f"Gecheckt over {aantal_gecheckt} pagina's (homepage + {aantal_gecheckt - 1} gevonden pagina's), "
+                "nergens machine-leesbare informatie (schema.org) gevonden."
+            )
+    return beste_check
 
 
 def check_sitemap(base_url):
@@ -388,6 +456,53 @@ def generate_fix_previews(url, checks, html):
     return previews[:3]
 
 
+def find_relevant_pages(base_url, html, limit=5):
+    """Zoekt vanaf de homepage naar meerdere relevante pagina's (producten,
+    categorieen, veelgestelde vragen), zodat de scan een eerlijker beeld van
+    de hele webshop krijgt, niet alleen de homepage. Dit is een bewust vast,
+    voorspelbaar proces (geen agent), want welke paden een webshop gebruikt
+    is voorspelbaar genoeg om hard te coderen, sneller en goedkoper dan een
+    agent die dat zelf moet ontdekken."""
+    if html is None:
+        return []
+    soup = BeautifulSoup(html, "html.parser")
+    domain = urlparse(base_url).netloc
+    kandidaat_woorden = ["product", "products", "shop", "winkel", "artikel", "artikelen",
+                          "collections", "catalogus", "catalog", "faq", "veelgestelde-vragen"]
+    uitgesloten_woorden = ["contact", "privacy", "voorwaarden", "cart", "winkelwagen",
+                            "account", "login", "over-ons", "about", "blog"]
+
+    gevonden = []
+    geziene_paden = set()
+    for a in soup.find_all("a", href=True):
+        if len(gevonden) >= limit:
+            break
+        href = a["href"]
+        volledige_url = urljoin(base_url, href)
+        parsed = urlparse(volledige_url)
+        if parsed.netloc and parsed.netloc != domain:
+            continue
+        segmenten = [s for s in parsed.path.lower().split("/") if s]
+        if not segmenten:
+            continue
+        if any(any(w in s for w in uitgesloten_woorden) for s in segmenten):
+            continue
+        if any(any(s == w or s.startswith(w + "-") or s.startswith(w) for w in kandidaat_woorden) for s in segmenten):
+            pad_key = parsed.path.lower()
+            if pad_key not in geziene_paden:
+                geziene_paden.add(pad_key)
+                gevonden.append(volledige_url)
+    # Altijd dezelfde volgorde, zodat dezelfde website ook echt dezelfde
+    # pagina's checkt en de score niet per scan verschilt.
+    return sorted(gevonden)[:limit]
+
+
+def find_product_page(base_url, html):
+    """Verouderd, gebruik find_relevant_pages. Blijft staan voor compatibiliteit."""
+    pages = find_relevant_pages(base_url, html, limit=1)
+    return pages[0] if pages else None
+
+
 def run_scan(url):
     """Voert de volledige gratis scan uit over alle categorieen en geeft score + checks terug."""
     url = normalize_url(url)
@@ -398,6 +513,21 @@ def run_scan(url):
     resp, elapsed = fetch(url, measure_time=True)
     html = resp.text if resp is not None else None
 
+    # Als de website helemaal niet te bereiken is, geven we geen misleidend
+    # laag cijfer, maar zeggen we eerlijk dat het niet gelukt is. Een score
+    # van 20 omdat de server even plat lag is erger dan geen score.
+    if html is None:
+        return {"error": "We konden deze website niet bereiken. Check of de URL klopt en of de site online is, en probeer het zo nogmaals."}
+
+    # Meerdere-pagina's-check: zoek tot 5 relevante pagina's (producten,
+    # categorieen, FAQ) en check die mee, niet alleen de homepage.
+    relevante_paginas = find_relevant_pages(url, html, limit=5)
+    extra_htmls = []
+    for pagina_url in relevante_paginas:
+        pagina_resp = fetch(pagina_url)
+        if pagina_resp is not None:
+            extra_htmls.append((pagina_url, pagina_resp.text))
+
     checks = [
         check_https(url),
         check_robots_txt(url),
@@ -405,7 +535,7 @@ def run_scan(url):
         check_javascript_dependency(html),
         check_heading_structuur(html),
         check_taal(html),
-        check_structured_data(html),
+        check_structured_data_multi(url, html, extra_htmls),
         check_sitemap(url),
         check_llms_txt(url),
         check_social_preview(html),
@@ -415,4 +545,7 @@ def run_scan(url):
     ]
     score = compute_score(checks)
     fix_previews = generate_fix_previews(url, checks, html)
-    return {"url": url, "score": score, "checks": checks, "voorbeeldfixes": fix_previews}
+    return {
+        "url": url, "score": score, "checks": checks, "voorbeeldfixes": fix_previews,
+        "gevonden_paginas": [p[0] for p in extra_htmls],
+    }

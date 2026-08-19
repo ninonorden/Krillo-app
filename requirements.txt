@@ -4,3 +4,4 @@ beautifulsoup4
 gunicorn
 mollie-api-python
 anthropic
+psycopg2-binary
