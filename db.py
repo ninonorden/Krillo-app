@@ -62,6 +62,17 @@ def init_db():
                         aangemaakt_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS facturen (
+                        factuurnummer SERIAL PRIMARY KEY,
+                        payment_id TEXT UNIQUE,
+                        email TEXT,
+                        bedrijfsnaam TEXT,
+                        omschrijving TEXT,
+                        bedrag NUMERIC(10,2),
+                        aangemaakt_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
                 cur.execute("ALTER TABLE rapporten ADD COLUMN IF NOT EXISTS klant_token TEXT;")
     finally:
         conn.close()
@@ -86,6 +97,32 @@ def claim_payment(payment_id):
     except Exception as e:
         print(f"Betaling claimen mislukt: {e}")
         return True
+    finally:
+        conn.close()
+
+
+def maak_factuur(payment_id, email, bedrijfsnaam, omschrijving, bedrag):
+    """Legt een factuur vast en geeft het factuurnummer terug. Elk nummer wordt
+    maar één keer uitgegeven, en per betaling kan er maar één factuur bestaan."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT factuurnummer FROM facturen WHERE payment_id = %s", (payment_id,))
+                bestaand = cur.fetchone()
+                if bestaand:
+                    return bestaand["factuurnummer"]
+                cur.execute(
+                    """INSERT INTO facturen (payment_id, email, bedrijfsnaam, omschrijving, bedrag)
+                       VALUES (%s, %s, %s, %s, %s) RETURNING factuurnummer""",
+                    (payment_id, email, bedrijfsnaam, omschrijving, bedrag),
+                )
+                return cur.fetchone()["factuurnummer"]
+    except Exception as e:
+        print(f"Factuur aanmaken mislukt: {e}")
+        return None
     finally:
         conn.close()
 

@@ -26,8 +26,38 @@ import requests
 from bs4 import BeautifulSoup
 
 AI_BOTS = ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended", "OAI-SearchBot", "anthropic-ai"]
-TIMEOUT = 10
-HEADERS = {"User-Agent": "VezoraScanBot/0.3 (+https://vezora.nl)"}
+TIMEOUT = 15
+# We melden ons aan zoals een gewone browser. Veel grotere webshops serveren
+# onbekende bezoekers een beveiligingspagina in plaats van de echte inhoud,
+# en dan zouden we een verkeerde score geven. We scannen altijd op verzoek van
+# de eigenaar zelf en houden ons aan de regels in robots.txt.
+HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 KrilloScanBot/0.4 "
+                    "(+https://www.krillo.nl)"),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
+}
+
+# Kenmerken van beveiligings- of controlepagina's. Krijgen we zoiets terug,
+# dan is dat niet de echte website en mogen we er geen score aan hangen.
+BLOKKADE_KENMERKEN = [
+    "just a moment", "checking your browser", "cf-browser-verification",
+    "attention required", "captcha", "ddos protection", "access denied",
+    "enable javascript and cookies to continue",
+]
+
+
+def lijkt_op_blokkadepagina(html):
+    """Herkent of we een beveiligingspagina hebben gekregen in plaats van de
+    echte website. Zonder deze controle zouden we die pagina scoren, met een
+    onterecht laag cijfer als gevolg."""
+    if not html:
+        return False
+    kort = len(html) < 2000
+    tekst = html[:5000].lower()
+    heeft_kenmerk = any(k in tekst for k in BLOKKADE_KENMERKEN)
+    return heeft_kenmerk and kort
 
 
 def normalize_url(url):
@@ -49,6 +79,13 @@ def fetch(url, measure_time=False, pogingen=3):
             resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
             elapsed = time.monotonic() - start
             laatste_resp = resp
+
+            # Kregen we een beveiligingspagina in plaats van de echte site,
+            # dan even wachten en opnieuw proberen.
+            if lijkt_op_blokkadepagina(resp.text) and poging < pogingen - 1:
+                time.sleep(1.5)
+                continue
+
             if snelste is None or elapsed < snelste:
                 snelste = elapsed
             if not measure_time:
@@ -522,14 +559,19 @@ def run_scan(url):
     if html is None:
         return {"error": "We konden deze website niet bereiken. Check of de URL klopt en of de site online is, en probeer het zo nogmaals."}
 
+    if lijkt_op_blokkadepagina(html):
+        return {"error": "Deze website stuurde ons een beveiligingscontrole in plaats van de echte pagina, waardoor we geen betrouwbare score kunnen geven. Probeer het over een paar minuten nogmaals."}
+
     # Meerdere-pagina's-check: zoek tot 5 relevante pagina's (producten,
     # categorieen, FAQ) en check die mee, niet alleen de homepage.
     relevante_paginas = find_relevant_pages(url, html, limit=5)
     extra_htmls = []
     for pagina_url in relevante_paginas:
         pagina_resp = fetch(pagina_url)
-        if pagina_resp is not None:
+        if pagina_resp is not None and not lijkt_op_blokkadepagina(pagina_resp.text):
             extra_htmls.append((pagina_url, pagina_resp.text))
+        # Even rustig aan, zodat grotere webshops ons niet als een aanval zien.
+        time.sleep(0.4)
 
     checks = [
         check_https(url),

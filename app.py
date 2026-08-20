@@ -154,10 +154,11 @@ def checkout_audit():
     data = request.get_json(silent=True) or {}
     webshop_url = (data.get("url") or "").strip()
     email = (data.get("email") or "").strip()
+    bedrijfsnaam = (data.get("bedrijfsnaam") or "").strip()
     if not webshop_url or not email:
         return jsonify({"error": "Vul een webshop-URL en e-mailadres in."}), 400
 
-    result = payments.create_audit_payment(get_base_url(), webshop_url, email)
+    result = payments.create_audit_payment(get_base_url(), webshop_url, email, bedrijfsnaam)
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
@@ -168,10 +169,11 @@ def checkout_monitoring():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip()
     webshop_url = (data.get("url") or "").strip()
+    bedrijfsnaam = (data.get("bedrijfsnaam") or "").strip()
     if not email or not webshop_url:
         return jsonify({"error": "Vul een e-mailadres en webshop-URL in."}), 400
 
-    result = payments.create_monitoring_signup(get_base_url(), email, webshop_url)
+    result = payments.create_monitoring_signup(get_base_url(), email, webshop_url, bedrijfsnaam)
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
@@ -209,6 +211,20 @@ def _verwerk_betaling(payment_id, base_url):
         payment_type = metadata.get("type")
         webshop_url = metadata.get("webshop_url")
         email = metadata.get("email")
+        bedrijfsnaam = metadata.get("bedrijfsnaam")
+
+        # Eerst de betaalbevestiging met factuur, die hoort er meteen te zijn.
+        # De audit zelf duurt langer omdat er gescand en geschreven moet worden.
+        if email:
+            if payment_type == "audit":
+                omschrijving = f"Krillo volledige audit voor {webshop_url}"
+            else:
+                omschrijving = f"Krillo monitoring, eerste maand, voor {webshop_url}"
+            bedrag = status.get("bedrag")
+            if bedrag is not None:
+                factuurnummer = db.maak_factuur(payment_id, email, bedrijfsnaam, omschrijving, bedrag)
+                if factuurnummer:
+                    emailing.send_factuur_email(email, factuurnummer, omschrijving, bedrag, bedrijfsnaam)
 
         if payment_type == "audit" and webshop_url and email:
             scan_result = run_scan(webshop_url)

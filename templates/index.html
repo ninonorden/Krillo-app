@@ -647,6 +647,10 @@
       <label for="checkoutEmail">E-mailadres</label>
       <input type="email" id="checkoutEmail" placeholder="jij@jouwwebshop.nl">
     </div>
+    <div class="checkout-field">
+      <label for="checkoutBedrijf">Bedrijfsnaam <span style="color:#3B3D57; font-weight:400;">(optioneel, voor op je factuur)</span></label>
+      <input type="text" id="checkoutBedrijf" placeholder="Jouw Webshop BV">
+    </div>
     <div class="checkout-error" id="checkoutError"></div>
     <button class="checkout-submit" id="checkoutSubmit">Doorgaan naar betalen</button>
     <div class="checkout-note">Je gaat door naar Mollie om veilig te betalen.</div>
@@ -886,6 +890,7 @@
   var urlInput = document.getElementById('checkoutUrl');
   var emailField = document.getElementById('checkoutEmailField');
   var emailInput = document.getElementById('checkoutEmail');
+  var bedrijfInput = document.getElementById('checkoutBedrijf');
   var errorBox = document.getElementById('checkoutError');
   var submitBtn = document.getElementById('checkoutSubmit');
   var closeBtn = document.getElementById('checkoutClose');
@@ -932,6 +937,7 @@
     clearError();
     prefillUrl();
     emailInput.value = '';
+    bedrijfInput.value = '';
     var content = includesContent[type];
     var html = '';
     content.items.forEach(function(item){
@@ -975,7 +981,7 @@
     submitBtn.textContent = 'Bezig...';
 
     var endpoint = currentType === 'audit' ? '/api/checkout/audit' : '/api/checkout/monitoring';
-    var body = {url: url, email: email};
+    var body = {url: url, email: email, bedrijfsnaam: bedrijfInput.value.trim()};
 
     fetch(endpoint, {
       method: 'POST',

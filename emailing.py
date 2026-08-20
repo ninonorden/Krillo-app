@@ -16,6 +16,7 @@ Optioneel:
 
 import os
 import requests
+from datetime import datetime
 
 BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
@@ -76,6 +77,86 @@ def _base_html(title, intro, body_html):
       </p>
     </div>
     """
+
+
+BEDRIJFSGEGEVENS = {
+    "naam": "Krillo",
+    "adres": "Gerard Doustraat 22-3V",
+    "plaats": "1072 VW Amsterdam",
+    "kvk": "78439620",
+    "btw": "NL855820627B01",
+    "email": "hallo@krillo.nl",
+}
+
+
+def send_factuur_email(to_email, factuurnummer, omschrijving, bedrag, bedrijfsnaam=None, datum=None):
+    """Stuurt een betaalbevestiging met factuur. Of er BTW op staat hangt af van
+    de instelling BTW_REGELING in Render: 'kor' betekent geen BTW berekenen
+    (kleineondernemersregeling), 'btw' betekent wel. Zet die op 'btw' zodra je
+    boven de KOR-grens komt, dan verandert de factuur vanzelf mee."""
+    regeling = os.environ.get("BTW_REGELING", "kor").lower()
+    datum = datum or datetime.now().strftime("%d-%m-%Y")
+    factuurnr = f"KR-{datetime.now().year}-{factuurnummer:04d}"
+
+    if regeling == "btw":
+        excl = round(bedrag / 1.21, 2)
+        btw_bedrag = round(bedrag - excl, 2)
+        bedragen_html = f"""
+        <tr><td style="padding:6px 0; color:#3B3D57;">Bedrag exclusief btw</td>
+            <td style="padding:6px 0; text-align:right;">&euro; {excl:.2f}</td></tr>
+        <tr><td style="padding:6px 0; color:#3B3D57;">Btw 21%</td>
+            <td style="padding:6px 0; text-align:right;">&euro; {btw_bedrag:.2f}</td></tr>
+        <tr><td style="padding:10px 0 0; border-top:1px solid #E4E2DA;"><strong>Totaal betaald</strong></td>
+            <td style="padding:10px 0 0; border-top:1px solid #E4E2DA; text-align:right;"><strong>&euro; {bedrag:.2f}</strong></td></tr>
+        """
+        btw_regel = f"<p style='font-size:12px; color:#3B3D57;'>Btw-identificatienummer: {BEDRIJFSGEGEVENS['btw']}</p>"
+    else:
+        bedragen_html = f"""
+        <tr><td style="padding:10px 0 0;"><strong>Totaal betaald</strong></td>
+            <td style="padding:10px 0 0; text-align:right;"><strong>&euro; {bedrag:.2f}</strong></td></tr>
+        """
+        btw_regel = ("<p style='font-size:12px; color:#3B3D57;'>Geen btw in rekening gebracht op grond van "
+                      "de kleineondernemersregeling.</p>")
+
+    klantregel = f"<div style='font-size:13px; color:#3B3D57;'>{bedrijfsnaam}</div>" if bedrijfsnaam else ""
+
+    body = f"""
+    <p style="font-size:14.5px;">Je betaling is gelukt. Hieronder vind je de factuur, bewaar deze voor je administratie.</p>
+
+    <div style="background:#FFFFFF; border:1px solid #E4E2DA; border-radius:12px; padding:24px; margin:20px 0;">
+      <table style="width:100%; font-size:13px; margin-bottom:18px;">
+        <tr>
+          <td style="vertical-align:top;">
+            <strong style="font-size:14px;">{BEDRIJFSGEGEVENS['naam']}</strong><br>
+            <span style="color:#3B3D57;">{BEDRIJFSGEGEVENS['adres']}<br>
+            {BEDRIJFSGEGEVENS['plaats']}<br>
+            KVK {BEDRIJFSGEGEVENS['kvk']}</span>
+          </td>
+          <td style="vertical-align:top; text-align:right;">
+            <span style="color:#3B3D57;">Factuurnummer</span><br>
+            <strong>{factuurnr}</strong><br>
+            <span style="color:#3B3D57;">Datum</span><br>
+            {datum}
+          </td>
+        </tr>
+      </table>
+
+      <div style="font-size:12px; color:#3B3D57; margin-bottom:4px;">Aan</div>
+      {klantregel}
+      <div style="font-size:13px; color:#3B3D57; margin-bottom:18px;">{to_email}</div>
+
+      <table style="width:100%; font-size:13.5px; border-top:1px solid #E4E2DA; padding-top:10px;">
+        <tr><td style="padding:10px 0 6px;">{omschrijving}</td>
+            <td style="padding:10px 0 6px; text-align:right;">&euro; {bedrag:.2f}</td></tr>
+        {bedragen_html}
+      </table>
+
+      <div style="margin-top:16px;">{btw_regel}</div>
+      <p style="font-size:12px; color:#3B3D57; margin:0;">Dit bedrag is al voldaan, je hoeft niets meer te doen.</p>
+    </div>
+    """
+    html = _base_html("Je betaling is gelukt", "Bedankt voor je aankoop bij Krillo.", body)
+    return send_email(to_email, f"Je factuur van Krillo ({factuurnr})", html)
 
 
 def _score_button(report_url, label="Bekijk het volledige rapport"):
