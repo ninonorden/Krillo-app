@@ -114,6 +114,27 @@ def init_db():
                     );
                 """)
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS ai_antwoorden (
+                        id SERIAL PRIMARY KEY,
+                        meting_id TEXT NOT NULL,
+                        webshop_url TEXT NOT NULL,
+                        vraag_id INTEGER,
+                        vraag TEXT NOT NULL,
+                        intentie TEXT,
+                        provider TEXT,
+                        model TEXT,
+                        antwoord TEXT,
+                        gelukt BOOLEAN DEFAULT true,
+                        foutsoort TEXT,
+                        invoer_tokens INTEGER DEFAULT 0,
+                        uitvoer_tokens INTEGER DEFAULT 0,
+                        duur_ms INTEGER,
+                        gesteld_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_antwoorden_webshop ON ai_antwoorden (webshop_url, gesteld_op);")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_antwoorden_meting ON ai_antwoorden (meting_id);")
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS kostengebeurtenissen (
                         gebeurtenis_id TEXT PRIMARY KEY,
                         soort TEXT NOT NULL,
@@ -368,6 +389,121 @@ def get_koopvragen(webshop_url, alleen_actief=True):
                 return cur.fetchall()
     except Exception as e:
         print(f"Koopvragen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def bewaar_ai_antwoord(gegevens):
+    """Bewaart een antwoord van een AI-model op een koopvraag, inclusief de
+    volledige tekst. Die tekst is het hele punt: als we later slimmer leren
+    beoordelen, willen we dat op oude antwoorden opnieuw kunnen doen."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO ai_antwoorden
+                       (meting_id, webshop_url, vraag_id, vraag, intentie, provider, model,
+                        antwoord, gelukt, foutsoort, invoer_tokens, uitvoer_tokens, duur_ms)
+                       VALUES (%(meting_id)s, %(webshop_url)s, %(vraag_id)s, %(vraag)s,
+                               %(intentie)s, %(provider)s, %(model)s, %(antwoord)s,
+                               %(gelukt)s, %(foutsoort)s, %(invoer_tokens)s,
+                               %(uitvoer_tokens)s, %(duur_ms)s)""",
+                    gegevens,
+                )
+                return True
+    except Exception as e:
+        print(f"AI-antwoord bewaren mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_metingen(webshop_url, limit=20):
+    """Overzicht van de meetrondes van een webshop, nieuwste eerst."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT meting_id,
+                              min(gesteld_op) AS gestart_op,
+                              count(*) AS aantal,
+                              count(*) FILTER (WHERE gelukt) AS gelukt,
+                              count(*) FILTER (WHERE NOT gelukt) AS mislukt,
+                              count(DISTINCT model) AS modellen
+                         FROM ai_antwoorden
+                        WHERE webshop_url = %s
+                     GROUP BY meting_id
+                     ORDER BY min(gesteld_op) DESC
+                        LIMIT %s""",
+                    (webshop_url, limit),
+                )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Metingen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_ai_antwoorden(webshop_url, meting_id=None, limit=200):
+    """De bewaarde antwoorden zelf. Zonder meting_id de laatste ronde."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if meting_id:
+                    cur.execute(
+                        """SELECT * FROM ai_antwoorden
+                            WHERE webshop_url = %s AND meting_id = %s
+                         ORDER BY vraag, provider LIMIT %s""",
+                        (webshop_url, meting_id, limit),
+                    )
+                else:
+                    cur.execute(
+                        """SELECT * FROM ai_antwoorden
+                            WHERE webshop_url = %s
+                              AND meting_id = (
+                                  SELECT meting_id FROM ai_antwoorden
+                                   WHERE webshop_url = %s
+                                ORDER BY gesteld_op DESC LIMIT 1)
+                         ORDER BY vraag, provider LIMIT %s""",
+                        (webshop_url, webshop_url, limit),
+                    )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"AI-antwoorden ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_webshops_met_koopvragen():
+    """Voor de beheerpagina: welke webshops hebben al vragen klaarstaan."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT webshop_url,
+                              count(*) FILTER (WHERE actief) AS actieve_vragen
+                         FROM koopvragen
+                     GROUP BY webshop_url
+                     ORDER BY webshop_url"""
+                )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Webshops met koopvragen ophalen mislukt: {e}")
         return []
     finally:
         conn.close()

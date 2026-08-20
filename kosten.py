@@ -36,6 +36,67 @@ PRIJZEN = [
         "geldig_vanaf": "2026-01-01",
         "prijsversie": "2026-01",
     },
+    # Voor de metingen (fase 5 stap 3). Deze bedragen zijn op 20-08-2026
+    # opgezocht op de openbare prijspagina's van de aanbieders en omgerekend
+    # naar euro. Ze zijn een startpunt, geen contract: controleer ze in je
+    # eigen facturatie-overzicht bij OpenAI en Google voordat je er marges op
+    # baseert. Verandert er een prijs, voeg dan een NIEUWE regel toe met een
+    # nieuwe datum en prijsversie, zodat de cijfers van vorige maand blijven
+    # kloppen.
+    {
+        "provider": "openai",
+        "model": "gpt-5.6-terra",
+        "invoer_per_miljoen": 1.80,
+        "uitvoer_per_miljoen": 10.80,
+        "valuta": "EUR",
+        "geldig_vanaf": "2026-08-01",
+        "prijsversie": "2026-08",
+    },
+    {
+        "provider": "openai",
+        "model": "gpt-5.6-luna",
+        "invoer_per_miljoen": 0.18,
+        "uitvoer_per_miljoen": 1.08,
+        "valuta": "EUR",
+        "geldig_vanaf": "2026-08-01",
+        "prijsversie": "2026-08",
+    },
+    {
+        "provider": "openai",
+        "model": "gpt-5.4-mini",
+        "invoer_per_miljoen": 0.68,
+        "uitvoer_per_miljoen": 4.05,
+        "valuta": "EUR",
+        "geldig_vanaf": "2026-08-01",
+        "prijsversie": "2026-08",
+    },
+    {
+        "provider": "google",
+        "model": "gemini-3.7-flash",
+        "invoer_per_miljoen": 0.68,
+        "uitvoer_per_miljoen": 3.38,
+        "valuta": "EUR",
+        "geldig_vanaf": "2026-08-01",
+        "prijsversie": "2026-08",
+    },
+    {
+        "provider": "google",
+        "model": "gemini-3.5-flash-lite",
+        "invoer_per_miljoen": 0.27,
+        "uitvoer_per_miljoen": 2.25,
+        "valuta": "EUR",
+        "geldig_vanaf": "2026-08-01",
+        "prijsversie": "2026-08",
+    },
+    {
+        "provider": "google",
+        "model": "gemini-2.5-flash-lite",
+        "invoer_per_miljoen": 0.09,
+        "uitvoer_per_miljoen": 0.36,
+        "valuta": "EUR",
+        "geldig_vanaf": "2026-08-01",
+        "prijsversie": "2026-08",
+    },
 ]
 
 # Grenzen. Bewust ruim ingesteld: ze zijn bedoeld om ontsporingen te vangen,

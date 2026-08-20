@@ -24,6 +24,7 @@ import db
 import artikelen
 import koopvragen
 import kosten
+import metingen
 
 app = Flask(__name__)
 db.init_db()
@@ -385,6 +386,16 @@ def _draai_wekelijkse_scans(base_url):
                 emailing.send_weekly_update_email(
                     c["email"], c["webshop_url"], scan_result, monitoring_url, vorige_score
                 )
+
+                # Fase 5 stap 3: dezelfde ronde meteen gebruiken om de
+                # koopvragen aan de AI-modellen te stellen. Gebeurt na de mail,
+                # zodat een storing bij een AI-aanbieder nooit de wekelijkse
+                # update van de klant tegenhoudt. Zijn er geen koopvragen of
+                # geen sleutels, dan doet dit niets.
+                try:
+                    metingen.meet_webshop(c["webshop_url"])
+                except Exception as e:
+                    print(f"Meting mislukt voor {c['webshop_url']}: {e}")
             except Exception as e:
                 print(f"Wekelijkse scan mislukt voor {c.get('webshop_url')}: {e}")
         print("Wekelijkse scan afgerond.")
@@ -538,6 +549,64 @@ def admin_koopvragen():
         groepen=groepen,
         dubbelen=len(dubbelingen),
         sleutel=admin_key,
+    )
+
+
+def _meet_achtergrond(webshop_url):
+    """Een meetronde duurt al gauw een paar minuten, dus die laten we niet op
+    het verzoek wachten."""
+    try:
+        metingen.meet_webshop(webshop_url)
+    except Exception as e:
+        print(f"Meting mislukt voor {webshop_url}: {e}")
+
+
+@app.route("/admin/metingen")
+def admin_metingen():
+    """Fase 5 stap 3. Laat zien wat de AI-modellen antwoordden op de
+    koopvragen van een webshop. Nog niet zichtbaar voor klanten: het
+    beoordelen van die antwoorden is stap 4."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    webshop_url = (request.args.get("url") or "").strip()
+    aanbieders = metingen.beschikbare_aanbieders()
+
+    if not webshop_url:
+        return render_template(
+            "admin_metingen.html", webshop_url="", sleutel=admin_key,
+            aanbieders=aanbieders, metingen_aan=metingen.METINGEN_AAN,
+            webshops=db.get_webshops_met_koopvragen(),
+            rondes=[], antwoorden=[], meting_id=None, gestart=False,
+        )
+
+    if request.args.get("start") == "ja":
+        threading.Thread(target=_meet_achtergrond, args=(webshop_url,), daemon=True).start()
+        return render_template(
+            "admin_metingen.html", webshop_url=webshop_url, sleutel=admin_key,
+            aanbieders=aanbieders, metingen_aan=metingen.METINGEN_AAN,
+            webshops=db.get_webshops_met_koopvragen(),
+            rondes=db.get_metingen(webshop_url), antwoorden=[],
+            meting_id=None, gestart=True,
+        )
+
+    meting_id = request.args.get("meting") or None
+    antwoorden = [dict(a) for a in db.get_ai_antwoorden(webshop_url, meting_id)]
+    for a in antwoorden:
+        a["naam_gevonden"] = metingen.ruwe_naamtreffer(a.get("antwoord"), webshop_url)
+
+    return render_template(
+        "admin_metingen.html",
+        webshop_url=webshop_url,
+        sleutel=admin_key,
+        aanbieders=aanbieders,
+        metingen_aan=metingen.METINGEN_AAN,
+        webshops=db.get_webshops_met_koopvragen(),
+        rondes=db.get_metingen(webshop_url),
+        antwoorden=antwoorden,
+        meting_id=meting_id,
+        gestart=False,
     )
 
 
