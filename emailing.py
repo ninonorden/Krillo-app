@@ -198,8 +198,8 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
     body = f"""
     <p style="font-size:14.5px;"><strong>Startscore: {score}/100</strong> voor {webshop_url}</p>
     <p style="font-size:13.5px; color:#3B3D57;">
-      Dit is je nulmeting. Elke week scannen we opnieuw en krijg je bericht zodra
-      je score verandert. Je vindt je scoreverloop altijd terug op je eigen pagina,
+      Dit is je nulmeting. Elke week scannen we opnieuw en krijg je bericht met de
+      nieuwe stand, en een duidelijke waarschuwing als je score gedaald is. Je vindt je scoreverloop altijd terug op je eigen pagina,
       die op hetzelfde adres blijft staan. Bewaar de link hieronder.
     </p>
     {_score_button(report_url, "Open je monitoringpagina")}
