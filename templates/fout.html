@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pagina niet gevonden | Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;
+       min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;}
+  .kaart{max-width:460px; text-align:center;}
+  .logo{font-family:var(--disp); font-weight:700; font-size:18px; display:flex; align-items:center;
+        justify-content:center; gap:8px; margin-bottom:32px; color:var(--ink);}
+  .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
+  .code{font-family:var(--mono); font-size:12px; color:var(--coral); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:12px;}
+  p{color:var(--ink-soft); font-size:15px; margin-bottom:24px;}
+  .knoppen{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+  .knop{padding:11px 22px; border-radius:8px; font-size:14px; font-weight:600; text-decoration:none;}
+  .knop.vol{background:var(--ink); color:var(--paper);}
+  .knop.leeg{border:1.5px solid var(--line); color:var(--ink);}
+</style>
+</head>
+<body>
+  <div class="kaart">
+    <div class="logo"><span class="logo-dot"></span>Krillo</div>
+    <div class="code">Pagina niet gevonden</div>
+    <h1>Deze pagina bestaat niet</h1>
+    <p>Mogelijk klopt het adres niet meer, of is de link verlopen. Vanaf de homepage vind je alles terug.</p>
+    <div class="knoppen">
+      <a class="knop vol" href="/">Naar de homepage</a>
+      <a class="knop leeg" href="/artikelen">Bekijk de artikelen</a>
+    </div>
+  </div>
+</body>
+</html>

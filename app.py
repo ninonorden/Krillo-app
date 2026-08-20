@@ -21,6 +21,7 @@ import payments
 import emailing
 import ai_content
 import db
+import artikelen
 
 app = Flask(__name__)
 db.init_db()
@@ -59,6 +60,25 @@ def over_ons():
     return render_template("over-ons.html")
 
 
+@app.route("/artikelen")
+def artikelen_overzicht():
+    return render_template("artikelen.html", artikelen=artikelen.ARTIKELEN)
+
+
+@app.route("/artikelen/<slug>")
+def artikel_pagina(slug):
+    artikel = artikelen.get_artikel(slug)
+    if artikel is None:
+        return render_template("fout.html"), 404
+    andere = [a for a in artikelen.ARTIKELEN if a["slug"] != slug][:3]
+    return render_template("artikel.html", artikel=artikel, andere=andere)
+
+
+@app.errorhandler(404)
+def pagina_niet_gevonden(e):
+    return render_template("fout.html"), 404
+
+
 @app.route("/robots.txt")
 def robots_txt():
     inhoud = """User-agent: *
@@ -86,7 +106,8 @@ Sitemap: https://www.krillo.nl/sitemap.xml
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
-    paginas = ["/", "/veelgestelde-vragen", "/over-ons", "/voorwaarden", "/privacybeleid"]
+    paginas = ["/", "/artikelen", "/veelgestelde-vragen", "/over-ons", "/voorwaarden", "/privacybeleid"]
+    paginas += [f"/artikelen/{a['slug']}" for a in artikelen.ARTIKELEN]
     urls = "".join(
         f"<url><loc>https://www.krillo.nl{p}</loc><changefreq>weekly</changefreq></url>"
         for p in paginas
@@ -121,6 +142,7 @@ marketingbureau en zonder technische kennis.
 
 ## Belangrijke pagina's
 - Homepage en gratis scan: https://www.krillo.nl/
+- Artikelen over AI-zichtbaarheid: https://www.krillo.nl/artikelen
 - Veelgestelde vragen: https://www.krillo.nl/veelgestelde-vragen
 - Over Krillo en contact: https://www.krillo.nl/over-ons
 
