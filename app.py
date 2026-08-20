@@ -668,6 +668,31 @@ def admin_metingen():
     )
 
 
+@app.route("/admin/modellen")
+def admin_modellen():
+    """Laat per aanbieder zien of de ingestelde modelnaam werkt, en welke namen
+    deze sleutel wel mag gebruiken. Mislukken alle metingen bij een aanbieder,
+    dan is een verkeerde modelnaam veruit de meest voorkomende oorzaak."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    resultaten = []
+    for a in metingen.AANBIEDERS:
+        if not os.environ.get(a["sleutel_naam"]):
+            continue
+        resultaten.append({
+            "toonnaam": a["toonnaam"],
+            "provider": a["provider"],
+            "model": a["model"],
+            "test": metingen.test_aanbieder(a) if a["model"] else
+                    {"gelukt": False, "antwoord": "", "fout": "Geen modelnaam ingesteld."},
+            "lijst": metingen.haal_modellijst(a["provider"]),
+        })
+
+    return render_template("admin_modellen.html", resultaten=resultaten, sleutel=admin_key)
+
+
 @app.route("/admin/kosten")
 def admin_kosten():
     admin_key = os.environ.get("ADMIN_KEY")

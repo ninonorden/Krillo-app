@@ -362,3 +362,74 @@ def ruwe_naamtreffer(antwoord, webshop_url):
     # we "Bergzicht Outdoor" ook terug als het domein bergzicht-outdoor.nl is.
     plat = lambda t: "".join(teken for teken in t.lower() if teken.isalnum())
     return plat(kern) in plat(antwoord)
+
+
+# ---------------------------------------------------------------------------
+# Hulpmiddel om te controleren welke modellen jouw sleutels echt mogen
+# gebruiken. Een verkeerde modelnaam is de meest voorkomende reden dat alle
+# aanroepen bij een aanbieder mislukken, en dat zie je alleen als je de lijst
+# bij de aanbieder zelf opvraagt.
+# ---------------------------------------------------------------------------
+
+def haal_modellijst(provider):
+    """Vraagt bij een aanbieder op welke modellen deze sleutel mag gebruiken.
+
+    Geeft terug: {"gelukt": bool, "modellen": [namen], "fout": tekst}."""
+    try:
+        if provider == "openai":
+            sleutel = os.environ.get("OPENAI_API_KEY")
+            if not sleutel:
+                return {"gelukt": False, "modellen": [], "fout": "Geen OPENAI_API_KEY ingesteld."}
+            resp = requests.get(
+                "https://api.openai.com/v1/models",
+                headers={"Authorization": f"Bearer {sleutel}"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            namen = sorted(m["id"] for m in resp.json().get("data", []))
+            return {"gelukt": True, "modellen": namen, "fout": None}
+
+        if provider == "google":
+            sleutel = os.environ.get("GOOGLE_API_KEY")
+            if not sleutel:
+                return {"gelukt": False, "modellen": [], "fout": "Geen GOOGLE_API_KEY ingesteld."}
+            resp = requests.get(
+                "https://generativelanguage.googleapis.com/v1beta/models",
+                headers={"x-goog-api-key": sleutel},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            namen = sorted(
+                m["name"].replace("models/", "")
+                for m in resp.json().get("models", [])
+                if "generateContent" in (m.get("supportedGenerationMethods") or [])
+            )
+            return {"gelukt": True, "modellen": namen, "fout": None}
+
+        if provider == "anthropic":
+            sleutel = os.environ.get("ANTHROPIC_API_KEY")
+            if not sleutel:
+                return {"gelukt": False, "modellen": [], "fout": "Geen ANTHROPIC_API_KEY ingesteld."}
+            resp = requests.get(
+                "https://api.anthropic.com/v1/models",
+                headers={"x-api-key": sleutel, "anthropic-version": "2023-06-01"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            namen = sorted(m["id"] for m in resp.json().get("data", []))
+            return {"gelukt": True, "modellen": namen, "fout": None}
+
+        return {"gelukt": False, "modellen": [], "fout": "Onbekende aanbieder."}
+    except Exception as e:
+        return {"gelukt": False, "modellen": [], "fout": f"{type(e).__name__}: {e}"[:400]}
+
+
+def test_aanbieder(aanbieder):
+    """Stelt een piepklein vraagje om te zien of deze combinatie van sleutel en
+    modelnaam werkt. Kost bijna niets en geeft de echte foutmelding terug."""
+    uitkomst = stel_een_vraag(aanbieder, "Zeg alleen het woord: werkt")
+    return {
+        "gelukt": uitkomst["gelukt"],
+        "antwoord": (uitkomst["antwoord"] or "")[:200],
+        "fout": uitkomst["foutsoort"],
+    }

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modellen — Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:900px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:13.5px; font-family:var(--mono); margin-bottom:28px;}
+  .kaart{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+         padding:22px 24px; margin-bottom:20px;}
+  .kop{display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:10px;}
+  .kop h2{font-family:var(--disp); font-weight:600; font-size:17px;}
+  .nu{font-family:var(--mono); font-size:12.5px; color:var(--ink-soft);}
+  .vlag{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.05em;
+        padding:3px 8px; border-radius:20px;}
+  .goed{background:var(--teal-dim); color:#0E6B60;}
+  .fout{background:var(--coral); color:#fff;}
+  .melding{font-family:var(--mono); font-size:12px; background:var(--paper); border:1px solid var(--line);
+           border-radius:8px; padding:12px 14px; margin:10px 0; color:var(--coral-tekst); word-break:break-word;}
+  .lijst{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;}
+  .naam{font-family:var(--mono); font-size:12px; background:var(--paper); border:1px solid var(--line);
+        border-radius:6px; padding:4px 8px;}
+  .naam.actief{background:var(--teal-dim); border-color:#8FD9CF; color:#0E6B60; font-weight:500;}
+  .uitleg{font-size:13.5px; color:var(--ink-soft); margin-top:10px;}
+  .waarschuwing{background:var(--amber-dim); border-radius:10px; padding:16px 18px; margin-bottom:24px;
+                font-size:13.5px; color:#7A5200;}
+  .waarschuwing strong{display:block; margin-bottom:4px; color:#5C3E00;}
+  .knop{display:inline-block; font-family:var(--disp); font-weight:600; font-size:13.5px;
+        padding:10px 18px; border-radius:8px; border:1px solid var(--ink); color:var(--ink);
+        text-decoration:none; margin-top:24px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Modellen</h1>
+  <div class="sub">Welke modellen jouw sleutels echt mogen gebruiken</div>
+
+  <div class="waarschuwing">
+    <strong>Waarvoor deze pagina is</strong>
+    Mislukken alle metingen bij één aanbieder, dan is de modelnaam bijna altijd
+    de oorzaak. Hieronder staat wat er nu is ingesteld, of dat werkt, en welke
+    namen wel bestaan. Klopt de naam niet, verander hem dan in Render bij
+    MEET_MODEL_OPENAI of MEET_MODEL_GOOGLE. Code aanpassen hoeft niet.
+  </div>
+
+  {% for r in resultaten %}
+  <div class="kaart">
+    <div class="kop">
+      <h2>{{ r.toonnaam }}</h2>
+      <span class="vlag {% if r.test.gelukt %}goed{% else %}fout{% endif %}">
+        {% if r.test.gelukt %}werkt{% else %}mislukt{% endif %}
+      </span>
+    </div>
+    <div class="nu">nu ingesteld: {{ r.model or 'niets' }}</div>
+
+    {% if r.test.gelukt %}
+    <div class="uitleg">Testvraag beantwoord met: {{ r.test.antwoord or 'leeg antwoord' }}</div>
+    {% elif r.test.fout %}
+    <div class="melding">{{ r.test.fout }}</div>
+    {% endif %}
+
+    {% if r.lijst.fout %}
+    <div class="melding">Modellijst ophalen mislukte: {{ r.lijst.fout }}</div>
+    {% elif r.lijst.modellen %}
+    <div class="uitleg">{{ r.lijst.modellen|length }} modellen beschikbaar met deze sleutel:</div>
+    <div class="lijst">
+      {% for naam in r.lijst.modellen %}
+      <span class="naam {% if naam == r.model %}actief{% endif %}">{{ naam }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <a class="knop" href="/admin/metingen?key={{ sleutel }}">Naar de metingen</a>
+</div>
+</body>
+</html>
