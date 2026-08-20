@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Je Krillo-monitoring</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --amber:#C77D00; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6; -webkit-font-smoothing:antialiased;}
+  a{color:var(--coral); text-decoration:none;}
+  .wrap{max-width:800px; margin:0 auto; padding:0 24px;}
+  nav{border-bottom:1px solid var(--line); background:var(--paper);}
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:64px;}
+  .logo{font-family:var(--disp); font-weight:700; font-size:18px; display:flex; align-items:center; gap:8px; color:var(--ink);}
+  .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
+  .nav-note{font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);}
+
+  main{padding:48px 0 96px;}
+  .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:0.06em; color:var(--coral); text-transform:uppercase; margin-bottom:10px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:27px; margin-bottom:6px; letter-spacing:-0.01em;}
+  .sub{color:var(--ink-soft); font-size:14px; margin-bottom:32px;}
+
+  .huidig{background:var(--ink); border-radius:16px; padding:32px; margin-bottom:14px; text-align:center; color:#fff;}
+  .huidig-label{font-family:var(--mono); font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;}
+  .huidig-score{font-family:var(--disp); font-weight:700; font-size:56px; line-height:1;}
+  .huidig-of{font-size:18px; color:#8B8DA8;}
+  .huidig-datum{font-size:12.5px; color:#B9BBD4; margin-top:8px; font-family:var(--mono);}
+  .verschil{
+    display:inline-flex; align-items:center; gap:6px; margin-top:14px;
+    font-size:13px; padding:6px 14px; border-radius:100px; font-weight:600;
+  }
+  .verschil.omhoog{background:var(--teal-dim); color:#085041;}
+  .verschil.omlaag{background:var(--coral-dim); color:#993C1D;}
+  .verschil.gelijk{background:rgba(255,255,255,0.1); color:#B9BBD4;}
+
+  .verloop{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px; padding:24px; margin-bottom:32px;}
+  .verloop h2{font-family:var(--disp); font-size:15px; font-weight:600; margin-bottom:16px;}
+  .grafiek{display:flex; gap:8px; align-items:flex-end; height:90px;}
+  .balk-wrap{flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;}
+  .balk{width:100%; background:var(--coral); border-radius:4px 4px 0 0; min-height:4px;}
+  .balk.laatste{background:var(--ink);}
+  .balk-score{font-family:var(--mono); font-size:10.5px; color:var(--ink-soft);}
+  .balk-datum{font-family:var(--mono); font-size:9.5px; color:var(--ink-soft);}
+
+  h2.sectie{font-family:var(--disp); font-weight:600; font-size:18px; margin:32px 0 12px;}
+  .categorie-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--coral); margin:20px 0 8px;}
+  .check{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); font-size:13.5px;}
+  .tag{font-family:var(--mono); font-size:10px; padding:3px 8px; border-radius:5px; flex-shrink:0; margin-top:1px;}
+  .tag.ok{background:var(--teal-dim); color:#085041;}
+  .tag.deels{background:var(--amber-dim); color:#8A5A00;}
+  .tag.probleem{background:var(--coral-dim); color:#993C1D;}
+  .check-body strong{display:block; margin-bottom:2px;}
+  .check-body span{color:var(--ink-soft);}
+  .nieuw-badge{background:var(--coral); color:#fff; font-family:var(--mono); font-size:9.5px; padding:2px 7px; border-radius:4px; margin-left:6px;}
+
+  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:32px; text-align:center; color:var(--ink-soft); font-size:14px;}
+  footer{border-top:1px solid var(--line); padding:32px 0; text-align:center; font-size:12.5px; color:var(--ink-soft);}
+  .bewaar{background:var(--paper-raised); border:1px solid var(--line); border-radius:10px; padding:14px 16px; font-size:13px; color:var(--ink-soft); margin-bottom:28px;}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
+  <span class="nav-note">Monitoring actief</span>
+</div></nav>
+
+<main>
+  <div class="wrap">
+    <div class="eyebrow">Monitoring</div>
+    <h1>{{ webshop_url }}</h1>
+    <div class="sub">Deze pagina blijft altijd op hetzelfde adres staan en wordt elke week bijgewerkt.</div>
+
+    <div class="bewaar">Bewaar deze link, bijvoorbeeld als bladwijzer. Je hoeft niet in te loggen, en je vindt hier altijd je nieuwste scan terug.</div>
+
+    {% if laatste %}
+    <div class="huidig">
+      <div class="huidig-label">Huidige AI-zichtbaarheidsscore</div>
+      <div><span class="huidig-score">{{ laatste.score }}</span><span class="huidig-of">/100</span></div>
+      <div class="huidig-datum">Laatste scan: {{ laatste.aangemaakt_op.strftime('%d-%m-%Y') }}</div>
+      {% if verschil is not none %}
+        {% if verschil > 0 %}
+        <div class="verschil omhoog">Gestegen met {{ verschil }} punten sinds de vorige scan</div>
+        {% elif verschil < 0 %}
+        <div class="verschil omlaag">Gedaald met {{ verschil|abs }} punten sinds de vorige scan</div>
+        {% else %}
+        <div class="verschil gelijk">Gelijk gebleven sinds de vorige scan</div>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    {% if verloop|length > 1 %}
+    <div class="verloop">
+      <h2>Je scoreverloop</h2>
+      <div class="grafiek">
+        {% for punt in verloop %}
+        <div class="balk-wrap">
+          <div class="balk-score">{{ punt.score }}</div>
+          <div class="balk {% if loop.last %}laatste{% endif %}" style="height:{{ (punt.score / 100 * 60)|round(0,'ceil')|int + 4 }}px;"></div>
+          <div class="balk-datum">{{ punt.aangemaakt_op.strftime('%d-%m') }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if nieuwe_problemen %}
+    <h2 class="sectie">Nieuw sinds de vorige scan</h2>
+    {% for c in nieuwe_problemen %}
+    <div class="check">
+      <span class="tag {{ c.status }}">{{ status_labels[c.status] }}</span>
+      <div class="check-body"><strong>{{ c.titel }}<span class="nieuw-badge">nieuw</span></strong><span>{{ c.uitleg }}</span></div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <h2 class="sectie">Alle bevindingen</h2>
+    {% for categorie, items in checks_by_categorie.items() %}
+    <div class="categorie-label">{{ categorie }}</div>
+    {% for c in items %}
+    <div class="check">
+      <span class="tag {{ c.status }}">{{ status_labels[c.status] }}</span>
+      <div class="check-body"><strong>{{ c.titel }}</strong><span>{{ c.uitleg }}</span></div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+
+    {% else %}
+    <div class="leeg">Er is nog geen scan uitgevoerd. Je eerste scan verschijnt hier zodra die klaar is.</div>
+    {% endif %}
+  </div>
+</main>
+
+<footer>© 2026 Krillo &middot; <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a></footer>
+
+</body>
+</html>

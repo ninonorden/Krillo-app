@@ -229,10 +229,11 @@ def _verwerk_betaling(payment_id, base_url):
             if webshop_url and email:
                 scan_result = run_scan(webshop_url)
                 if "error" not in scan_result:
-                    token = db.save_report("monitoring", webshop_url, email, scan_result.get("score", 0),
-                                            scan_result.get("checks", []), None, payment_id)
-                    report_url = f"{base_url}/rapport/{token}" if token else None
-                    emailing.send_monitoring_welcome_email(email, webshop_url, scan_result, report_url)
+                    klant_token = db.get_or_create_klant(webshop_url, email)
+                    db.save_report("monitoring", webshop_url, email, scan_result.get("score", 0),
+                                    scan_result.get("checks", []), None, payment_id, klant_token)
+                    monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
+                    emailing.send_monitoring_welcome_email(email, webshop_url, scan_result, monitoring_url)
     except Exception as e:
         print(f"Verwerken van betaling {payment_id} mislukt: {e}")
 
@@ -256,25 +257,90 @@ def mollie_webhook():
     return "", 200
 
 
-@app.route("/api/cron/weekly-scans", methods=["POST"])
+def _draai_wekelijkse_scans(base_url):
+    """Doet de wekelijkse scans op de achtergrond. Draait los van het verzoek,
+    zodat de aanroeper niet hoeft te wachten en er niets vastloopt, ook niet
+    als er straks honderd abonnees zijn."""
+    try:
+        customers = payments.list_active_monitoring_customers()
+        print(f"Wekelijkse scan gestart voor {len(customers)} klant(en).")
+        for c in customers:
+            try:
+                scan_result = run_scan(c["webshop_url"])
+                if "error" in scan_result:
+                    print(f"Scan mislukt voor {c['webshop_url']}, overgeslagen.")
+                    continue
+
+                klant_token = db.get_or_create_klant(c["webshop_url"], c["email"])
+                vorige = db.get_previous_score(c["webshop_url"])
+                vorige_score = vorige["score"] if vorige else None
+
+                db.save_report("monitoring", c["webshop_url"], c["email"], scan_result.get("score", 0),
+                                scan_result.get("checks", []), None, None, klant_token)
+                monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
+
+                emailing.send_weekly_update_email(
+                    c["email"], c["webshop_url"], scan_result, monitoring_url, vorige_score
+                )
+            except Exception as e:
+                print(f"Wekelijkse scan mislukt voor {c.get('webshop_url')}: {e}")
+        print("Wekelijkse scan afgerond.")
+    except Exception as e:
+        print(f"Wekelijkse scan volledig mislukt: {e}")
+
+
+@app.route("/api/cron/weekly-scans", methods=["GET", "POST"])
 def weekly_scans():
-    """Wordt eenmaal per week aangeroepen (via een Render Cron Job) om alle
-    actieve monitoring-klanten opnieuw te scannen en een update te sturen."""
+    """Wordt eenmaal per week aangeroepen om alle actieve monitoring-klanten
+    opnieuw te scannen. Antwoordt meteen, het werk gebeurt op de achtergrond."""
     cron_key = os.environ.get("CRON_KEY")
     if not cron_key or request.args.get("key") != cron_key:
         return "", 404
 
-    customers = payments.list_active_monitoring_customers()
-    sent = 0
-    for c in customers:
-        scan_result = run_scan(c["webshop_url"])
-        if "error" not in scan_result:
-            token = db.save_report("monitoring", c["webshop_url"], c["email"], scan_result.get("score", 0),
-                                    scan_result.get("checks", []))
-            report_url = f"{get_base_url()}/rapport/{token}" if token else None
-            emailing.send_weekly_update_email(c["email"], c["webshop_url"], scan_result, report_url)
-            sent += 1
-    return jsonify({"klanten_gevonden": len(customers), "emails_verstuurd": sent})
+    base_url = get_base_url()
+    threading.Thread(target=_draai_wekelijkse_scans, args=(base_url,), daemon=True).start()
+    return "ok", 200
+
+
+@app.route("/monitoring/<klant_token>")
+def monitoring_pagina(klant_token):
+    klant = db.get_klant(klant_token)
+    if klant is None:
+        return "Deze pagina bestaat niet of is niet meer geldig.", 404
+
+    rapporten = db.get_klant_rapporten(klant_token)
+    laatste = rapporten[0] if rapporten else None
+    vorige = rapporten[1] if len(rapporten) > 1 else None
+
+    verschil = None
+    nieuwe_problemen = []
+    checks_by_categorie = {}
+
+    if laatste:
+        if vorige:
+            verschil = laatste["score"] - vorige["score"]
+            vorige_problemen = {
+                c["titel"] for c in vorige["checks"] if c["status"] != "ok"
+            }
+            nieuwe_problemen = [
+                c for c in laatste["checks"]
+                if c["status"] != "ok" and c["titel"] not in vorige_problemen
+            ]
+        for c in laatste["checks"]:
+            checks_by_categorie.setdefault(c.get("categorie", "overig"), []).append(c)
+
+    verloop = list(reversed(rapporten))[-8:]
+
+    return render_template(
+        "monitoring.html",
+        webshop_url=klant["webshop_url"],
+        laatste=laatste,
+        verschil=verschil,
+        verloop=verloop,
+        nieuwe_problemen=nieuwe_problemen,
+        checks_by_categorie=checks_by_categorie,
+        status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
+    )
 
 
 @app.route("/rapport/<token>")

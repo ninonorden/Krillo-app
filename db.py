@@ -54,6 +54,15 @@ def init_db():
                         verwerkt_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS klanten (
+                        klant_token TEXT PRIMARY KEY,
+                        webshop_url TEXT NOT NULL UNIQUE,
+                        email TEXT NOT NULL,
+                        aangemaakt_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
+                cur.execute("ALTER TABLE rapporten ADD COLUMN IF NOT EXISTS klant_token TEXT;")
     finally:
         conn.close()
 
@@ -81,6 +90,70 @@ def claim_payment(payment_id):
         conn.close()
 
 
+def get_or_create_klant(webshop_url, email):
+    """Geeft het vaste token van deze klant terug, en maakt het aan als het nog
+    niet bestaat. Zo houdt een monitoring-klant altijd dezelfde pagina, ook na
+    tien wekelijkse scans."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT klant_token FROM klanten WHERE webshop_url = %s", (webshop_url,))
+                bestaand = cur.fetchone()
+                if bestaand:
+                    return bestaand["klant_token"]
+                token = uuid.uuid4().hex[:16]
+                cur.execute(
+                    "INSERT INTO klanten (klant_token, webshop_url, email) VALUES (%s, %s, %s)",
+                    (token, webshop_url, email),
+                )
+                return token
+    except Exception as e:
+        print(f"Klant aanmaken mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def get_klant(klant_token):
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM klanten WHERE klant_token = %s", (klant_token,))
+                return cur.fetchone()
+    except Exception as e:
+        print(f"Klant ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def get_klant_rapporten(klant_token, limit=20):
+    """Alle scans van deze klant, nieuwste eerst, voor de vaste klantpagina."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT * FROM rapporten WHERE klant_token = %s
+                       ORDER BY aangemaakt_op DESC LIMIT %s""",
+                    (klant_token, limit),
+                )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Klantrapporten ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def report_bestaat_al(payment_id):
     """Tweede blokkade: kijkt of er voor deze betaling al een rapport gemaakt is.
     Werkt ook als de eerste blokkade om wat voor reden dan ook niet aansloeg."""
@@ -101,7 +174,7 @@ def report_bestaat_al(payment_id):
         conn.close()
 
 
-def save_report(report_type, webshop_url, email, score, checks, fixes=None, payment_id=None):
+def save_report(report_type, webshop_url, email, score, checks, fixes=None, payment_id=None, klant_token=None):
     """Slaat een rapport op en geeft een uniek token terug waarmee het
     later opgehaald kan worden (via /rapport/<token>)."""
     conn = _get_connection()
@@ -112,10 +185,11 @@ def save_report(report_type, webshop_url, email, score, checks, fixes=None, paym
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO rapporten (token, type, webshop_url, email, score, checks, fixes, payment_id)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                    """INSERT INTO rapporten (token, type, webshop_url, email, score, checks, fixes, payment_id, klant_token)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (token, report_type, webshop_url, email, score,
-                     json.dumps(checks), json.dumps(fixes) if fixes is not None else None, payment_id),
+                     json.dumps(checks), json.dumps(fixes) if fixes is not None else None,
+                     payment_id, klant_token),
                 )
         return token
     except Exception as e:

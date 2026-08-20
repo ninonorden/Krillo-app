@@ -117,10 +117,11 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
     body = f"""
     <p style="font-size:14.5px;"><strong>Startscore: {score}/100</strong> voor {webshop_url}</p>
     <p style="font-size:13.5px; color:#3B3D57;">
-      Dit is je nulmeting. Elke week scannen we opnieuw, en laten we weten wat er
-      is veranderd, of wanneer een concurrent je voorbijstreeft.
+      Dit is je nulmeting. Elke week scannen we opnieuw en krijg je bericht zodra
+      je score verandert. Je vindt je scoreverloop altijd terug op je eigen pagina,
+      die op hetzelfde adres blijft staan. Bewaar de link hieronder.
     </p>
-    {_score_button(report_url, "Bekijk je startrapport")}
+    {_score_button(report_url, "Open je monitoringpagina")}
     """
     html = _base_html(
         "Welkom bij Krillo monitoring",
@@ -130,11 +131,46 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
     return send_email(to_email, "Welkom bij Krillo monitoring", html)
 
 
-def send_weekly_update_email(to_email, webshop_url, scan_result, report_url=None):
+def send_weekly_update_email(to_email, webshop_url, scan_result, report_url=None, vorige_score=None):
     score = scan_result.get("score", 0)
-    body = f"""
-    <p style="font-size:14.5px;"><strong>Huidige score: {score}/100</strong> voor {webshop_url}</p>
-    {_score_button(report_url, "Bekijk het volledige rapport")}
-    """
-    html = _base_html("Je wekelijkse Krillo-update", f"Hier is de nieuwste scan voor {webshop_url}.", body)
-    return send_email(to_email, f"Je wekelijkse Krillo-update ({score}/100)", html)
+
+    if vorige_score is None:
+        onderwerp = f"Je wekelijkse Krillo-update ({score}/100)"
+        kop = "Je wekelijkse update"
+        melding = f"<p style='font-size:14.5px;'><strong>Huidige score: {score}/100</strong> voor {webshop_url}</p>"
+    else:
+        verschil = score - vorige_score
+        if verschil < 0:
+            onderwerp = f"Let op: je Krillo-score is gedaald naar {score}/100"
+            kop = "Je score is gedaald"
+            melding = f"""
+            <div style="background:#FFE3E0; border-radius:10px; padding:16px 18px; margin-bottom:16px;">
+              <strong style="font-size:15px; color:#993C1D;">Gedaald van {vorige_score} naar {score}</strong>
+              <p style="font-size:13.5px; color:#993C1D; margin:6px 0 0;">
+                Er is iets veranderd aan je website waardoor AI je shop minder goed kan lezen.
+                Op je monitoringpagina zie je precies wat er nieuw is.
+              </p>
+            </div>
+            """
+        elif verschil > 0:
+            onderwerp = f"Goed nieuws: je Krillo-score staat nu op {score}/100"
+            kop = "Je score is gestegen"
+            melding = f"""
+            <div style="background:#DFF5F1; border-radius:10px; padding:16px 18px; margin-bottom:16px;">
+              <strong style="font-size:15px; color:#085041;">Gestegen van {vorige_score} naar {score}</strong>
+              <p style="font-size:13.5px; color:#085041; margin:6px 0 0;">
+                Je aanpassingen werken. AI kan je webshop nu beter vinden en begrijpen.
+              </p>
+            </div>
+            """
+        else:
+            onderwerp = f"Je wekelijkse Krillo-update ({score}/100)"
+            kop = "Je wekelijkse update"
+            melding = f"""
+            <p style="font-size:14.5px;"><strong>Je score staat nog steeds op {score}/100</strong> voor {webshop_url}.
+            Er is deze week niets veranderd.</p>
+            """
+
+    body = melding + _score_button(report_url, "Bekijk je monitoringpagina")
+    html = _base_html(kop, f"De nieuwste scan voor {webshop_url}.", body)
+    return send_email(to_email, onderwerp, html)
