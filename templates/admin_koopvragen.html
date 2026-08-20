@@ -77,12 +77,33 @@
   </div>
   {% endif %}
 
+  {% if aanvullen_bezig %}
+  <div class="waarschuwing">
+    <strong>De weggevallen vragen worden nu aangevuld</strong>
+    Dat duurt ongeveer een halve minuut. Ververs deze pagina daarna, dan staat de
+    set weer op sterkte.
+  </div>
+  {% elif tekort %}
+  <div class="waarschuwing">
+    <strong>Deze set is niet compleet</strong>
+    Er missen nog vragen bij: {% for naam, aantal in tekort.items() %}{{ naam }} ({{ aantal }}){% if not loop.last %}, {% endif %}{% endfor %}.
+    Klik op 'Aanvullen' om ze erbij te laten bedenken.
+  </div>
+  {% endif %}
+
   {% if te_veel %}
   <div class="waarschuwing">
     <strong>{{ vragen|length }} actieve vragen, dat zijn er te veel</strong>
     Een meetronde gebruikt er {{ per_ronde }}. Klik op 'Opnieuw genereren' om een
     verse set van ongeveer {{ per_ronde }} vragen te maken. De oude vragen
     verdwijnen niet, ze doen alleen niet meer mee.
+  </div>
+  {% endif %}
+
+  {% if gezocht and not dubbelen %}
+  <div class="waarschuwing">
+    <strong>Geen dubbelingen gevonden</strong>
+    Alle vragen meten iets anders.
   </div>
   {% endif %}
 
@@ -111,8 +132,13 @@
 
   <div class="acties">
     <a class="knop" href="?key={{ sleutel }}&url={{ webshop_url }}&opnieuw=ja">Opnieuw genereren (vervangt alles)</a>
-    {% if dubbelen %}
-    <a class="knop vol" href="?key={{ sleutel }}&url={{ webshop_url }}&ontdubbel=ja">Ontdubbelen ({{ dubbelen }})</a>
+    {% if tekort %}
+    <a class="knop" href="?key={{ sleutel }}&url={{ webshop_url }}&aanvul=ja">Aanvullen</a>
+    {% endif %}
+    {% if not gezocht %}
+    <a class="knop" href="?key={{ sleutel }}&url={{ webshop_url }}&dubbel=ja">Zoek dubbelingen</a>
+    {% elif dubbelen %}
+    <a class="knop vol" href="?key={{ sleutel }}&url={{ webshop_url }}&ontdubbel=ja">Ontdubbelen en aanvullen ({{ dubbelen }})</a>
     {% endif %}
   </div>
   {% endif %}

@@ -497,8 +497,33 @@ def _genereer_koopvragen_achtergrond(webshop_url, vervang=False):
         nieuw = db.bewaar_koopvragen(webshop_url, resultaat["omschrijving"],
                                      resultaat["vragen"], vervang=vervang)
         print(f"Koopvragen klaar voor {webshop_url}: {len(resultaat['vragen'])} vragen, {nieuw} nieuw opgeslagen.")
+        _vul_koopvragen_aan(webshop_url)
     except Exception as e:
         print(f"Koopvragen genereren mislukt voor {webshop_url}: {e}")
+
+
+def _vul_koopvragen_aan(webshop_url):
+    """Vult de vragenset weer aan tot het doel per intentie.
+
+    Nodig na ontdubbelen en na een generatie die te weinig vragen opleverde.
+    Zonder dit krimpt de set bij elke klik en hou je uiteindelijk twee
+    winkelvragen over."""
+    try:
+        actief = [dict(v) for v in db.get_koopvragen(webshop_url, alleen_actief=True)]
+        tekort = koopvragen.tel_tekort(actief)
+        if not tekort:
+            return
+        profiel = db.get_winkelprofiel(webshop_url)
+        omschrijving = profiel.get("omschrijving") if profiel else ""
+        alles = db.get_koopvragen(webshop_url, alleen_actief=False)
+        extra = koopvragen.vul_vragen_aan(
+            webshop_url, omschrijving, tekort, [v["vraag"] for v in alles]
+        )
+        if extra:
+            db.bewaar_koopvragen(webshop_url, omschrijving, extra, vervang=False)
+        print(f"Aangevuld voor {webshop_url}: tekort {tekort}, {len(extra)} vragen erbij.")
+    except Exception as e:
+        print(f"Aanvullen mislukt voor {webshop_url}: {e}")
 
 
 @app.route("/admin/koopvragen")
@@ -525,13 +550,21 @@ def admin_koopvragen():
 
     vragen = [{"vraag": v["vraag"], "intentie": v["intentie"]} for v in bestaand]
 
-    # Ontdubbelen: eerst zoeken welke vragen hetzelfde vragen, en op verzoek
-    # de overbodige uitzetten.
-    dubbelingen = koopvragen.vind_dubbele_vragen(vragen)
+    # Alleen aanvullen, zonder eerst dubbelingen te zoeken.
+    if request.args.get("aanvul") == "ja":
+        threading.Thread(target=_vul_koopvragen_aan, args=(webshop_url,), daemon=True).start()
+        return redirect(f"/admin/koopvragen?key={admin_key}&url={webshop_url}&aangevuld=ja")
+
+    # Zoeken naar dubbelingen kost een AI-aanroep, dus dat doen we alleen als
+    # erom gevraagd wordt. Deed hij dat bij elke keer verversen, dan betaal je
+    # voor elke pagina die je opent.
+    zoeken = request.args.get("dubbel") == "ja" or request.args.get("ontdubbel") == "ja"
+    dubbelingen = koopvragen.vind_dubbele_vragen(vragen) if zoeken else []
     if request.args.get("ontdubbel") == "ja" and dubbelingen:
         for d in dubbelingen:
             db.zet_vraag_uit(webshop_url, d["weglaten"])
-        return redirect(f"/admin/koopvragen?key={admin_key}&url={webshop_url}")
+        threading.Thread(target=_vul_koopvragen_aan, args=(webshop_url,), daemon=True).start()
+        return redirect(f"/admin/koopvragen?key={admin_key}&url={webshop_url}&aangevuld=ja")
 
     weg_te_laten = {d["weglaten"]: d["houden"] for d in dubbelingen}
     groepen = {}
@@ -552,6 +585,9 @@ def admin_koopvragen():
         dubbelen=len(dubbelingen),
         te_veel=len(vragen) > metingen.VRAGEN_PER_RONDE,
         per_ronde=metingen.VRAGEN_PER_RONDE,
+        aanvullen_bezig=request.args.get("aangevuld") == "ja",
+        gezocht=zoeken,
+        tekort=koopvragen.tel_tekort([dict(v) for v in bestaand]),
         sleutel=admin_key,
     )
 

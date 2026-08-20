@@ -198,8 +198,18 @@ Let op:
 - Twee vragen over hetzelfde onderwerp maar met een ander accent zijn NIET
   dubbel. "Beste hardloopschoenen" en "beste hardloopschoenen voor beginners"
   leveren andere antwoorden op en moeten allebei blijven.
+- De toets is hard: zou een AI op beide vragen vrijwel dezelfde winkels of
+  merken noemen, in vrijwel dezelfde volgorde? Alleen dan is het dubbel.
+- Deze zijn NIET dubbel, ook al lijken ze op elkaar:
+  "hoe lang duurt de levering" en "hoe lang heb ik bedenktijd" (het een gaat
+  over bezorgen, het ander over retourrecht);
+  "cadeau voor iemand die graag bakt" en "cadeau voor een stel dat gaat
+  samenwonen" (andere ontvanger, dus ander antwoord);
+  "waar koop ik servies onder 50 euro" en "welke webshop verkoopt goedkoop
+  keukengerei" (ander product).
 - Wees terughoudend. Bij twijfel is het geen dubbeling. Liever een vraag te
-  veel dan een blinde vlek in de meting.
+  veel dan een blinde vlek in de meting. Markeer nooit meer dan een kwart van
+  de vragen als dubbel.
 
 De vragen:
 {genummerd}
@@ -251,4 +261,108 @@ Is er niets dubbel, geef dan een lege lijst terug."""
         return resultaat
     except Exception as e:
         print(f"Dubbele vragen zoeken mislukt: {e}")
+        return []
+
+
+DOEL_PER_INTENTIE = int(os.environ.get("KOOPVRAGEN_PER_INTENTIE", "5"))
+
+
+def tel_tekort(actieve_vragen, doel_per_intentie=None):
+    """Kijkt per intentie hoeveel vragen er nog missen om op het doel te komen.
+
+    Zonder dit loopt de vragenset elke keer leeg: ontdubbelen haalt vragen weg
+    en er komt nooit iets voor terug. Na een paar keer klikken hou je twee
+    winkelvragen over, precies de soort vraag waar het ons om te doen is."""
+    doel = doel_per_intentie or DOEL_PER_INTENTIE
+    aanwezig = {naam: 0 for naam, _ in INTENTIES}
+    for v in actieve_vragen:
+        naam = v.get("intentie")
+        if naam in aanwezig:
+            aanwezig[naam] += 1
+    return {naam: doel - aantal for naam, aantal in aanwezig.items() if aantal < doel}
+
+
+def vul_vragen_aan(webshop_url, omschrijving, tekort, al_bedacht):
+    """Bedenkt alleen de vragen die nog missen, voor de intenties die te dun
+    zijn. Gebruikt de omschrijving die we al van deze winkel hebben, dus de
+    website hoeft niet opnieuw gescand te worden.
+
+    al_bedacht bevat ook de uitgezette vragen. Die geven we mee zodat de AI
+    niet opnieuw bedenkt wat we net hebben weggegooid."""
+    client = _get_client()
+    if client is None or not tekort:
+        return []
+
+    intentie_uitleg = dict(INTENTIES)
+    gevraagd = "\n".join(
+        f"- {naam}: {aantal} vragen. {intentie_uitleg.get(naam, '')}"
+        for naam, aantal in tekort.items()
+    )
+    bestaande = "\n".join(f"- {v}" for v in al_bedacht)
+
+    prompt = f"""Voor deze webshop meten we of AI-assistenten hem noemen bij koopvragen.
+
+Wat deze winkel verkoopt:
+{omschrijving}
+
+Er missen nog vragen bij een paar soorten koopintentie. Bedenk er precies zoveel
+als hier gevraagd wordt, niet meer en niet minder:
+{gevraagd}
+
+Deze vragen bestaan al of zijn eerder afgevallen. Bedenk niets wat hier
+inhoudelijk op lijkt:
+{bestaande}
+
+Belangrijke regels:
+- Schrijf ze zoals een gewoon mens ze typt, in het Nederlands.
+- Noem de naam van deze webshop NIET in de vragen.
+- Elke vraag moet om een aanbeveling vragen: een winkel, een merk of een
+  product. Geen vragen waar alleen algemene uitleg uit komt.
+- Maak ze specifiek voor wat deze winkel verkoopt.
+
+Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
+
+{{
+  "vragen": [
+    {{"vraag": "de vraag zoals iemand hem stelt", "intentie": "winkel"}}
+  ]
+}}
+"""
+
+    try:
+        rem = kosten.mag_doorgaan(webshop_url=webshop_url)
+        if not rem["mag"]:
+            print(f"Aanvullen geblokkeerd door de kostenrem: {rem['reden']}")
+            return []
+
+        gestart = time.monotonic()
+        response = client.messages.create(
+            model=MODEL,
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        kosten.registreer_aanroep(
+            provider="anthropic", model=MODEL,
+            invoer_tokens=response.usage.input_tokens,
+            uitvoer_tokens=response.usage.output_tokens,
+            soort="vragen-aanvullen",
+            webshop_url=webshop_url,
+            duur_ms=int((time.monotonic() - gestart) * 1000),
+        )
+        ruw = response.content[0].text.strip()
+        if ruw.startswith("```"):
+            ruw = ruw.split("```")[1]
+            if ruw.startswith("json"):
+                ruw = ruw[4:]
+        data = json.loads(ruw)
+        geldig = {naam for naam, _ in INTENTIES}
+        bekend = {v.lower().strip() for v in al_bedacht}
+        return [
+            {"vraag": v["vraag"].strip(), "intentie": v["intentie"]}
+            for v in data.get("vragen", [])
+            if v.get("vraag") and v.get("intentie") in geldig
+            and v["vraag"].lower().strip() not in bekend
+        ]
+    except Exception as e:
+        print(f"Vragen aanvullen mislukt: {e}")
         return []
