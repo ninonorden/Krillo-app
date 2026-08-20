@@ -45,6 +45,35 @@ VRAGEN_PER_RONDE = int(os.environ.get("MEET_VRAGEN_PER_RONDE", "30"))
 MAX_ANTWOORD_TOKENS = int(os.environ.get("MEET_MAX_TOKENS", "900"))
 TIJDSLIMIET = int(os.environ.get("MEET_TIJDSLIMIET", "90"))
 
+# Minimaal aantal seconden tussen twee aanroepen naar dezelfde aanbieder.
+#
+# Dertig vragen achter elkaar afvuren gaat mis bij aanbieders met een limiet
+# per minuut. Google's gratis laag laat er maar een stuk of tien per minuut
+# toe, dus zonder pauze mislukt bijna alles met een 429. Eén losse testvraag
+# lukt dan wel, en dat maakt het verwarrend: het lijkt alsof de modelnaam fout
+# is terwijl het tempo het probleem is.
+MIN_INTERVAL = {
+    "openai": float(os.environ.get("MEET_INTERVAL_OPENAI", "0.5")),
+    "google": float(os.environ.get("MEET_INTERVAL_GOOGLE", "6")),
+    "anthropic": float(os.environ.get("MEET_INTERVAL_ANTHROPIC", "0.5")),
+}
+
+_laatste_aanroep = {}
+
+
+def _wacht_je_beurt(provider):
+    """Houdt per aanbieder bij wanneer we voor het laatst iets vroegen en wacht
+    zo nodig, zodat we netjes onder de limiet per minuut blijven."""
+    interval = MIN_INTERVAL.get(provider, 0)
+    if interval <= 0:
+        return
+    vorige = _laatste_aanroep.get(provider)
+    if vorige is not None:
+        te_wachten = interval - (time.monotonic() - vorige)
+        if te_wachten > 0:
+            time.sleep(te_wachten)
+    _laatste_aanroep[provider] = time.monotonic()
+
 # De modellen waaraan we de vragen stellen. Per aanbieder een eigen sleutel.
 # Staat er geen sleutel in Render, dan slaan we die aanbieder gewoon over, dus
 # je kan met een deel beginnen en later uitbreiden zonder code te wijzigen.
@@ -187,6 +216,7 @@ def stel_een_vraag(aanbieder, vraag):
     gestart = time.monotonic()
     for poging in range(1, kosten.MAX_POGINGEN + 1):
         try:
+            _wacht_je_beurt(aanbieder["provider"])
             antwoord, invoer, uitvoer = vrager(aanbieder["model"], vraag)
             return {
                 "gelukt": True,
@@ -199,8 +229,22 @@ def stel_een_vraag(aanbieder, vraag):
             }
         except Exception as e:
             laatste_fout = f"{type(e).__name__}: {e}"[:300]
+            # Bij een 429 zegt de aanbieder: je gaat te snel. Dan heeft snel
+            # opnieuw proberen geen zin, dan moet je juist langer wachten.
+            antwoord_obj = getattr(e, "response", None)
+            te_snel = getattr(antwoord_obj, "status_code", None) == 429
             if poging < kosten.MAX_POGINGEN:
-                time.sleep(2 * poging)
+                if te_snel:
+                    wacht = 20 * poging
+                    herhaal = getattr(antwoord_obj, "headers", {}) or {}
+                    try:
+                        wacht = max(wacht, int(float(herhaal.get("Retry-After", 0))))
+                    except (TypeError, ValueError):
+                        pass
+                    print(f"Te snel voor {aanbieder['provider']}, {wacht}s wachten.")
+                    time.sleep(wacht)
+                else:
+                    time.sleep(2 * poging)
 
     return {
         "gelukt": False,
