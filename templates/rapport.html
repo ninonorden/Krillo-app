@@ -28,6 +28,16 @@
   .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:0.06em; color:var(--coral); text-transform:uppercase; margin-bottom:10px;}
   h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px; letter-spacing:-0.01em;}
   .sub{color:var(--ink-soft); font-size:14px; margin-bottom:32px;}
+  .gescand{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px; margin-bottom:28px;
+  }
+  .gescand-label{
+    font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+    letter-spacing:0.05em; color:var(--coral); display:block; margin-bottom:4px;
+  }
+  .gescand-url{font-family:var(--mono); font-size:13px; color:var(--ink); word-break:break-all;}
+  .gescand p{font-size:12.5px; color:var(--ink-soft); margin:8px 0 0; line-height:1.55;}
 
   .score-card{background:var(--ink); border-radius:16px; padding:32px; text-align:center; margin-bottom:32px;}
   .score-label{font-family:var(--mono); font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;}
@@ -74,6 +84,11 @@
     <div class="eyebrow">{{ 'Volledige audit' if type == 'audit' else 'Monitoring' }}</div>
     <h1>Je rapport voor {{ webshop_url }}</h1>
     <div class="sub">Aangemaakt op {{ aangemaakt_op }}</div>
+    <div class="gescand">
+      <span class="gescand-label">Gescand adres</span>
+      <span class="gescand-url">{{ webshop_url }}</span>
+      <p>Een andere pagina van dezelfde webshop kan een andere score geven, omdat elke pagina anders is opgebouwd. Wil je een specifieke pagina laten beoordelen, vul dan precies dat adres in.</p>
+    </div>
 
     <div class="score-card">
       <div class="score-label">AI-zichtbaarheidsscore</div>

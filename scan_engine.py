@@ -184,15 +184,21 @@ def check_javascript_dependency(html):
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
     word_count = len(soup.get_text(separator=" ", strip=True).split())
+    woorden = "woord" if word_count == 1 else "woorden"
 
     if word_count >= 300:
-        score, uitleg = 100, f"Er staan direct {word_count} woorden leesbare tekst op de pagina, ruim genoeg voor AI om te begrijpen waar de pagina over gaat."
+        score, uitleg = 100, f"Er staan direct {word_count} {woorden} leesbare tekst op de pagina, ruim genoeg voor AI om te begrijpen waar de pagina over gaat."
     elif word_count >= 150:
-        score, uitleg = 70, f"Er staan {word_count} woorden direct leesbare tekst op de pagina. Dat is bruikbaar, meer tekst geeft AI net wat meer houvast."
+        score, uitleg = 70, f"Er staan {word_count} {woorden} direct leesbare tekst op de pagina. Dat is bruikbaar, meer tekst geeft AI net wat meer houvast."
     elif word_count >= 80:
-        score, uitleg = 40, f"Er staan maar {word_count} woorden direct leesbare tekst op de pagina. Een deel van je content verschijnt mogelijk pas na het uitvoeren van scripts."
+        score, uitleg = 40, f"Er staan maar {word_count} {woorden} direct leesbare tekst op de pagina. Een deel van je content verschijnt mogelijk pas na het uitvoeren van scripts."
     else:
-        score, uitleg = 10, f"Er staan maar {word_count} woorden direct leesbare tekst in de ruwe pagina. Grote kans dat je belangrijkste content pas verschijnt nadat JavaScript is uitgevoerd, en dat missen de meeste AI-robots volledig."
+        score, uitleg = 10, (
+            f"Er staan maar {word_count} {woorden} direct leesbare tekst in de ruwe pagina. Deze website bouwt "
+            "zijn inhoud vrijwel volledig op nadat de pagina geladen is. De meeste AI-robots zien daardoor een "
+            "zo goed als lege pagina. Dit is het belangrijkste punt om aan te pakken, want zolang dit zo is, "
+            "hebben de andere verbeteringen weinig effect."
+        )
     return make_check("leesbaarheid", "Is de belangrijkste tekst zichtbaar zonder te klikken?", "leesbaarheid", "hoog", score, uitleg)
 
 
