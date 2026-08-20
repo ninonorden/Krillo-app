@@ -12,12 +12,12 @@
 <style>
   :root{
     --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
-    --line:#E4E2DA; --coral:#FF4B3E; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
     --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6; -webkit-font-smoothing:antialiased;}
-  a{color:var(--coral); text-decoration:none;}
+  a{color:var(--coral-tekst); text-decoration:none;}
   .wrap{max-width:1080px; margin:0 auto; padding:0 28px;}
   nav{border-bottom:1px solid var(--line);}
   nav .wrap{display:flex; align-items:center; justify-content:space-between; height:68px;}
@@ -25,7 +25,6 @@
   .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
 
   main{max-width:600px; margin:0 auto; padding:52px 28px 96px;}
-  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:0.08em; color:var(--coral); text-transform:uppercase; margin-bottom:14px;}
   h1{font-family:var(--disp); font-weight:700; font-size:32px; margin-bottom:14px; letter-spacing:-0.02em;}
   .intro{font-size:15.5px; color:var(--ink-soft); margin-bottom:32px;}
 
@@ -59,7 +58,6 @@
 <nav><div class="wrap"><a class="logo" href="/"><span class="logo-dot"></span>Krillo</a></div></nav>
 
 <main>
-  <div class="eyebrow">Herroepen</div>
   <h1>Je aankoop herroepen</h1>
   <p class="intro">Wil je je aankoop ongedaan maken, vul dan dit formulier in. Je hoeft geen reden op te geven.</p>
 

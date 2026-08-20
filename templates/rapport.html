@@ -11,13 +11,13 @@
 <style>
   :root{
     --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
-    --line:#E4E2DA; --coral:#FF4B3E; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
     --amber:#C77D00; --amber-dim:#FFF3D6;
     --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6; -webkit-font-smoothing:antialiased;}
-  a{color:var(--coral); text-decoration:none;}
+  a{color:var(--coral-tekst); text-decoration:none;}
   .wrap{max-width:760px; margin:0 auto; padding:0 24px;}
 
   nav{position:sticky; top:0; z-index:50; background:rgba(246,245,241,0.9); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);}
@@ -26,7 +26,7 @@
   .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
 
   main{padding:48px 0 96px;}
-  .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:0.06em; color:var(--coral); text-transform:uppercase; margin-bottom:10px;}
+  .eyebrow{font-family:var(--mono); font-size:12px; color:var(--ink-soft); margin-bottom:10px;}
   h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px; letter-spacing:-0.01em;}
   .sub{color:var(--ink-soft); font-size:14px; margin-bottom:32px;}
   .gescand{
@@ -35,7 +35,7 @@
   }
   .gescand-label{
     font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
-    letter-spacing:0.05em; color:var(--coral); display:block; margin-bottom:4px;
+    letter-spacing:0.05em; color:var(--coral-tekst); display:block; margin-bottom:4px;
   }
   .gescand-url{font-family:var(--mono); font-size:13px; color:var(--ink); word-break:break-all;}
   .gescand p{font-size:12.5px; color:var(--ink-soft); margin:8px 0 0; line-height:1.55;}
@@ -49,7 +49,7 @@
   .history-bar{flex:1; background:var(--coral); border-radius:3px 3px 0 0; min-height:4px;}
 
   h2{font-family:var(--disp); font-weight:600; font-size:18px; margin:32px 0 14px;}
-  .categorie-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--coral); margin:20px 0 8px;}
+  .categorie-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--coral-tekst); margin:20px 0 8px;}
   .check{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); font-size:13.5px;}
   .tag{font-family:var(--mono); font-size:10px; padding:3px 8px; border-radius:5px; flex-shrink:0; margin-top:1px;}
   .tag.ok{background:var(--teal-dim); color:#085041;}
@@ -60,7 +60,7 @@
 
   .fixes-intro{font-size:13.5px; color:var(--ink-soft); margin-bottom:18px; max-width:600px;}
   .fix{background:var(--paper-raised); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:12px;}
-  .fix-num{font-family:var(--mono); font-size:10.5px; color:var(--coral); text-transform:uppercase; margin-bottom:6px;}
+  .fix-num{font-family:var(--mono); font-size:10.5px; color:var(--coral-tekst); text-transform:uppercase; margin-bottom:6px;}
   .fix strong{font-size:14.5px; display:block; margin-bottom:6px;}
   .fix p{font-size:13px; color:var(--ink-soft); margin-bottom:10px;}
   .fix-code{background:var(--paper); border-radius:6px; padding:10px 12px; font-size:12.5px; color:#085041; font-family:var(--mono); white-space:pre-wrap;}
@@ -69,7 +69,7 @@
   }
   .fix-waar-label{
     font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
-    letter-spacing:0.05em; color:var(--coral); margin-bottom:6px;
+    letter-spacing:0.05em; color:var(--coral-tekst); margin-bottom:6px;
   }
   .fix-waar p{font-size:13px; color:var(--ink-soft); margin:0; line-height:1.65;}
 

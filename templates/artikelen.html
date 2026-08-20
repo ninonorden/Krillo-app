@@ -32,12 +32,12 @@
 <style>
   :root{
     --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
-    --line:#E4E2DA; --coral:#FF4B3E; --teal:#1FB6A4;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --teal:#1FB6A4;
     --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6; -webkit-font-smoothing:antialiased;}
-  a{color:var(--coral); text-decoration:none;}
+  a{color:var(--coral-tekst); text-decoration:none;}
   .wrap{max-width:1080px; margin:0 auto; padding:0 28px;}
   nav{position:sticky; top:0; z-index:50; background:rgba(246,245,241,0.9); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);}
   nav .wrap{display:flex; align-items:center; justify-content:space-between; height:68px;}
@@ -45,7 +45,6 @@
   .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
   .nav-cta{font-size:14px; font-weight:600; background:var(--ink); color:var(--paper); padding:9px 18px; border-radius:100px;}
   main{max-width:800px; margin:0 auto; padding:56px 28px 96px;}
-  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:0.08em; color:var(--coral); text-transform:uppercase; margin-bottom:14px;}
   h1{font-family:var(--disp); font-weight:700; letter-spacing:-0.02em; font-size:34px; margin-bottom:12px;}
   .intro{font-size:16px; color:var(--ink-soft); margin-bottom:44px; max-width:600px;}
   .kaart{
@@ -57,7 +56,7 @@
   .kaart-meta{font-family:var(--mono); font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;}
   .kaart h2{font-family:var(--disp); font-weight:600; font-size:20px; margin-bottom:8px; letter-spacing:-0.01em;}
   .kaart p{font-size:14.5px; color:var(--ink-soft);}
-  .kaart-lees{font-size:13.5px; color:var(--coral); font-weight:600; margin-top:12px; display:inline-block;}
+  .kaart-lees{font-size:13.5px; color:var(--coral-tekst); font-weight:600; margin-top:12px; display:inline-block;}
   footer{border-top:1px solid var(--line); padding:36px 0; text-align:center; font-size:12.5px; color:var(--ink-soft);}
 </style>
 </head>
@@ -71,7 +70,6 @@
 </nav>
 
 <main>
-  <div class="eyebrow">Artikelen</div>
   <h1>Zorgen dat AI jouw webshop vindt</h1>
   <p class="intro">Uitleg in gewone taal over hoe ChatGPT, Gemini en andere AI-assistenten webshops vinden en aanbevelen. Geschreven voor webshop-eigenaren, niet voor marketeers.</p>
 

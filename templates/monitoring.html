@@ -12,13 +12,13 @@
 <style>
   :root{
     --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
-    --line:#E4E2DA; --coral:#FF4B3E; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
     --amber:#C77D00; --amber-dim:#FFF3D6;
     --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6; -webkit-font-smoothing:antialiased;}
-  a{color:var(--coral); text-decoration:none;}
+  a{color:var(--coral-tekst); text-decoration:none;}
   .wrap{max-width:800px; margin:0 auto; padding:0 24px;}
   nav{border-bottom:1px solid var(--line); background:var(--paper);}
   nav .wrap{display:flex; align-items:center; justify-content:space-between; height:64px;}
@@ -27,7 +27,7 @@
   .nav-note{font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);}
 
   main{padding:48px 0 96px;}
-  .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:0.06em; color:var(--coral); text-transform:uppercase; margin-bottom:10px;}
+  .eyebrow{font-family:var(--mono); font-size:12px; color:var(--ink-soft); margin-bottom:10px;}
   h1{font-family:var(--disp); font-weight:700; font-size:27px; margin-bottom:6px; letter-spacing:-0.01em;}
   .sub{color:var(--ink-soft); font-size:14px; margin-bottom:32px;}
 
@@ -54,7 +54,7 @@
   .balk-datum{font-family:var(--mono); font-size:9.5px; color:var(--ink-soft);}
 
   h2.sectie{font-family:var(--disp); font-weight:600; font-size:18px; margin:32px 0 12px;}
-  .categorie-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--coral); margin:20px 0 8px;}
+  .categorie-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--coral-tekst); margin:20px 0 8px;}
   .check{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); font-size:13.5px;}
   .tag{font-family:var(--mono); font-size:10px; padding:3px 8px; border-radius:5px; flex-shrink:0; margin-top:1px;}
   .tag.ok{background:var(--teal-dim); color:#085041;}
