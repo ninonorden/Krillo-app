@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zo meten we | Krillo</title>
+<meta name="description" content="Precies hoe Krillo een webshop beoordeelt: welke dertien punten we checken, hoe de score wordt berekend, wat we wel en niet kunnen meten, en waar de grenzen liggen.">
+<link rel="canonical" href="https://www.krillo.nl/zo-meten-we">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://www.krillo.nl/zo-meten-we">
+<meta property="og:title" content="Zo meten we bij Krillo">
+<meta property="og:description" content="Welke dertien punten we checken, hoe de score wordt berekend, en waar de grenzen van onze meting liggen.">
+<meta property="og:image" content="https://www.krillo.nl/static/krillo-share.png">
+<meta property="og:locale" content="nl_NL">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Zo meten we bij Krillo",
+  "description": "Precies hoe Krillo een webshop beoordeelt, hoe de score tot stand komt, en waar de grenzen van de meting liggen.",
+  "inLanguage": "nl-NL",
+  "mainEntityOfPage": {"@type": "WebPage", "@id": "https://www.krillo.nl/zo-meten-we"},
+  "author": {"@type": "Organization", "name": "Krillo", "url": "https://www.krillo.nl"},
+  "publisher": {"@type": "Organization", "name": "Krillo", "url": "https://www.krillo.nl"}
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.7; -webkit-font-smoothing:antialiased;}
+  a{color:var(--coral-tekst); text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  .wrap{max-width:1080px; margin:0 auto; padding:0 28px;}
+  nav{position:sticky; top:0; z-index:50; background:rgba(246,245,241,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);}
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:68px;}
+  .logo{font-family:var(--disp); font-weight:700; font-size:19px; display:flex; align-items:center; gap:8px; color:var(--ink);}
+  .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
+  .nav-cta{font-size:14px; font-weight:600; background:var(--ink); color:var(--paper); padding:9px 18px; border-radius:100px;}
+  a:focus-visible, button:focus-visible{outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;}
+
+  main{max-width:700px; margin:0 auto; padding:52px 28px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:34px; margin-bottom:16px; letter-spacing:-0.02em; line-height:1.2;}
+  .intro{font-size:17px; color:var(--ink-soft); margin-bottom:44px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:21px; margin:40px 0 14px; letter-spacing:-0.01em;}
+  h3{font-family:var(--disp); font-weight:600; font-size:16px; margin:26px 0 8px;}
+  p{font-size:15.5px; color:var(--ink-soft); margin-bottom:16px;}
+  ul{padding-left:20px; margin-bottom:18px;}
+  li{font-size:15.5px; color:var(--ink-soft); margin-bottom:8px;}
+  strong{color:var(--ink);}
+
+  .categorie{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:22px 24px; margin-bottom:14px;}
+  .categorie-naam{font-family:var(--disp); font-weight:600; font-size:16px; margin-bottom:4px;}
+  .categorie-gewicht{font-family:var(--mono); font-size:11px; color:var(--coral-tekst); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px;}
+  .categorie ul{margin:0; padding-left:18px;}
+  .categorie li{font-size:14px; margin-bottom:5px;}
+
+  .grens{background:var(--amber-dim); border-radius:12px; padding:22px 24px; margin:28px 0;}
+  .grens strong{display:block; margin-bottom:8px; font-family:var(--disp); font-size:16px;}
+  .grens p{color:#7A5200; margin-bottom:10px; font-size:14.5px;}
+  .grens p:last-child{margin-bottom:0;}
+
+  .schaal{display:flex; gap:10px; margin:20px 0 28px; flex-wrap:wrap;}
+  .schaal-item{flex:1; min-width:150px; border-radius:10px; padding:14px 16px;}
+  .schaal-item.goed{background:var(--teal-dim);}
+  .schaal-item.deels{background:var(--amber-dim);}
+  .schaal-item.probleem{background:var(--coral-dim);}
+  .schaal-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:5px;}
+  .schaal-item.goed .schaal-label{color:#085041;}
+  .schaal-item.deels .schaal-label{color:#8A5A00;}
+  .schaal-item.probleem .schaal-label{color:#993C1D;}
+  .schaal-item span{font-size:13.5px; color:var(--ink-soft);}
+
+  .cta-blok{background:var(--ink); border-radius:14px; padding:28px; margin-top:48px; color:var(--paper);}
+  .cta-blok strong{display:block; font-family:var(--disp); font-size:19px; margin-bottom:8px; color:var(--paper);}
+  .cta-blok p{font-size:14.5px; color:#B9BBD4; margin-bottom:18px;}
+  .cta-knop{display:inline-block; background:var(--coral); color:#fff; font-weight:600; font-size:14.5px; padding:12px 24px; border-radius:8px;}
+  .cta-knop:hover{text-decoration:none;}
+  footer{border-top:1px solid var(--line); padding:36px 0; text-align:center; font-size:12.5px; color:var(--ink-soft);}
+
+  /* Respecteer de voorkeur van mensen die liever geen bewegende beelden zien */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
+    <a class="nav-cta" href="/#scan">Gratis scan</a>
+  </div>
+</nav>
+
+<main>
+  <h1>Zo meten we</h1>
+  <p class="intro">Een score van 43 of 78 zegt niets als je niet weet hoe die tot stand komt. Daarom staat hier precies wat we doen, wat de cijfers betekenen, en wat we niet kunnen meten.</p>
+
+  <h2>Wat er gebeurt als je een scan start</h2>
+  <p>We halen je pagina op zoals een gewone browser dat doet, en kijken naar de broncode die een AI-robot ook te zien krijgt. Dat is belangrijk, want wat jij in je browser ziet is vaak meer dan wat een robot ziet.</p>
+  <p>Daarnaast zoeken we vanaf je homepage naar maximaal vijf andere relevante pagina's, zoals je product- of categoriepagina's. Die nemen we mee bij het beoordelen van je productinformatie, want die staat zelden op een homepage.</p>
+  <p>Lukt het ophalen niet in één keer, dan proberen we het opnieuw. Krijgen we een beveiligingscontrole in plaats van je echte pagina, dan geven we geen score maar een melding. Een verkeerd cijfer is erger dan geen cijfer.</p>
+
+  <h2>De dertien punten</h2>
+  <p>We checken dertien dingen, verdeeld over vier groepen. Punten met hoge invloed tellen twee keer zo zwaar mee als punten met gemiddelde invloed.</p>
+
+  <div class="categorie">
+    <div class="categorie-naam">Toegang</div>
+    <div class="categorie-gewicht">Kan een AI-robot er überhaupt bij?</div>
+    <ul>
+      <li>Gebruikt de site een beveiligde verbinding</li>
+      <li>Worden AI-robots niet geweerd in het instellingenbestand</li>
+      <li>Reageert de pagina snel genoeg</li>
+    </ul>
+  </div>
+
+  <div class="categorie">
+    <div class="categorie-naam">Leesbaarheid</div>
+    <div class="categorie-gewicht">Kan een robot de inhoud lezen?</div>
+    <ul>
+      <li>Hoeveel tekst staat er direct in de pagina, zonder dat er iets geladen hoeft te worden</li>
+      <li>Is er precies één hoofdkop die vertelt waar de pagina over gaat</li>
+      <li>Staat er expliciet in welke taal de pagina geschreven is</li>
+    </ul>
+  </div>
+
+  <div class="categorie">
+    <div class="categorie-naam">Structuur</div>
+    <div class="categorie-gewicht">Kan een robot je site overzien?</div>
+    <ul>
+      <li>Is er machine-leesbare informatie over je producten en bedrijf</li>
+      <li>Bestaat er een overzicht van al je pagina's</li>
+      <li>Staan er specifieke instructies voor AI op de site</li>
+      <li>Is er een korte samenvatting die AI en sociale media kunnen gebruiken</li>
+    </ul>
+  </div>
+
+  <div class="categorie">
+    <div class="categorie-naam">Inhoud</div>
+    <div class="categorie-gewicht">Staat er genoeg om iets mee te doen?</div>
+    <ul>
+      <li>Heeft de pagina een duidelijke titel en omschrijving</li>
+      <li>Worden veelgestelde vragen direct beantwoord</li>
+      <li>Hebben afbeeldingen een beschrijving die een robot kan lezen</li>
+    </ul>
+  </div>
+
+  <h2>Hoe de score wordt berekend</h2>
+  <p>Elk punt krijgt een cijfer van 0 tot 100. Punten met hoge invloed wegen dubbel. De eindscore is het gewogen gemiddelde daarvan. Punten die we niet konden meten laten we buiten de berekening, in plaats van er een nul voor te rekenen.</p>
+  <p>Per punt zie je een van deze drie labels:</p>
+
+  <div class="schaal">
+    <div class="schaal-item goed">
+      <div class="schaal-label">goed</div>
+      <span>Dit staat in orde, hier hoef je niets aan te doen.</span>
+    </div>
+    <div class="schaal-item deels">
+      <div class="schaal-label">kan beter</div>
+      <span>Werkt, maar er blijft iets liggen.</span>
+    </div>
+    <div class="schaal-item probleem">
+      <div class="schaal-label">verbeterpunt</div>
+      <span>Dit kost je waarschijnlijk zichtbaarheid.</span>
+    </div>
+  </div>
+
+  <h2>Waarom dezelfde webshop soms een andere score krijgt</h2>
+  <p>Twee scans van dezelfde pagina horen hetzelfde resultaat te geven, en dat doen ze ook. Krijg je toch een ander cijfer, dan is er meestal iets anders aan de hand.</p>
+  <p>De meest voorkomende reden is dat er een ander adres is gescand. De homepage van een webshop en een categoriepagina zijn verschillende pagina's, met een andere opbouw en dus een andere score. Op je rapport staat daarom altijd precies welk adres we hebben bekeken.</p>
+  <p>Daarnaast kan je site zelf veranderd zijn, of tijdelijk trager. Om te voorkomen dat een toevallige piek je score beïnvloedt, meten we de laadtijd meerdere keren en gebruiken we de snelste.</p>
+
+  <div class="grens">
+    <strong>Waar onze meting ophoudt</strong>
+    <p>We meten of AI je webshop kan vinden, lezen en begrijpen. Dat is de basis, en zonder die basis wordt je shop zeker niet aanbevolen. Maar het is geen garantie dat het wel gebeurt.</p>
+    <p>Of een AI je daadwerkelijk noemt hangt ook af van dingen buiten je site: wat anderen over je schrijven, reviews, vergelijkingssites, en hoe bekend je merk is. Dat meten we op dit moment niet, en we doen ook niet alsof.</p>
+    <p>We beloven daarom geen resultaat. We laten zien wat er aan jouw kant niet klopt, en lossen dat op.</p>
+  </div>
+
+  <h2>Wat we met je gegevens doen</h2>
+  <p>We bewaren de resultaten van je scans zodat je ze later kan terugkijken en je verloop kan zien. We verkopen niets door en gebruiken je gegevens niet voor advertenties. In het <a href="/privacybeleid">privacybeleid</a> staat precies wat we bewaren en hoe lang.</p>
+
+  <div class="cta-blok">
+    <strong>Zelf zien hoe het werkt?</strong>
+    <p>Doe de gratis scan en bekijk je eigen resultaat. Geen account, geen betaalgegevens, en je ziet meteen alle dertien punten met uitleg.</p>
+    <a class="cta-knop" href="/#scan">Scan je webshop gratis</a>
+  </div>
+</main>
+
+<footer>© 2026 Krillo &middot; <a href="/">Terug naar de website</a> &middot; <a href="/veelgestelde-vragen">Veelgestelde vragen</a></footer>
+
+</body>
+</html>

@@ -39,6 +39,19 @@
     display:inline-block; margin-top:24px; font-size:13.5px; color:var(--ink);
     text-decoration:none; border-bottom:1px solid var(--ink);
   }
+
+  /* Respecteer de voorkeur van mensen die liever geen bewegende beelden zien */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
+  }
 </style>
 </head>
 <body>

@@ -83,6 +83,19 @@
   .opzeg-melding{margin-top:14px; font-size:13px; padding:12px 14px; border-radius:8px; display:none;}
   .opzeg-melding.fout{background:var(--coral-dim); color:#993C1D; display:block;}
   .opzeg-melding.goed{background:var(--teal-dim); color:#085041; display:block;}
+
+  /* Respecteer de voorkeur van mensen die liever geen bewegende beelden zien */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
+  }
 </style>
 </head>
 <body>

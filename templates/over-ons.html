@@ -61,6 +61,19 @@
   .contact-card strong{display:block; font-family:var(--disp); font-size:16px; margin-bottom:8px; color:var(--ink);}
   .contact-row{font-size:14px; color:var(--ink-soft); margin-bottom:6px;}
   footer{border-top:1px solid var(--line); padding:36px 0; text-align:center; font-size:12.5px; color:var(--ink-soft);}
+
+  /* Respecteer de voorkeur van mensen die liever geen bewegende beelden zien */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
+  }
 </style>
 </head>
 <body>

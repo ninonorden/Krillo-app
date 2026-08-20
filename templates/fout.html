@@ -29,6 +29,19 @@
   .knop{padding:11px 22px; border-radius:8px; font-size:14px; font-weight:600; text-decoration:none;}
   .knop.vol{background:var(--ink); color:var(--paper);}
   .knop.leeg{border:1.5px solid var(--line); color:var(--ink);}
+
+  /* Respecteer de voorkeur van mensen die liever geen bewegende beelden zien */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
+  }
 </style>
 </head>
 <body>

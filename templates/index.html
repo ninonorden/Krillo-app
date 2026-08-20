@@ -512,6 +512,33 @@
     .footer-top{grid-template-columns:1fr 1fr; gap:28px 20px;}
     .footer-bottom{flex-direction:column; gap:10px; align-items:flex-start;}
   }
+
+  @media(max-width:560px){
+    section{padding:60px 0;}
+    h2{font-size:27px;}
+    .wrap{padding:0 20px;}
+    .cijfer-num{font-size:33px;}
+    .demo-score-num{font-size:38px;}
+    .rapport-demo-body{padding:16px;}
+    .demo-fix-code{font-size:10.5px; padding:12px 14px;}
+    .demo-regel{flex-direction:column; gap:6px;}
+    .audit-teaser{padding:24px 20px;}
+    .checkout-modal{padding:26px 22px;}
+    .price-card{padding:26px 22px;}
+  }
+
+  /* Respecteer de voorkeur van mensen die liever geen bewegende beelden zien */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
+  }
 </style>
 </head>
 <body>
@@ -523,6 +550,7 @@
       <a href="#hoe">Hoe het werkt</a>
       <a href="#voorbeeld">Voorbeeld</a>
       <a href="#prijzen">Prijzen</a>
+      <a href="/zo-meten-we">Zo meten we</a>
       <a href="/artikelen">Artikelen</a>
     </div>
     <a class="nav-cta" href="#scan">Gratis scan</a>
@@ -788,6 +816,7 @@
       </div>
       <div class="footer-col">
         <h4>Bedrijf</h4>
+        <a href="/zo-meten-we">Zo meten we</a>
         <a href="/artikelen">Artikelen</a>
         <a href="/over-ons">Over Krillo</a>
         <a href="/veelgestelde-vragen">Veelgestelde vragen</a>

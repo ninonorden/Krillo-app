@@ -55,6 +55,11 @@ def veelgestelde_vragen():
     return render_template("faq.html")
 
 
+@app.route("/zo-meten-we")
+def zo_meten_we():
+    return render_template("zo-meten-we.html")
+
+
 @app.route("/over-ons")
 def over_ons():
     return render_template("over-ons.html")
@@ -150,7 +155,7 @@ Sitemap: https://www.krillo.nl/sitemap.xml
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
-    paginas = ["/", "/artikelen", "/veelgestelde-vragen", "/over-ons", "/voorwaarden", "/privacybeleid", "/herroepen"]
+    paginas = ["/", "/artikelen", "/zo-meten-we", "/veelgestelde-vragen", "/over-ons", "/voorwaarden", "/privacybeleid", "/herroepen"]
     paginas += [f"/artikelen/{a['slug']}" for a in artikelen.ARTIKELEN]
     urls = "".join(
         f"<url><loc>https://www.krillo.nl{p}</loc><changefreq>weekly</changefreq></url>"
@@ -187,6 +192,7 @@ marketingbureau en zonder technische kennis.
 ## Belangrijke pagina's
 - Homepage en gratis scan: https://www.krillo.nl/
 - Artikelen over AI-zichtbaarheid: https://www.krillo.nl/artikelen
+- Hoe we meten: https://www.krillo.nl/zo-meten-we
 - Veelgestelde vragen: https://www.krillo.nl/veelgestelde-vragen
 - Over Krillo en contact: https://www.krillo.nl/over-ons
 
