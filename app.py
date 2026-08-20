@@ -22,6 +22,7 @@ import emailing
 import ai_content
 import db
 import artikelen
+import koopvragen
 
 app = Flask(__name__)
 db.init_db()
@@ -469,6 +470,45 @@ def rapport(token):
         aangemaakt_op=report["aangemaakt_op"].strftime("%d-%m-%Y"),
         status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
     )
+
+
+@app.route("/admin/koopvragen")
+def admin_koopvragen():
+    """Nog niet zichtbaar voor klanten. Hiermee kan je per webshop de
+    koopvragen laten genereren en bekijken voordat we ze echt gaan gebruiken."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    webshop_url = (request.args.get("url") or "").strip()
+    if not webshop_url:
+        return jsonify({"uitleg": "Voeg &url=jouwwebshop.nl toe om vragen te genereren."})
+
+    bestaand = db.get_koopvragen(webshop_url)
+    if bestaand and request.args.get("opnieuw") != "ja":
+        return jsonify({
+            "webshop": webshop_url,
+            "bron": "uit de database",
+            "aantal": len(bestaand),
+            "vragen": [{"vraag": v["vraag"], "intentie": v["intentie"]} for v in bestaand],
+        })
+
+    scan_result = run_scan(webshop_url)
+    extra = scan_result.get("gevonden_paginas") if "error" not in scan_result else None
+
+    resultaat = koopvragen.genereer_koopvragen(webshop_url, extra)
+    if resultaat is None:
+        return jsonify({"error": "Genereren mislukt. Staat de AI-sleutel ingesteld en is de site bereikbaar?"}), 400
+
+    nieuw = db.bewaar_koopvragen(webshop_url, resultaat["omschrijving"], resultaat["vragen"])
+    return jsonify({
+        "webshop": webshop_url,
+        "bron": "net gegenereerd",
+        "wat_verkoopt_deze_winkel": resultaat["omschrijving"],
+        "aantal": len(resultaat["vragen"]),
+        "nieuw_opgeslagen": nieuw,
+        "vragen": resultaat["vragen"],
+    })
 
 
 @app.route("/admin/bestellingen")

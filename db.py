@@ -95,6 +95,24 @@ def init_db():
                         ontvangen_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS koopvragen (
+                        id SERIAL PRIMARY KEY,
+                        webshop_url TEXT NOT NULL,
+                        vraag TEXT NOT NULL,
+                        intentie TEXT,
+                        actief BOOLEAN DEFAULT true,
+                        aangemaakt_op TIMESTAMPTZ DEFAULT now(),
+                        UNIQUE (webshop_url, vraag)
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS winkelprofielen (
+                        webshop_url TEXT PRIMARY KEY,
+                        omschrijving TEXT,
+                        bijgewerkt_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
                 cur.execute("ALTER TABLE rapporten ADD COLUMN IF NOT EXISTS klant_token TEXT;")
     finally:
         conn.close()
@@ -119,6 +137,63 @@ def claim_payment(payment_id):
     except Exception as e:
         print(f"Betaling claimen mislukt: {e}")
         return True
+    finally:
+        conn.close()
+
+
+def bewaar_koopvragen(webshop_url, omschrijving, vragen):
+    """Bewaart de gegenereerde koopvragen. Dezelfde vraag voor dezelfde webshop
+    komt er maar een keer in, zodat opnieuw genereren niets dubbel maakt."""
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    nieuw = 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO winkelprofielen (webshop_url, omschrijving)
+                       VALUES (%s, %s)
+                       ON CONFLICT (webshop_url) DO UPDATE
+                       SET omschrijving = EXCLUDED.omschrijving, bijgewerkt_op = now()""",
+                    (webshop_url, omschrijving),
+                )
+                for v in vragen:
+                    cur.execute(
+                        """INSERT INTO koopvragen (webshop_url, vraag, intentie)
+                           VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
+                        (webshop_url, v["vraag"], v.get("intentie")),
+                    )
+                    nieuw += cur.rowcount
+        return nieuw
+    except Exception as e:
+        print(f"Koopvragen bewaren mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def get_koopvragen(webshop_url, alleen_actief=True):
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if alleen_actief:
+                    cur.execute(
+                        "SELECT * FROM koopvragen WHERE webshop_url = %s AND actief = true ORDER BY intentie, id",
+                        (webshop_url,),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT * FROM koopvragen WHERE webshop_url = %s ORDER BY intentie, id",
+                        (webshop_url,),
+                    )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Koopvragen ophalen mislukt: {e}")
+        return []
     finally:
         conn.close()
 
