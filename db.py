@@ -173,6 +173,22 @@ def bewaar_koopvragen(webshop_url, omschrijving, vragen):
         conn.close()
 
 
+def get_winkelprofiel(webshop_url):
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM winkelprofielen WHERE webshop_url = %s", (webshop_url,))
+                return cur.fetchone()
+    except Exception as e:
+        print(f"Winkelprofiel ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
 def get_koopvragen(webshop_url, alleen_actief=True):
     conn = _get_connection()
     if conn is None:

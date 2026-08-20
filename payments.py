@@ -25,6 +25,12 @@ def get_mollie_client():
         return None
     client = Client()
     client.set_api_key(api_key)
+    # Nooit eindeloos wachten. Loopt de verbinding met Mollie vast, dan willen
+    # we een foutmelding, geen pagina die blijft laden.
+    try:
+        client.set_timeout(15)
+    except Exception:
+        pass
     return client
 
 
@@ -175,7 +181,7 @@ def list_active_monitoring_customers():
     return result
 
 
-def list_recent_orders(limit=50):
+def list_recent_orders(limit=25):
     """Haalt de meest recente betaalde bestellingen op, voor het bestel-overzicht."""
     client = get_mollie_client()
     if client is None:
@@ -183,7 +189,11 @@ def list_recent_orders(limit=50):
 
     orders = []
     try:
-        for payment in client.payments.list(limit=limit):
+        # Bewust een kleine limiet: dit overzicht moet snel laden. Bij veel
+        # bestellingen bouwen we later een pagina-indeling.
+        for i, payment in enumerate(client.payments.list()):
+            if i >= limit:
+                break
             if not payment.is_paid():
                 continue
             metadata = payment.metadata or {}

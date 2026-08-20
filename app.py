@@ -472,6 +472,22 @@ def rapport(token):
     )
 
 
+def _genereer_koopvragen_achtergrond(webshop_url):
+    """Draait op de achtergrond, want scannen plus vragen bedenken duurt een
+    minuut of meer. De pagina hoeft daar niet op te wachten."""
+    try:
+        scan_result = run_scan(webshop_url)
+        extra = scan_result.get("gevonden_paginas") if "error" not in scan_result else None
+        resultaat = koopvragen.genereer_koopvragen(webshop_url, extra)
+        if resultaat is None:
+            print(f"Koopvragen genereren mislukt voor {webshop_url}")
+            return
+        nieuw = db.bewaar_koopvragen(webshop_url, resultaat["omschrijving"], resultaat["vragen"])
+        print(f"Koopvragen klaar voor {webshop_url}: {len(resultaat['vragen'])} vragen, {nieuw} nieuw opgeslagen.")
+    except Exception as e:
+        print(f"Koopvragen genereren mislukt voor {webshop_url}: {e}")
+
+
 @app.route("/admin/koopvragen")
 def admin_koopvragen():
     """Nog niet zichtbaar voor klanten. Hiermee kan je per webshop de
@@ -485,29 +501,24 @@ def admin_koopvragen():
         return jsonify({"uitleg": "Voeg &url=jouwwebshop.nl toe om vragen te genereren."})
 
     bestaand = db.get_koopvragen(webshop_url)
-    if bestaand and request.args.get("opnieuw") != "ja":
+    opnieuw = request.args.get("opnieuw") == "ja"
+
+    if bestaand and not opnieuw:
+        profiel = db.get_winkelprofiel(webshop_url)
         return jsonify({
             "webshop": webshop_url,
-            "bron": "uit de database",
+            "status": "klaar",
+            "wat_verkoopt_deze_winkel": profiel.get("omschrijving") if profiel else "",
             "aantal": len(bestaand),
             "vragen": [{"vraag": v["vraag"], "intentie": v["intentie"]} for v in bestaand],
         })
 
-    scan_result = run_scan(webshop_url)
-    extra = scan_result.get("gevonden_paginas") if "error" not in scan_result else None
-
-    resultaat = koopvragen.genereer_koopvragen(webshop_url, extra)
-    if resultaat is None:
-        return jsonify({"error": "Genereren mislukt. Staat de AI-sleutel ingesteld en is de site bereikbaar?"}), 400
-
-    nieuw = db.bewaar_koopvragen(webshop_url, resultaat["omschrijving"], resultaat["vragen"])
+    # Nog niets, of opnieuw gevraagd: op de achtergrond starten.
+    threading.Thread(target=_genereer_koopvragen_achtergrond, args=(webshop_url,), daemon=True).start()
     return jsonify({
         "webshop": webshop_url,
-        "bron": "net gegenereerd",
-        "wat_verkoopt_deze_winkel": resultaat["omschrijving"],
-        "aantal": len(resultaat["vragen"]),
-        "nieuw_opgeslagen": nieuw,
-        "vragen": resultaat["vragen"],
+        "status": "bezig",
+        "uitleg": "De vragen worden nu bedacht. Dit duurt ongeveer een minuut. Ververs deze pagina daarna, dan staan ze er.",
     })
 
 
