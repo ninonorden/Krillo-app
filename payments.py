@@ -15,7 +15,7 @@ import os
 from mollie.api.client import Client
 from mollie.api.error import Error as MollieError
 
-AUDIT_PRICE = {"currency": "EUR", "value": "0.50"}  # TIJDELIJK OM TE TESTEN, terugzetten naar 79.00
+AUDIT_PRICE = {"currency": "EUR", "value": "79.00"}
 MONITORING_PRICE = {"currency": "EUR", "value": "39.00"}
 
 
