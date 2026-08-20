@@ -23,6 +23,7 @@ import ai_content
 import db
 import artikelen
 import koopvragen
+import kosten
 
 app = Flask(__name__)
 db.init_db()
@@ -491,35 +492,77 @@ def _genereer_koopvragen_achtergrond(webshop_url):
 @app.route("/admin/koopvragen")
 def admin_koopvragen():
     """Nog niet zichtbaar voor klanten. Hiermee kan je per webshop de
-    koopvragen laten genereren en bekijken voordat we ze echt gaan gebruiken."""
+    koopvragen laten genereren, beoordelen en ontdubbelen."""
     admin_key = os.environ.get("ADMIN_KEY")
     if not admin_key or request.args.get("key") != admin_key:
         return "", 404
 
     webshop_url = (request.args.get("url") or "").strip()
     if not webshop_url:
-        return jsonify({"uitleg": "Voeg &url=jouwwebshop.nl toe om vragen te genereren."})
+        return render_template("admin_koopvragen.html", webshop_url="geen webshop opgegeven",
+                                status="leeg", vragen=[], groepen={}, dubbelen=0, sleutel=admin_key)
 
     bestaand = db.get_koopvragen(webshop_url)
     opnieuw = request.args.get("opnieuw") == "ja"
 
-    if bestaand and not opnieuw:
-        profiel = db.get_winkelprofiel(webshop_url)
-        return jsonify({
-            "webshop": webshop_url,
-            "status": "klaar",
-            "wat_verkoopt_deze_winkel": profiel.get("omschrijving") if profiel else "",
-            "aantal": len(bestaand),
-            "vragen": [{"vraag": v["vraag"], "intentie": v["intentie"]} for v in bestaand],
-        })
+    if not bestaand or opnieuw:
+        threading.Thread(target=_genereer_koopvragen_achtergrond, args=(webshop_url,), daemon=True).start()
+        return render_template("admin_koopvragen.html", webshop_url=webshop_url,
+                                status="bezig", vragen=[], groepen={}, dubbelen=0, sleutel=admin_key)
 
-    # Nog niets, of opnieuw gevraagd: op de achtergrond starten.
-    threading.Thread(target=_genereer_koopvragen_achtergrond, args=(webshop_url,), daemon=True).start()
-    return jsonify({
-        "webshop": webshop_url,
-        "status": "bezig",
-        "uitleg": "De vragen worden nu bedacht. Dit duurt ongeveer een minuut. Ververs deze pagina daarna, dan staan ze er.",
-    })
+    vragen = [{"vraag": v["vraag"], "intentie": v["intentie"]} for v in bestaand]
+
+    # Ontdubbelen: eerst zoeken welke vragen hetzelfde vragen, en op verzoek
+    # de overbodige uitzetten.
+    dubbelingen = koopvragen.vind_dubbele_vragen(vragen)
+    if request.args.get("ontdubbel") == "ja" and dubbelingen:
+        for d in dubbelingen:
+            db.zet_vraag_uit(webshop_url, d["weglaten"])
+        return redirect(f"/admin/koopvragen?key={admin_key}&url={webshop_url}")
+
+    weg_te_laten = {d["weglaten"]: d["houden"] for d in dubbelingen}
+    groepen = {}
+    for v in vragen:
+        v = dict(v)
+        lijkt_op = weg_te_laten.get(v["vraag"])
+        v["dubbel"] = (lijkt_op[:40] + "...") if lijkt_op else None
+        groepen.setdefault(v["intentie"] or "overig", []).append(v)
+
+    profiel = db.get_winkelprofiel(webshop_url)
+    return render_template(
+        "admin_koopvragen.html",
+        webshop_url=webshop_url,
+        status="klaar",
+        omschrijving=profiel.get("omschrijving") if profiel else "",
+        vragen=vragen,
+        groepen=groepen,
+        dubbelen=len(dubbelingen),
+        sleutel=admin_key,
+    )
+
+
+@app.route("/admin/kosten")
+def admin_kosten():
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    dagen = int(request.args.get("dagen", 30))
+    overzicht = db.kostenoverzicht(dagen)
+    return render_template(
+        "admin_kosten.html",
+        dagen=dagen,
+        totaal=overzicht["totaal"],
+        per_klant=overzicht["per_klant"],
+        per_model=overzicht["per_model"],
+        grenzen={
+            "scan_euro": kosten.GRENS_PER_SCAN_EURO,
+            "scan_aanroepen": kosten.GRENS_PER_SCAN_AANROEPEN,
+            "klant_maand": kosten.GRENS_PER_KLANT_MAAND_EURO,
+            "dag_totaal": kosten.GRENS_TOTAAL_DAG_EURO,
+            "pogingen": kosten.MAX_POGINGEN,
+        },
+    )
 
 
 @app.route("/admin/bestellingen")

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kosten — Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:900px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:13.5px; font-family:var(--mono); margin-bottom:28px;}
+
+  .cijfers{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line);
+           border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:32px;}
+  .cijfer{background:var(--paper-raised); padding:20px;}
+  .cijfer-label{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px;}
+  .cijfer-num{font-family:var(--disp); font-weight:700; font-size:26px;}
+
+  h2{font-family:var(--disp); font-weight:600; font-size:17px; margin:32px 0 12px;}
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase;
+     color:var(--ink-soft); padding:11px 14px; border-bottom:1px solid var(--line); background:var(--paper);}
+  td{padding:11px 14px; font-size:13.5px; border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  td.getal{text-align:right; font-family:var(--mono); font-size:12.5px;}
+
+  .waarschuwing{background:var(--amber-dim); border-radius:10px; padding:16px 18px; margin-bottom:24px; font-size:13.5px; color:#7A5200;}
+  .waarschuwing strong{display:block; margin-bottom:4px; color:#5C3E00;}
+  .grenzen{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:20px 22px; margin-top:32px;}
+  .grenzen h3{font-family:var(--disp); font-size:15px; margin-bottom:10px;}
+  .grenzen div{font-size:13px; color:var(--ink-soft); font-family:var(--mono); margin-bottom:4px;}
+  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:32px; text-align:center; color:var(--ink-soft);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Kosten</h1>
+  <div class="sub">Laatste {{ dagen }} dagen</div>
+
+  {% if totaal and totaal.onbekende_prijs %}
+  <div class="waarschuwing">
+    <strong>{{ totaal.onbekende_prijs }} aanroepen zonder bekende prijs</strong>
+    Er is een model gebruikt dat niet in de prijslijst staat. Die kosten zijn niet meegeteld, dus het werkelijke bedrag ligt hoger. Voeg het model toe in kosten.py.
+  </div>
+  {% endif %}
+
+  {% if not totaal or not totaal.aantal %}
+  <div class="leeg">Nog geen AI-aanroepen geregistreerd in deze periode.</div>
+  {% else %}
+
+  <div class="cijfers">
+    <div class="cijfer">
+      <div class="cijfer-label">Totale kosten</div>
+      <div class="cijfer-num">€{{ '%.2f'|format(totaal.kosten) }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Aanroepen</div>
+      <div class="cijfer-num">{{ totaal.aantal }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Tokens</div>
+      <div class="cijfer-num">{{ '{:,}'.format(totaal.tokens).replace(',', '.') }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Mislukt</div>
+      <div class="cijfer-num">{{ totaal.mislukt }}</div>
+    </div>
+  </div>
+
+  <h2>Per webshop</h2>
+  {% if per_klant %}
+  <table>
+    <tr><th>Webshop</th><th>Aanroepen</th><th>Tokens</th><th>Kosten</th></tr>
+    {% for r in per_klant %}
+    <tr>
+      <td>{{ r.webshop_url or 'niet gekoppeld' }}</td>
+      <td class="getal">{{ r.aantal }}</td>
+      <td class="getal">{{ '{:,}'.format(r.tokens).replace(',', '.') }}</td>
+      <td class="getal">€{{ '%.4f'|format(r.kosten) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="leeg">Nog niets.</div>
+  {% endif %}
+
+  <h2>Per model</h2>
+  {% if per_model %}
+  <table>
+    <tr><th>Aanbieder</th><th>Model</th><th>Aanroepen</th><th>Tokens</th><th>Kosten</th></tr>
+    {% for r in per_model %}
+    <tr>
+      <td>{{ r.provider }}</td>
+      <td>{{ r.model }}</td>
+      <td class="getal">{{ r.aantal }}</td>
+      <td class="getal">{{ '{:,}'.format(r.tokens).replace(',', '.') }}</td>
+      <td class="getal">€{{ '%.4f'|format(r.kosten) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% endif %}
+
+  <div class="grenzen">
+    <h3>Ingestelde grenzen</h3>
+    <div>Per scan: max €{{ '%.2f'|format(grenzen.scan_euro) }} en {{ grenzen.scan_aanroepen }} aanroepen</div>
+    <div>Per klant per maand: max €{{ '%.2f'|format(grenzen.klant_maand) }}</div>
+    <div>Totaal per dag: max €{{ '%.2f'|format(grenzen.dag_totaal) }}</div>
+    <div>Max pogingen bij mislukking: {{ grenzen.pogingen }}</div>
+  </div>
+</div>
+</body>
+</html>

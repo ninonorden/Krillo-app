@@ -17,8 +17,12 @@ dertig vragen niet dertig varianten van hetzelfde blijken te zijn.
 import os
 import json
 
+import time
+
 import anthropic
 import requests
+
+import kosten
 from bs4 import BeautifulSoup
 
 MODEL = "claude-sonnet-4-6"
@@ -117,10 +121,23 @@ Antwoord ALLEEN met geldige JSON, in dit formaat, niets ervoor of erna:
 """
 
     try:
+        rem = kosten.mag_doorgaan(webshop_url=webshop_url)
+        if not rem["mag"]:
+            print(f"AI-aanroep geblokkeerd door de kostenrem: {rem['reden']}")
+            return None
+
+        gestart = time.monotonic()
         response = client.messages.create(
             model=MODEL,
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
+        )
+        kosten.registreer_aanroep(
+            provider="anthropic", model=MODEL,
+            invoer_tokens=response.usage.input_tokens,
+            uitvoer_tokens=response.usage.output_tokens,
+            soort="koopvragen-bedenken", webshop_url=webshop_url,
+            duur_ms=int((time.monotonic() - gestart) * 1000),
         )
         ruw = response.content[0].text.strip()
         if ruw.startswith("```"):
@@ -142,3 +159,90 @@ Antwoord ALLEEN met geldige JSON, in dit formaat, niets ervoor of erna:
     except Exception as e:
         print(f"Koopvragen genereren mislukt: {e}")
         return None
+
+
+def vind_dubbele_vragen(vragen):
+    """Stap 2: bepaalt welke vragen in feite hetzelfde vragen.
+
+    Dit kan geen simpel woordvergelijk zijn. 'Wat zijn goede alternatieven voor
+    Funda' en 'welke online alternatieven zijn er voor Pararius of Funda' delen
+    weinig woorden maar vragen hetzelfde. Andersom kunnen twee vragen bijna
+    identiek klinken en toch iets anders bedoelen.
+
+    Geeft per dubbeling terug welke vraag je zou houden en welke je kan laten
+    vallen, met de reden."""
+    client = _get_client()
+    if client is None or len(vragen) < 2:
+        return []
+
+    genummerd = "\n".join(
+        f"{i+1}. {v['vraag']} [{v.get('intentie', '?')}]" for i, v in enumerate(vragen)
+    )
+
+    prompt = f"""Hieronder staan koopvragen die we aan AI-assistenten gaan stellen om te meten
+of een webshop wordt aanbevolen.
+
+Het probleem: als twee vragen in feite hetzelfde vragen, meten we hetzelfde
+twee keer en verspillen we een meetplek. Zoek de vragen die zo sterk op elkaar
+lijken dat het antwoord vrijwel zeker hetzelfde zal zijn.
+
+Let op:
+- Kijk naar de bedoeling, niet naar de woorden. Twee vragen kunnen heel anders
+  klinken en toch hetzelfde vragen.
+- Twee vragen over hetzelfde onderwerp maar met een ander accent zijn NIET
+  dubbel. "Beste hardloopschoenen" en "beste hardloopschoenen voor beginners"
+  leveren andere antwoorden op en moeten allebei blijven.
+- Wees terughoudend. Bij twijfel is het geen dubbeling. Liever een vraag te
+  veel dan een blinde vlek in de meting.
+
+De vragen:
+{genummerd}
+
+Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
+
+{{
+  "dubbelingen": [
+    {{"houden": 3, "weglaten": 7, "reden": "korte uitleg waarom dit hetzelfde vraagt"}}
+  ]
+}}
+
+Is er niets dubbel, geef dan een lege lijst terug."""
+
+    try:
+        gestart = time.monotonic()
+        response = client.messages.create(
+            model=MODEL,
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        kosten.registreer_aanroep(
+            provider="anthropic", model=MODEL,
+            invoer_tokens=response.usage.input_tokens,
+            uitvoer_tokens=response.usage.output_tokens,
+            soort="vragen-ontdubbelen",
+            duur_ms=int((time.monotonic() - gestart) * 1000),
+        )
+        ruw = response.content[0].text.strip()
+        if ruw.startswith("```"):
+            ruw = ruw.split("```")[1]
+            if ruw.startswith("json"):
+                ruw = ruw[4:]
+        data = json.loads(ruw)
+        resultaat = []
+        for d in data.get("dubbelingen", []):
+            houden, weglaten = d.get("houden"), d.get("weglaten")
+            if not (isinstance(houden, int) and isinstance(weglaten, int)):
+                continue
+            if not (1 <= houden <= len(vragen) and 1 <= weglaten <= len(vragen)):
+                continue
+            if houden == weglaten:
+                continue
+            resultaat.append({
+                "houden": vragen[houden - 1]["vraag"],
+                "weglaten": vragen[weglaten - 1]["vraag"],
+                "reden": d.get("reden", ""),
+            })
+        return resultaat
+    except Exception as e:
+        print(f"Dubbele vragen zoeken mislukt: {e}")
+        return []

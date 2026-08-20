@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Koopvragen — Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  a{color:var(--coral-tekst); text-decoration:none;}
+  .wrap{max-width:880px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:14px; font-family:var(--mono); margin-bottom:24px;}
+
+  .profiel{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:20px 22px; margin-bottom:28px;}
+  .profiel-label{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--coral-tekst); margin-bottom:6px;}
+  .profiel p{font-size:14.5px; color:var(--ink-soft);}
+
+  .waarschuwing{background:var(--amber-dim); border-radius:10px; padding:16px 18px; margin-bottom:24px; font-size:13.5px; color:#7A5200;}
+  .waarschuwing strong{display:block; margin-bottom:6px; color:#5C3E00;}
+
+  .groep{margin-bottom:28px;}
+  .groep-kop{
+    font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.06em;
+    color:var(--coral-tekst); margin-bottom:10px; display:flex; justify-content:space-between; align-items:baseline;
+  }
+  .groep-aantal{color:var(--ink-soft); font-size:10.5px;}
+  .vraag{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:9px;
+    padding:12px 16px; margin-bottom:7px; font-size:14.5px; display:flex; gap:10px; align-items:flex-start;
+  }
+  .vraag.dubbel{background:var(--coral-dim); border-color:#F5C4BE;}
+  .vraag-nr{font-family:var(--mono); font-size:11px; color:var(--ink-soft); flex-shrink:0; min-width:22px;}
+  .dubbel-label{
+    font-family:var(--mono); font-size:9.5px; background:var(--coral); color:#fff;
+    padding:2px 7px; border-radius:4px; flex-shrink:0; margin-top:2px;
+  }
+
+  .acties{display:flex; gap:10px; flex-wrap:wrap; margin-top:32px; padding-top:24px; border-top:1px solid var(--line);}
+  .knop{
+    padding:10px 18px; border-radius:8px; font-size:13.5px; font-weight:600;
+    border:1.5px solid var(--line); color:var(--ink); background:var(--paper-raised);
+  }
+  .knop.vol{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:36px; text-align:center; color:var(--ink-soft);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Koopvragen</h1>
+  <div class="sub">{{ webshop_url }}</div>
+
+  {% if status == 'bezig' %}
+  <div class="leeg">
+    De vragen worden nu bedacht. Dit duurt ongeveer een minuut.<br>
+    Ververs deze pagina daarna.
+  </div>
+  {% elif not vragen %}
+  <div class="leeg">Nog geen vragen voor deze webshop.</div>
+  {% else %}
+
+  {% if omschrijving %}
+  <div class="profiel">
+    <div class="profiel-label">Wat de agent van deze winkel begrijpt</div>
+    <p>{{ omschrijving }}</p>
+  </div>
+  {% endif %}
+
+  {% if dubbelen %}
+  <div class="waarschuwing">
+    <strong>{{ dubbelen }} vragen lijken sterk op een andere vraag</strong>
+    Die staan hieronder rood gemarkeerd. Vragen die in feite hetzelfde vragen meten niets extra's. Klik op 'Ontdubbelen' om ze uit te zetten.
+  </div>
+  {% endif %}
+
+  {% for intentie, items in groepen.items() %}
+  <div class="groep">
+    <div class="groep-kop">
+      <span>{{ intentie }}</span>
+      <span class="groep-aantal">{{ items|length }} vragen</span>
+    </div>
+    {% for v in items %}
+    <div class="vraag {% if v.dubbel %}dubbel{% endif %}">
+      <span class="vraag-nr">{{ loop.index }}</span>
+      <span>{{ v.vraag }}</span>
+      {% if v.dubbel %}<span class="dubbel-label">lijkt op {{ v.dubbel }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <div class="acties">
+    <a class="knop" href="?key={{ sleutel }}&url={{ webshop_url }}&opnieuw=ja">Opnieuw genereren</a>
+    {% if dubbelen %}
+    <a class="knop vol" href="?key={{ sleutel }}&url={{ webshop_url }}&ontdubbel=ja">Ontdubbelen ({{ dubbelen }})</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

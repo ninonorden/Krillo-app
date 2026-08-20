@@ -11,8 +11,12 @@ Vereist de omgevingsvariabele ANTHROPIC_API_KEY in Render.
 import os
 import json
 
+import time
+
 import anthropic
 import requests
+
+import kosten
 from bs4 import BeautifulSoup
 
 MODEL = "claude-sonnet-4-6"
@@ -130,10 +134,23 @@ Antwoord ALLEEN met geldige JSON, in dit exacte formaat, niets ervoor of erna:
 """
 
     try:
+        rem = kosten.mag_doorgaan(webshop_url=webshop_url)
+        if not rem["mag"]:
+            print(f"AI-aanroep geblokkeerd door de kostenrem: {rem['reden']}")
+            return None
+
+        gestart = time.monotonic()
         response = client.messages.create(
             model=MODEL,
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
+        )
+        kosten.registreer_aanroep(
+            provider="anthropic", model=MODEL,
+            invoer_tokens=response.usage.input_tokens,
+            uitvoer_tokens=response.usage.output_tokens,
+            soort="audit-teksten", webshop_url=webshop_url,
+            duur_ms=int((time.monotonic() - gestart) * 1000),
         )
         raw_text = response.content[0].text.strip()
         if raw_text.startswith("```"):

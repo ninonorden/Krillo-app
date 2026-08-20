@@ -113,6 +113,29 @@ def init_db():
                         bijgewerkt_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS kostengebeurtenissen (
+                        gebeurtenis_id TEXT PRIMARY KEY,
+                        soort TEXT NOT NULL,
+                        provider TEXT,
+                        model TEXT,
+                        invoer_tokens INTEGER DEFAULT 0,
+                        uitvoer_tokens INTEGER DEFAULT 0,
+                        kosten NUMERIC(12,6),
+                        kosten_status TEXT,
+                        prijsversie TEXT,
+                        webshop_url TEXT,
+                        email TEXT,
+                        scan_id TEXT,
+                        duur_ms INTEGER,
+                        gelukt BOOLEAN DEFAULT true,
+                        foutsoort TEXT,
+                        pogingen INTEGER DEFAULT 1,
+                        moment TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_kosten_webshop ON kostengebeurtenissen (webshop_url, moment);")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_kosten_scan ON kostengebeurtenissen (scan_id);")
                 cur.execute("ALTER TABLE rapporten ADD COLUMN IF NOT EXISTS klant_token TEXT;")
     finally:
         conn.close()
@@ -137,6 +160,121 @@ def claim_payment(payment_id):
     except Exception as e:
         print(f"Betaling claimen mislukt: {e}")
         return True
+    finally:
+        conn.close()
+
+
+def bewaar_kostengebeurtenis(gegevens):
+    """Legt een kostenveroorzakende verrichting vast. Dezelfde gebeurtenis
+    wordt nooit twee keer geteld, ook niet bij een herhaalde melding."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO kostengebeurtenissen
+                       (gebeurtenis_id, soort, provider, model, invoer_tokens, uitvoer_tokens,
+                        kosten, kosten_status, prijsversie, webshop_url, email, scan_id,
+                        duur_ms, gelukt, foutsoort, pogingen)
+                       VALUES (%(gebeurtenis_id)s, %(soort)s, %(provider)s, %(model)s,
+                               %(invoer_tokens)s, %(uitvoer_tokens)s, %(kosten)s, %(kosten_status)s,
+                               %(prijsversie)s, %(webshop_url)s, %(email)s, %(scan_id)s,
+                               %(duur_ms)s, %(gelukt)s, %(foutsoort)s, %(pogingen)s)
+                       ON CONFLICT (gebeurtenis_id) DO NOTHING""",
+                    gegevens,
+                )
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Kostengebeurtenis bewaren mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def kosten_per_scan(scan_id):
+    return _kosten_optellen("scan_id = %s", (scan_id,))
+
+
+def kosten_per_klant_deze_maand(webshop_url):
+    return _kosten_optellen(
+        "webshop_url = %s AND moment >= date_trunc('month', now())", (webshop_url,)
+    )
+
+
+def kosten_vandaag():
+    return _kosten_optellen("moment >= date_trunc('day', now())", ())
+
+
+def _kosten_optellen(voorwaarde, waarden):
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    f"""SELECT COUNT(*) AS aantal,
+                               COALESCE(SUM(kosten), 0) AS kosten,
+                               COALESCE(SUM(invoer_tokens + uitvoer_tokens), 0) AS tokens,
+                               COUNT(*) FILTER (WHERE NOT gelukt) AS mislukt,
+                               COUNT(*) FILTER (WHERE kosten_status = 'onbekend') AS onbekende_prijs
+                        FROM kostengebeurtenissen WHERE {voorwaarde}""",
+                    waarden,
+                )
+                rij = cur.fetchone()
+                if rij:
+                    rij = dict(rij)
+                    rij["kosten"] = float(rij["kosten"] or 0)
+                return rij
+    except Exception as e:
+        print(f"Kosten optellen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def kostenoverzicht(dagen=30):
+    """Overzicht voor de beheerpagina: per klant en per model."""
+    conn = _get_connection()
+    if conn is None:
+        return {"per_klant": [], "per_model": [], "totaal": None}
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT webshop_url, COUNT(*) AS aantal,
+                              COALESCE(SUM(kosten),0) AS kosten,
+                              COALESCE(SUM(invoer_tokens + uitvoer_tokens),0) AS tokens
+                       FROM kostengebeurtenissen
+                       WHERE moment >= now() - (%s || ' days')::interval
+                       GROUP BY webshop_url ORDER BY kosten DESC LIMIT 25""",
+                    (dagen,),
+                )
+                per_klant = [dict(r) for r in cur.fetchall()]
+
+                cur.execute(
+                    """SELECT provider, model, COUNT(*) AS aantal,
+                              COALESCE(SUM(kosten),0) AS kosten,
+                              COALESCE(SUM(invoer_tokens + uitvoer_tokens),0) AS tokens
+                       FROM kostengebeurtenissen
+                       WHERE moment >= now() - (%s || ' days')::interval
+                       GROUP BY provider, model ORDER BY kosten DESC""",
+                    (dagen,),
+                )
+                per_model = [dict(r) for r in cur.fetchall()]
+
+        totaal = _kosten_optellen(
+            "moment >= now() - (%s || ' days')::interval", (dagen,)
+        )
+        for lijst in (per_klant, per_model):
+            for r in lijst:
+                r["kosten"] = float(r["kosten"] or 0)
+        return {"per_klant": per_klant, "per_model": per_model, "totaal": totaal}
+    except Exception as e:
+        print(f"Kostenoverzicht ophalen mislukt: {e}")
+        return {"per_klant": [], "per_model": [], "totaal": None}
     finally:
         conn.close()
 
@@ -169,6 +307,27 @@ def bewaar_koopvragen(webshop_url, omschrijving, vragen):
     except Exception as e:
         print(f"Koopvragen bewaren mislukt: {e}")
         return 0
+    finally:
+        conn.close()
+
+
+def zet_vraag_uit(webshop_url, vraag):
+    """Zet een vraag op inactief in plaats van hem te verwijderen, zodat we
+    later nog kunnen zien wat er ooit bedacht is."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE koopvragen SET actief = false WHERE webshop_url = %s AND vraag = %s",
+                    (webshop_url, vraag),
+                )
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Vraag uitzetten mislukt: {e}")
+        return False
     finally:
         conn.close()
 
