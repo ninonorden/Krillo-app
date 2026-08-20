@@ -592,13 +592,34 @@ def admin_koopvragen():
     )
 
 
+_metingen_bezig = set()
+_metingen_slot = threading.Lock()
+
+
 def _meet_achtergrond(webshop_url):
     """Een meetronde duurt al gauw een paar minuten, dus die laten we niet op
-    het verzoek wachten."""
+    het verzoek wachten.
+
+    De set eromheen voorkomt dat er twee rondes tegelijk lopen voor dezelfde
+    webshop. Zonder die controle start elke keer verversen een nieuwe ronde en
+    betaal je twee of drie keer voor dezelfde meting."""
     try:
         metingen.meet_webshop(webshop_url)
     except Exception as e:
         print(f"Meting mislukt voor {webshop_url}: {e}")
+    finally:
+        with _metingen_slot:
+            _metingen_bezig.discard(webshop_url)
+
+
+def _start_meting(webshop_url):
+    """Geeft terug of er een nieuwe ronde gestart is."""
+    with _metingen_slot:
+        if webshop_url in _metingen_bezig:
+            return False
+        _metingen_bezig.add(webshop_url)
+    threading.Thread(target=_meet_achtergrond, args=(webshop_url,), daemon=True).start()
+    return True
 
 
 @app.route("/admin/metingen")
@@ -622,15 +643,12 @@ def admin_metingen():
         )
 
     if request.args.get("start") == "ja":
-        threading.Thread(target=_meet_achtergrond, args=(webshop_url,), daemon=True).start()
-        return render_template(
-            "admin_metingen.html", webshop_url=webshop_url, sleutel=admin_key,
-            aanbieders=aanbieders, metingen_aan=metingen.METINGEN_AAN,
-            webshops=db.get_webshops_met_koopvragen(),
-            rondes=db.get_metingen(webshop_url), antwoorden=[],
-            meting_id=None, gestart=True,
-        )
+        # Meteen doorsturen naar de pagina zonder start=ja. Anders start elke
+        # keer verversen een nieuwe meetronde.
+        _start_meting(webshop_url)
+        return redirect(f"/admin/metingen?key={admin_key}&url={webshop_url}&gestart=ja")
 
+    net_gestart = request.args.get("gestart") == "ja"
     meting_id = request.args.get("meting") or None
     antwoorden = [dict(a) for a in db.get_ai_antwoorden(webshop_url, meting_id)]
     for a in antwoorden:
@@ -646,7 +664,7 @@ def admin_metingen():
         rondes=db.get_metingen(webshop_url),
         antwoorden=antwoorden,
         meting_id=meting_id,
-        gestart=False,
+        gestart=net_gestart,
     )
 
 
