@@ -251,6 +251,16 @@
   }
   .checkout-field input:focus{border-color:var(--ink);}
   .checkout-error{color:var(--coral); font-size:13px; margin-bottom:12px; display:none;}
+  .checkout-akkoord{margin-bottom:16px;}
+  .checkout-vink{
+    display:flex; gap:9px; align-items:flex-start; font-size:12.5px;
+    color:var(--ink-soft); line-height:1.5; margin-bottom:10px; cursor:pointer;
+  }
+  .checkout-vink:last-child{margin-bottom:0;}
+  .checkout-vink input{
+    width:16px; height:16px; flex-shrink:0; margin-top:1px; cursor:pointer; accent-color:var(--coral);
+  }
+  .checkout-vink a{color:var(--coral); text-decoration:underline;}
   .checkout-error.show{display:block;}
   .checkout-submit{
     width:100%; height:48px; border-radius:9px; border:none;
@@ -656,6 +666,16 @@
       <input type="text" id="checkoutBedrijf" placeholder="Jouw Webshop BV">
     </div>
     <div class="checkout-error" id="checkoutError"></div>
+    <div class="checkout-akkoord">
+      <label class="checkout-vink">
+        <input type="checkbox" id="checkoutVoorwaarden">
+        <span>Ik ga akkoord met de <a href="/voorwaarden" target="_blank">algemene voorwaarden</a> en het <a href="/privacybeleid" target="_blank">privacybeleid</a>.</span>
+      </label>
+      <label class="checkout-vink" id="checkoutDirectVeld">
+        <input type="checkbox" id="checkoutDirect">
+        <span>Ik wil dat jullie direct beginnen, en ik weet dat ik mijn herroepingsrecht verlies zodra de audit volledig geleverd is.</span>
+      </label>
+    </div>
     <button class="checkout-submit" id="checkoutSubmit">Doorgaan naar betalen</button>
     <div class="checkout-note">Je gaat door naar Mollie om veilig te betalen.</div>
   </div>
@@ -692,6 +712,7 @@
       <div class="flinks">
         <a href="/privacybeleid">Privacybeleid</a>
         <a href="/voorwaarden">Algemene voorwaarden</a>
+        <a href="/herroepen">Aankoop herroepen</a>
       </div>
     </div>
   </div>
@@ -896,6 +917,9 @@
   var emailField = document.getElementById('checkoutEmailField');
   var emailInput = document.getElementById('checkoutEmail');
   var bedrijfInput = document.getElementById('checkoutBedrijf');
+  var vinkVoorwaarden = document.getElementById('checkoutVoorwaarden');
+  var vinkDirect = document.getElementById('checkoutDirect');
+  var vinkDirectVeld = document.getElementById('checkoutDirectVeld');
   var errorBox = document.getElementById('checkoutError');
   var submitBtn = document.getElementById('checkoutSubmit');
   var closeBtn = document.getElementById('checkoutClose');
@@ -943,6 +967,9 @@
     prefillUrl();
     emailInput.value = '';
     bedrijfInput.value = '';
+    vinkVoorwaarden.checked = false;
+    vinkDirect.checked = false;
+    vinkDirectVeld.style.display = (type === 'audit') ? 'flex' : 'none';
     var content = includesContent[type];
     var html = '';
     content.items.forEach(function(item){
@@ -981,12 +1008,22 @@
       showError(currentType === 'audit' ? 'Vul een e-mailadres in, daarop sturen we de audit.' : 'Vul een e-mailadres in, daarop sturen we je wekelijkse update.');
       return;
     }
+    if(!vinkVoorwaarden.checked){
+      showError('Vink aan dat je akkoord gaat met de voorwaarden en het privacybeleid.');
+      return;
+    }
+    if(currentType === 'audit' && !vinkDirect.checked){
+      showError('Vink aan dat we direct mogen beginnen. Zonder dat mogen we pas na veertien dagen starten.');
+      return;
+    }
     clearError();
     submitBtn.disabled = true;
     submitBtn.textContent = 'Bezig...';
 
     var endpoint = currentType === 'audit' ? '/api/checkout/audit' : '/api/checkout/monitoring';
-    var body = {url: url, email: email, bedrijfsnaam: bedrijfInput.value.trim()};
+    var body = {url: url, email: email, bedrijfsnaam: bedrijfInput.value.trim(),
+                voorwaarden_akkoord: vinkVoorwaarden.checked,
+                directe_uitvoering_akkoord: vinkDirect.checked};
 
     fetch(endpoint, {
       method: 'POST',

@@ -73,6 +73,28 @@ def init_db():
                         aangemaakt_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS toestemmingen (
+                        id SERIAL PRIMARY KEY,
+                        payment_id TEXT,
+                        email TEXT,
+                        webshop_url TEXT,
+                        type TEXT,
+                        voorwaarden_akkoord BOOLEAN,
+                        directe_uitvoering_akkoord BOOLEAN,
+                        vastgelegd_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS herroepingen (
+                        id SERIAL PRIMARY KEY,
+                        email TEXT NOT NULL,
+                        webshop_url TEXT,
+                        toelichting TEXT,
+                        status TEXT DEFAULT 'ontvangen',
+                        ontvangen_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
                 cur.execute("ALTER TABLE rapporten ADD COLUMN IF NOT EXISTS klant_token TEXT;")
     finally:
         conn.close()
@@ -97,6 +119,50 @@ def claim_payment(payment_id):
     except Exception as e:
         print(f"Betaling claimen mislukt: {e}")
         return True
+    finally:
+        conn.close()
+
+
+def leg_toestemming_vast(payment_id, email, webshop_url, type_, voorwaarden, directe_uitvoering):
+    """Legt vast dat de klant akkoord ging, en waarmee precies. Dit moet je
+    kunnen aantonen: een clausule in de voorwaarden alleen is niet genoeg."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO toestemmingen
+                       (payment_id, email, webshop_url, type, voorwaarden_akkoord, directe_uitvoering_akkoord)
+                       VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (payment_id, email, webshop_url, type_, voorwaarden, directe_uitvoering),
+                )
+        return True
+    except Exception as e:
+        print(f"Toestemming vastleggen mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def leg_herroeping_vast(email, webshop_url, toelichting):
+    """Legt een herroepingsverzoek vast en geeft het volgnummer terug."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """INSERT INTO herroepingen (email, webshop_url, toelichting)
+                       VALUES (%s, %s, %s) RETURNING id""",
+                    (email, webshop_url, toelichting),
+                )
+                return cur.fetchone()["id"]
+    except Exception as e:
+        print(f"Herroeping vastleggen mislukt: {e}")
+        return None
     finally:
         conn.close()
 

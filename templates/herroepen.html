@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Je aankoop herroepen | Krillo</title>
+<meta name="description" content="Herroep hier je aankoop bij Krillo. Vul je gegevens in en we handelen het binnen veertien dagen af.">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6; -webkit-font-smoothing:antialiased;}
+  a{color:var(--coral); text-decoration:none;}
+  .wrap{max-width:1080px; margin:0 auto; padding:0 28px;}
+  nav{border-bottom:1px solid var(--line);}
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:68px;}
+  .logo{font-family:var(--disp); font-weight:700; font-size:19px; display:flex; align-items:center; gap:8px; color:var(--ink);}
+  .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
+
+  main{max-width:600px; margin:0 auto; padding:52px 28px 96px;}
+  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:0.08em; color:var(--coral); text-transform:uppercase; margin-bottom:14px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:32px; margin-bottom:14px; letter-spacing:-0.02em;}
+  .intro{font-size:15.5px; color:var(--ink-soft); margin-bottom:32px;}
+
+  .veld{margin-bottom:18px;}
+  .veld label{display:block; font-size:13px; color:var(--ink-soft); margin-bottom:6px; font-weight:500;}
+  .veld input, .veld textarea{
+    width:100%; border-radius:9px; border:1.5px solid var(--line); padding:12px 14px;
+    font-size:14.5px; font-family:var(--body); color:var(--ink); outline:none; background:var(--paper-raised);
+  }
+  .veld input{height:46px;}
+  .veld textarea{min-height:90px; resize:vertical;}
+  .veld input:focus, .veld textarea:focus{border-color:var(--ink);}
+  .optioneel{color:var(--ink-soft); font-weight:400;}
+
+  .knop{
+    width:100%; height:48px; border-radius:9px; border:none; background:var(--ink);
+    color:var(--paper); font-family:var(--body); font-weight:600; font-size:14.5px; cursor:pointer;
+  }
+  .knop:disabled{opacity:0.6; cursor:default;}
+  .melding{margin-top:16px; font-size:13.5px; padding:14px 16px; border-radius:9px; display:none;}
+  .melding.fout{background:var(--coral-dim); color:#993C1D; display:block;}
+  .melding.goed{background:var(--teal-dim); color:#085041; display:block;}
+
+  .uitleg{background:var(--paper-raised); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:28px; font-size:13.5px; color:var(--ink-soft);}
+  .uitleg strong{color:var(--ink); display:block; margin-bottom:6px;}
+  footer{border-top:1px solid var(--line); padding:32px 0; text-align:center; font-size:12.5px; color:var(--ink-soft);}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap"><a class="logo" href="/"><span class="logo-dot"></span>Krillo</a></div></nav>
+
+<main>
+  <div class="eyebrow">Herroepen</div>
+  <h1>Je aankoop herroepen</h1>
+  <p class="intro">Wil je je aankoop ongedaan maken, vul dan dit formulier in. Je hoeft geen reden op te geven.</p>
+
+  <div class="uitleg">
+    <strong>Goed om te weten</strong>
+    Als consument heb je veertien dagen bedenktijd. Bij de audit vervalt dat recht zodra de audit volledig geleverd is, en alleen als je daar bij het bestellen uitdrukkelijk mee akkoord bent gegaan. Twijfel je of dat op jou van toepassing is, vul dit formulier dan gewoon in, dan kijken we ernaar en laten we het je weten.
+  </div>
+
+  <div class="veld">
+    <label for="hEmail">E-mailadres waarmee je hebt besteld</label>
+    <input type="email" id="hEmail" placeholder="jij@jouwwebshop.nl">
+  </div>
+  <div class="veld">
+    <label for="hUrl">Webshop-URL uit je bestelling <span class="optioneel">(als je die nog weet)</span></label>
+    <input type="text" id="hUrl" placeholder="jouwwebshop.nl">
+  </div>
+  <div class="veld">
+    <label for="hToelichting">Toelichting <span class="optioneel">(niet verplicht)</span></label>
+    <textarea id="hToelichting" placeholder="Bijvoorbeeld welke bestelling het betreft."></textarea>
+  </div>
+
+  <button class="knop" id="hVerstuur">Herroeping versturen</button>
+  <div class="melding" id="hMelding"></div>
+</main>
+
+<footer>© 2026 Krillo &middot; <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a> &middot; <a href="/voorwaarden">Algemene voorwaarden</a></footer>
+
+<script>
+(function(){
+  var knop = document.getElementById('hVerstuur');
+  var melding = document.getElementById('hMelding');
+
+  knop.addEventListener('click', function(){
+    var email = document.getElementById('hEmail').value.trim();
+    if(!email){
+      melding.className = 'melding fout';
+      melding.textContent = 'Vul het e-mailadres in waarmee je hebt besteld.';
+      return;
+    }
+    knop.disabled = true;
+    knop.textContent = 'Bezig...';
+    fetch('/api/herroepen', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        email: email,
+        url: document.getElementById('hUrl').value.trim(),
+        toelichting: document.getElementById('hToelichting').value.trim()
+      })
+    })
+    .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
+    .then(function(res){
+      if(!res.ok){
+        melding.className = 'melding fout';
+        melding.textContent = res.data.error || 'Er ging iets mis. Mail anders naar hallo@krillo.nl.';
+        knop.disabled = false;
+        knop.textContent = 'Herroeping versturen';
+        return;
+      }
+      melding.className = 'melding goed';
+      melding.textContent = 'Je herroeping is ontvangen. Je krijgt een bevestiging per e-mail. We handelen dit binnen veertien dagen af en storten een eventueel betaald bedrag terug op dezelfde manier als je hebt betaald.';
+      knop.textContent = 'Verstuurd';
+    })
+    .catch(function(){
+      melding.className = 'melding fout';
+      melding.textContent = 'Er ging iets mis. Mail anders naar hallo@krillo.nl.';
+      knop.disabled = false;
+      knop.textContent = 'Herroeping versturen';
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

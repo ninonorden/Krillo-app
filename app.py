@@ -60,6 +60,50 @@ def over_ons():
     return render_template("over-ons.html")
 
 
+@app.route("/herroepen")
+def herroepen_pagina():
+    return render_template("herroepen.html")
+
+
+@app.route("/api/herroepen", methods=["POST"])
+def api_herroepen():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    webshop_url = (data.get("url") or "").strip()
+    toelichting = (data.get("toelichting") or "").strip()
+    if not email:
+        return jsonify({"error": "Vul het e-mailadres in waarmee je hebt besteld."}), 400
+
+    nummer = db.leg_herroeping_vast(email, webshop_url, toelichting)
+    emailing.send_herroeping_bevestiging(email, nummer, webshop_url)
+    beheerder = os.environ.get("BEHEERDER_EMAIL")
+    if beheerder:
+        emailing.send_herroeping_melding(beheerder, email, webshop_url, toelichting, nummer)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/opzeggen/<klant_token>", methods=["POST"])
+def api_opzeggen(klant_token):
+    klant = db.get_klant(klant_token)
+    if klant is None:
+        return jsonify({"error": "Deze pagina is niet meer geldig."}), 404
+
+    abonnement = payments.zoek_abonnement(klant["webshop_url"])
+    if abonnement is None:
+        return jsonify({"error": "We konden geen lopend abonnement vinden. Mail hallo@krillo.nl, dan zoeken we het uit."}), 400
+
+    resultaat = payments.zeg_abonnement_op(abonnement["customer_id"], abonnement["subscription_id"])
+    if "error" in resultaat:
+        return jsonify(resultaat), 400
+
+    emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"])
+    beheerder = os.environ.get("BEHEERDER_EMAIL")
+    if beheerder:
+        emailing.send_email(beheerder, "Opzegging bij Krillo",
+                             f"<p>{klant['email']} heeft de monitoring voor {klant['webshop_url']} opgezegd.</p>")
+    return jsonify({"ok": True})
+
+
 @app.route("/artikelen")
 def artikelen_overzicht():
     return render_template("artikelen.html", artikelen=artikelen.ARTIKELEN)
@@ -106,7 +150,7 @@ Sitemap: https://www.krillo.nl/sitemap.xml
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
-    paginas = ["/", "/artikelen", "/veelgestelde-vragen", "/over-ons", "/voorwaarden", "/privacybeleid"]
+    paginas = ["/", "/artikelen", "/veelgestelde-vragen", "/over-ons", "/voorwaarden", "/privacybeleid", "/herroepen"]
     paginas += [f"/artikelen/{a['slug']}" for a in artikelen.ARTIKELEN]
     urls = "".join(
         f"<url><loc>https://www.krillo.nl{p}</loc><changefreq>weekly</changefreq></url>"
@@ -177,10 +221,18 @@ def checkout_audit():
     webshop_url = (data.get("url") or "").strip()
     email = (data.get("email") or "").strip()
     bedrijfsnaam = (data.get("bedrijfsnaam") or "").strip()
+    voorwaarden = bool(data.get("voorwaarden_akkoord"))
+    direct = bool(data.get("directe_uitvoering_akkoord"))
     if not webshop_url or not email:
         return jsonify({"error": "Vul een webshop-URL en e-mailadres in."}), 400
+    if not voorwaarden:
+        return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
+    if not direct:
+        return jsonify({"error": "Geef aan dat we direct mogen beginnen."}), 400
 
     result = payments.create_audit_payment(get_base_url(), webshop_url, email, bedrijfsnaam)
+    if "payment_id" in result:
+        db.leg_toestemming_vast(result["payment_id"], email, webshop_url, "audit", voorwaarden, direct)
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
@@ -192,10 +244,15 @@ def checkout_monitoring():
     email = (data.get("email") or "").strip()
     webshop_url = (data.get("url") or "").strip()
     bedrijfsnaam = (data.get("bedrijfsnaam") or "").strip()
+    voorwaarden = bool(data.get("voorwaarden_akkoord"))
     if not email or not webshop_url:
         return jsonify({"error": "Vul een e-mailadres en webshop-URL in."}), 400
+    if not voorwaarden:
+        return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
 
     result = payments.create_monitoring_signup(get_base_url(), email, webshop_url, bedrijfsnaam)
+    if "payment_id" in result:
+        db.leg_toestemming_vast(result["payment_id"], email, webshop_url, "monitoring", voorwaarden, False)
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
@@ -372,6 +429,7 @@ def monitoring_pagina(klant_token):
     return render_template(
         "monitoring.html",
         webshop_url=klant["webshop_url"],
+        klant_token=klant_token,
         laatste=laatste,
         verschil=verschil,
         verloop=verloop,

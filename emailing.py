@@ -159,6 +159,49 @@ def send_factuur_email(to_email, factuurnummer, omschrijving, bedrag, bedrijfsna
     return send_email(to_email, f"Je factuur van Krillo ({factuurnr})", html)
 
 
+def send_herroeping_bevestiging(to_email, nummer, webshop_url=None):
+    """Bevestiging aan de klant dat zijn herroeping is ontvangen. Wettelijk
+    verplicht om te bevestigen, en het geeft de klant iets in handen."""
+    kenmerk = f"HR-{datetime.now().year}-{nummer:04d}" if nummer else "onbekend"
+    shop = f"<p style='font-size:13.5px; color:#3B3D57;'>Betreft: {webshop_url}</p>" if webshop_url else ""
+    body = f"""
+    <p style="font-size:14.5px;">We hebben je herroeping ontvangen op {datetime.now().strftime('%d-%m-%Y')}.</p>
+    <div style="background:#F6F5F1; border-radius:10px; padding:16px 18px; margin:16px 0;">
+      <div style="font-family:'Courier New',monospace; font-size:11px; color:#3B3D57; text-transform:uppercase;">Kenmerk</div>
+      <strong style="font-size:15px;">{kenmerk}</strong>
+      {shop}
+    </div>
+    <p style="font-size:14.5px;">We handelen dit binnen veertien dagen af. Heb je al betaald en heb je recht op terugbetaling, dan storten we het bedrag terug via dezelfde betaalmethode als waarmee je hebt betaald. Je hoeft verder niets te doen.</p>
+    <p style="font-size:13.5px; color:#3B3D57;">Klopt er iets niet, mail dan gewoon terug naar dit adres.</p>
+    """
+    html = _base_html("Je herroeping is ontvangen", "Bedankt voor je bericht.", body)
+    return send_email(to_email, f"Bevestiging van je herroeping ({kenmerk})", html)
+
+
+def send_herroeping_melding(beheerder_email, klant_email, webshop_url, toelichting, nummer):
+    """Melding aan Nino, zodat een herroeping niet ongemerkt blijft liggen."""
+    body = f"""
+    <p style="font-size:14.5px;"><strong>Er is een herroeping binnengekomen.</strong></p>
+    <p style="font-size:14px;">Kenmerk: HR-{datetime.now().year}-{nummer:04d}<br>
+    Klant: {klant_email}<br>
+    Webshop: {webshop_url or 'niet opgegeven'}</p>
+    <p style="font-size:14px;">Toelichting: {toelichting or 'geen'}</p>
+    <p style="font-size:13.5px; color:#3B3D57;">Wettelijke termijn: binnen veertien dagen afhandelen en eventueel terugbetalen via dezelfde betaalmethode.</p>
+    """
+    html = _base_html("Herroeping ontvangen", "Actie nodig.", body)
+    return send_email(beheerder_email, "Herroeping bij Krillo, actie nodig", html)
+
+
+def send_opzegging_bevestiging(to_email, webshop_url):
+    body = f"""
+    <p style="font-size:14.5px;">Je monitoring voor {webshop_url} is opgezegd.</p>
+    <p style="font-size:14.5px;">Je houdt toegang tot het einde van de periode die je al betaald hebt. Daarna wordt er niets meer afgeschreven en stoppen de wekelijkse scans.</p>
+    <p style="font-size:13.5px; color:#3B3D57;">Wil je later weer starten, dan kan dat gewoon via krillo.nl. Je oude rapporten blijven bewaard.</p>
+    """
+    html = _base_html("Je abonnement is opgezegd", "Bedankt dat je Krillo gebruikt hebt.", body)
+    return send_email(to_email, "Bevestiging: je Krillo-abonnement is opgezegd", html)
+
+
 def _score_button(report_url, label="Bekijk het volledige rapport"):
     if not report_url:
         return ""

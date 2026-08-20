@@ -67,6 +67,22 @@
   .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:32px; text-align:center; color:var(--ink-soft); font-size:14px;}
   footer{border-top:1px solid var(--line); padding:32px 0; text-align:center; font-size:12.5px; color:var(--ink-soft);}
   .bewaar{background:var(--paper-raised); border:1px solid var(--line); border-radius:10px; padding:14px 16px; font-size:13px; color:var(--ink-soft); margin-bottom:28px;}
+  .opzeg{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+    padding:24px; margin-top:48px;
+  }
+  .opzeg strong{display:block; font-family:var(--disp); font-size:16px; margin-bottom:8px;}
+  .opzeg p{font-size:13.5px; color:var(--ink-soft); margin-bottom:16px;}
+  .opzeg-knop{
+    background:none; border:1.5px solid var(--line); color:var(--ink-soft);
+    padding:11px 20px; border-radius:8px; font-family:var(--body); font-size:13.5px;
+    font-weight:600; cursor:pointer;
+  }
+  .opzeg-knop:hover{border-color:var(--coral); color:var(--coral);}
+  .opzeg-knop:disabled{opacity:0.6; cursor:default;}
+  .opzeg-melding{margin-top:14px; font-size:13px; padding:12px 14px; border-radius:8px; display:none;}
+  .opzeg-melding.fout{background:var(--coral-dim); color:#993C1D; display:block;}
+  .opzeg-melding.goed{background:var(--teal-dim); color:#085041; display:block;}
 </style>
 </head>
 <body>
@@ -139,8 +155,49 @@
     {% else %}
     <div class="leeg">Er is nog geen scan uitgevoerd. Je eerste scan verschijnt hier zodra die klaar is.</div>
     {% endif %}
+
+    <div class="opzeg">
+      <strong>Je abonnement</strong>
+      <p>Je betaalt 39 euro per maand, maandelijks opzegbaar. Zeg je op, dan houd je toegang tot het einde van de periode die je al betaald hebt en wordt er daarna niets meer afgeschreven.</p>
+      <button class="opzeg-knop" id="opzegKnop">Mijn abonnement opzeggen</button>
+      <div class="opzeg-melding" id="opzegMelding"></div>
+    </div>
   </div>
 </main>
+
+<script>
+(function(){
+  var knop = document.getElementById('opzegKnop');
+  var melding = document.getElementById('opzegMelding');
+  if(!knop) return;
+
+  knop.addEventListener('click', function(){
+    if(!window.confirm('Weet je zeker dat je je monitoring wil opzeggen? Je houdt toegang tot het einde van de al betaalde periode.')) return;
+    knop.disabled = true;
+    knop.textContent = 'Bezig met opzeggen...';
+    fetch('/api/opzeggen/{{ klant_token }}', {method: 'POST'})
+      .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
+      .then(function(res){
+        if(!res.ok){
+          melding.className = 'opzeg-melding fout';
+          melding.textContent = res.data.error || 'Het opzeggen is niet gelukt. Mail hallo@krillo.nl, dan regelen we het.';
+          knop.disabled = false;
+          knop.textContent = 'Mijn abonnement opzeggen';
+          return;
+        }
+        melding.className = 'opzeg-melding goed';
+        melding.textContent = 'Je abonnement is opgezegd. Je krijgt een bevestiging per e-mail. Er wordt niets meer afgeschreven.';
+        knop.textContent = 'Opgezegd';
+      })
+      .catch(function(){
+        melding.className = 'opzeg-melding fout';
+        melding.textContent = 'Er ging iets mis. Mail hallo@krillo.nl, dan regelen we het.';
+        knop.disabled = false;
+        knop.textContent = 'Mijn abonnement opzeggen';
+      });
+  });
+})();
+</script>
 
 <footer>© 2026 Krillo &middot; <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a></footer>
 

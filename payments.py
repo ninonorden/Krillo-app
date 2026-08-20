@@ -93,6 +93,41 @@ def create_subscription(customer_id):
         return {"error": str(e)}
 
 
+def zoek_abonnement(webshop_url):
+    """Zoekt het actieve abonnement bij een webshop-URL. Geeft de klant-id en
+    het abonnement-id terug, zodat we het kunnen opzeggen."""
+    client = get_mollie_client()
+    if client is None:
+        return None
+    try:
+        for customer in client.customers.list():
+            metadata = customer.metadata or {}
+            if metadata.get("webshop_url") != webshop_url:
+                continue
+            for sub in customer.subscriptions.list():
+                if sub.get("status") == "active":
+                    return {"customer_id": customer.id, "subscription_id": sub.id,
+                            "next_payment_date": sub.get("nextPaymentDate")}
+    except (MollieError, Exception) as e:
+        print(f"Abonnement zoeken mislukt: {e}")
+    return None
+
+
+def zeg_abonnement_op(customer_id, subscription_id):
+    """Zegt het abonnement op bij Mollie. De klant houdt toegang tot het einde
+    van de al betaalde periode, er wordt alleen niet opnieuw geincasseerd."""
+    client = get_mollie_client()
+    if client is None:
+        return {"error": "Opzeggen is nu niet mogelijk, probeer het later opnieuw."}
+    try:
+        customer = client.customers.get(customer_id)
+        customer.subscriptions.delete(subscription_id)
+        return {"ok": True}
+    except (MollieError, Exception) as e:
+        print(f"Abonnement opzeggen mislukt: {e}")
+        return {"error": "Het opzeggen is niet gelukt. Mail hallo@krillo.nl, dan regelen we het handmatig."}
+
+
 def get_payment_status(payment_id):
     client = get_mollie_client()
     if client is None:
