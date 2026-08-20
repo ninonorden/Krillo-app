@@ -168,9 +168,9 @@ def check_speed(elapsed):
     elif ms <= 3000:
         score, uitleg = 70, f"De pagina reageerde in {ms} ms. Dat kan sneller, maar is geen groot probleem."
     elif ms <= 5000:
-        score, uitleg = 40, f"De pagina reageerde pas na {ms} ms. Dat is traag, bezoekers en AI-robots haken hierdoor eerder af."
+        score, uitleg = 40, f"De pagina reageerde pas na {ms} ms. Dat is traag. Systemen die veel pagina's ophalen hanteren vaak een tijdslimiet, waardoor trage pagina's eerder worden overgeslagen."
     else:
-        score, uitleg = 15, f"De pagina reageerde pas na {ms} ms. Trage pagina's worden door zowel zoekmachines als AI-robots minder vaak volledig bezocht."
+        score, uitleg = 15, f"De pagina reageerde pas na {ms} ms. Bij zulke laadtijden lopen systemen die veel pagina's ophalen eerder tegen hun tijdslimiet aan."
     return make_check("snelheid", "Laadt de pagina snel genoeg?", "toegang", "gemiddeld", score, uitleg)
 
 
@@ -215,7 +215,7 @@ def check_heading_structuur(html):
         uitleg = f'Precies één hoofdkop (H1) gevonden: "{h1_tags[0].get_text(" ", strip=True)[:60]}", plus {len(h2_tags)} subkoppen. Dat is de duidelijkste opbouw voor AI.'
     elif len(h1_tags) == 0:
         score = 20
-        uitleg = "Geen hoofdkop (H1) gevonden. Zonder duidelijke hoofdkop is het voor AI lastiger te bepalen waar de pagina precies over gaat."
+        uitleg = "Geen hoofdkop (H1) gevonden. Een hoofdkop geeft systemen een expliciet signaal waar een pagina over gaat, en dat signaal ontbreekt hier."
     else:
         score = 55
         uitleg = f"Er zijn {len(h1_tags)} hoofdkoppen (H1) gevonden op één pagina. Dat kan AI in verwarring brengen over wat het hoofdonderwerp is."
@@ -350,7 +350,7 @@ def check_social_preview(html):
     if found:
         uitleg = f"Gevonden: {', '.join(sorted(found))}. Dit helpt platforms en AI om je pagina kort en correct samen te vatten."
     else:
-        uitleg = "Geen Open Graph-gegevens (og:title, og:description, og:image) gevonden. Hierdoor moeten AI en social media zelf raden wat de pagina samenvat."
+        uitleg = "Geen Open Graph-gegevens (og:title, og:description, og:image) gevonden. Dat zijn de velden waarin je zelf bepaalt hoe je pagina wordt samengevat als iemand de link deelt."
     return make_check("voorbeeldweergave", "Heeft de pagina een duidelijke samenvatting voor AI en social media?", "structuur", "gemiddeld", score, uitleg)
 
 
@@ -405,13 +405,13 @@ def check_faq_content(html):
     keyword_hit = any(k in text_lower for k in ["veelgestelde vragen", "faq", "vraag en antwoord", "veel gestelde vragen"])
 
     if has_faq_schema:
-        score, uitleg = 100, "Er is machine-leesbare FAQ-informatie (FAQPage-schema) gevonden. Dit is precies het soort directe vraag-en-antwoord-content dat AI graag citeert."
+        score, uitleg = 100, "Er is machine-leesbare FAQ-informatie (FAQPage-schema) gevonden. Daarmee is voor systemen duidelijk welke tekst een vraag is en welke het antwoord."
     elif question_headings:
         score, uitleg = 65, f"Er zijn {len(question_headings)} koppen in vraagvorm gevonden (bijv. \"{question_headings[0][:60]}\"). Dat helpt AI, al is het sterker als dit ook als officiële FAQ-data staat gemarkeerd."
     elif keyword_hit:
         score, uitleg = 45, "Er lijkt een veelgestelde-vragen-sectie te zijn, maar die is niet als zodanig gemarkeerd voor AI. Voeg FAQ-schema toe om dit te laten meetellen."
     else:
-        score, uitleg = 15, "Geen veelgestelde-vragen-content gevonden op deze pagina. Directe vraag-en-antwoord-content is een van de dingen die AI het vaakst letterlijk overneemt."
+        score, uitleg = 15, "Geen veelgestelde-vragen-content gevonden op deze pagina. Tekst die een vraag direct beantwoordt is voor een systeem makkelijker over te nemen dan tekst waar het antwoord uit afgeleid moet worden."
     return make_check("faq", "Beantwoordt de pagina veelgestelde vragen direct?", "inhoud", "gemiddeld", score, uitleg)
 
 
@@ -427,7 +427,7 @@ def check_alt_teksten(html):
     with_alt = [img for img in images if img.get("alt", "").strip()]
     ratio = len(with_alt) / len(images)
     score = round(ratio * 100)
-    uitleg = f"{len(with_alt)} van de {len(images)} afbeeldingen hebben een beschrijving (alt-tekst). AI kan afbeeldingen zonder beschrijving niet interpreteren."
+    uitleg = f"{len(with_alt)} van de {len(images)} afbeeldingen hebben een beschrijving (alt-tekst). Alt-tekst geeft tekstuele context bij een afbeelding, wat helpt als een systeem de afbeelding zelf niet meeneemt."
     return make_check("alt_tekst", "Hebben afbeeldingen een beschrijving voor AI?", "inhoud", "laag", score, uitleg)
 
 

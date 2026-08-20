@@ -188,6 +188,7 @@
     color:var(--coral); margin:18px 0 6px; font-weight:500;
   }
   .scan-categorie-label:first-child{margin-top:0;}
+  .score-uitleg{font-size:12.5px; color:var(--ink-soft); text-align:center; margin:-8px 0 20px; max-width:420px; margin-left:auto; margin-right:auto; line-height:1.5;}
   .scan-vergelijking{
     font-size:13px; color:var(--ink-soft); margin-bottom:16px;
     display:flex; align-items:center; gap:8px; flex-wrap:wrap;
@@ -642,7 +643,7 @@
       </div>
       <div class="rapport-demo-body">
         <div class="demo-score">
-          <div class="demo-score-label">AI-zichtbaarheidsscore</div>
+          <div class="demo-score-label">AI-leesbaarheid</div>
           <div class="demo-score-num">43<span>/100</span></div>
         </div>
 
@@ -891,7 +892,7 @@
             found.style.fontWeight = '600';
             answerEl.appendChild(found);
             var a = document.createElement('span');
-            a.textContent = after.replace('bieden', 'bieden, met een AI-zichtbaarheidsscore van 94/100');
+            a.textContent = after.replace('bieden', 'bieden, met een AI-leesbaarheid van 94 van 100');
             answerEl.appendChild(a);
             badgeEl.className = 'sim-badge found';
             badgeEl.textContent = 'wel genoemd';
@@ -933,7 +934,8 @@
     var html = '';
     html += '<div class="scan-result-score">';
     html += '<div class="num">' + data.score + '</div>';
-    html += '<div class="label">AI-zichtbaarheidsscore voor<br>' + data.url + '</div>';
+    html += '<div class="label">AI-leesbaarheid van<br>' + data.url + '</div>';
+    html += '<div class="score-uitleg">Dit cijfer zegt hoe goed AI je site kan lezen en begrijpen. Het is geen kans dat je aanbevolen wordt.</div>';
     html += '</div>';
 
     if(typeof data.vorige_score !== 'undefined'){

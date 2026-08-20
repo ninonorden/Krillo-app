@@ -41,6 +41,7 @@
   .gescand p{font-size:12.5px; color:var(--ink-soft); margin:8px 0 0; line-height:1.55;}
 
   .score-card{background:var(--ink); border-radius:16px; padding:32px; text-align:center; margin-bottom:32px;}
+  .score-uitleg{font-size:12.5px; color:#B9BBD4; margin-top:10px; max-width:380px; margin-left:auto; margin-right:auto; line-height:1.55;}
   .score-label{font-family:var(--mono); font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;}
   .score-num{font-family:var(--disp); font-weight:700; font-size:52px; color:#fff;}
   .score-of{font-size:18px; color:#8B8DA8;}
@@ -105,8 +106,9 @@
     </div>
 
     <div class="score-card">
-      <div class="score-label">AI-zichtbaarheidsscore</div>
+      <div class="score-label">AI-leesbaarheid</div>
       <div><span class="score-num">{{ score }}</span><span class="score-of">/100</span></div>
+      <div class="score-uitleg">Hoe goed AI je site kan lezen en begrijpen. Dit is geen kans dat je aanbevolen wordt.</div>
       {% if history and history|length > 1 %}
       <div class="history">
         {% for h in history %}

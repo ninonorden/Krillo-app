@@ -224,7 +224,7 @@ def send_audit_email(to_email, webshop_url, scan_result, fix_previews, report_ur
 
     body = f"""
     <div style="background:#12142B; border-radius:12px; padding:24px; margin-bottom:20px; text-align:center;">
-      <div style="font-family:'Courier New',monospace; font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;">AI-zichtbaarheidsscore</div>
+      <div style="font-family:'Courier New',monospace; font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;">AI-leesbaarheid</div>
       <div style="font-size:40px; font-weight:700; color:{score_color};">{score}<span style="font-size:18px; color:#8B8DA8;">/100</span></div>
       <div style="font-size:13px; color:#B9BBD4; margin-top:4px;">{webshop_url}</div>
     </div>

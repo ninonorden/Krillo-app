@@ -35,6 +35,7 @@
   .huidig-label{font-family:var(--mono); font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;}
   .huidig-score{font-family:var(--disp); font-weight:700; font-size:56px; line-height:1;}
   .huidig-of{font-size:18px; color:#8B8DA8;}
+  .huidig-uitleg{font-size:12.5px; color:#B9BBD4; margin-top:10px; max-width:360px; margin-left:auto; margin-right:auto; line-height:1.55;}
   .huidig-datum{font-size:12.5px; color:#B9BBD4; margin-top:8px; font-family:var(--mono);}
   .verschil{
     display:inline-flex; align-items:center; gap:6px; margin-top:14px;
@@ -115,8 +116,9 @@
 
     {% if laatste %}
     <div class="huidig">
-      <div class="huidig-label">Huidige AI-zichtbaarheidsscore</div>
+      <div class="huidig-label">Huidige AI-leesbaarheid</div>
       <div><span class="huidig-score">{{ laatste.score }}</span><span class="huidig-of">/100</span></div>
+      <div class="huidig-uitleg">Hoe goed AI je site kan lezen en begrijpen. Dit is geen kans dat je aanbevolen wordt.</div>
       <div class="huidig-datum">Laatste scan: {{ laatste.aangemaakt_op.strftime('%d-%m-%Y') }}</div>
       {% if verschil is not none %}
         {% if verschil > 0 %}
