@@ -35,7 +35,7 @@ INTENTIES = [
     ("doelgroep", "Iemand zoekt iets voor een specifieke situatie of persoon, bijvoorbeeld voor beginners, voor kinderen, of voor intensief gebruik."),
     ("alternatief", "Iemand zoekt een alternatief voor een bekend merk of product."),
     ("winkel", "Iemand zoekt niet een product maar een betrouwbare Nederlandse of Belgische webshop om het te kopen."),
-    ("praktisch", "Iemand let op levertijd, retourneren, voorraad of garantie."),
+    ("praktisch", "Iemand let op levertijd, retourneren, voorraad of garantie, maar vraagt WEL naar een winkel die dat goed geregeld heeft. Dus niet 'hoe lang duurt levering', wel 'welke Nederlandse webshop levert servies het snelst'."),
 ]
 
 
@@ -105,6 +105,12 @@ Belangrijke regels:
   uit zichzelf genoemd wordt, niet of AI de naam kan herhalen.
 - Maak de vragen niet te breed. "Wat is een goede webshop" zegt niets. Maak ze
   specifiek voor wat deze winkel verkoopt.
+- Elke vraag moet om een aanbeveling vragen: een winkel, een merk of een
+  product. Stel geen vragen waar alleen algemene uitleg uit komt. "Hoe lang heb
+  ik bedenktijd bij een online aankoop" levert een antwoord op waar geen enkele
+  winkel in voorkomt, en zo'n vraag kan dus nooit meten of deze shop genoemd
+  wordt. Twijfel je, stel jezelf de vraag: kan het antwoord hierop een winkel
+  of merk noemen? Zo nee, bedenk een andere vraag.
 - Zorg dat de vragen echt van elkaar verschillen. Dertig varianten van dezelfde
   vraag meten niets.
 - Als de winkel duidelijk op Nederland of Belgie gericht is, laat dat in een

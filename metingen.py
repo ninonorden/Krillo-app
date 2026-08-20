@@ -213,6 +213,38 @@ def stel_een_vraag(aanbieder, vraag):
     }
 
 
+def _kies_vragen(vragen, grens):
+    """Kiest welke vragen deze ronde meegaan.
+
+    Simpelweg de eerste dertig pakken gaat mis: de vragen komen gesorteerd op
+    intentie binnen, dus dan meet je dertig keer 'algemeen' en geen enkele
+    winkelvraag. Daarom pakken we om de beurt een vraag uit elke intentie, tot
+    de grens bereikt is. Blijven er intenties met minder vragen over, dan vullen
+    de andere de rest aan."""
+    if len(vragen) <= grens:
+        return vragen
+
+    per_intentie = {}
+    for v in vragen:
+        per_intentie.setdefault(v.get("intentie") or "overig", []).append(v)
+
+    gekozen = []
+    ronde = 0
+    while len(gekozen) < grens:
+        toegevoegd = False
+        for naam in sorted(per_intentie):
+            lijst = per_intentie[naam]
+            if ronde < len(lijst):
+                gekozen.append(lijst[ronde])
+                toegevoegd = True
+                if len(gekozen) == grens:
+                    break
+        if not toegevoegd:
+            break
+        ronde += 1
+    return gekozen
+
+
 def meet_webshop(webshop_url, max_vragen=None):
     """Stelt de actieve koopvragen van een webshop aan alle beschikbare
     modellen en bewaart elk antwoord volledig.
@@ -251,7 +283,7 @@ def meet_webshop(webshop_url, max_vragen=None):
         return samenvatting
 
     grens = max_vragen or VRAGEN_PER_RONDE
-    vragen = vragen[:grens]
+    vragen = _kies_vragen(vragen, grens)
 
     meting_id = uuid.uuid4().hex
     samenvatting["meting_id"] = meting_id

@@ -300,9 +300,15 @@ def kostenoverzicht(dagen=30):
         conn.close()
 
 
-def bewaar_koopvragen(webshop_url, omschrijving, vragen):
-    """Bewaart de gegenereerde koopvragen. Dezelfde vraag voor dezelfde webshop
-    komt er maar een keer in, zodat opnieuw genereren niets dubbel maakt."""
+def bewaar_koopvragen(webshop_url, omschrijving, vragen, vervang=False):
+    """Bewaart de gegenereerde koopvragen.
+
+    vervang=True zet eerst alle bestaande vragen van deze webshop op inactief en
+    maakt daarna alleen de nieuwe set actief. Dat is wat 'opnieuw genereren'
+    hoort te doen. Zonder dat stapelen de rondes op elkaar: alleen letterlijk
+    identieke zinnen werden overgeslagen, dus je hield tientallen bijna-gelijke
+    vragen over. De oude rijen blijven staan, ze zijn alleen niet meer actief,
+    zodat we later kunnen terugkijken wat er ooit bedacht is."""
     conn = _get_connection()
     if conn is None:
         return 0
@@ -317,10 +323,17 @@ def bewaar_koopvragen(webshop_url, omschrijving, vragen):
                        SET omschrijving = EXCLUDED.omschrijving, bijgewerkt_op = now()""",
                     (webshop_url, omschrijving),
                 )
+                if vervang:
+                    cur.execute(
+                        "UPDATE koopvragen SET actief = false WHERE webshop_url = %s",
+                        (webshop_url,),
+                    )
                 for v in vragen:
                     cur.execute(
                         """INSERT INTO koopvragen (webshop_url, vraag, intentie)
-                           VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
+                           VALUES (%s, %s, %s)
+                           ON CONFLICT (webshop_url, vraag) DO UPDATE
+                           SET actief = true, intentie = EXCLUDED.intentie""",
                         (webshop_url, v["vraag"], v.get("intentie")),
                     )
                     nieuw += cur.rowcount

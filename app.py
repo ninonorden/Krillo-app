@@ -484,7 +484,7 @@ def rapport(token):
     )
 
 
-def _genereer_koopvragen_achtergrond(webshop_url):
+def _genereer_koopvragen_achtergrond(webshop_url, vervang=False):
     """Draait op de achtergrond, want scannen plus vragen bedenken duurt een
     minuut of meer. De pagina hoeft daar niet op te wachten."""
     try:
@@ -494,7 +494,8 @@ def _genereer_koopvragen_achtergrond(webshop_url):
         if resultaat is None:
             print(f"Koopvragen genereren mislukt voor {webshop_url}")
             return
-        nieuw = db.bewaar_koopvragen(webshop_url, resultaat["omschrijving"], resultaat["vragen"])
+        nieuw = db.bewaar_koopvragen(webshop_url, resultaat["omschrijving"],
+                                     resultaat["vragen"], vervang=vervang)
         print(f"Koopvragen klaar voor {webshop_url}: {len(resultaat['vragen'])} vragen, {nieuw} nieuw opgeslagen.")
     except Exception as e:
         print(f"Koopvragen genereren mislukt voor {webshop_url}: {e}")
@@ -517,7 +518,8 @@ def admin_koopvragen():
     opnieuw = request.args.get("opnieuw") == "ja"
 
     if not bestaand or opnieuw:
-        threading.Thread(target=_genereer_koopvragen_achtergrond, args=(webshop_url,), daemon=True).start()
+        threading.Thread(target=_genereer_koopvragen_achtergrond,
+                         args=(webshop_url, opnieuw), daemon=True).start()
         return render_template("admin_koopvragen.html", webshop_url=webshop_url,
                                 status="bezig", vragen=[], groepen={}, dubbelen=0, sleutel=admin_key)
 
@@ -548,6 +550,8 @@ def admin_koopvragen():
         vragen=vragen,
         groepen=groepen,
         dubbelen=len(dubbelingen),
+        te_veel=len(vragen) > metingen.VRAGEN_PER_RONDE,
+        per_ronde=metingen.VRAGEN_PER_RONDE,
         sleutel=admin_key,
     )
 
