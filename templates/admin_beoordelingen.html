@@ -81,11 +81,7 @@
   {% if bezig %}
   <div class="waarschuwing">
     <strong>De antwoorden worden nu gelezen</strong>
-    Gebruik "opnieuw beoordelen" als de beoordelaar iets nieuws kan bepalen dat in de oude
-    oordelen nog niet zat. Dat gooit de oordelen van deze ronde weg en doet ze over, en dat
-    kost opnieuw een halve cent per antwoord.
-    Dit duurt ongeveer een halve minuut per tien antwoorden. Ververs deze pagina
-    daarna. Al beoordeelde antwoorden worden overgeslagen, dus je betaalt nooit twee keer.
+    Dit duurt ongeveer een halve minuut per tien antwoorden. Ververs deze pagina daarna.
   </div>
   {% endif %}
 
@@ -189,6 +185,14 @@
   </div>
   {% endfor %}
   {% endif %}
+
+  <div class="voetnoot" style="margin-top:28px;">
+    <strong>Antwoorden beoordelen</strong> slaat over wat al beoordeeld is, dus je betaalt
+    nooit twee keer voor hetzelfde antwoord.<br>
+    <strong>Opnieuw beoordelen</strong> gooit de oordelen van deze ronde weg en doet ze over.
+    Gebruik dat alleen als de beoordelaar iets nieuws kan bepalen dat er bij de oude oordelen
+    nog niet in zat. Kost ongeveer een halve cent per antwoord.
+  </div>
 
   <div class="acties">
     <a class="knop vol" href="?key={{ sleutel }}&url={{ webshop_url }}&start=ja">Antwoorden beoordelen</a>
