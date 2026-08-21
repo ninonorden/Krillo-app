@@ -43,6 +43,23 @@ VRAGEN_PER_RONDE = int(os.environ.get("MEET_VRAGEN_PER_RONDE", "30"))
 # Een antwoord op een koopvraag is een paar alinea's. Ruim genoeg, en het
 # begrenst meteen wat een uitschieter kan kosten.
 MAX_ANTWOORD_TOKENS = int(os.environ.get("MEET_MAX_TOKENS", "900"))
+
+# Google apart, en veel ruimer. De nieuwe Gemini-modellen denken eerst na en
+# die denkstappen tellen mee in hetzelfde budget. Met 900 was het budget op
+# voordat het antwoord begon: we kregen antwoorden van 30 tokens terug, en een
+# keer zelfs 0. Dat werd opgeslagen als een gelukte meting zonder vermelding,
+# terwijl er in werkelijkheid niets gemeten was.
+MAX_ANTWOORD_TOKENS_GOOGLE = int(os.environ.get("MEET_MAX_TOKENS_GOOGLE", "4000"))
+
+# Optionele noodrem: zet MEET_GOOGLE_DENKBUDGET op 0 om het nadenken helemaal
+# uit te zetten. Alleen gebruiken als een ruimer budget niet blijkt te helpen,
+# want niet elk model accepteert deze instelling.
+GOOGLE_DENKBUDGET = os.environ.get("MEET_GOOGLE_DENKBUDGET", "").strip()
+
+# Een antwoord van een paar woorden is geen antwoord op een koopvraag. Zo'n
+# uitkomst mag nooit tellen als "deze winkel werd niet genoemd", want dan maak
+# je van een technisch probleem een meetresultaat.
+MIN_ANTWOORD_TEKENS = int(os.environ.get("MEET_MIN_TEKENS", "120"))
 TIJDSLIMIET = int(os.environ.get("MEET_TIJDSLIMIET", "90"))
 
 # Minimaal aantal seconden tussen twee aanroepen naar dezelfde aanbieder.
@@ -145,26 +162,46 @@ def _vraag_google(model, vraag):
             "x-goog-api-key": os.environ["GOOGLE_API_KEY"],
             "Content-Type": "application/json",
         },
-        json={
-            "contents": [{"parts": [{"text": vraag}]}],
-            "generationConfig": {"maxOutputTokens": MAX_ANTWOORD_TOKENS},
-        },
+        json=_google_verzoek(vraag),
         timeout=TIJDSLIMIET,
     )
     resp.raise_for_status()
     data = resp.json()
     kandidaten = data.get("candidates") or []
     delen = []
+    reden = ""
     if kandidaten:
+        reden = kandidaten[0].get("finishReason") or ""
         for deel in (kandidaten[0].get("content") or {}).get("parts") or []:
             if deel.get("text"):
                 delen.append(deel["text"])
     gebruik = data.get("usageMetadata") or {}
+    tekst = " ".join(delen).strip()
+
+    # Kwam het antwoord niet af, dan is dat een mislukking en geen uitkomst.
+    if not tekst or reden == "MAX_TOKENS":
+        gedacht = gebruik.get("thoughtsTokenCount", 0)
+        raise RuntimeError(
+            f"Google gaf geen bruikbaar antwoord (finishReason={reden or 'onbekend'}, "
+            f"denktokens={gedacht}). Verhoog MEET_MAX_TOKENS_GOOGLE of zet "
+            f"MEET_GOOGLE_DENKBUDGET op 0."
+        )
+
     return (
-        " ".join(delen).strip(),
+        tekst,
         gebruik.get("promptTokenCount", 0),
         gebruik.get("candidatesTokenCount", 0),
     )
+
+
+def _google_verzoek(vraag):
+    config = {"maxOutputTokens": MAX_ANTWOORD_TOKENS_GOOGLE}
+    if GOOGLE_DENKBUDGET != "":
+        try:
+            config["thinkingConfig"] = {"thinkingBudget": int(GOOGLE_DENKBUDGET)}
+        except ValueError:
+            pass
+    return {"contents": [{"parts": [{"text": vraag}]}], "generationConfig": config}
 
 
 def _vraag_anthropic(model, vraag):
@@ -218,6 +255,11 @@ def stel_een_vraag(aanbieder, vraag):
         try:
             _wacht_je_beurt(aanbieder["provider"])
             antwoord, invoer, uitvoer = vrager(aanbieder["model"], vraag)
+            if len(antwoord) < MIN_ANTWOORD_TEKENS:
+                raise RuntimeError(
+                    f"Antwoord van {len(antwoord)} tekens is te kort om iets uit te lezen. "
+                    f"Dit telt als mislukt, niet als een winkel die niet genoemd werd."
+                )
             return {
                 "gelukt": True,
                 "antwoord": antwoord,
