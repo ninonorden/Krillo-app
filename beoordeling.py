@@ -118,9 +118,22 @@ Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
     "positie": 6,
     "aanbevolen": false,
     "toon": "korte omschrijving van hoe onze winkel neergezet wordt, of null",
+    "soort_vermelding": "winkel, product of beide, of null",
     "bewijs": "de zin uit het antwoord waar je dit op baseert, letterlijk overgenomen"
   }}
 }}
+
+SOORT VERMELDING. Hier gaat het om wat er precies over onze winkel gezegd
+wordt. Drie mogelijkheden:
+- "winkel": er wordt gezegd dat je er terecht kan, of de winkel staat in een
+  rijtje adressen. Bijvoorbeeld "kijk eens bij Dille & Kamille".
+- "product": er wordt een concreet product of productsoort van deze winkel
+  aangeraden. Bijvoorbeeld "de emaille mokken van Dille & Kamille" of "een
+  thee- en koffiecadeauset van Dille & Kamille".
+- "beide": allebei staan er.
+Wordt de winkel niet genoemd, zet dan null. Een winkel die alleen in een rijtje
+staat met een feitje erachter, zoals "doorgaans 30 dagen retour", is "winkel"
+en geen "product".
 
 Het bewijs is verplicht als de winkel genoemd wordt. Neem de zin letterlijk over
 uit het antwoord, verzin niets. Zet je aanbevolen op true, neem dan de zin over
@@ -164,6 +177,9 @@ voor, zet dan genoemd op false en positie op null."""
             "aanbevolen": bool(onze.get("aanbevolen")),
             "toon": (onze.get("toon") or None),
             "bewijs": (onze.get("bewijs") or None),
+            "soort_vermelding": (onze.get("soort_vermelding")
+                                 if onze.get("soort_vermelding") in ("winkel", "product", "beide")
+                                 else None),
             "aantal_winkels": len(winkels),
         }
     except Exception as e:
@@ -212,6 +228,7 @@ def beoordeel_ronde(webshop_url, meting_id=None, winkelnaam=None):
             "aanbevolen": uitkomst["aanbevolen"],
             "toon": uitkomst["toon"],
             "bewijs": uitkomst["bewijs"],
+            "soort_vermelding": uitkomst["soort_vermelding"],
             "winkels": json.dumps(uitkomst["winkels"], ensure_ascii=False),
             "merken": json.dumps(uitkomst["merken"], ensure_ascii=False),
             "aanbevolen_winkels": json.dumps(uitkomst["aanbevolen_winkels"], ensure_ascii=False),
@@ -259,6 +276,9 @@ def vat_samen(beoordelingen):
 
     posities = [b["positie"] for b in genoemd if b.get("positie")]
     return {
+        "product_genoemd": len([b for b in genoemd
+                                if b.get("soort_vermelding") in ("product", "beide")]),
+        "alleen_winkel": len([b for b in genoemd if b.get("soort_vermelding") == "winkel"]),
         "totaal": len(beoordelingen),
         "telbaar": len(telbaar),
         "niet_telbaar": len(beoordelingen) - len(telbaar),
@@ -313,6 +333,7 @@ def klantbeeld(webshop_url, beoordelingen):
                 "vraag": vraag, "sterkte": -1, "telt_mee": False,
                 "genoemd": False, "aanbevolen": False,
                 "positie": None, "aantal_winkels": None, "bewijs": None,
+                "soort_vermelding": None,
             }
         if b.get("winkel_kon_genoemd"):
             regel["telt_mee"] = True
@@ -324,6 +345,7 @@ def klantbeeld(webshop_url, beoordelingen):
                 "positie": b.get("positie"),
                 "aantal_winkels": b.get("aantal_winkels"),
                 "bewijs": b.get("bewijs"),
+                "soort_vermelding": b.get("soort_vermelding"),
             })
 
     telbaar = [r for r in per_vraag.values() if r["telt_mee"]]
@@ -372,6 +394,12 @@ def klantbeeld(webshop_url, beoordelingen):
         "niet_telbaar": len(per_vraag) - len(telbaar),
         "genoemd": len([r for r in telbaar if r["genoemd"]]),
         "aanbevolen": len([r for r in telbaar if r["aanbevolen"]]),
+        # Stap 5: een winkel noemen is iets anders dan een product van die
+        # winkel aanraden. "Kijk eens bij Dille & Kamille" tegenover "de emaille
+        # mokken van Dille & Kamille". Het tweede levert veel eerder een
+        # aankoop op, dus dat verschil hoort zichtbaar te zijn.
+        "product_genoemd": len([r for r in telbaar
+                                if r["genoemd"] and r.get("soort_vermelding") in ("product", "beide")]),
         "concurrenten": concurrenten[:8],
         "modellen": modellen,
         "regels": sorted(telbaar, key=lambda r: (-r["sterkte"], r["vraag"])),

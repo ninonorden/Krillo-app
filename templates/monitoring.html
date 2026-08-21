@@ -60,6 +60,8 @@
   .vermelding .kop-uitleg{font-size:13px; color:var(--ink-soft); margin-bottom:20px;}
   .tellers{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line);
            border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:16px;}
+  .tellers.drie{grid-template-columns:1fr 1fr 1fr;}
+  @media (max-width:640px){ .tellers.drie{grid-template-columns:1fr;} }
   .teller{background:var(--paper); padding:18px 20px;}
   .teller-label{font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
                 letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px;}
@@ -216,7 +218,7 @@
         {% endif %}
       </div>
 
-      <div class="tellers">
+      <div class="tellers drie">
         <div class="teller">
           <div class="teller-label">Genoemd</div>
           <div class="teller-num">{{ vermeldingen.genoemd }}<small> van {{ vermeldingen.telbaar }}</small></div>
@@ -226,6 +228,11 @@
           <div class="teller-label">Aanbevolen</div>
           <div class="teller-num">{{ vermeldingen.aanbevolen }}<small> van {{ vermeldingen.telbaar }}</small></div>
           <div class="teller-uitleg">Je wordt ook echt aangeraden, niet alleen genoemd.</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Met een product erbij</div>
+          <div class="teller-num">{{ vermeldingen.product_genoemd }}<small> van {{ vermeldingen.genoemd }}</small></div>
+          <div class="teller-uitleg">Er wordt niet alleen naar je winkel verwezen, maar een concreet product van je aangeraden.</div>
         </div>
       </div>
 
@@ -269,6 +276,9 @@
           <span class="vlag niet">niet genoemd</span>
           {% endif %}
           {% if r.positie %}<span class="plek">plek {{ r.positie }} van {{ r.aantal_winkels }}</span>{% endif %}
+          {% if r.soort_vermelding in ('product', 'beide') %}
+          <span class="plek">product genoemd</span>
+          {% endif %}
         </div>
         {% if r.bewijs %}<div class="citaat">{{ r.bewijs }}</div>{% endif %}
       </div>
@@ -280,6 +290,10 @@
         iemand in de app zou zien: daar tellen ook de zoekresultaten van dat moment, de locatie
         en de geschiedenis van die persoon mee. We tonen daarom aantallen en geen percentages,
         want die zouden een precisie suggereren die er niet is.<br><br>
+        <strong>Winkel tegenover product.</strong> "Kijk eens bij deze winkel" is iets
+        anders dan "de emaille mokken van deze winkel zijn mooi". Dat tweede levert veel
+        eerder een aankoop op, want de koper weet dan al wat hij zoekt. Daarom tellen we
+        die twee apart.<br><br>
         <strong>Let op.</strong> Of je genoemd wordt heb je niet helemaal zelf in de hand. Komt
         een concurrent groot in het nieuws of wordt een AI-model bijgewerkt, dan kan je cijfer
         veranderen zonder dat je iets fout deed. Daarom laten we zien wie er nog meer genoemd

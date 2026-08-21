@@ -148,6 +148,7 @@ def init_db():
                         aanbevolen BOOLEAN,
                         toon TEXT,
                         bewijs TEXT,
+                        soort_vermelding TEXT,
                         winkels JSONB,
                         merken JSONB,
                         aanbevolen_winkels JSONB,
@@ -155,6 +156,7 @@ def init_db():
                     );
                 """)
                 cur.execute("ALTER TABLE beoordelingen ADD COLUMN IF NOT EXISTS bewijs TEXT;")
+                cur.execute("ALTER TABLE beoordelingen ADD COLUMN IF NOT EXISTS soort_vermelding TEXT;")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_beoordelingen_meting ON beoordelingen (webshop_url, meting_id);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_antwoorden_webshop ON ai_antwoorden (webshop_url, gesteld_op);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_antwoorden_meting ON ai_antwoorden (meting_id);")
@@ -867,11 +869,13 @@ def bewaar_beoordeling(gegevens):
                     """INSERT INTO beoordelingen
                        (antwoord_id, meting_id, webshop_url, vraag, intentie, model,
                         winkel_kon_genoemd, genoemd, positie, aantal_winkels,
-                        aanbevolen, toon, bewijs, winkels, merken, aanbevolen_winkels)
+                        aanbevolen, toon, bewijs, soort_vermelding,
+                        winkels, merken, aanbevolen_winkels)
                        VALUES (%(antwoord_id)s, %(meting_id)s, %(webshop_url)s, %(vraag)s,
                                %(intentie)s, %(model)s, %(winkel_kon_genoemd)s, %(genoemd)s,
                                %(positie)s, %(aantal_winkels)s, %(aanbevolen)s, %(toon)s,
-                               %(bewijs)s, %(winkels)s, %(merken)s, %(aanbevolen_winkels)s)
+                               %(bewijs)s, %(soort_vermelding)s,
+                               %(winkels)s, %(merken)s, %(aanbevolen_winkels)s)
                        ON CONFLICT (antwoord_id) DO NOTHING""",
                     gegevens,
                 )
