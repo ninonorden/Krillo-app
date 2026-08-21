@@ -691,6 +691,50 @@ def _beoordeel_achtergrond(webshop_url, meting_id, winkelnaam):
             _beoordelen_bezig.discard(webshop_url)
 
 
+@app.route("/admin/voorbeeld")
+def admin_voorbeeld():
+    """Laat de klantpagina zien voor een webshop naar keuze, zonder dat daar een
+    abonnement voor hoeft te bestaan.
+
+    Nodig omdat de monitoringpagina alleen bereikbaar is via een klant_token dat
+    pas ontstaat bij een betaald abonnement. Zonder deze route kan je niet
+    controleren hoe een klant zijn eigen pagina ziet."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    webshop_url = (request.args.get("url") or "").strip()
+    if not webshop_url:
+        return "Geef een webshop op met &url=...", 400
+
+    rapporten = db.get_rapporten_voor_webshop(webshop_url)
+    laatste = rapporten[0] if rapporten else None
+    vorige = rapporten[1] if len(rapporten) > 1 else None
+
+    verschil = laatste["score"] - vorige["score"] if (laatste and vorige) else None
+    checks_by_categorie = {}
+    if laatste:
+        for c in laatste["checks"]:
+            checks_by_categorie.setdefault(c.get("categorie", "overig"), []).append(c)
+
+    beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url)]
+    vermeldingen = beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None
+
+    return render_template(
+        "monitoring.html",
+        webshop_url=webshop_url,
+        klant_token=None,
+        voorbeeld=True,
+        vermeldingen=vermeldingen,
+        laatste=laatste,
+        verschil=verschil,
+        verloop=list(reversed(rapporten))[-8:],
+        nieuwe_problemen=[],
+        checks_by_categorie=checks_by_categorie,
+        status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
+    )
+
+
 @app.route("/admin/beoordelingen")
 def admin_beoordelingen():
     """Fase 5 stap 4. Laat zien wat er uit de antwoorden gehaald is: welke

@@ -680,6 +680,30 @@ def get_klant_rapporten(klant_token, limit=20):
         conn.close()
 
 
+def get_rapporten_voor_webshop(webshop_url, limit=20):
+    """Alle scans van een webshop, ongeacht of er een klant aan hangt.
+
+    Gebruikt door de voorbeeldweergave, zodat je de klantpagina kan bekijken
+    voor een webshop waar nog geen abonnement op zit."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT * FROM rapporten WHERE webshop_url = %s
+                       ORDER BY aangemaakt_op DESC LIMIT %s""",
+                    (webshop_url, limit),
+                )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Rapporten van webshop ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def report_bestaat_al(payment_id):
     """Tweede blokkade: kijkt of er voor deze betaling al een rapport gemaakt is.
     Werkt ook als de eerste blokkade om wat voor reden dan ook niet aansloeg."""

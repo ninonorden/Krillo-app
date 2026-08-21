@@ -178,6 +178,32 @@
     {% endif %}
 
 
+
+    {% if nieuwe_problemen %}
+    <h2 class="sectie">Nieuw sinds de vorige scan</h2>
+    {% for c in nieuwe_problemen %}
+    <div class="check">
+      <span class="tag {{ c.status }}">{{ status_labels[c.status] }}</span>
+      <div class="check-body"><strong>{{ c.titel }}<span class="nieuw-badge">nieuw</span></strong><span>{{ c.uitleg }}</span></div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <h2 class="sectie">Alle bevindingen</h2>
+    {% for categorie, items in checks_by_categorie.items() %}
+    <div class="categorie-label">{{ categorie }}</div>
+    {% for c in items %}
+    <div class="check">
+      <span class="tag {{ c.status }}">{{ status_labels[c.status] }}</span>
+      <div class="check-body"><strong>{{ c.titel }}</strong><span>{{ c.uitleg }}</span></div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+
+    {% else %}
+    <div class="leeg">Er is nog geen scan uitgevoerd. Je eerste scan verschijnt hier zodra die klaar is.</div>
+    {% endif %}
+
     {% if vermeldingen %}
     <div class="vermelding">
       <h2>Word je genoemd als iemand het aan AI vraagt?</h2>
@@ -260,40 +286,24 @@
     </div>
     {% endif %}
 
-    {% if nieuwe_problemen %}
-    <h2 class="sectie">Nieuw sinds de vorige scan</h2>
-    {% for c in nieuwe_problemen %}
-    <div class="check">
-      <span class="tag {{ c.status }}">{{ status_labels[c.status] }}</span>
-      <div class="check-body"><strong>{{ c.titel }}<span class="nieuw-badge">nieuw</span></strong><span>{{ c.uitleg }}</span></div>
-    </div>
-    {% endfor %}
-    {% endif %}
 
-    <h2 class="sectie">Alle bevindingen</h2>
-    {% for categorie, items in checks_by_categorie.items() %}
-    <div class="categorie-label">{{ categorie }}</div>
-    {% for c in items %}
-    <div class="check">
-      <span class="tag {{ c.status }}">{{ status_labels[c.status] }}</span>
-      <div class="check-body"><strong>{{ c.titel }}</strong><span>{{ c.uitleg }}</span></div>
-    </div>
-    {% endfor %}
-    {% endfor %}
-
-    {% else %}
-    <div class="leeg">Er is nog geen scan uitgevoerd. Je eerste scan verschijnt hier zodra die klaar is.</div>
-    {% endif %}
-
+    {% if not voorbeeld %}
     <div class="opzeg">
       <strong>Je abonnement</strong>
       <p>Je betaalt 39 euro per maand, maandelijks opzegbaar. Zeg je op, dan houd je toegang tot het einde van de periode die je al betaald hebt en wordt er daarna niets meer afgeschreven.</p>
       <button class="opzeg-knop" id="opzegKnop">Mijn abonnement opzeggen</button>
       <div class="opzeg-melding" id="opzegMelding"></div>
     </div>
+    {% else %}
+    <div class="opzeg">
+      <strong>Voorbeeldweergave</strong>
+      <p>Dit is hoe een abonnee zijn eigen pagina ziet. Alleen zichtbaar met de beheersleutel.</p>
+    </div>
+    {% endif %}
   </div>
 </main>
 
+{% if not voorbeeld %}
 <script>
 (function(){
   var knop = document.getElementById('opzegKnop');
@@ -327,6 +337,7 @@
   });
 })();
 </script>
+{% endif %}
 
 <footer>© 2026 Krillo &middot; <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a></footer>
 
