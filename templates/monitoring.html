@@ -54,6 +54,37 @@
   .balk-score{font-family:var(--mono); font-size:10.5px; color:var(--ink-soft);}
   .balk-datum{font-family:var(--mono); font-size:9.5px; color:var(--ink-soft);}
 
+  .vermelding{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+              padding:24px; margin-bottom:32px;}
+  .vermelding h2{font-family:var(--disp); font-size:15px; font-weight:600; margin-bottom:4px;}
+  .vermelding .kop-uitleg{font-size:13px; color:var(--ink-soft); margin-bottom:20px;}
+  .tellers{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line);
+           border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:16px;}
+  .teller{background:var(--paper); padding:18px 20px;}
+  .teller-label{font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+                letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px;}
+  .teller-num{font-family:var(--disp); font-weight:700; font-size:28px; line-height:1.1;}
+  .teller-num small{font-size:15px; font-weight:500; color:var(--ink-soft);}
+  .teller-uitleg{font-size:12px; color:var(--ink-soft); margin-top:4px;}
+  .noemer-uitleg{font-size:12.5px; color:var(--ink-soft); background:var(--paper);
+                 border-radius:10px; padding:14px 16px; margin-bottom:20px; line-height:1.6;}
+  .vraagregel{border-top:1px solid var(--line); padding:12px 0;}
+  .vraagregel .vraag{font-size:13.5px; font-weight:500; margin-bottom:6px;}
+  .vlag{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em;
+        padding:3px 8px; border-radius:100px; margin-right:8px; white-space:nowrap;}
+  .vlag.aanbevolen{background:var(--coral); color:#fff;}
+  .vlag.genoemd{background:var(--teal-dim); color:#085041;}
+  .vlag.niet{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .plek{font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);}
+  .citaat{font-size:12.5px; color:var(--ink-soft); border-left:2px solid var(--line);
+          padding:2px 0 2px 12px; margin-top:8px; line-height:1.55;}
+  .andere{width:100%; border-collapse:collapse; margin:8px 0 4px;}
+  .andere td{padding:7px 0; font-size:13px; border-top:1px solid var(--line);}
+  .andere td.getal{text-align:right; font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
+  .andere tr.jij td{font-weight:600; color:var(--coral-tekst);}
+  .meetuitleg{font-size:12px; color:var(--ink-soft); margin-top:18px; line-height:1.65;
+              border-top:1px solid var(--line); padding-top:14px;}
+
   h2.sectie{font-family:var(--disp); font-weight:600; font-size:18px; margin:32px 0 12px;}
   .categorie-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--coral-tekst); margin:20px 0 8px;}
   .check{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); font-size:13.5px;}
@@ -142,6 +173,89 @@
           <div class="balk-datum">{{ punt.aangemaakt_op.strftime('%d-%m') }}</div>
         </div>
         {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+
+    {% if vermeldingen %}
+    <div class="vermelding">
+      <h2>Word je genoemd als iemand het aan AI vraagt?</h2>
+      <div class="kop-uitleg">
+        We stellen elke week {{ vermeldingen.gesteld }} koopvragen aan ChatGPT en Gemini,
+        vragen die kopers in jouw categorie echt stellen. Hieronder staat wat er dan gebeurt.
+        Zeggen de twee modellen niet hetzelfde over een vraag, dan tellen we de sterkste
+        uitkomst mee.
+      </div>
+
+      <div class="tellers">
+        <div class="teller">
+          <div class="teller-label">Genoemd</div>
+          <div class="teller-num">{{ vermeldingen.genoemd }}<small> van {{ vermeldingen.telbaar }}</small></div>
+          <div class="teller-uitleg">Je winkel komt in het antwoord voor.</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Aanbevolen</div>
+          <div class="teller-num">{{ vermeldingen.aanbevolen }}<small> van {{ vermeldingen.telbaar }}</small></div>
+          <div class="teller-uitleg">Je wordt ook echt aangeraden, niet alleen genoemd.</div>
+        </div>
+      </div>
+
+      {% if vermeldingen.niet_telbaar %}
+      <div class="noemer-uitleg">
+        We tellen {{ vermeldingen.telbaar }} van je {{ vermeldingen.gesteld }} vragen mee.
+        Bij {{ vermeldingen.niet_telbaar }} vragen werd er naar een merk of een product gevraagd
+        en niet naar een winkel. In zulke antwoorden komt geen enkele webshop voor, ook de beste niet.
+        Die meetellen zou je cijfer alleen maar mooier of lelijker maken dan het is.
+      </div>
+      {% endif %}
+
+      {% if vermeldingen.concurrenten %}
+      <h2 style="margin-top:8px;">Wie er nog meer genoemd worden</h2>
+      <div class="kop-uitleg">Bij dezelfde vragen. Dit zijn de winkels waar je het tegen opneemt.</div>
+      <table class="andere">
+        <tr><td style="font-family:var(--mono); font-size:10.5px; text-transform:uppercase; color:var(--ink-soft);">Winkel</td>
+            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Genoemd</td>
+            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Aanbevolen</td></tr>
+        {% for c in vermeldingen.concurrenten %}
+        <tr class="{% if c.wij %}jij{% endif %}">
+          <td>{{ c.naam }}{% if c.wij %} (jij){% endif %}</td>
+          <td class="getal">{{ c.genoemd }}</td>
+          <td class="getal">{{ c.aanbevolen }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+
+      <h2 style="margin-top:24px;">Per vraag</h2>
+      <div class="kop-uitleg">Het citaat eronder komt letterlijk uit het antwoord van de AI.</div>
+      {% for r in vermeldingen.regels %}
+      <div class="vraagregel">
+        <div class="vraag">{{ r.vraag }}</div>
+        <div>
+          {% if r.aanbevolen %}
+          <span class="vlag aanbevolen">aanbevolen</span>
+          {% elif r.genoemd %}
+          <span class="vlag genoemd">genoemd</span>
+          {% else %}
+          <span class="vlag niet">niet genoemd</span>
+          {% endif %}
+          {% if r.positie %}<span class="plek">plek {{ r.positie }} van {{ r.aantal_winkels }}</span>{% endif %}
+        </div>
+        {% if r.bewijs %}<div class="citaat">{{ r.bewijs }}</div>{% endif %}
+      </div>
+      {% endfor %}
+
+      <div class="meetuitleg">
+        <strong>Hoe we dit meten.</strong> We stellen de vragen via de programmeerkoppeling
+        van ChatGPT en Gemini, zonder er iets omheen te zetten. Dat is een benadering van wat
+        iemand in de app zou zien: daar tellen ook de zoekresultaten van dat moment, de locatie
+        en de geschiedenis van die persoon mee. We tonen daarom aantallen en geen percentages,
+        want die zouden een precisie suggereren die er niet is.<br><br>
+        <strong>Let op.</strong> Of je genoemd wordt heb je niet helemaal zelf in de hand. Komt
+        een concurrent groot in het nieuws of wordt een AI-model bijgewerkt, dan kan je cijfer
+        veranderen zonder dat je iets fout deed. Daarom laten we zien wie er nog meer genoemd
+        worden, zodat je een daling kan plaatsen.
       </div>
     </div>
     {% endif %}

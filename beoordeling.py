@@ -272,3 +272,63 @@ def vat_samen(beoordelingen):
             reverse=True,
         )[:15],
     }
+
+
+def klantbeeld(webshop_url, beoordelingen):
+    """Zet de beoordelingen om in wat de klant op zijn eigen pagina ziet.
+
+    Belangrijk verschil met de beheerpagina: daar telt elk antwoord apart, hier
+    telt elke VRAAG een keer. Met twee modellen levert dertig vragen zestig
+    antwoorden op, en "genoemd bij 8 van de 60" leest alsof er zestig vragen
+    gesteld zijn. De klant wil weten bij hoeveel van zijn vragen hij voorkomt.
+
+    Staan de twee modellen niet hetzelfde, dan telt de sterkste uitkomst:
+    aanbevolen gaat voor genoemd, genoemd gaat voor niet genoemd. Dat staat er
+    ook zo bij op de pagina, anders lees je een cijfer dat strenger of milder
+    is dan het lijkt."""
+    kern = (webshop_url or "").replace("www.", "").split(".")[0].replace("-", "").lower()
+
+    per_vraag = {}
+    for b in beoordelingen:
+        vraag = b.get("vraag")
+        if not vraag:
+            continue
+        sterkte = 2 if b.get("aanbevolen") else (1 if b.get("genoemd") else 0)
+        regel = per_vraag.get(vraag)
+        if regel is None:
+            regel = per_vraag[vraag] = {
+                "vraag": vraag, "sterkte": -1, "telt_mee": False,
+                "genoemd": False, "aanbevolen": False,
+                "positie": None, "aantal_winkels": None, "bewijs": None,
+            }
+        if b.get("winkel_kon_genoemd"):
+            regel["telt_mee"] = True
+        if sterkte > regel["sterkte"]:
+            regel.update({
+                "sterkte": sterkte,
+                "genoemd": bool(b.get("genoemd")),
+                "aanbevolen": bool(b.get("aanbevolen")),
+                "positie": b.get("positie"),
+                "aantal_winkels": b.get("aantal_winkels"),
+                "bewijs": b.get("bewijs"),
+            })
+
+    telbaar = [r for r in per_vraag.values() if r["telt_mee"]]
+
+    # De concurrentietabel blijft over alle antwoorden gaan: hoe vaker een
+    # winkel opduikt, hoe zwaarder die weegt, en dat mag dubbel tellen als
+    # beide modellen hem noemen.
+    samen = vat_samen(beoordelingen)
+    for c in samen["concurrenten"]:
+        vergelijk = c["naam"].replace(" ", "").replace("&", "").replace("-", "").lower()
+        c["wij"] = bool(kern) and kern in vergelijk
+
+    return {
+        "gesteld": len(per_vraag),
+        "telbaar": len(telbaar),
+        "niet_telbaar": len(per_vraag) - len(telbaar),
+        "genoemd": len([r for r in telbaar if r["genoemd"]]),
+        "aanbevolen": len([r for r in telbaar if r["aanbevolen"]]),
+        "concurrenten": samen["concurrenten"][:8],
+        "regels": sorted(telbaar, key=lambda r: (-r["sterkte"], r["vraag"])),
+    }

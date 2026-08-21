@@ -446,8 +446,17 @@ def monitoring_pagina(klant_token):
 
     verloop = list(reversed(rapporten))[-8:]
 
+    # Fase 5 stap 7: de vermeldingen bij AI, als die er zijn. Staat er nog
+    # niets, dan tonen we hier ook niets. Een lege sectie met nullen erin leest
+    # als een slechte uitkomst, terwijl er alleen nog niet gemeten is.
+    vermeldingen = None
+    beoordelingen = [dict(b) for b in db.get_beoordelingen(klant["webshop_url"])]
+    if beoordelingen:
+        vermeldingen = beoordeling.klantbeeld(klant["webshop_url"], beoordelingen)
+
     return render_template(
         "monitoring.html",
+        vermeldingen=vermeldingen,
         webshop_url=klant["webshop_url"],
         klant_token=klant_token,
         laatste=laatste,
