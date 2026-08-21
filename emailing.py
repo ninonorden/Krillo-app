@@ -245,6 +245,13 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
       nieuwe stand, en een duidelijke waarschuwing als je score gedaald is. Je vindt je scoreverloop altijd terug op je eigen pagina,
       die op hetzelfde adres blijft staan. Bewaar de link hieronder.
     </p>
+    <p style="font-size:13.5px; color:#3B3D57;">
+      We zijn nu ook bezig met je eerste meting bij ChatGPT en Gemini. We bedenken dertig
+      koopvragen die kopers in jouw categorie echt stellen, en kijken of jouw webshop in het
+      antwoord staat. Dat duurt ongeveer een kwartier. Kijk daarna nog eens op je pagina: je ziet
+      dan bij hoeveel vragen je genoemd wordt, bij hoeveel je ook echt aanbevolen wordt, en welke
+      winkels er bij dezelfde vragen boven je staan.
+    </p>
     {_score_button(report_url, "Open je monitoringpagina")}
     """
     html = _base_html(

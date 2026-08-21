@@ -343,6 +343,15 @@ def _verwerk_betaling(payment_id, base_url):
                                     scan_result.get("checks", []), None, payment_id, klant_token)
                     monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
                     emailing.send_monitoring_welcome_email(email, webshop_url, scan_result, monitoring_url)
+
+                    # Meteen de eerste meting bij de AI-modellen, niet pas over
+                    # een week. Een nieuwe klant die zeven dagen naar een lege
+                    # pagina kijkt, zegt op voordat hij iets gezien heeft.
+                    threading.Thread(
+                        target=_meet_en_beoordeel,
+                        args=(webshop_url, email, klant_token, base_url),
+                        daemon=True,
+                    ).start()
     except Exception as e:
         print(f"Verwerken van betaling {payment_id} mislukt: {e}")
 
@@ -366,14 +375,63 @@ def mollie_webhook():
     return "", 200
 
 
-def _draai_wekelijkse_scans(base_url):
-    """Doet de wekelijkse scans op de achtergrond. Draait los van het verzoek,
-    zodat de aanroeper niet hoeft te wachten en er niets vastloopt, ook niet
-    als er straks honderd abonnees zijn."""
+def meetdag(webshop_url):
+    """Op welke dag van de week deze klant aan de beurt is. Maandag is 0.
+
+    Elke klant krijgt een vaste dag, afgeleid van zijn eigen webadres. Dezelfde
+    winkel komt dus altijd op dezelfde dag uit, ook na een herstart, en zonder
+    dat we er iets voor hoeven op te slaan.
+
+    Waarom dit nodig is: alle abonnees op een dag meten kost bij vijftig klanten
+    meer dan de dagelijkse kostenrem toelaat. Die rem zou dan halverwege de dag
+    ingrijpen en de rest van de klanten die week overslaan, zonder dat iemand
+    dat merkt. Spreiden is beter dan de rem verhogen, want de rem moet blijven
+    doen waar hij voor is."""
+    schoon = (webshop_url or "").strip().lower()
+    return sum(schoon.encode("utf-8")) % 7
+
+
+def _is_aan_de_beurt(webshop_url, vandaag, alles=False):
+    """Of deze klant vandaag gemeten wordt.
+
+    Naast de vaste dag zit er een vangnet in: is een klant meer dan negen dagen
+    niet gemeten, dan gebeurt het alsnog. Anders zou een gemiste cron of een
+    storing betekenen dat iemand een week overslaat zonder dat het opvalt."""
+    if alles:
+        return True
+    if meetdag(webshop_url) == vandaag.weekday():
+        return True
+
+    vorige = db.get_previous_score(webshop_url)
+    laatste = (vorige or {}).get("aangemaakt_op")
+    if laatste is None:
+        return True
     try:
+        dagen = (vandaag - laatste).days
+    except TypeError:
+        return True
+    if dagen > 9:
+        print(f"{webshop_url} is {dagen} dagen niet gemeten, wordt nu alsnog gedaan.")
+        return True
+    return False
+
+
+def _draai_wekelijkse_scans(base_url, alles=False):
+    """Doet de scans op de achtergrond. Draait los van het verzoek, zodat de
+    aanroeper niet hoeft te wachten en er niets vastloopt, ook niet als er
+    straks honderd abonnees zijn.
+
+    Deze functie mag elke dag aangeroepen worden. Er wordt dan per dag alleen
+    het deel van de klanten gedaan dat die dag aan de beurt is, waardoor elke
+    klant een keer per week gemeten wordt en de kosten over de week verdeeld
+    zijn. Met alles=True wordt iedereen gedaan, ongeacht de dag."""
+    try:
+        vandaag = datetime.now(timezone.utc)
         customers = payments.list_active_monitoring_customers()
-        print(f"Wekelijkse scan gestart voor {len(customers)} klant(en).")
-        for c in customers:
+        aan_de_beurt = [c for c in customers
+                        if _is_aan_de_beurt(c["webshop_url"], vandaag, alles)]
+        print(f"{len(customers)} actieve klant(en), {len(aan_de_beurt)} vandaag aan de beurt.")
+        for c in aan_de_beurt:
             try:
                 scan_result = run_scan(c["webshop_url"])
                 if "error" in scan_result:
@@ -403,21 +461,30 @@ def _draai_wekelijkse_scans(base_url):
                     print(f"Meting mislukt voor {c['webshop_url']}: {e}")
             except Exception as e:
                 print(f"Wekelijkse scan mislukt voor {c.get('webshop_url')}: {e}")
-        print("Wekelijkse scan afgerond.")
+        print("Ronde afgerond.")
     except Exception as e:
         print(f"Wekelijkse scan volledig mislukt: {e}")
 
 
 @app.route("/api/cron/weekly-scans", methods=["GET", "POST"])
 def weekly_scans():
-    """Wordt eenmaal per week aangeroepen om alle actieve monitoring-klanten
-    opnieuw te scannen. Antwoordt meteen, het werk gebeurt op de achtergrond."""
+    """Wordt DAGELIJKS aangeroepen. Per dag is een deel van de klanten aan de
+    beurt, zo verdeelt het werk en de kosten zich over de week en wordt elke
+    klant een keer per week gemeten.
+
+    Draait de cron nog wekelijks, zet er dan &alles=ja achter, dan wordt
+    iedereen in een keer gedaan zoals vroeger. Bij meer dan ongeveer veertig
+    klanten loopt dat tegen de dagelijkse kostenrem aan, dus dat is alleen
+    bedoeld voor de overgang.
+
+    Antwoordt meteen, het werk gebeurt op de achtergrond."""
     cron_key = os.environ.get("CRON_KEY")
     if not cron_key or request.args.get("key") != cron_key:
         return "", 404
 
+    alles = request.args.get("alles") == "ja"
     base_url = get_base_url()
-    threading.Thread(target=_draai_wekelijkse_scans, args=(base_url,), daemon=True).start()
+    threading.Thread(target=_draai_wekelijkse_scans, args=(base_url, alles), daemon=True).start()
     return "ok", 200
 
 
@@ -706,6 +773,14 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None)
 
     Elke stap in een eigen try, want een storing bij een AI-aanbieder mag nooit
     de rest tegenhouden."""
+    # Zonder koopvragen valt er niets te meten. Bij een nieuwe abonnee bestaan
+    # die nog niet, dus die maken we hier alsnog aan. Anders zou een klant die
+    # net 39 euro betaald heeft een lege pagina zien terwijl op de site staat
+    # dat we elke week dertig vragen stellen.
+    if not db.get_koopvragen(webshop_url, alleen_actief=True):
+        print(f"Nog geen koopvragen voor {webshop_url}, die maken we eerst.")
+        _genereer_koopvragen_achtergrond(webshop_url, vervang=False)
+
     winkelnaam = _winkelnaam(webshop_url)
 
     samenvatting = metingen.meet_webshop(webshop_url)
