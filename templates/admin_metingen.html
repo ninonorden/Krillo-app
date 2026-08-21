@@ -140,7 +140,7 @@
         <span>{{ r.model }}</span>
         {% if not r.gelukt %}
         <span class="merk fout">mislukt</span>
-        <span class="tokens">{{ (r.foutsoort or '')[:160] }}</span>
+        <span class="tokens">{{ (r.foutsoort or '')[:420] }}</span>
         {% elif r.naam_gevonden %}
         <span class="merk raak">naam komt voor</span>
         {% else %}

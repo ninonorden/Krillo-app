@@ -228,7 +228,15 @@ def stel_een_vraag(aanbieder, vraag):
                 "foutsoort": None,
             }
         except Exception as e:
-            laatste_fout = f"{type(e).__name__}: {e}"[:300]
+            # De losse foutregel van een HTTP-fout bevat alleen de code en de
+            # URL. Wat er precies aan de hand is staat in het antwoord zelf,
+            # bijvoorbeeld of een limiet per minuut of per dag geraakt is.
+            # Zonder die tekst sta je te gissen.
+            uitleg = ""
+            body = getattr(getattr(e, "response", None), "text", "") or ""
+            if body:
+                uitleg = " | " + " ".join(body.split())[:220]
+            laatste_fout = (f"{type(e).__name__}: {e}"[:200] + uitleg)[:420]
             # Bij een 429 zegt de aanbieder: je gaat te snel. Dan heeft snel
             # opnieuw proberen geen zin, dan moet je juist langer wachten.
             antwoord_obj = getattr(e, "response", None)
