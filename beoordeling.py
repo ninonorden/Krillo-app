@@ -117,9 +117,15 @@ Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
     "genoemd": true,
     "positie": 6,
     "aanbevolen": false,
-    "toon": "korte omschrijving van hoe onze winkel neergezet wordt, of null"
+    "toon": "korte omschrijving van hoe onze winkel neergezet wordt, of null",
+    "bewijs": "de zin uit het antwoord waar je dit op baseert, letterlijk overgenomen"
   }}
 }}
+
+Het bewijs is verplicht als de winkel genoemd wordt. Neem de zin letterlijk over
+uit het antwoord, verzin niets. Zet je aanbevolen op true, neem dan de zin over
+waarin de winkel wordt aangeraden. Kan je zo'n zin niet aanwijzen, dan is
+aanbevolen false.
 
 De positie is de plek in de opsomming, beginnend bij 1. Komt onze winkel niet
 voor, zet dan genoemd op false en positie op null."""
@@ -157,6 +163,7 @@ voor, zet dan genoemd op false en positie op null."""
             "positie": onze.get("positie") if isinstance(onze.get("positie"), int) else None,
             "aanbevolen": bool(onze.get("aanbevolen")),
             "toon": (onze.get("toon") or None),
+            "bewijs": (onze.get("bewijs") or None),
             "aantal_winkels": len(winkels),
         }
     except Exception as e:
@@ -204,6 +211,7 @@ def beoordeel_ronde(webshop_url, meting_id=None, winkelnaam=None):
             "aantal_winkels": uitkomst["aantal_winkels"],
             "aanbevolen": uitkomst["aanbevolen"],
             "toon": uitkomst["toon"],
+            "bewijs": uitkomst["bewijs"],
             "winkels": json.dumps(uitkomst["winkels"], ensure_ascii=False),
             "merken": json.dumps(uitkomst["merken"], ensure_ascii=False),
             "aanbevolen_winkels": json.dumps(uitkomst["aanbevolen_winkels"], ensure_ascii=False),

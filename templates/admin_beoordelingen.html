@@ -57,6 +57,8 @@
          border-top:1px solid var(--line); font-size:13px;}
   .regel .model{font-family:var(--mono); font-size:12px; min-width:130px;}
   .toon{color:var(--ink-soft); font-style:italic;}
+  .bewijs{font-size:12.5px; color:var(--ink-soft); border-left:2px solid var(--line);
+          padding:2px 0 2px 12px; margin:4px 0 8px 0;}
 
   .waarschuwing{background:var(--amber-dim); border-radius:10px; padding:16px 18px;
                 margin-bottom:24px; font-size:13.5px; color:#7A5200;}
@@ -146,6 +148,9 @@
       {% if r.positie %}<span class="model">plek {{ r.positie }} van {{ r.aantal_winkels }}</span>{% endif %}
       {% if r.toon %}<span class="toon">{{ r.toon }}</span>{% endif %}
     </div>
+    {% if r.bewijs %}
+    <div class="bewijs">"{{ r.bewijs }}"</div>
+    {% endif %}
     {% endfor %}
   </div>
   {% endfor %}
@@ -165,7 +170,10 @@
     Verkoop een vermelding dus nooit als een aanbeveling.<br><br>
     <strong>Winkels en merken.</strong> In dezelfde opsomming staan webshops en
     merken door elkaar. Alleen winkels staan in de tabel hierboven, want een merk
-    is geen concurrent van een webshop.
+    is geen concurrent van een webshop.<br><br>
+    <strong>Het citaat onder een regel is het bewijs.</strong> Daar baseert de AI
+    zijn oordeel op, letterlijk overgenomen uit het antwoord. Klopt het citaat
+    niet bij het oordeel, dan zit de beoordeling ernaast en moet je dat weten.
   </div>
 </div>
 </body>
