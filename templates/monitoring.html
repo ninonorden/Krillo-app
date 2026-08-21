@@ -208,10 +208,12 @@
     <div class="vermelding">
       <h2>Word je genoemd als iemand het aan AI vraagt?</h2>
       <div class="kop-uitleg">
-        We stellen elke week {{ vermeldingen.gesteld }} koopvragen aan ChatGPT en Gemini,
-        vragen die kopers in jouw categorie echt stellen. Hieronder staat wat er dan gebeurt.
-        Zeggen de twee modellen niet hetzelfde over een vraag, dan tellen we de sterkste
-        uitkomst mee.
+        We stellen elke week {{ vermeldingen.gesteld }} koopvragen die kopers in jouw
+        categorie echt stellen. Deze meting liep via
+        {% for m in vermeldingen.modellen %}{{ m }}{% if not loop.last %}{% if loop.revindex == 2 %} en {% else %}, {% endif %}{% endif %}{% endfor %}.
+        {% if vermeldingen.modellen|length > 1 %}
+        Zeggen de modellen niet hetzelfde over een vraag, dan tellen we de sterkste uitkomst mee.
+        {% endif %}
       </div>
 
       <div class="tellers">

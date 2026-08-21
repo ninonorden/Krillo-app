@@ -274,6 +274,19 @@ def vat_samen(beoordelingen):
     }
 
 
+def toonnaam(model):
+    """De naam die een klant herkent. Een modelnaam als gpt-5.6-terra zegt hem
+    niets, en die verandert bovendien elke paar maanden."""
+    naam = (model or "").lower()
+    if naam.startswith("gpt") or naam.startswith("o"):
+        return "ChatGPT"
+    if naam.startswith("gemini"):
+        return "Gemini"
+    if naam.startswith("claude"):
+        return "Claude"
+    return model
+
+
 def klantbeeld(webshop_url, beoordelingen):
     """Zet de beoordelingen om in wat de klant op zijn eigen pagina ziet.
 
@@ -315,13 +328,43 @@ def klantbeeld(webshop_url, beoordelingen):
 
     telbaar = [r for r in per_vraag.values() if r["telt_mee"]]
 
-    # De concurrentietabel blijft over alle antwoorden gaan: hoe vaker een
-    # winkel opduikt, hoe zwaarder die weegt, en dat mag dubbel tellen als
-    # beide modellen hem noemen.
-    samen = vat_samen(beoordelingen)
-    for c in samen["concurrenten"]:
-        vergelijk = c["naam"].replace(" ", "").replace("&", "").replace("-", "").lower()
-        c["wij"] = bool(kern) and kern in vergelijk
+    # De concurrentietabel telt ook per vraag, net als de cijfers bovenaan.
+    # Deed hij dat per antwoord, dan zou onze eigen regel verdubbelen zodra er
+    # twee modellen draaien terwijl het cijfer erboven gelijk blijft. Dan staat
+    # er 34 in de tabel en 17 in de teller, over precies hetzelfde.
+    winkels_per_vraag = {}
+    aanbevolen_per_vraag = {}
+    for b in beoordelingen:
+        vraag = b.get("vraag")
+        if not vraag or not b.get("winkel_kon_genoemd"):
+            continue
+        for w in (b.get("winkels") or []):
+            naam = (w.get("naam") or "").strip()
+            if naam:
+                winkels_per_vraag.setdefault(naam, set()).add(vraag)
+        for naam in (b.get("aanbevolen_winkels") or []):
+            naam = (naam or "").strip()
+            if naam and naam.lower() in {
+                (w.get("naam") or "").strip().lower()
+                for x in beoordelingen for w in (x.get("winkels") or [])
+            }:
+                aanbevolen_per_vraag.setdefault(naam, set()).add(vraag)
+
+    concurrenten = []
+    for naam, vragen in winkels_per_vraag.items():
+        vergelijk = naam.replace(" ", "").replace("&", "").replace("-", "").lower()
+        concurrenten.append({
+            "naam": naam,
+            "genoemd": len(vragen),
+            "aanbevolen": len(aanbevolen_per_vraag.get(naam, ())),
+            "wij": bool(kern) and kern in vergelijk,
+        })
+    concurrenten.sort(key=lambda c: (c["aanbevolen"], c["genoemd"]), reverse=True)
+
+    # Welke modellen hebben deze ronde echt antwoord gegeven. Op de pagina
+    # noemen we alleen die, want beloven dat je bij ChatGPT en Gemini meet
+    # terwijl er maar een van de twee antwoordde is een belofte te veel.
+    modellen = sorted({toonnaam(b.get("model")) for b in beoordelingen if b.get("model")})
 
     return {
         "gesteld": len(per_vraag),
@@ -329,6 +372,7 @@ def klantbeeld(webshop_url, beoordelingen):
         "niet_telbaar": len(per_vraag) - len(telbaar),
         "genoemd": len([r for r in telbaar if r["genoemd"]]),
         "aanbevolen": len([r for r in telbaar if r["aanbevolen"]]),
-        "concurrenten": samen["concurrenten"][:8],
+        "concurrenten": concurrenten[:8],
+        "modellen": modellen,
         "regels": sorted(telbaar, key=lambda r: (-r["sterkte"], r["vraag"])),
     }
