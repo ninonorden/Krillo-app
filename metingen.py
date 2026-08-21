@@ -42,7 +42,13 @@ VRAGEN_PER_RONDE = int(os.environ.get("MEET_VRAGEN_PER_RONDE", "30"))
 
 # Een antwoord op een koopvraag is een paar alinea's. Ruim genoeg, en het
 # begrenst meteen wat een uitschieter kan kosten.
-MAX_ANTWOORD_TOKENS = int(os.environ.get("MEET_MAX_TOKENS", "900"))
+# Ruim genomen, en dat is geen luxe. Het slotadvies van een antwoord ("voor de
+# meest vergelijkbare look zou ik vooral kijken naar X en Y") staat helemaal
+# aan het eind. Wordt een antwoord afgekapt, dan verdwijnt precies dat stuk, en
+# dan meet je systematisch te weinig aanbevelingen. Bij de nieuwe modellen komt
+# daar bij dat nadenken uit hetzelfde budget gaat: een antwoord van 0 tekens
+# betekent dat het denken alles opgemaakt heeft.
+MAX_ANTWOORD_TOKENS = int(os.environ.get("MEET_MAX_TOKENS", "2500"))
 
 # Google apart, en veel ruimer. De nieuwe Gemini-modellen denken eerst na en
 # die denkstappen tellen mee in hetzelfde budget. Met 900 was het budget op
