@@ -240,16 +240,21 @@ def stel_een_vraag(aanbieder, vraag):
             # Bij een 429 zegt de aanbieder: je gaat te snel. Dan heeft snel
             # opnieuw proberen geen zin, dan moet je juist langer wachten.
             antwoord_obj = getattr(e, "response", None)
-            te_snel = getattr(antwoord_obj, "status_code", None) == 429
+            code = getattr(antwoord_obj, "status_code", None)
+            # 429 is te snel, 503 is de aanbieder zelf die het even niet
+            # aankan. In beide gevallen helpt meteen opnieuw proberen niet,
+            # alleen wachten helpt.
+            te_snel = code in (429, 503)
             if poging < kosten.MAX_POGINGEN:
                 if te_snel:
-                    wacht = 20 * poging
+                    wacht = (10 if code == 503 else 20) * poging
                     herhaal = getattr(antwoord_obj, "headers", {}) or {}
                     try:
                         wacht = max(wacht, int(float(herhaal.get("Retry-After", 0))))
                     except (TypeError, ValueError):
                         pass
-                    print(f"Te snel voor {aanbieder['provider']}, {wacht}s wachten.")
+                    reden = "overbelast" if code == 503 else "te snel"
+                    print(f"{aanbieder['provider']} {reden}, {wacht}s wachten.")
                     time.sleep(wacht)
                 else:
                     time.sleep(2 * poging)
@@ -367,11 +372,12 @@ def meet_webshop(webshop_url, max_vragen=None):
                 # doorgaan geen zin. Dan zit je aan een limiet per minuut of
                 # per dag, en dertig vragen lang blijven proberen kost alleen
                 # maar tijd. We slaan hem over en melden dat eerlijk.
-                if "429" in (uitkomst["foutsoort"] or ""):
+                fout = uitkomst["foutsoort"] or ""
+                if "429" in fout or "503" in fout:
                     te_snel[aanbieder["provider"]] = te_snel.get(aanbieder["provider"], 0) + 1
                     if te_snel[aanbieder["provider"]] >= 3:
                         opgegeven.add(aanbieder["provider"])
-                        print(f"{aanbieder['provider']} overgeslagen: te vaak een 429.")
+                        print(f"{aanbieder['provider']} overgeslagen: te vaak geweigerd of overbelast.")
                 else:
                     te_snel[aanbieder["provider"]] = 0
 

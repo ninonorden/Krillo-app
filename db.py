@@ -132,6 +132,28 @@ def init_db():
                         gesteld_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS beoordelingen (
+                        id SERIAL PRIMARY KEY,
+                        antwoord_id INTEGER NOT NULL UNIQUE,
+                        meting_id TEXT NOT NULL,
+                        webshop_url TEXT NOT NULL,
+                        vraag TEXT,
+                        intentie TEXT,
+                        model TEXT,
+                        winkel_kon_genoemd BOOLEAN,
+                        genoemd BOOLEAN,
+                        positie INTEGER,
+                        aantal_winkels INTEGER,
+                        aanbevolen BOOLEAN,
+                        toon TEXT,
+                        winkels JSONB,
+                        merken JSONB,
+                        aanbevolen_winkels JSONB,
+                        beoordeeld_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_beoordelingen_meting ON beoordelingen (webshop_url, meting_id);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_antwoorden_webshop ON ai_antwoorden (webshop_url, gesteld_op);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_antwoorden_meting ON ai_antwoorden (meting_id);")
                 cur.execute("""
@@ -760,6 +782,109 @@ def get_history(webshop_url):
                 return cur.fetchall()
     except Exception as e:
         print(f"Geschiedenis ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def onbeoordeelde_antwoorden(webshop_url, meting_id=None, limit=200):
+    """De gelukte antwoorden van een ronde die nog niet beoordeeld zijn.
+
+    Beoordelen kost per antwoord een AI-aanroep, dus we doen het maar een keer
+    en slaan over wat al gedaan is. Zo kan je een onderbroken ronde gewoon
+    hervatten zonder dubbel te betalen."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if meting_id:
+                    cur.execute(
+                        """SELECT a.* FROM ai_antwoorden a
+                            LEFT JOIN beoordelingen b ON b.antwoord_id = a.id
+                           WHERE a.webshop_url = %s AND a.meting_id = %s
+                             AND a.gelukt AND b.id IS NULL
+                        ORDER BY a.id LIMIT %s""",
+                        (webshop_url, meting_id, limit),
+                    )
+                else:
+                    cur.execute(
+                        """SELECT a.* FROM ai_antwoorden a
+                            LEFT JOIN beoordelingen b ON b.antwoord_id = a.id
+                           WHERE a.webshop_url = %s AND a.gelukt AND b.id IS NULL
+                             AND a.meting_id = (
+                                 SELECT meting_id FROM ai_antwoorden
+                                  WHERE webshop_url = %s
+                               ORDER BY gesteld_op DESC LIMIT 1)
+                        ORDER BY a.id LIMIT %s""",
+                        (webshop_url, webshop_url, limit),
+                    )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Onbeoordeelde antwoorden ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def bewaar_beoordeling(gegevens):
+    """Bewaart wat de AI uit een antwoord gehaald heeft. Een antwoord wordt maar
+    een keer beoordeeld, vandaar ON CONFLICT DO NOTHING op antwoord_id."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO beoordelingen
+                       (antwoord_id, meting_id, webshop_url, vraag, intentie, model,
+                        winkel_kon_genoemd, genoemd, positie, aantal_winkels,
+                        aanbevolen, toon, winkels, merken, aanbevolen_winkels)
+                       VALUES (%(antwoord_id)s, %(meting_id)s, %(webshop_url)s, %(vraag)s,
+                               %(intentie)s, %(model)s, %(winkel_kon_genoemd)s, %(genoemd)s,
+                               %(positie)s, %(aantal_winkels)s, %(aanbevolen)s, %(toon)s,
+                               %(winkels)s, %(merken)s, %(aanbevolen_winkels)s)
+                       ON CONFLICT (antwoord_id) DO NOTHING""",
+                    gegevens,
+                )
+        return True
+    except Exception as e:
+        print(f"Beoordeling bewaren mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_beoordelingen(webshop_url, meting_id=None, limit=200):
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if meting_id:
+                    cur.execute(
+                        """SELECT * FROM beoordelingen
+                            WHERE webshop_url = %s AND meting_id = %s
+                         ORDER BY intentie, vraag, model LIMIT %s""",
+                        (webshop_url, meting_id, limit),
+                    )
+                else:
+                    cur.execute(
+                        """SELECT * FROM beoordelingen
+                            WHERE webshop_url = %s
+                              AND meting_id = (
+                                  SELECT meting_id FROM beoordelingen
+                                   WHERE webshop_url = %s
+                                ORDER BY beoordeeld_op DESC LIMIT 1)
+                         ORDER BY intentie, vraag, model LIMIT %s""",
+                        (webshop_url, webshop_url, limit),
+                    )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Beoordelingen ophalen mislukt: {e}")
         return []
     finally:
         conn.close()

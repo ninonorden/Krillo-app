@@ -25,6 +25,7 @@ import artikelen
 import koopvragen
 import kosten
 import metingen
+import beoordeling
 
 app = Flask(__name__)
 db.init_db()
@@ -665,6 +666,65 @@ def admin_metingen():
         antwoorden=antwoorden,
         meting_id=meting_id,
         gestart=net_gestart,
+    )
+
+
+_beoordelen_bezig = set()
+
+
+def _beoordeel_achtergrond(webshop_url, meting_id, winkelnaam):
+    try:
+        beoordeling.beoordeel_ronde(webshop_url, meting_id, winkelnaam)
+    except Exception as e:
+        print(f"Beoordelen mislukt voor {webshop_url}: {e}")
+    finally:
+        with _metingen_slot:
+            _beoordelen_bezig.discard(webshop_url)
+
+
+@app.route("/admin/beoordelingen")
+def admin_beoordelingen():
+    """Fase 5 stap 4. Laat zien wat er uit de antwoorden gehaald is: welke
+    winkels genoemd worden, of onze winkel erbij staat, en of dat een
+    vermelding of een echte aanbeveling was."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    webshop_url = (request.args.get("url") or "").strip()
+    meting_id = request.args.get("meting") or None
+
+    if webshop_url and request.args.get("start") == "ja":
+        # De winkelnaam uit het profiel meegeven, want in de antwoorden staat
+        # Dille & Kamille en niet dille-kamille.nl.
+        profiel = db.get_winkelprofiel(webshop_url)
+        omschrijving = (profiel or {}).get("omschrijving") or ""
+        winkelnaam = omschrijving.split(" is ")[0].strip() if " is " in omschrijving else None
+        start = False
+        with _metingen_slot:
+            if webshop_url not in _beoordelen_bezig:
+                _beoordelen_bezig.add(webshop_url)
+                start = True
+        if start:
+            threading.Thread(target=_beoordeel_achtergrond,
+                             args=(webshop_url, meting_id, winkelnaam), daemon=True).start()
+        return redirect(f"/admin/beoordelingen?key={admin_key}&url={webshop_url}&bezig=ja")
+
+    beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url, meting_id)] if webshop_url else []
+    samenvatting = beoordeling.vat_samen(beoordelingen)
+
+    # Onze eigen winkel oplichten in de concurrentietabel.
+    kern = webshop_url.replace("www.", "").split(".")[0].replace("-", "").lower()
+    for c in samenvatting["concurrenten"]:
+        c["wij"] = kern and kern in c["naam"].replace(" ", "").replace("&", "").replace("-", "").lower()
+
+    return render_template(
+        "admin_beoordelingen.html",
+        webshop_url=webshop_url,
+        sleutel=admin_key,
+        beoordelingen=beoordelingen,
+        s=samenvatting,
+        bezig=request.args.get("bezig") == "ja",
     )
 
 

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beoordelingen — Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:900px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:13.5px; font-family:var(--mono); margin-bottom:28px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:17px; margin:32px 0 12px;}
+
+  .cijfers{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line);
+           border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:10px;}
+  .cijfer{background:var(--paper-raised); padding:20px;}
+  .cijfer-label{font-family:var(--mono); font-size:10px; text-transform:uppercase;
+                letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px;}
+  .cijfer-num{font-family:var(--disp); font-weight:700; font-size:26px;}
+  .cijfer-num small{font-size:15px; font-weight:500; color:var(--ink-soft);}
+  .duiding{font-size:13.5px; color:var(--ink-soft); margin-bottom:28px;}
+
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase;
+     color:var(--ink-soft); padding:11px 14px; border-bottom:1px solid var(--line); background:var(--paper);}
+  td{padding:11px 14px; font-size:13.5px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  td.getal{text-align:right; font-family:var(--mono); font-size:12.5px;}
+  .wij{background:var(--teal-dim); font-weight:600;}
+
+  .merk{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.04em;
+        padding:2px 7px; border-radius:20px; white-space:nowrap;}
+  .raak{background:var(--teal-dim); color:#0E6B60;}
+  .mis{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .top{background:var(--coral); color:#fff;}
+  .grijs{background:var(--paper); color:#9A9AAE; border:1px solid var(--line);}
+
+  .vraagblok{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+             padding:16px 18px; margin-bottom:10px;}
+  .vraagtekst{font-size:14.5px; font-weight:500; margin-bottom:4px;}
+  .vraagmeta{font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+             color:var(--ink-soft); margin-bottom:10px;}
+  .regel{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:6px 0;
+         border-top:1px solid var(--line); font-size:13px;}
+  .regel .model{font-family:var(--mono); font-size:12px; min-width:130px;}
+  .toon{color:var(--ink-soft); font-style:italic;}
+
+  .waarschuwing{background:var(--amber-dim); border-radius:10px; padding:16px 18px;
+                margin-bottom:24px; font-size:13.5px; color:#7A5200;}
+  .waarschuwing strong{display:block; margin-bottom:4px; color:#5C3E00;}
+  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+        padding:32px; text-align:center; color:var(--ink-soft);}
+  .acties{display:flex; gap:10px; flex-wrap:wrap; margin-top:28px;}
+  .knop{padding:10px 18px; border-radius:8px; font-size:13.5px; font-weight:600;
+        border:1.5px solid var(--line); color:var(--ink); background:var(--paper-raised);
+        text-decoration:none; display:inline-block; font-family:var(--disp);}
+  .knop.vol{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+  .voetnoot{font-size:12.5px; color:var(--ink-soft); margin-top:32px; line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Beoordelingen</h1>
+  <div class="sub">{{ webshop_url or 'geen webshop opgegeven' }}</div>
+
+  {% if bezig %}
+  <div class="waarschuwing">
+    <strong>De antwoorden worden nu gelezen</strong>
+    Dit duurt ongeveer een halve minuut per tien antwoorden. Ververs deze pagina
+    daarna. Al beoordeelde antwoorden worden overgeslagen, dus je betaalt nooit twee keer.
+  </div>
+  {% endif %}
+
+  {% if not beoordelingen %}
+  <div class="leeg">Nog niets beoordeeld voor deze webshop.</div>
+  {% else %}
+
+  <div class="cijfers">
+    <div class="cijfer">
+      <div class="cijfer-label">Genoemd</div>
+      <div class="cijfer-num">{{ s.genoemd }}<small> van {{ s.telbaar }}</small></div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Aanbevolen</div>
+      <div class="cijfer-num">{{ s.aanbevolen }}<small> van {{ s.telbaar }}</small></div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Gem. positie</div>
+      <div class="cijfer-num">{{ s.gemiddelde_positie or '-' }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Telt niet mee</div>
+      <div class="cijfer-num">{{ s.niet_telbaar }}</div>
+    </div>
+  </div>
+  <div class="duiding">
+    De noemer is niet dertig maar {{ s.telbaar }}: dat zijn de antwoorden waarin
+    er uberhaupt een winkel genoemd kon worden. De andere {{ s.niet_telbaar }}
+    vroegen naar een merk, een product of algemene informatie. Daar kan geen
+    enkele webshop in voorkomen, dus meetellen zou het cijfer mooier of lelijker
+    maken dan het is.
+  </div>
+
+  <h2>Wie komt er voor</h2>
+  <table>
+    <tr><th>Winkel</th><th style="text-align:right">Genoemd</th><th style="text-align:right">Aanbevolen</th></tr>
+    {% for c in s.concurrenten %}
+    <tr class="{% if c.wij %}wij{% endif %}">
+      <td>{{ c.naam }}{% if c.wij %} (jij){% endif %}</td>
+      <td class="getal">{{ c.genoemd }}</td>
+      <td class="getal">{{ c.aanbevolen }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Per vraag</h2>
+  {% for vraag, regels in beoordelingen|groupby('vraag') %}
+  <div class="vraagblok">
+    <div class="vraagtekst">{{ vraag }}</div>
+    <div class="vraagmeta">{{ regels[0].intentie or 'overig' }}</div>
+    {% for r in regels %}
+    <div class="regel">
+      <span class="model">{{ r.model }}</span>
+      {% if not r.winkel_kon_genoemd %}
+      <span class="merk grijs">telt niet mee</span>
+      {% elif r.aanbevolen %}
+      <span class="merk top">aanbevolen</span>
+      {% elif r.genoemd %}
+      <span class="merk raak">genoemd, niet aanbevolen</span>
+      {% else %}
+      <span class="merk mis">niet genoemd</span>
+      {% endif %}
+      {% if r.positie %}<span class="model">plek {{ r.positie }} van {{ r.aantal_winkels }}</span>{% endif %}
+      {% if r.toon %}<span class="toon">{{ r.toon }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <div class="acties">
+    <a class="knop vol" href="?key={{ sleutel }}&url={{ webshop_url }}&start=ja">Antwoorden beoordelen</a>
+    <a class="knop" href="/admin/metingen?key={{ sleutel }}&url={{ webshop_url }}">Naar de metingen</a>
+    <a class="knop" href="/admin/kosten?key={{ sleutel }}">Naar de kosten</a>
+  </div>
+
+  <div class="voetnoot">
+    <strong>Genoemd tegenover aanbevolen.</strong> Veel antwoorden geven eerst een
+    lange lijst en sluiten af met een advies. In die lijst staan is genoemd. In
+    dat slotadvies staan is aanbevolen. Dat verschil is groot: bij de eerste
+    metingen stond Dille en Kamille wel in de lijst maar niet in het advies.
+    Verkoop een vermelding dus nooit als een aanbeveling.<br><br>
+    <strong>Winkels en merken.</strong> In dezelfde opsomming staan webshops en
+    merken door elkaar. Alleen winkels staan in de tabel hierboven, want een merk
+    is geen concurrent van een webshop.
+  </div>
+</div>
+</body>
+</html>
