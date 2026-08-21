@@ -842,7 +842,14 @@ def admin_beoordelingen():
     webshop_url = (request.args.get("url") or "").strip()
     meting_id = request.args.get("meting") or None
 
-    if webshop_url and request.args.get("start") == "ja":
+    # Opnieuw beoordelen gooit de oordelen van deze ronde weg en doet ze over.
+    # Kost opnieuw geld, dus alleen op verzoek. Nodig zodra de beoordelaar iets
+    # nieuws kan bepalen wat er bij de oude oordelen nog niet in zat.
+    if webshop_url and request.args.get("opnieuw") == "ja":
+        weg = db.verwijder_beoordelingen(webshop_url, meting_id)
+        print(f"{weg} beoordelingen weggegooid voor {webshop_url}, worden opnieuw gedaan.")
+
+    if webshop_url and (request.args.get("start") == "ja" or request.args.get("opnieuw") == "ja"):
         # De winkelnaam uit het profiel meegeven, want in de antwoorden staat
         # Dille & Kamille en niet dille-kamille.nl.
         profiel = db.get_winkelprofiel(webshop_url)

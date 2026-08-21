@@ -1053,3 +1053,41 @@ def get_beoordelingen_rondes(webshop_url, rondes=2, limit=600):
         return []
     finally:
         conn.close()
+
+
+def verwijder_beoordelingen(webshop_url, meting_id=None):
+    """Gooit de beoordelingen van een ronde weg zodat ze opnieuw gedaan worden.
+
+    Nodig omdat de beoordelaar zelf verbetert. Voegen we een nieuw oordeel toe,
+    bijvoorbeeld of het om de winkel of om een product ging, dan blijven oude
+    beoordelingen dat veld leeg houden. Zonder deze functie zou je moeten
+    wachten op een nieuwe meetronde om een verbetering te kunnen zien.
+
+    De antwoorden zelf blijven staan, alleen de oordelen erover verdwijnen."""
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if meting_id:
+                    cur.execute(
+                        "DELETE FROM beoordelingen WHERE webshop_url = %s AND meting_id = %s",
+                        (webshop_url, meting_id),
+                    )
+                else:
+                    cur.execute(
+                        """DELETE FROM beoordelingen
+                            WHERE webshop_url = %s
+                              AND meting_id = (
+                                  SELECT meting_id FROM beoordelingen
+                                   WHERE webshop_url = %s
+                                ORDER BY beoordeeld_op DESC LIMIT 1)""",
+                        (webshop_url, webshop_url),
+                    )
+                return cur.rowcount
+    except Exception as e:
+        print(f"Beoordelingen verwijderen mislukt: {e}")
+        return 0
+    finally:
+        conn.close()

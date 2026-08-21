@@ -81,6 +81,9 @@
   {% if bezig %}
   <div class="waarschuwing">
     <strong>De antwoorden worden nu gelezen</strong>
+    Gebruik "opnieuw beoordelen" als de beoordelaar iets nieuws kan bepalen dat in de oude
+    oordelen nog niet zat. Dat gooit de oordelen van deze ronde weg en doet ze over, en dat
+    kost opnieuw een halve cent per antwoord.
     Dit duurt ongeveer een halve minuut per tien antwoorden. Ververs deze pagina
     daarna. Al beoordeelde antwoorden worden overgeslagen, dus je betaalt nooit twee keer.
   </div>
@@ -189,6 +192,7 @@
 
   <div class="acties">
     <a class="knop vol" href="?key={{ sleutel }}&url={{ webshop_url }}&start=ja">Antwoorden beoordelen</a>
+    <a class="knop" href="?key={{ sleutel }}&url={{ webshop_url }}&opnieuw=ja">Opnieuw beoordelen</a>
     <a class="knop" href="?key={{ sleutel }}&url={{ webshop_url }}&controleer=ja">Uitspraken controleren</a>
     <a class="knop" href="/admin/voorbeeld?key={{ sleutel }}&url={{ webshop_url }}">Bekijk de klantpagina</a>
     <a class="knop" href="/admin/metingen?key={{ sleutel }}&url={{ webshop_url }}">Naar de metingen</a>

@@ -69,6 +69,15 @@ def vergelijk(beoordelingen, eigen_naam=None):
     verschil = nu["genoemd"] - toen["genoemd"]
     verschil_aanbevolen = nu["aanbevolen"] - toen["aanbevolen"]
 
+    # Twee rondes zijn alleen te vergelijken als er ongeveer evenveel vragen in
+    # meetelden. Mislukte een ronde half, bijvoorbeeld doordat een aanbieder
+    # dichtzat of antwoorden afgekapt werden, dan lijkt de volgende ronde een
+    # enorme stijging terwijl er alleen maar meer gemeten is. Dat als winst
+    # presenteren is misleidend, dus dan zeggen we niets over stijgen of dalen.
+    kleinste = min(nu["telbaar"], toen["telbaar"])
+    grootste = max(nu["telbaar"], toen["telbaar"])
+    vergelijkbaar = bool(kleinste) and kleinste >= grootste * 0.75
+
     # Wie is er gestegen of gedaald, onze eigen winkel niet meegerekend.
     eigen = (eigen_naam or "").lower()
     bewegingen = []
@@ -83,6 +92,19 @@ def vergelijk(beoordelingen, eigen_naam=None):
     stijgers = [b for b in bewegingen if b["verschil"] > 0]
     dalers = [b for b in bewegingen if b["verschil"] < 0]
 
+    if not vergelijkbaar:
+        return {
+            "nu": nu, "toen": toen, "verschil": verschil,
+            "verschil_aanbevolen": verschil_aanbevolen,
+            "stijgers": [], "dalers": [], "melden": False, "vergelijkbaar": False,
+            "duiding": (
+                f"Deze meting telde {nu['telbaar']} bruikbare vragen, de vorige "
+                f"{toen['telbaar']}. Dat verschil is te groot om de twee eerlijk naast elkaar te "
+                f"leggen, dus we zeggen nog niet of je gestegen of gedaald bent. Vanaf de volgende "
+                f"meting kan dat wel."
+            ),
+        }
+
     return {
         "nu": nu,
         "toen": toen,
@@ -90,6 +112,7 @@ def vergelijk(beoordelingen, eigen_naam=None):
         "verschil_aanbevolen": verschil_aanbevolen,
         "stijgers": stijgers[:3],
         "dalers": dalers[:3],
+        "vergelijkbaar": True,
         "melden": abs(verschil) >= DREMPEL or abs(verschil_aanbevolen) >= DREMPEL,
         "duiding": _duiding(verschil, nu, toen, stijgers, dalers),
     }
