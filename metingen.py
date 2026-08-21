@@ -54,7 +54,7 @@ TIJDSLIMIET = int(os.environ.get("MEET_TIJDSLIMIET", "90"))
 # is terwijl het tempo het probleem is.
 MIN_INTERVAL = {
     "openai": float(os.environ.get("MEET_INTERVAL_OPENAI", "0.5")),
-    "google": float(os.environ.get("MEET_INTERVAL_GOOGLE", "6")),
+    "google": float(os.environ.get("MEET_INTERVAL_GOOGLE", "15")),
     "anthropic": float(os.environ.get("MEET_INTERVAL_ANTHROPIC", "0.5")),
 }
 
@@ -331,6 +331,8 @@ def meet_webshop(webshop_url, max_vragen=None):
 
     meting_id = uuid.uuid4().hex
     samenvatting["meting_id"] = meting_id
+    te_snel = {}
+    opgegeven = set()
     print(f"Meting {meting_id[:8]} gestart voor {webshop_url}: "
           f"{len(vragen)} vragen aan {len(aanbieders)} model(len).")
 
@@ -343,13 +345,27 @@ def meet_webshop(webshop_url, max_vragen=None):
             break
 
         for aanbieder in aanbieders:
+            if aanbieder["provider"] in opgegeven:
+                continue
             uitkomst = stel_een_vraag(aanbieder, v["vraag"])
             samenvatting["gesteld"] += 1
             if uitkomst["gelukt"]:
                 samenvatting["gelukt"] += 1
+                te_snel[aanbieder["provider"]] = 0
             else:
                 samenvatting["mislukt"] += 1
                 print(f"Vraag mislukt bij {aanbieder['provider']}: {uitkomst['foutsoort']}")
+                # Blijft een aanbieder zeggen dat we te snel gaan, dan heeft
+                # doorgaan geen zin. Dan zit je aan een limiet per minuut of
+                # per dag, en dertig vragen lang blijven proberen kost alleen
+                # maar tijd. We slaan hem over en melden dat eerlijk.
+                if "429" in (uitkomst["foutsoort"] or ""):
+                    te_snel[aanbieder["provider"]] = te_snel.get(aanbieder["provider"], 0) + 1
+                    if te_snel[aanbieder["provider"]] >= 3:
+                        opgegeven.add(aanbieder["provider"])
+                        print(f"{aanbieder['provider']} overgeslagen: te vaak een 429.")
+                else:
+                    te_snel[aanbieder["provider"]] = 0
 
             kosten.registreer_aanroep(
                 provider=aanbieder["provider"],
