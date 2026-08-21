@@ -230,3 +230,41 @@ def _waarschuw_bij_drempel(wie, kosten, grens, soort):
     elif deel >= 0.5:
         print(f"Let op ({soort}): {wie} zit op {deel*100:.0f}% van de grens "
               f"({kosten:.2f} van {grens:.2f} euro).")
+
+
+ABONNEMENT_PER_MAAND = float(os.environ.get("ABONNEMENT_PER_MAAND", "39"))
+
+
+def marge_per_klant(regels, abonnement=None):
+    """Fase 5: wat kost een klant per maand, en houdt het abonnement stand?
+
+    Krijgt de rijen uit het kostenoverzicht en zet de kosten van elke webshop
+    naast wat een abonnee betaalt. Dit was de reden om de kostenregistratie te
+    bouwen: vooraf was niet zeker of 39 euro per maand genoeg zou zijn.
+
+    Let op bij het lezen: het overzicht loopt over een gekozen aantal dagen en
+    een abonnement loopt per maand. Daarom rekenen we de kosten om naar een
+    maand, anders vergelijk je twee weken kosten met een hele maand omzet."""
+    abonnement = abonnement if abonnement is not None else ABONNEMENT_PER_MAAND
+    uitkomst = []
+    for r in regels or []:
+        if not r.get("webshop_url"):
+            continue
+        kosten_euro = float(r.get("kosten") or 0)
+        uitkomst.append({
+            "webshop_url": r["webshop_url"],
+            "aanroepen": r.get("aantal") or 0,
+            "kosten": kosten_euro,
+            "over": abonnement - kosten_euro,
+            "aandeel": (kosten_euro / abonnement) if abonnement else None,
+            "verliesgevend": kosten_euro >= abonnement,
+        })
+    uitkomst.sort(key=lambda k: k["kosten"], reverse=True)
+    return uitkomst
+
+
+def naar_maand(kosten_euro, dagen):
+    """Rekent kosten over een periode om naar een maand van dertig dagen."""
+    if not dagen:
+        return kosten_euro
+    return kosten_euro * (30.0 / dagen)

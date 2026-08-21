@@ -87,6 +87,21 @@
   .meetuitleg{font-size:12px; color:var(--ink-soft); margin-top:18px; line-height:1.65;
               border-top:1px solid var(--line); padding-top:14px;}
 
+  .soort{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em;
+         padding:2px 7px; border-radius:100px; margin-right:8px; flex-shrink:0;}
+  .soort.feit{background:var(--coral); color:#fff;}
+  .soort.vermoeden{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .punt{display:flex; gap:4px; align-items:flex-start; padding:9px 0; border-top:1px solid var(--line); font-size:13.5px;}
+  .conclusie{background:var(--paper); border-radius:10px; padding:16px 18px; font-size:13.5px; line-height:1.65;}
+  .beweging{border-radius:10px; padding:14px 16px; font-size:13.5px; margin-bottom:16px; line-height:1.6;}
+  .beweging.omhoog{background:var(--teal-dim); color:#085041;}
+  .beweging.omlaag{background:var(--coral-dim); color:#993C1D;}
+  .beweging.gelijk{background:var(--paper); color:var(--ink-soft);}
+  .beweging strong{display:block; margin-bottom:3px;}
+  .fout-regel{border-top:1px solid var(--line); padding:12px 0; font-size:13.5px;}
+  .fout-regel .zei{color:var(--ink-soft);}
+  .fout-regel .klopt{margin-top:4px;}
+
   h2.sectie{font-family:var(--disp); font-weight:600; font-size:18px; margin:32px 0 12px;}
   .categorie-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--coral-tekst); margin:20px 0 8px;}
   .check{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); font-size:13.5px;}
@@ -218,6 +233,16 @@
         {% endif %}
       </div>
 
+      {% if beweging and beweging.melden %}
+      <div class="beweging {% if beweging.verschil > 0 %}omhoog{% else %}omlaag{% endif %}">
+        <strong>
+          {% if beweging.verschil > 0 %}Gestegen{% else %}Gedaald{% endif %}
+          sinds de vorige meting: van {{ beweging.toen.genoemd }} naar {{ beweging.nu.genoemd }}
+        </strong>
+        {{ beweging.duiding }}
+      </div>
+      {% endif %}
+
       <div class="tellers drie">
         <div class="teller">
           <div class="teller-label">Genoemd</div>
@@ -302,6 +327,82 @@
     </div>
     {% endif %}
 
+
+    {% if verklaring and (verklaring.blokkades or verklaring.belemmeringen or vermeldingen) %}
+    <div class="vermelding">
+      <h2>Wat betekent dit voor je site?</h2>
+      <div class="kop-uitleg">
+        We zetten je scan naast je vermeldingen. Wat we op je site kunnen meten noemen we een
+        feit. Wat we vermoeden noemen we een vermoeden. Dat verschil houden we streng, want
+        iets een oorzaak noemen terwijl we het niet gemeten hebben helpt je niet.
+      </div>
+
+      {% if verklaring.blokkades %}
+      <h2 style="margin-top:8px;">Dit houdt AI aantoonbaar tegen</h2>
+      {% for b in verklaring.blokkades %}
+      <div class="punt"><span class="soort feit">feit</span><span>{{ b.tekst }}</span></div>
+      {% endfor %}
+      {% endif %}
+
+      {% if verklaring.belemmeringen %}
+      <h2 style="margin-top:20px;">Dit maakt je slechter leesbaar</h2>
+      <div class="kop-uitleg">
+        Deze punten helpen AI je site te begrijpen. Of ze bepalen of je genoemd wordt, weten
+        we niet, dus dat beweren we ook niet.
+      </div>
+      {% for b in verklaring.belemmeringen %}
+      <div class="punt"><span class="soort vermoeden">vermoeden</span><span>{{ b.tekst }}</span></div>
+      {% endfor %}
+      {% endif %}
+
+      <h2 style="margin-top:20px;">Wat dit bij elkaar betekent</h2>
+      <div class="conclusie">{{ verklaring.conclusie }}</div>
+    </div>
+    {% endif %}
+
+    {% if controle and controle.gecontroleerd %}
+    <div class="vermelding">
+      <h2>Klopt wat AI over je zegt?</h2>
+      <div class="kop-uitleg">
+        We hebben {{ controle.gecontroleerd }} uitspraken over jouw winkel naast de tekst op je
+        eigen site gelegd. Wordt er iets beweerd dat niet klopt, dan komt een koper met een
+        verkeerde verwachting bij je aan.
+      </div>
+
+      <div class="tellers drie">
+        <div class="teller">
+          <div class="teller-label">Klopt</div>
+          <div class="teller-num">{{ controle.klopt }}</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Klopt niet</div>
+          <div class="teller-num">{{ controle.klopt_niet }}</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Niet te controleren</div>
+          <div class="teller-num">{{ controle.onbekend }}</div>
+        </div>
+      </div>
+
+      {% if controle.fouten %}
+      {% for f in controle.fouten %}
+      <div class="fout-regel">
+        <div class="zei">Bij "{{ f.vraag }}" zei AI: "{{ f.uitspraak }}"</div>
+        {% if f.watzegtdesite %}<div class="klopt"><strong>Op je site staat:</strong> {{ f.watzegtdesite }}</div>{% endif %}
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="conclusie">Er is niets gevonden dat aantoonbaar niet klopt.</div>
+      {% endif %}
+
+      <div class="meetuitleg">
+        <strong>Waarom staat er zoveel op "niet te controleren"?</strong> We lezen een paar
+        pagina's van je site, niet je hele webshop. Een uitspraak die we daar niet terugvinden
+        noemen we onbekend en geen fout. Smaakoordelen als "sfeervol" zijn sowieso niet te
+        controleren.
+      </div>
+    </div>
+    {% endif %}
 
     {% if not voorbeeld %}
     <div class="opzeg">

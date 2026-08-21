@@ -157,6 +157,21 @@ def init_db():
                 """)
                 cur.execute("ALTER TABLE beoordelingen ADD COLUMN IF NOT EXISTS bewijs TEXT;")
                 cur.execute("ALTER TABLE beoordelingen ADD COLUMN IF NOT EXISTS soort_vermelding TEXT;")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS uitspraakcontroles (
+                        id SERIAL PRIMARY KEY,
+                        meting_id TEXT NOT NULL,
+                        webshop_url TEXT NOT NULL,
+                        vraag TEXT,
+                        uitspraak TEXT,
+                        oordeel TEXT,
+                        watzegtdesite TEXT,
+                        toelichting TEXT,
+                        gecontroleerd_op TIMESTAMPTZ DEFAULT now(),
+                        UNIQUE (meting_id, uitspraak)
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_controles_meting ON uitspraakcontroles (webshop_url, meting_id);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_beoordelingen_meting ON beoordelingen (webshop_url, meting_id);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_antwoorden_webshop ON ai_antwoorden (webshop_url, gesteld_op);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_antwoorden_meting ON ai_antwoorden (meting_id);")
@@ -915,6 +930,126 @@ def get_beoordelingen(webshop_url, meting_id=None, limit=200):
                 return cur.fetchall()
     except Exception as e:
         print(f"Beoordelingen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def bewaar_uitspraakcontroles(webshop_url, meting_id, uitkomsten):
+    """Bewaart wat de controle van elke uitspraak vond. Dezelfde uitspraak in
+    dezelfde ronde komt er maar een keer in."""
+    if not uitkomsten:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    bewaard = 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                for u in uitkomsten:
+                    cur.execute(
+                        """INSERT INTO uitspraakcontroles
+                           (meting_id, webshop_url, vraag, uitspraak, oordeel,
+                            watzegtdesite, toelichting)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)
+                           ON CONFLICT (meting_id, uitspraak) DO NOTHING""",
+                        (meting_id, webshop_url, u.get("vraag"), u.get("uitspraak"),
+                         u.get("oordeel"), u.get("watzegtdesite"), u.get("toelichting")),
+                    )
+                    bewaard += cur.rowcount
+        return bewaard
+    except Exception as e:
+        print(f"Uitspraakcontroles bewaren mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def get_uitspraakcontroles(webshop_url, meting_id=None, limit=100):
+    """De controles van de laatste ronde, of van een ronde naar keuze."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if meting_id:
+                    cur.execute(
+                        """SELECT * FROM uitspraakcontroles
+                            WHERE webshop_url = %s AND meting_id = %s
+                         ORDER BY id LIMIT %s""",
+                        (webshop_url, meting_id, limit),
+                    )
+                else:
+                    cur.execute(
+                        """SELECT * FROM uitspraakcontroles
+                            WHERE webshop_url = %s
+                              AND meting_id = (
+                                  SELECT meting_id FROM uitspraakcontroles
+                                   WHERE webshop_url = %s
+                                ORDER BY gecontroleerd_op DESC LIMIT 1)
+                         ORDER BY id LIMIT %s""",
+                        (webshop_url, webshop_url, limit),
+                    )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Uitspraakcontroles ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def laatste_meting_id(webshop_url):
+    """Het id van de nieuwste meetronde van deze webshop."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT meting_id FROM ai_antwoorden WHERE webshop_url = %s
+                       ORDER BY gesteld_op DESC LIMIT 1""",
+                    (webshop_url,),
+                )
+                rij = cur.fetchone()
+                return rij[0] if rij else None
+    except Exception as e:
+        print(f"Laatste meting ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def get_beoordelingen_rondes(webshop_url, rondes=2, limit=600):
+    """De beoordelingen van de laatste paar meetrondes samen.
+
+    get_beoordelingen geeft bewust alleen de nieuwste ronde terug, want dat is
+    wat de klant moet zien. Maar om te kunnen zeggen of iemand gestegen of
+    gedaald is heb je er minstens twee nodig. Zonder deze functie zou de
+    vergelijking altijd op een enkele ronde uitkomen en dus nooit iets melden."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT * FROM beoordelingen
+                        WHERE webshop_url = %s
+                          AND meting_id IN (
+                              SELECT meting_id FROM beoordelingen
+                               WHERE webshop_url = %s
+                            GROUP BY meting_id
+                            ORDER BY max(beoordeeld_op) DESC
+                               LIMIT %s)
+                     ORDER BY beoordeeld_op DESC LIMIT %s""",
+                    (webshop_url, webshop_url, rondes, limit),
+                )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Beoordelingen van meerdere rondes ophalen mislukt: {e}")
         return []
     finally:
         conn.close()

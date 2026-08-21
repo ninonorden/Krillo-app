@@ -132,6 +132,32 @@
     {% endfor %}
   </table>
 
+  {% if controle and controle.gecontroleerd %}
+  <h2>Klopt wat AI zegt</h2>
+  <div class="duiding">
+    {{ controle.klopt }} klopt, {{ controle.klopt_niet }} klopt niet,
+    {{ controle.onbekend }} niet te controleren op de pagina's die we lezen.
+  </div>
+  {% for f in controle.fouten %}
+  <div class="vraagblok">
+    <div class="vraagtekst">{{ f.uitspraak }}</div>
+    <div class="vraagmeta">bij: {{ f.vraag }}</div>
+    {% if f.watzegtdesite %}<div class="bewijs">op de site staat: {{ f.watzegtdesite }}</div>{% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if verklaring %}
+  <h2>Wat dit voor de site betekent</h2>
+  {% for b in verklaring.blokkades %}
+  <div class="vraagblok"><span class="merk top">feit</span> {{ b.tekst }}</div>
+  {% endfor %}
+  {% for b in verklaring.belemmeringen %}
+  <div class="vraagblok"><span class="merk mis">vermoeden</span> {{ b.tekst }}</div>
+  {% endfor %}
+  <div class="duiding">{{ verklaring.conclusie }}</div>
+  {% endif %}
+
   <h2>Per vraag</h2>
   {% for vraag, regels in beoordelingen|groupby('vraag') %}
   <div class="vraagblok">
@@ -163,6 +189,8 @@
 
   <div class="acties">
     <a class="knop vol" href="?key={{ sleutel }}&url={{ webshop_url }}&start=ja">Antwoorden beoordelen</a>
+    <a class="knop" href="?key={{ sleutel }}&url={{ webshop_url }}&controleer=ja">Uitspraken controleren</a>
+    <a class="knop" href="/admin/voorbeeld?key={{ sleutel }}&url={{ webshop_url }}">Bekijk de klantpagina</a>
     <a class="knop" href="/admin/metingen?key={{ sleutel }}&url={{ webshop_url }}">Naar de metingen</a>
     <a class="knop" href="/admin/kosten?key={{ sleutel }}">Naar de kosten</a>
   </div>

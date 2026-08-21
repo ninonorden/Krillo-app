@@ -97,6 +97,29 @@
   <div class="leeg">Nog niets.</div>
   {% endif %}
 
+  {% if marges %}
+  <h2>Houdt het abonnement stand?</h2>
+  <div class="waarschuwing" style="background:none; color:var(--ink-soft); padding:0 0 12px;">
+    De kosten hieronder zijn omgerekend naar een hele maand, want een abonnement loopt per
+    maand en dit overzicht over {{ dagen }} dagen. Zo vergelijk je gelijke perioden.
+  </div>
+  <table>
+    <tr><th>Webshop</th><th style="text-align:right">Kosten per maand</th>
+        <th style="text-align:right">Blijft over van €{{ '%.0f'|format(abonnement) }}</th>
+        <th style="text-align:right">Aandeel</th></tr>
+    {% for m in marges %}
+    <tr>
+      <td>{{ m.webshop_url }}</td>
+      <td class="getal">€{{ '%.2f'|format(m.kosten) }}</td>
+      <td class="getal" {% if m.verliesgevend %}style="color:var(--coral-tekst); font-weight:600;"{% endif %}>
+        €{{ '%.2f'|format(m.over) }}
+      </td>
+      <td class="getal">{{ '%.0f'|format(m.aandeel * 100) }}%</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
   <h2>Per model</h2>
   {% if per_model %}
   <table>

@@ -298,3 +298,36 @@ def send_weekly_update_email(to_email, webshop_url, scan_result, report_url=None
     body = melding + _score_button(report_url, "Bekijk je monitoringpagina")
     html = _base_html(kop, f"De nieuwste scan voor {webshop_url}.", body)
     return send_email(to_email, onderwerp, html)
+
+
+def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None):
+    """Fase 5 stap 10. Een bericht over de vermeldingen bij AI, en alleen als er
+    iets veranderd is dat de moeite waard is.
+
+    Bewust los van de wekelijkse scanmail. Die gaat over je site, deze gaat over
+    wat AI over je zegt. Twee verschillende dingen door elkaar in een mail leest
+    niemand meer.
+
+    De tekst komt uit waarschuwing.bericht(), inclusief de duiding of het aan de
+    klant lag of aan de markt. Hier zetten we er alleen opmaak omheen."""
+    if not tekst:
+        return False
+
+    eerste = tekst.split("\n\n")[0]
+    if "gedaald" in eerste.lower():
+        onderwerp = f"Je wordt minder genoemd door AI ({webshop_url})"
+        kop = "Je vermeldingen zijn gedaald"
+    elif "gestegen" in eerste.lower():
+        onderwerp = f"Je wordt vaker genoemd door AI ({webshop_url})"
+        kop = "Je vermeldingen zijn gestegen"
+    else:
+        onderwerp = f"Update over je AI-vermeldingen ({webshop_url})"
+        kop = "Update over je vermeldingen"
+
+    alineas = "".join(
+        f'<p style="font-size:14.5px; line-height:1.6;">{stuk}</p>'
+        for stuk in tekst.split("\n\n") if stuk.strip()
+    )
+    body = alineas + _score_button(monitoring_url, "Bekijk je monitoringpagina")
+    html = _base_html(kop, f"Wat AI deze week over {webshop_url} zei.", body)
+    return send_email(to_email, onderwerp, html)

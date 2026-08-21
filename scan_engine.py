@@ -600,3 +600,45 @@ def run_scan(url):
         "url": url, "score": score, "checks": checks, "voorbeeldfixes": fix_previews,
         "gevonden_paginas": [p[0] for p in extra_htmls],
     }
+
+
+def haal_sitetekst(url, max_tekens=12000):
+    """Haalt de leesbare tekst van de site op, homepage plus een paar pagina's.
+
+    Gebruikt door de controle op wat AI over een winkel beweert. Bewust apart
+    van run_scan: die slaat zijn uitkomst op in de database, en daar hoort geen
+    lap tekst van twaalfduizend tekens in. Hier halen we hem vers op wanneer we
+    hem nodig hebben.
+
+    Scripts en opmaak gaan eruit, want die zeggen niets over wat de winkel
+    verkoopt of belooft."""
+    url = normalize_url(url)
+    if not url:
+        return ""
+
+    resp = fetch(url)
+    if resp is None:
+        return ""
+    html = resp.text
+    if lijkt_op_blokkadepagina(html):
+        return ""
+
+    stukken = []
+
+    def voeg_toe(pagina_url, pagina_html):
+        soup = BeautifulSoup(pagina_html, "html.parser")
+        for tag in soup(["script", "style", "noscript", "svg"]):
+            tag.decompose()
+        tekst = " ".join(soup.get_text(" ", strip=True).split())
+        if tekst:
+            stukken.append(f"--- {pagina_url} ---\n{tekst}")
+
+    voeg_toe(url, html)
+    for pagina_url in find_relevant_pages(url, html, limit=4):
+        resp = fetch(pagina_url)
+        if resp is not None and not lijkt_op_blokkadepagina(resp.text):
+            voeg_toe(pagina_url, resp.text)
+        if sum(len(s) for s in stukken) > max_tekens:
+            break
+
+    return "\n\n".join(stukken)[:max_tekens]

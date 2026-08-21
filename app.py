@@ -16,6 +16,7 @@ import os
 import threading
 from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify, render_template, redirect, Response
+import scan_engine
 from scan_engine import run_scan
 import payments
 import emailing
@@ -26,6 +27,9 @@ import koopvragen
 import kosten
 import metingen
 import beoordeling
+import controle
+import verklaring
+import waarschuwing
 
 app = Flask(__name__)
 db.init_db()
@@ -394,7 +398,7 @@ def _draai_wekelijkse_scans(base_url):
                 # update van de klant tegenhoudt. Zijn er geen koopvragen of
                 # geen sleutels, dan doet dit niets.
                 try:
-                    metingen.meet_webshop(c["webshop_url"])
+                    _meet_en_beoordeel(c["webshop_url"], c["email"], klant_token, base_url)
                 except Exception as e:
                     print(f"Meting mislukt voor {c['webshop_url']}: {e}")
             except Exception as e:
@@ -449,14 +453,15 @@ def monitoring_pagina(klant_token):
     # Fase 5 stap 7: de vermeldingen bij AI, als die er zijn. Staat er nog
     # niets, dan tonen we hier ook niets. Een lege sectie met nullen erin leest
     # als een slechte uitkomst, terwijl er alleen nog niet gemeten is.
-    vermeldingen = None
-    beoordelingen = [dict(b) for b in db.get_beoordelingen(klant["webshop_url"])]
-    if beoordelingen:
-        vermeldingen = beoordeling.klantbeeld(klant["webshop_url"], beoordelingen)
+    gegevens = _klantgegevens(klant["webshop_url"])
 
     return render_template(
         "monitoring.html",
-        vermeldingen=vermeldingen,
+        vermeldingen=gegevens["vermeldingen"],
+        controle=gegevens["controle"],
+        beweging=gegevens["beweging"],
+        verklaring=verklaring.maak_verklaring(
+            laatste["checks"] if laatste else [], gegevens["vermeldingen"]),
         webshop_url=klant["webshop_url"],
         klant_token=klant_token,
         laatste=laatste,
@@ -691,6 +696,93 @@ def _beoordeel_achtergrond(webshop_url, meting_id, winkelnaam):
             _beoordelen_bezig.discard(webshop_url)
 
 
+def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None):
+    """De hele keten van fase 5 achter elkaar: meten, beoordelen, controleren en
+    zo nodig waarschuwen.
+
+    Draait wekelijks na de gewone scan. De volgorde ligt vast omdat elke stap op
+    de vorige leunt: zonder antwoorden valt er niets te beoordelen, en zonder
+    beoordeling zijn er geen uitspraken om te controleren.
+
+    Elke stap in een eigen try, want een storing bij een AI-aanbieder mag nooit
+    de rest tegenhouden."""
+    winkelnaam = _winkelnaam(webshop_url)
+
+    samenvatting = metingen.meet_webshop(webshop_url)
+    meting_id = (samenvatting or {}).get("meting_id") or db.laatste_meting_id(webshop_url)
+    if not meting_id:
+        return
+
+    try:
+        beoordeling.beoordeel_ronde(webshop_url, meting_id, winkelnaam)
+    except Exception as e:
+        print(f"Beoordelen mislukt voor {webshop_url}: {e}")
+
+    controle_samenvatting = _controleer_uitspraken(webshop_url, meting_id, winkelnaam)
+
+    # Alleen mailen als er iets te melden valt. Een wekelijks bericht dat er
+    # niets veranderd is, leert een klant om je mail weg te klikken.
+    try:
+        beweging = waarschuwing.vergelijk(
+            [dict(b) for b in db.get_beoordelingen_rondes(webshop_url, rondes=2)], winkelnaam)
+        tekst = waarschuwing.bericht(webshop_url, beweging, controle_samenvatting)
+        if tekst and email:
+            monitoring_url = f"{base_url}/monitoring/{klant_token}" if (base_url and klant_token) else None
+            emailing.send_vermeldingen_update(email, webshop_url, tekst, monitoring_url)
+    except Exception as e:
+        print(f"Waarschuwing versturen mislukt voor {webshop_url}: {e}")
+
+
+def _controleer_uitspraken(webshop_url, meting_id=None, winkelnaam=None):
+    """Fase 5 stap 9. Legt de uitspraken van AI naast wat er op de site staat.
+
+    Haalt de sitetekst vers op, want die staat bewust niet in de database: het
+    zijn duizenden tekens die bij elke scan veranderen."""
+    try:
+        meting_id = meting_id or db.laatste_meting_id(webshop_url)
+        if not meting_id:
+            return None
+        beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url, meting_id)]
+        uitspraken = controle.verzamel_uitspraken(beoordelingen)
+        if not uitspraken:
+            return None
+        sitetekst = scan_engine.haal_sitetekst(webshop_url, controle.MAX_SITETEKST)
+        if not sitetekst:
+            print(f"Controle overgeslagen voor {webshop_url}: site niet te lezen.")
+            return None
+        uitkomsten = controle.controleer(webshop_url, winkelnaam, uitspraken, sitetekst)
+        db.bewaar_uitspraakcontroles(webshop_url, meting_id, uitkomsten)
+        return controle.vat_samen(uitkomsten)
+    except Exception as e:
+        print(f"Uitspraken controleren mislukt voor {webshop_url}: {e}")
+        return None
+
+
+def _winkelnaam(webshop_url):
+    """De naam zoals de winkel zichzelf noemt, uit het winkelprofiel."""
+    profiel = db.get_winkelprofiel(webshop_url)
+    omschrijving = (profiel or {}).get("omschrijving") or ""
+    return omschrijving.split(" is ")[0].strip() if " is " in omschrijving else None
+
+
+def _klantgegevens(webshop_url):
+    """Alles wat zowel de klantpagina als de voorbeeldweergave nodig heeft.
+
+    Op een plek, zodat een abonnee en de voorbeeldweergave nooit iets anders
+    kunnen laten zien."""
+    # De klant ziet de nieuwste ronde. Voor stijgen of dalen zijn er twee
+    # nodig, en die haalt get_beoordelingen niet op.
+    beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url)]
+    twee_rondes = [dict(b) for b in db.get_beoordelingen_rondes(webshop_url, rondes=2)]
+    vermeldingen = beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None
+    controles = [dict(c) for c in db.get_uitspraakcontroles(webshop_url)]
+    return {
+        "vermeldingen": vermeldingen,
+        "controle": controle.vat_samen(controles) if controles else None,
+        "beweging": waarschuwing.vergelijk(twee_rondes, _winkelnaam(webshop_url)),
+    }
+
+
 @app.route("/admin/voorbeeld")
 def admin_voorbeeld():
     """Laat de klantpagina zien voor een webshop naar keuze, zonder dat daar een
@@ -717,15 +809,18 @@ def admin_voorbeeld():
         for c in laatste["checks"]:
             checks_by_categorie.setdefault(c.get("categorie", "overig"), []).append(c)
 
-    beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url)]
-    vermeldingen = beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None
+    gegevens = _klantgegevens(webshop_url)
 
     return render_template(
         "monitoring.html",
         webshop_url=webshop_url,
         klant_token=None,
         voorbeeld=True,
-        vermeldingen=vermeldingen,
+        vermeldingen=gegevens["vermeldingen"],
+        controle=gegevens["controle"],
+        beweging=gegevens["beweging"],
+        verklaring=verklaring.maak_verklaring(
+            laatste["checks"] if laatste else [], gegevens["vermeldingen"]),
         laatste=laatste,
         verschil=verschil,
         verloop=list(reversed(rapporten))[-8:],
@@ -763,6 +858,22 @@ def admin_beoordelingen():
                              args=(webshop_url, meting_id, winkelnaam), daemon=True).start()
         return redirect(f"/admin/beoordelingen?key={admin_key}&url={webshop_url}&bezig=ja")
 
+    if webshop_url and request.args.get("controleer") == "ja":
+        start = False
+        with _metingen_slot:
+            if webshop_url not in _beoordelen_bezig:
+                _beoordelen_bezig.add(webshop_url)
+                start = True
+        if start:
+            def klus():
+                try:
+                    _controleer_uitspraken(webshop_url, meting_id, _winkelnaam(webshop_url))
+                finally:
+                    with _metingen_slot:
+                        _beoordelen_bezig.discard(webshop_url)
+            threading.Thread(target=klus, daemon=True).start()
+        return redirect(f"/admin/beoordelingen?key={admin_key}&url={webshop_url}&bezig=ja")
+
     beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url, meting_id)] if webshop_url else []
     samenvatting = beoordeling.vat_samen(beoordelingen)
 
@@ -778,6 +889,12 @@ def admin_beoordelingen():
         beoordelingen=beoordelingen,
         s=samenvatting,
         bezig=request.args.get("bezig") == "ja",
+        controle=controle.vat_samen(
+            [dict(c) for c in db.get_uitspraakcontroles(webshop_url)]) if webshop_url else None,
+        verklaring=verklaring.maak_verklaring(
+            (db.get_rapporten_voor_webshop(webshop_url) or [{}])[0].get("checks") or [],
+            beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None,
+        ) if webshop_url else None,
     )
 
 
@@ -819,6 +936,11 @@ def admin_kosten():
         dagen=dagen,
         totaal=overzicht["totaal"],
         per_klant=overzicht["per_klant"],
+        marges=kosten.marge_per_klant([
+            dict(r, kosten=kosten.naar_maand(float(r.get("kosten") or 0), dagen))
+            for r in overzicht["per_klant"]
+        ]),
+        abonnement=kosten.ABONNEMENT_PER_MAAND,
         per_model=overzicht["per_model"],
         grenzen={
             "scan_euro": kosten.GRENS_PER_SCAN_EURO,
