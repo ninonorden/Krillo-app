@@ -129,6 +129,30 @@
   </table>
   {% endif %}
 
+  <h2>Zichtbaarheidstests aangevraagd</h2>
+  {% if not leads %}
+  <div class="leeg">Nog niemand heeft de gratis zichtbaarheidstest gedaan.</div>
+  {% else %}
+  <table>
+    <tr>
+      <th>Wanneer</th><th>Webshop</th><th>E-mail</th><th>Mag ik mailen</th>
+      <th style="text-align:right">Genoemd</th><th>Status</th>
+    </tr>
+    {% for l in leads %}
+    <tr>
+      <td>{{ l.aangevraagd_op.strftime('%d-%m %H:%M') if l.aangevraagd_op else '-' }}</td>
+      <td>{{ l.webshop_url }}</td>
+      <td>{{ l.email }}</td>
+      <td>{% if l.nieuwsbrief_akkoord %}ja{% else %}nee, alleen deze uitslag{% endif %}</td>
+      <td class="getal">
+        {% if l.resultaat %}{{ l.resultaat.genoemd }} van {{ l.resultaat.telbaar }}{% else %}-{% endif %}
+      </td>
+      <td>{{ l.status }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
   <div class="acties">
     <a class="knop" href="?key={{ sleutel }}&dagen=7">7 dagen</a>
     <a class="knop" href="?key={{ sleutel }}&dagen=30">30 dagen</a>
@@ -141,8 +165,12 @@
   <div class="voetnoot">
     <strong>Wat hier wel en niet in staat.</strong> Elke gratis scan wordt vastgelegd met de datum,
     de ingevulde webshop en waar de bezoeker vandaan kwam. Geen IP-adres, geen cookie, geen externe
-    partij. Daardoor hoeft er niets extra's in het privacybeleid en hoef je geen toestemming te
-    vragen.<br><br>
+    partij.<br><br>
+    <strong>De zichtbaarheidstest is anders.</strong> Daar hoort wel een e-mailadres bij, want de
+    uitslag wordt gemaild. Dat staat in het privacybeleid en het vinkje voor latere berichten is
+    apart en staat standaard uit. Mail alleen mensen die dat vinkje aanzetten: doe je dat wel, dan
+    overtreed je de spamregels en riskeer je dat Brevo je hele account sluit, inclusief de mail naar
+    je betalende klanten.<br><br>
     <strong>Herkomst.</strong> Staat er een campagnelabel in de link (utm_source), dan gebruiken we
     dat. Anders het domein van de pagina waar iemand vandaan klikte. Wie het adres rechtstreeks
     intypt of via een app komt, valt onder "rechtstreeks". Wil je weten welk bericht werkt, zet dan

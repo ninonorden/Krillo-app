@@ -13,6 +13,7 @@ Ga daarna naar http://127.0.0.1:5000 in je browser.
 """
 
 import os
+import re
 import threading
 from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify, render_template, redirect, Response
@@ -30,6 +31,7 @@ import beoordeling
 import controle
 import verklaring
 import waarschuwing
+import zichtbaarheid
 
 app = Flask(__name__)
 db.init_db()
@@ -228,7 +230,12 @@ def _herkomst():
         domein = (urlparse(verwijzer).netloc or "").lower().replace("www.", "")
     except Exception:
         return None
-    if not domein or "krillo.nl" in domein:
+    # Onszelf niet meetellen. Niet alleen krillo.nl hardcoderen: op een
+    # testomgeving, een preview-adres of met www ervoor zou de site zichzelf
+    # anders als bron opschrijven, en dan staat "krillo.nl" bovenaan de lijst
+    # met plekken die bezoekers opleveren.
+    eigen = (request.host or "").lower().replace("www.", "").split(":")[0]
+    if not domein or "krillo.nl" in domein or (eigen and domein == eigen):
         return None
     return domein[:60]
 
@@ -254,6 +261,113 @@ def api_scan():
         result["verschil"] = result["score"] - previous["score"]
 
     return jsonify(result)
+
+
+_EMAIL_VORM = re.compile(r"^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$")
+
+
+def _draai_zichtbaarheidstest(test_id, webshop_url, email, base_url):
+    """Draait de gratis test en mailt de uitslag. Op de achtergrond, want vijf
+    vragen aan de modellen duurt een minuut of twee."""
+    try:
+        resultaat = zichtbaarheid.draai(test_id, webshop_url)
+        if not resultaat:
+            return
+        try:
+            emailing.send_zichtbaarheidstest(
+                email, webshop_url, resultaat,
+                zichtbaarheid.samenvattingszin(resultaat, webshop_url),
+                base_url,
+            )
+        except Exception as e:
+            # De uitslag staat al in de database en op de pagina. Een mail die
+            # niet aankomt mag de test niet als mislukt laten gelden.
+            print(f"Uitslag mailen mislukt voor {webshop_url}: {e}")
+    except Exception as e:
+        print(f"Zichtbaarheidstest mislukt voor {webshop_url}: {e}")
+
+
+@app.route("/api/zichtbaarheidstest", methods=["POST"])
+def api_zichtbaarheidstest():
+    """Fase 5 punt 12. Start de gratis zichtbaarheidstest voor een webshop.
+
+    Vraagt om een e-mailadres, en dat is met opzet. Het kost echt geld per test,
+    dus we doen hem alleen voor iemand die er om vraagt. En het levert een lijst
+    op van mensen die zelf om contact gevraagd hebben, wat het enige nette
+    fundament is onder alles wat we ze daarna sturen."""
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    nieuwsbrief = bool(data.get("nieuwsbrief"))
+
+    if not url:
+        return jsonify({"error": "Vul eerst je webshop in."}), 400
+    if not email or not _EMAIL_VORM.match(email) or len(email) > 190:
+        return jsonify({"error": "Vul een geldig e-mailadres in."}), 400
+    if not data.get("voorwaarden_akkoord"):
+        return jsonify({"error": "Ga akkoord met het privacybeleid."}), 400
+
+    url = scan_engine.normalize_url(url)
+    herkomst = data.get("herkomst") or _herkomst()
+
+    # Is deze winkel kortgeleden al gemeten, dan hergebruiken we die uitslag.
+    # Scheelt geld, maar belangrijker: wie zijn uitslag doorstuurt hoort niet
+    # drie verschillende cijfers te zien door de ruis in AI-antwoorden.
+    eerder = db.laatste_geslaagde_test(url, zichtbaarheid.HERGEBRUIK_DAGEN)
+    if eerder and eerder.get("resultaat"):
+        # Als hergebruik wegschrijven, want deze test kost niets. Telden we hem
+        # mee in de dagteller, dan zou een uitslag die tien keer gedeeld wordt
+        # de gratis test voor iedereen dichtzetten zonder dat er een cent
+        # uitgegeven is.
+        test_id = db.start_zichtbaarheidstest(url, email, nieuwsbrief, herkomst, hergebruikt=True)
+        if test_id:
+            db.zet_zichtbaarheidstest(test_id, "klaar", resultaat=eerder["resultaat"])
+        # base_url en de zin hier bepalen en niet in de thread. In de thread is
+        # er geen verzoek meer, en get_base_url() leest het verzoek. Deed je
+        # dat daar, dan liep de mail elke keer stuk zonder dat iemand het merkt:
+        # de uitslag staat immers gewoon op de pagina.
+        basis = get_base_url()
+        zin = zichtbaarheid.samenvattingszin(eerder["resultaat"], url)
+        resultaat = eerder["resultaat"]
+        threading.Thread(
+            target=lambda: emailing.send_zichtbaarheidstest(email, url, resultaat, zin, basis),
+            daemon=True).start()
+        return jsonify({"test_id": test_id, "status": "klaar",
+                        "resultaat": resultaat, "zin": zin})
+
+    mag, reden = zichtbaarheid.mag_starten()
+    if not mag:
+        return jsonify({"error": reden}), 429
+
+    test_id = db.start_zichtbaarheidstest(url, email, nieuwsbrief, herkomst)
+    if not test_id:
+        return jsonify({"error": "Het lukte even niet. Probeer het zo nog eens."}), 500
+
+    threading.Thread(target=_draai_zichtbaarheidstest,
+                     args=(test_id, url, email, get_base_url()), daemon=True).start()
+    return jsonify({"test_id": test_id, "status": "wachtrij"})
+
+
+@app.route("/api/zichtbaarheidstest/<int:test_id>")
+def api_zichtbaarheidstest_status(test_id):
+    """De pagina vraagt hier om de tien seconden of de uitslag er al is.
+
+    Geeft bewust geen e-mailadres terug. Wie het nummer van een test raadt,
+    hoort niet te zien wie hem aangevraagd heeft."""
+    test = db.get_zichtbaarheidstest(test_id)
+    if not test:
+        return jsonify({"error": "Onbekende test."}), 404
+
+    antwoord = {"status": test.get("status") or "wachtrij",
+                "webshop_url": test.get("webshop_url")}
+    if test.get("status") == "klaar" and test.get("resultaat"):
+        antwoord["resultaat"] = test["resultaat"]
+        antwoord["zin"] = zichtbaarheid.samenvattingszin(test["resultaat"],
+                                                         test.get("webshop_url"))
+    elif test.get("status") == "mislukt":
+        antwoord["fout"] = ("De test kon niet afgemaakt worden. Dat ligt meestal aan de site "
+                            "die ons niet binnenliet, of aan een AI-model dat even dichtzat.")
+    return jsonify(antwoord)
 
 
 @app.route("/api/checkout/audit", methods=["POST"])
@@ -901,6 +1015,50 @@ def _klantgegevens(webshop_url):
 
 
 _demo_status = {}
+_demo_wachtrij = []
+_demo_slot = threading.Lock()
+_demo_werker_draait = [False]
+
+
+def _demo_werker():
+    """Werkt de wachtrij een voor een af.
+
+    Met opzet een enkele werker en geen thread per winkel. Twintig winkels
+    tegelijk meten betekent twintig keer zoveel aanroepen per minuut, en dan
+    krijg je van OpenAI en Google precies de 429's terug waar we eerder al last
+    van hadden. Rustig achter elkaar duurt langer maar levert bruikbare
+    metingen op, en dat is het enige wat telt."""
+    while True:
+        with _demo_slot:
+            if not _demo_wachtrij:
+                _demo_werker_draait[0] = False
+                return
+            url = _demo_wachtrij.pop(0)
+        _demo_draaien(url)
+
+
+def _demo_inplannen(urls):
+    """Zet winkels in de wachtrij en start de werker als die stilstaat.
+
+    Geeft terug hoeveel er echt bijgekomen zijn. Een winkel die al in de rij
+    staat of al loopt, komt er niet nog een keer bij: dan zou je twee keer
+    betalen voor dezelfde meting."""
+    toegevoegd = 0
+    with _demo_slot:
+        for url in urls:
+            huidig = _demo_status.get(url, "")
+            bezig = huidig and huidig != "klaar" and not huidig.startswith("mislukt")
+            if url in _demo_wachtrij or bezig:
+                continue
+            _demo_wachtrij.append(url)
+            _demo_status[url] = "in de wachtrij"
+            toegevoegd += 1
+        starten = toegevoegd and not _demo_werker_draait[0]
+        if starten:
+            _demo_werker_draait[0] = True
+    if starten:
+        threading.Thread(target=_demo_werker, daemon=True).start()
+    return toegevoegd
 
 
 def _demo_draaien(webshop_url):
@@ -935,7 +1093,7 @@ def _demo_draaien(webshop_url):
         _demo_status[webshop_url] = f"mislukt: {str(e)[:120]}"
 
 
-@app.route("/admin/demo")
+@app.route("/admin/demo", methods=["GET", "POST"])
 def admin_demo():
     """Demo-uitkomsten: de volledige meting voor een winkel die geen klant is.
 
@@ -943,22 +1101,19 @@ def admin_demo():
     het uit te leggen. Kost ongeveer een euro per winkel, dus het starten
     gebeurt alleen op een knop en nooit vanzelf bij het openen van de pagina."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    sleutel = request.form.get("key") if request.method == "POST" else request.args.get("key")
+    if not admin_key or sleutel != admin_key:
         return "", 404
 
-    webshop_url = (request.args.get("url") or "").strip()
-    if webshop_url:
-        # Onder dezelfde naam bijhouden als waaronder het rapport straks in de
-        # database komt. Zonder dit staat de status onder "dille-kamille.nl" en
-        # het rapport onder "https://dille-kamille.nl", en krijg je twee regels
-        # voor dezelfde winkel.
-        webshop_url = scan_engine.normalize_url(webshop_url)
+    # Meerdere winkels tegelijk mag: gescheiden door een nieuwe regel, een komma
+    # of een spatie. Dat is nodig voor een benchmark over tientallen winkels,
+    # die je niet een voor een wil intypen.
+    ruw = (request.form.get("url") if request.method == "POST" else None) or request.args.get("url") or ""
+    urls = [scan_engine.normalize_url(u.strip())
+            for u in re.split(r"[\s,;]+", ruw) if u.strip()]
 
-    if webshop_url and request.args.get("start") == "ja":
-        huidig = _demo_status.get(webshop_url, "")
-        if not huidig or huidig == "klaar" or huidig.startswith("mislukt"):
-            _demo_status[webshop_url] = "wachtrij"
-            threading.Thread(target=_demo_draaien, args=(webshop_url,), daemon=True).start()
+    if urls and (request.args.get("start") == "ja" or request.form.get("start") == "ja"):
+        _demo_inplannen(urls)
         # Terug zonder start=ja, anders begint elke keer verversen opnieuw.
         return redirect(f"/admin/demo?key={admin_key}")
 
@@ -973,6 +1128,7 @@ def admin_demo():
         w["status"] = _demo_status.get(w["webshop_url"], "")
 
     return render_template("admin_demo.html", winkels=winkels, sleutel=admin_key,
+                           wachtrij=len(_demo_wachtrij),
                            bezig=any(w["status"] and w["status"] not in ("klaar",)
                                      and not w["status"].startswith("mislukt") for w in winkels))
 
@@ -1151,6 +1307,7 @@ def admin_bezoekers():
         per_dag=overzicht["per_dag"],
         per_herkomst=overzicht["per_herkomst"],
         top_winkels=overzicht["top_winkels"],
+        leads=db.zichtbaarheidstest_leads(),
         sleutel=admin_key,
     )
 

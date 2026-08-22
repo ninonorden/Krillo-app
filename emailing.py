@@ -338,3 +338,85 @@ def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None):
     body = alineas + _score_button(monitoring_url, "Bekijk je monitoringpagina")
     html = _base_html(kop, f"Wat AI deze week over {webshop_url} zei.", body)
     return send_email(to_email, onderwerp, html)
+
+
+def send_zichtbaarheidstest(to_email, webshop_url, resultaat, zin, site_url=None):
+    """De uitslag van de gratis zichtbaarheidstest.
+
+    Deze mail is gevraagd: iemand vulde zijn adres in om hem te krijgen. Dat is
+    de reden dat er geen afmeldlink onderin hoeft voor deze ene mail. Ga je deze
+    mensen later ook iets anders sturen, dan mag dat alleen als ze daar apart
+    akkoord voor gaven, en dan hoort er wel een afmeldlink in.
+
+    De toon is bewust vlak. De cijfers zijn hard genoeg."""
+    if not resultaat:
+        return False
+
+    telbaar = resultaat.get("telbaar") or 0
+    genoemd = resultaat.get("genoemd") or 0
+    aanbevolen = resultaat.get("aanbevolen") or 0
+
+    cijfers = f"""
+    <table style="width:100%; border-collapse:collapse; margin:20px 0;">
+      <tr>
+        <td style="padding:14px; background:#F6F5F1; border-radius:8px; text-align:center; width:33%;">
+          <div style="font-size:26px; font-weight:700;">{genoemd}</div>
+          <div style="font-size:11px; color:#3B3D57;">van de {telbaar} vragen genoemd</div>
+        </td>
+        <td style="width:8px;"></td>
+        <td style="padding:14px; background:#F6F5F1; border-radius:8px; text-align:center; width:33%;">
+          <div style="font-size:26px; font-weight:700;">{aanbevolen}</div>
+          <div style="font-size:11px; color:#3B3D57;">daarvan echt aanbevolen</div>
+        </td>
+        <td style="width:8px;"></td>
+        <td style="padding:14px; background:#F6F5F1; border-radius:8px; text-align:center; width:33%;">
+          <div style="font-size:26px; font-weight:700;">{telbaar - genoemd}</div>
+          <div style="font-size:11px; color:#3B3D57;">vragen waar je niet bij stond</div>
+        </td>
+      </tr>
+    </table>
+    """
+
+    regels = ""
+    for r in (resultaat.get("regels") or [])[:5]:
+        merk = "#1FB6A4" if r.get("genoemd") else "#FF4B3E"
+        label = "aanbevolen" if r.get("aanbevolen") else ("genoemd" if r.get("genoemd") else "niet genoemd")
+        regels += (
+            f'<div style="border-left:3px solid {merk}; padding:8px 12px; margin-bottom:10px;">'
+            f'<div style="font-size:14px;">{r.get("vraag","")}</div>'
+            f'<div style="font-size:11.5px; color:#3B3D57; text-transform:uppercase; '
+            f'letter-spacing:0.04em; margin-top:3px;">{label}</div></div>'
+        )
+
+    anderen = [c for c in (resultaat.get("concurrenten") or []) if not c.get("wij")][:5]
+    concurrenten = ""
+    if anderen:
+        namen = "".join(
+            f'<li style="margin-bottom:3px;">{c["naam"]} <span style="color:#3B3D57;">'
+            f'({c["genoemd"]}x)</span></li>' for c in anderen
+        )
+        concurrenten = (
+            '<h3 style="font-size:15px; margin:24px 0 8px;">Wie er wel genoemd werd</h3>'
+            f'<ul style="font-size:14px; line-height:1.6; padding-left:18px;">{namen}</ul>'
+        )
+
+    slot = f"""
+    <h3 style="font-size:15px; margin:26px 0 8px;">Wat dit wel en niet is</h3>
+    <p style="font-size:14px; line-height:1.6; color:#3B3D57;">
+      Dit zijn vijf vragen op een moment. AI-antwoorden wisselen van dag tot dag, dus een
+      losse meting is een momentopname en geen oordeel. Wat er verandert zie je pas als je
+      elke week meet.
+    </p>
+    <p style="font-size:14px; line-height:1.6; color:#3B3D57;">
+      We hebben je niet verteld waarom het zo is, en ook niet of wat AI over je zegt klopt.
+      Dat zit in het betaalde deel, samen met dertig vragen per week in plaats van vijf.
+    </p>
+    """
+
+    body = cijfers + '<h3 style="font-size:15px; margin:24px 0 10px;">De vragen</h3>' + regels
+    body += concurrenten + slot
+    if site_url:
+        body += _score_button(site_url, "Bekijk wat er nog meer mogelijk is")
+
+    html = _base_html("Dit zei AI over je webshop", zin, body)
+    return send_email(to_email, f"Wat AI over {webshop_url} zegt", html)

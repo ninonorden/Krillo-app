@@ -27,8 +27,9 @@
 
   .starter{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
            padding:18px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
-  .starter input{flex:1; min-width:240px; padding:10px 12px; border:1.5px solid var(--line);
-                 border-radius:8px; font-family:var(--mono); font-size:13px; color:var(--ink);}
+  .starter input, .starter textarea{flex:1; min-width:240px; padding:10px 12px;
+                 border:1.5px solid var(--line); border-radius:8px; font-family:var(--mono);
+                 font-size:13px; color:var(--ink); resize:vertical; background:var(--paper-raised);}
   .starter button{padding:10px 18px; border-radius:8px; border:none; background:var(--coral);
                   color:#fff; font-family:var(--disp); font-weight:600; font-size:13.5px; cursor:pointer;}
   .kosten{font-size:12.5px; color:var(--ink-soft); margin-top:10px;}
@@ -72,16 +73,19 @@
     Er gaat geen enkele mail uit naar deze winkels.
   </p>
 
-  <form class="starter" method="get" action="/admin/demo">
+  <form class="starter" method="post" action="/admin/demo">
     <input type="hidden" name="key" value="{{ sleutel }}">
     <input type="hidden" name="start" value="ja">
-    <input type="text" name="url" placeholder="bijvoorbeeld dille-kamille.nl" required>
-    <button type="submit">Draai de hele demo</button>
+    <textarea name="url" rows="3" required
+      placeholder="dille-kamille.nl&#10;flinders.nl&#10;bax-shop.nl&#10;&#10;Eén per regel, of gescheiden door een komma."></textarea>
+    <button type="submit">Draai de demo's</button>
   </form>
   <div class="kosten">
-    Eén demo kost ongeveer een euro aan AI-aanroepen en duurt een paar minuten. De pagina ververst
-    zichzelf zolang er iets loopt. De kostenrem geldt hier gewoon: zit je aan je daglimiet, dan
-    stopt de meting vanzelf.
+    Eén demo kost ongeveer een euro aan AI-aanroepen en duurt een paar minuten. Zet je er meerdere
+    in, dan worden ze een voor een gedaan: tegelijk meten levert alleen maar geweigerde aanroepen op
+    bij OpenAI en Google. De pagina ververst zichzelf zolang er iets loopt, en de kostenrem geldt
+    gewoon.
+    {% if wachtrij %}<br><strong>{{ wachtrij }} winkel(s) staan nog in de wachtrij.</strong>{% endif %}
   </div>
 
   <h2>Gedraaide demo's</h2>

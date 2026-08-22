@@ -183,6 +183,31 @@ def init_db():
                     );
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_gratis_scans_dag ON gratis_scans (gedaan_op);")
+                # De gratis zichtbaarheidstest. Hier staat wel een e-mailadres
+                # in, anders dan bij gratis_scans, want de uitslag wordt
+                # gemaild. Daarom ook nieuwsbrief_akkoord apart: het aanvragen
+                # van de uitslag is iets anders dan toestemming voor latere
+                # berichten, en die twee moeten los vastliggen.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS zichtbaarheidstests (
+                        id SERIAL PRIMARY KEY,
+                        webshop_url TEXT NOT NULL,
+                        email TEXT NOT NULL,
+                        status TEXT DEFAULT 'wachtrij',
+                        resultaat JSONB,
+                        meting_id TEXT,
+                        foutsoort TEXT,
+                        nieuwsbrief_akkoord BOOLEAN DEFAULT false,
+                        hergebruikt BOOLEAN DEFAULT false,
+                        akkoord_op TIMESTAMPTZ,
+                        herkomst TEXT,
+                        aangevraagd_op TIMESTAMPTZ DEFAULT now(),
+                        klaar_op TIMESTAMPTZ
+                    );
+                """)
+                cur.execute("ALTER TABLE zichtbaarheidstests ADD COLUMN IF NOT EXISTS hergebruikt BOOLEAN DEFAULT false;")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_zichtbaarheid_url ON zichtbaarheidstests (webshop_url, aangevraagd_op);")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_zichtbaarheid_dag ON zichtbaarheidstests (aangevraagd_op);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_controles_meting ON uitspraakcontroles (webshop_url, meting_id);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_beoordelingen_meting ON beoordelingen (webshop_url, meting_id);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_antwoorden_webshop ON ai_antwoorden (webshop_url, gesteld_op);")
@@ -1215,6 +1240,156 @@ def get_demo_webshops():
                 return [dict(r) for r in cur.fetchall()]
     except Exception as e:
         print(f"Demo-webshops ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# De gratis zichtbaarheidstest (fase 5 punt 12)
+# ---------------------------------------------------------------------------
+
+def start_zichtbaarheidstest(webshop_url, email, nieuwsbrief=False, herkomst=None, hergebruikt=False):
+    """Legt een aanvraag vast en geeft het id terug.
+
+    Het akkoordmoment wordt hier gezet en niet later, want dat is het bewijs
+    dat iemand er zelf om gevraagd heeft. Zonder dat moment kan je bij een
+    klacht niet aantonen dat een mail gevraagd was."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO zichtbaarheidstests
+                       (webshop_url, email, nieuwsbrief_akkoord, akkoord_op, herkomst, status, hergebruikt)
+                       VALUES (%s, %s, %s, now(), %s, %s, %s) RETURNING id""",
+                    (webshop_url, email, bool(nieuwsbrief), (herkomst or None),
+                     'klaar' if hergebruikt else 'wachtrij', bool(hergebruikt)),
+                )
+                return cur.fetchone()[0]
+    except Exception as e:
+        print(f"Zichtbaarheidstest vastleggen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def zet_zichtbaarheidstest(test_id, status, resultaat=None, meting_id=None, foutsoort=None):
+    """Werkt een lopende test bij. Alleen de velden die meegegeven worden."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE zichtbaarheidstests
+                          SET status = %s,
+                              resultaat = COALESCE(%s, resultaat),
+                              meting_id = COALESCE(%s, meting_id),
+                              foutsoort = COALESCE(%s, foutsoort),
+                              klaar_op = CASE WHEN %s IN ('klaar','mislukt') THEN now() ELSE klaar_op END
+                        WHERE id = %s""",
+                    (status,
+                     json.dumps(resultaat, ensure_ascii=False, default=str) if resultaat is not None else None,
+                     meting_id, foutsoort, status, test_id),
+                )
+        return True
+    except Exception as e:
+        print(f"Zichtbaarheidstest bijwerken mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_zichtbaarheidstest(test_id):
+    """Een losse test op id, voor het ophalen van de uitslag door de pagina."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM zichtbaarheidstests WHERE id = %s", (test_id,))
+                rij = cur.fetchone()
+                return dict(rij) if rij else None
+    except Exception as e:
+        print(f"Zichtbaarheidstest ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def laatste_geslaagde_test(webshop_url, dagen=30):
+    """De laatste geslaagde test voor deze winkel binnen zoveel dagen.
+
+    Hiermee hoeft dezelfde winkel niet elke keer opnieuw gemeten te worden. Dat
+    scheelt niet alleen geld: iemand die de uitslag deelt en drie collega's laat
+    kijken, hoort drie keer hetzelfde te zien en geen drie verschillende
+    cijfers door de dagelijkse ruis in AI-antwoorden."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT * FROM zichtbaarheidstests
+                        WHERE webshop_url = %s AND status = 'klaar' AND resultaat IS NOT NULL
+                          AND aangevraagd_op > now() - (%s || ' days')::interval
+                     ORDER BY aangevraagd_op DESC LIMIT 1""",
+                    (webshop_url, str(int(dagen))),
+                )
+                rij = cur.fetchone()
+                return dict(rij) if rij else None
+    except Exception as e:
+        print(f"Laatste zichtbaarheidstest ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def tel_tests_vandaag():
+    """Hoeveel tests er vandaag gestart zijn. De rem op de gratis test."""
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT COUNT(*) FROM zichtbaarheidstests
+                        WHERE aangevraagd_op::date = (now() AT TIME ZONE 'UTC')::date
+                          AND COALESCE(hergebruikt, false) = false"""
+                )
+                return cur.fetchone()[0] or 0
+    except Exception as e:
+        print(f"Tests van vandaag tellen mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def zichtbaarheidstest_leads(limit=200):
+    """De lijst voor de beheerpagina: wie heeft de test aangevraagd."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT id, webshop_url, email, status, nieuwsbrief_akkoord,
+                              herkomst, aangevraagd_op, resultaat
+                         FROM zichtbaarheidstests
+                     ORDER BY aangevraagd_op DESC LIMIT %s""",
+                    (limit,),
+                )
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Leads ophalen mislukt: {e}")
         return []
     finally:
         conn.close()

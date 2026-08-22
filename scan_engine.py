@@ -61,9 +61,20 @@ def lijkt_op_blokkadepagina(html):
 
 
 def normalize_url(url):
+    """Maakt van wat iemand intypt een bruikbare URL.
+
+    Het domein gaat naar kleine letters, het pad niet. Dat lijkt een detail maar
+    het is het niet: de URL is overal de sleutel waaronder we dingen bewaren.
+    Zonder dit zijn "Dille-Kamille.nl" en "dille-kamille.nl" twee verschillende
+    winkels, met twee keer koopvragen, twee keer een meting en twee keer de
+    rekening. Een pad blijft wel hoofdlettergevoelig, want op sommige servers
+    is /Producten iets anders dan /producten."""
+    url = (url or "").strip()
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
-    return url
+    schema, _, rest = url.partition("://")
+    host, schuin, pad = rest.partition("/")
+    return f"{schema.lower()}://{host.lower()}{schuin}{pad}"
 
 
 def fetch(url, measure_time=False, pogingen=3):
