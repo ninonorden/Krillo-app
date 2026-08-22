@@ -210,6 +210,29 @@ hallo@krillo.nl
     return Response(inhoud, mimetype="text/plain")
 
 
+def _herkomst():
+    """Waar de bezoeker vandaan komt, zonder iets over de persoon vast te leggen.
+
+    We kijken naar een campagnelabel in de link (utm_source) en anders naar het
+    domein van de vorige pagina. Geen IP-adres en geen cookie: we willen weten
+    of LinkedIn of een forum bezoekers oplevert, niet wie die bezoekers zijn."""
+    bron = (request.args.get("utm_source") or "").strip()[:60]
+    if bron:
+        return bron.lower()
+
+    verwijzer = request.referrer or ""
+    if not verwijzer:
+        return None
+    try:
+        from urllib.parse import urlparse
+        domein = (urlparse(verwijzer).netloc or "").lower().replace("www.", "")
+    except Exception:
+        return None
+    if not domein or "krillo.nl" in domein:
+        return None
+    return domein[:60]
+
+
 @app.route("/api/scan", methods=["POST"])
 def api_scan():
     data = request.get_json(silent=True) or {}
@@ -217,9 +240,13 @@ def api_scan():
     if not url:
         return jsonify({"error": "Vul een website-URL in."}), 400
 
+    herkomst = data.get("herkomst") or _herkomst()
     result = run_scan(url)
     if "error" in result:
+        db.bewaar_gratis_scan(url, gelukt=False, foutsoort=result["error"][:200], herkomst=herkomst)
         return jsonify(result), 400
+
+    db.bewaar_gratis_scan(result["url"], score=result.get("score"), herkomst=herkomst)
 
     previous = db.get_previous_score(result["url"])
     if previous:
@@ -763,7 +790,7 @@ def _beoordeel_achtergrond(webshop_url, meting_id, winkelnaam):
             _beoordelen_bezig.discard(webshop_url)
 
 
-def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None):
+def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None, stap=None):
     """De hele keten van fase 5 achter elkaar: meten, beoordelen, controleren en
     zo nodig waarschuwen.
 
@@ -772,27 +799,42 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None)
     beoordeling zijn er geen uitspraken om te controleren.
 
     Elke stap in een eigen try, want een storing bij een AI-aanbieder mag nooit
-    de rest tegenhouden."""
+    de rest tegenhouden.
+
+    Met stap= kan een aanroeper meelezen waar de keten is. Die keten duurt
+    minuten, dus zonder terugmelding lijkt een demopagina stil te staan."""
+    def melden(tekst):
+        if stap:
+            try:
+                stap(tekst)
+            except Exception:
+                pass
+
     # Zonder koopvragen valt er niets te meten. Bij een nieuwe abonnee bestaan
     # die nog niet, dus die maken we hier alsnog aan. Anders zou een klant die
     # net 39 euro betaald heeft een lege pagina zien terwijl op de site staat
     # dat we elke week dertig vragen stellen.
     if not db.get_koopvragen(webshop_url, alleen_actief=True):
         print(f"Nog geen koopvragen voor {webshop_url}, die maken we eerst.")
+        melden("koopvragen maken")
         _genereer_koopvragen_achtergrond(webshop_url, vervang=False)
 
     winkelnaam = _winkelnaam(webshop_url)
 
+    melden("vragen stellen aan AI")
     samenvatting = metingen.meet_webshop(webshop_url)
     meting_id = (samenvatting or {}).get("meting_id") or db.laatste_meting_id(webshop_url)
     if not meting_id:
+        melden("mislukt: er is niets gemeten")
         return
 
     try:
+        melden("antwoorden beoordelen")
         beoordeling.beoordeel_ronde(webshop_url, meting_id, winkelnaam)
     except Exception as e:
         print(f"Beoordelen mislukt voor {webshop_url}: {e}")
 
+    melden("uitspraken controleren")
     controle_samenvatting = _controleer_uitspraken(webshop_url, meting_id, winkelnaam)
 
     # Alleen mailen als er iets te melden valt. Een wekelijks bericht dat er
@@ -856,6 +898,83 @@ def _klantgegevens(webshop_url):
         "controle": controle.vat_samen(controles) if controles else None,
         "beweging": waarschuwing.vergelijk(twee_rondes, _winkelnaam(webshop_url)),
     }
+
+
+_demo_status = {}
+
+
+def _demo_draaien(webshop_url):
+    """De hele keten voor een winkel die geen klant is, in één keer.
+
+    Bewust dezelfde route als bij een echte klant: eerst de gewone scan, dan
+    koopvragen, meten, beoordelen en controleren. Zou de demo een eigen kortere
+    weg nemen, dan laat je iets zien wat een klant nooit krijgt.
+
+    Er gaat geen mail uit. _meet_en_beoordeel verstuurt alleen als er een
+    e-mailadres meegegeven wordt, en dat doen we hier niet. Dat is de reden dat
+    deze functie geen e-mailadres kent: dan kan het ook niet per ongeluk.
+    """
+    try:
+        _demo_status[webshop_url] = "site scannen"
+        resultaat = run_scan(webshop_url)
+        if "error" in resultaat:
+            _demo_status[webshop_url] = f"mislukt: {resultaat['error'][:120]}"
+            return
+
+        # Als demo bewaren, niet als scan of monitoring. Daaraan herkennen we
+        # later welke winkels demo's zijn, en het houdt ze buiten de cijfers
+        # over echte klanten.
+        db.save_report("demo", resultaat["url"], None, resultaat.get("score", 0),
+                       resultaat.get("checks", []))
+
+        _meet_en_beoordeel(resultaat["url"],
+                           stap=lambda t: _demo_status.__setitem__(webshop_url, t))
+        _demo_status[webshop_url] = "klaar"
+    except Exception as e:
+        print(f"Demo mislukt voor {webshop_url}: {e}")
+        _demo_status[webshop_url] = f"mislukt: {str(e)[:120]}"
+
+
+@app.route("/admin/demo")
+def admin_demo():
+    """Demo-uitkomsten: de volledige meting voor een winkel die geen klant is.
+
+    Bedoeld om in een gesprek te laten zien wat iemand krijgt, in plaats van
+    het uit te leggen. Kost ongeveer een euro per winkel, dus het starten
+    gebeurt alleen op een knop en nooit vanzelf bij het openen van de pagina."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    webshop_url = (request.args.get("url") or "").strip()
+    if webshop_url:
+        # Onder dezelfde naam bijhouden als waaronder het rapport straks in de
+        # database komt. Zonder dit staat de status onder "dille-kamille.nl" en
+        # het rapport onder "https://dille-kamille.nl", en krijg je twee regels
+        # voor dezelfde winkel.
+        webshop_url = scan_engine.normalize_url(webshop_url)
+
+    if webshop_url and request.args.get("start") == "ja":
+        huidig = _demo_status.get(webshop_url, "")
+        if not huidig or huidig == "klaar" or huidig.startswith("mislukt"):
+            _demo_status[webshop_url] = "wachtrij"
+            threading.Thread(target=_demo_draaien, args=(webshop_url,), daemon=True).start()
+        # Terug zonder start=ja, anders begint elke keer verversen opnieuw.
+        return redirect(f"/admin/demo?key={admin_key}")
+
+    winkels = db.get_demo_webshops()
+    bekend = {w["webshop_url"] for w in winkels}
+    # Winkels die net gestart zijn staan nog niet in de database, maar moeten
+    # wel zichtbaar zijn, anders lijkt de knop niets gedaan te hebben.
+    for url, status in _demo_status.items():
+        if url not in bekend:
+            winkels.append({"webshop_url": url, "laatste": None, "score": None, "vragen": 0})
+    for w in winkels:
+        w["status"] = _demo_status.get(w["webshop_url"], "")
+
+    return render_template("admin_demo.html", winkels=winkels, sleutel=admin_key,
+                           bezig=any(w["status"] and w["status"] not in ("klaar",)
+                                     and not w["status"].startswith("mislukt") for w in winkels))
 
 
 @app.route("/admin/voorbeeld")
@@ -1003,6 +1122,37 @@ def admin_modellen():
         })
 
     return render_template("admin_modellen.html", resultaten=resultaten, sleutel=admin_key)
+
+
+@app.route("/admin/bezoekers")
+def admin_bezoekers():
+    """Wat er op de site gebeurt: hoeveel gratis scans, waar ze vandaan komen,
+    welke winkels het vaakst gescand worden en hoeveel er betaalden.
+
+    Zonder dit lanceer je blind: komt er niemand, of komen ze wel en haken ze
+    af? Dat zijn twee verschillende problemen."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    dagen = int(request.args.get("dagen", 30))
+    overzicht = db.scanoverzicht(dagen)
+    totaal = overzicht["totaal"] or {}
+    scans = totaal.get("scans") or 0
+    betaald = totaal.get("betaald") or 0
+    return render_template(
+        "admin_bezoekers.html",
+        dagen=dagen,
+        totaal=totaal,
+        # Bewust als "x van de y" en niet als percentage: bij kleine aantallen
+        # suggereert een percentage een precisie die er niet is.
+        betaald=betaald,
+        scans=scans,
+        per_dag=overzicht["per_dag"],
+        per_herkomst=overzicht["per_herkomst"],
+        top_winkels=overzicht["top_winkels"],
+        sleutel=admin_key,
+    )
 
 
 @app.route("/admin/kosten")

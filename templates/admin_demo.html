@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo-uitkomsten — Krillo</title>
+<meta name="robots" content="noindex">
+{% if bezig %}<meta http-equiv="refresh" content="20">{% endif %}
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:940px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:13.5px; font-family:var(--mono); margin-bottom:22px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:17px; margin:32px 0 12px;}
+  p.uitleg{font-size:13.5px; color:var(--ink-soft); margin-bottom:22px;}
+
+  .starter{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+           padding:18px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .starter input{flex:1; min-width:240px; padding:10px 12px; border:1.5px solid var(--line);
+                 border-radius:8px; font-family:var(--mono); font-size:13px; color:var(--ink);}
+  .starter button{padding:10px 18px; border-radius:8px; border:none; background:var(--coral);
+                  color:#fff; font-family:var(--disp); font-weight:600; font-size:13.5px; cursor:pointer;}
+  .kosten{font-size:12.5px; color:var(--ink-soft); margin-top:10px;}
+
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase;
+     color:var(--ink-soft); padding:11px 14px; border-bottom:1px solid var(--line); background:var(--paper);}
+  td{padding:12px 14px; font-size:13.5px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  td.getal{text-align:right; font-family:var(--mono); font-size:12.5px;}
+  td a{color:var(--coral-tekst); text-decoration:none; font-weight:500;}
+  td a:hover{text-decoration:underline;}
+  .winkel{font-family:var(--mono); font-size:12.5px;}
+
+  .status{display:inline-block; padding:3px 9px; border-radius:20px; font-size:11.5px;
+          font-family:var(--mono);}
+  .status.bezig{background:var(--amber-dim);}
+  .status.klaar{background:var(--teal-dim); color:#0E7A6D;}
+  .status.mis{background:var(--coral-dim); color:var(--coral-tekst);}
+
+  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+        padding:32px; text-align:center; color:var(--ink-soft);}
+  .acties{display:flex; gap:10px; flex-wrap:wrap; margin-top:28px;}
+  .knop{padding:10px 18px; border-radius:8px; font-size:13.5px; font-weight:600;
+        border:1.5px solid var(--line); color:var(--ink); background:var(--paper-raised);
+        text-decoration:none; display:inline-block; font-family:var(--disp);}
+  .voetnoot{font-size:12.5px; color:var(--ink-soft); margin-top:32px; line-height:1.7;
+            border-top:1px solid var(--line); padding-top:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Demo-uitkomsten</h1>
+  <div class="sub">De volledige meting voor een winkel die geen klant is</div>
+
+  <p class="uitleg">
+    Hiermee draai je precies dezelfde keten als bij een betalende klant: de site scannen,
+    koopvragen maken, die aan de AI-modellen stellen, de antwoorden beoordelen en de uitspraken
+    controleren. Daarna kan je bij "klantweergave" laten zien wat iemand voor zijn geld krijgt.
+    Er gaat geen enkele mail uit naar deze winkels.
+  </p>
+
+  <form class="starter" method="get" action="/admin/demo">
+    <input type="hidden" name="key" value="{{ sleutel }}">
+    <input type="hidden" name="start" value="ja">
+    <input type="text" name="url" placeholder="bijvoorbeeld dille-kamille.nl" required>
+    <button type="submit">Draai de hele demo</button>
+  </form>
+  <div class="kosten">
+    Eén demo kost ongeveer een euro aan AI-aanroepen en duurt een paar minuten. De pagina ververst
+    zichzelf zolang er iets loopt. De kostenrem geldt hier gewoon: zit je aan je daglimiet, dan
+    stopt de meting vanzelf.
+  </div>
+
+  <h2>Gedraaide demo's</h2>
+  {% if not winkels %}
+  <div class="leeg">Nog geen demo gedraaid. Vul hierboven een webshop in.</div>
+  {% else %}
+  <table>
+    <tr>
+      <th>Webshop</th>
+      <th style="text-align:right">Score</th>
+      <th style="text-align:right">Vragen</th>
+      <th>Status</th>
+      <th>Bekijken</th>
+    </tr>
+    {% for w in winkels %}
+    <tr>
+      <td class="winkel">{{ w.webshop_url }}</td>
+      <td class="getal">{{ w.score if w.score is not none else '-' }}</td>
+      <td class="getal">{{ w.vragen or '-' }}</td>
+      <td>
+        {% if not w.status and not w.vragen %}
+          <span class="status mis">niet afgemaakt</span>
+        {% elif not w.status %}
+          <span class="status klaar">klaar</span>
+        {% elif w.status == 'klaar' %}
+          <span class="status klaar">klaar</span>
+        {% elif w.status.startswith('mislukt') %}
+          <span class="status mis">{{ w.status }}</span>
+        {% else %}
+          <span class="status bezig">{{ w.status }}…</span>
+        {% endif %}
+      </td>
+      <td>
+        <a href="/admin/voorbeeld?key={{ sleutel }}&url={{ w.webshop_url }}">klantweergave</a>
+        &nbsp;·&nbsp;
+        <a href="/admin/beoordelingen?key={{ sleutel }}&url={{ w.webshop_url }}">details</a>
+        &nbsp;·&nbsp;
+        <a href="/admin/demo?key={{ sleutel }}&url={{ w.webshop_url }}&start=ja">opnieuw</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <div class="acties">
+    <a class="knop" href="/admin/kosten?key={{ sleutel }}">Naar de kosten</a>
+    <a class="knop" href="/admin/bezoekers?key={{ sleutel }}">Naar de bezoekers</a>
+    <a class="knop" href="/admin/modellen?key={{ sleutel }}">Naar de modellen</a>
+  </div>
+
+  <div class="voetnoot">
+    <strong>Wat je hiermee wel en niet doet.</strong> Dit is materiaal om te laten zien in een
+    gesprek, niet om ongevraagd naar die winkels te sturen. Een mail met "kijk eens hoe slecht je
+    scoort" leest als een dreigement en is precies het tegenovergestelde van waar Krillo voor staat.
+    <br><br>
+    <strong>Namen noemen.</strong> In een gesprek met één ondernemer mag je de namen laten zien, dat
+    is gewoon een meting. Zet je het openbaar op de site of op LinkedIn, laat de namen dan weg en
+    schrijf bijvoorbeeld "een bekende Nederlandse woonwinkel". Een openbare uitspraak over een winkel
+    met naam en toenaam is iets waar je op aangesproken kan worden, en je geeft gratis weg wat je
+    diezelfde winkel wil verkopen.
+    <br><br>
+    <strong>Status blijft niet bewaard.</strong> De regel "bezig" staat in het geheugen van de
+    server. Start Render opnieuw op, dan is die weg terwijl de demo zelf gewoon in de database
+    staat. Zie je bij een winkel geen status maar wel vragen, dan is hij klaar.
+  </div>
+</div>
+</body>
+</html>

@@ -840,6 +840,22 @@
 </footer>
 
 <script>
+  // Waar deze bezoeker vandaan kwam. Wordt eenmalig bij het laden bepaald en
+  // meegestuurd met de scan. Bewust geen cookie en geen identificatie: we
+  // willen alleen weten of een bericht ergens bezoekers oplevert.
+  var krilloHerkomst = (function(){
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var bron = (params.get('utm_source') || '').trim();
+      if (bron) return bron.toLowerCase().slice(0, 60);
+      if (!document.referrer) return null;
+      var domein = new URL(document.referrer).hostname.toLowerCase().replace('www.', '');
+      if (!domein || domein.indexOf('krillo.nl') !== -1) return null;
+      return domein.slice(0, 60);
+    } catch (e) { return null; }
+  })();
+  function bepaalHerkomst(){ return krilloHerkomst; }
+
 (function(){
   var answerEl = document.getElementById('simAnswer');
   var badgeEl = document.getElementById('simBadge');
@@ -1007,7 +1023,7 @@
     fetch('/api/scan', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url: url})
+      body: JSON.stringify({url: url, herkomst: bepaalHerkomst()})
     })
     .then(function(res){ return res.json().then(function(data){ return {ok: res.ok, data: data}; }); })
     .then(function(result){

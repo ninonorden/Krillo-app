@@ -171,6 +171,18 @@ def init_db():
                         UNIQUE (meting_id, uitspraak)
                     );
                 """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS gratis_scans (
+                        id SERIAL PRIMARY KEY,
+                        webshop_url TEXT,
+                        score INTEGER,
+                        gelukt BOOLEAN DEFAULT true,
+                        foutsoort TEXT,
+                        herkomst TEXT,
+                        gedaan_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_gratis_scans_dag ON gratis_scans (gedaan_op);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_controles_meting ON uitspraakcontroles (webshop_url, meting_id);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_beoordelingen_meting ON beoordelingen (webshop_url, meting_id);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_antwoorden_webshop ON ai_antwoorden (webshop_url, gesteld_op);")
@@ -1089,5 +1101,120 @@ def verwijder_beoordelingen(webshop_url, meting_id=None):
     except Exception as e:
         print(f"Beoordelingen verwijderen mislukt: {e}")
         return 0
+    finally:
+        conn.close()
+
+
+def bewaar_gratis_scan(webshop_url, score=None, gelukt=True, foutsoort=None, herkomst=None):
+    """Legt vast dat er een gratis scan gedaan is.
+
+    Bewust zonder IP-adres en zonder cookie. Wat we willen weten is hoeveel
+    mensen scannen, welke winkels, en waar ze vandaan komen. Daar is geen enkel
+    persoonsgegeven voor nodig, en dat scheelt een hoop uitleg in het
+    privacybeleid.
+
+    Mislukt dit, dan gaat de scan gewoon door. Een bezoeker mag nooit een
+    foutmelding krijgen omdat wij iets niet konden opschrijven."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO gratis_scans (webshop_url, score, gelukt, foutsoort, herkomst)
+                       VALUES (%s, %s, %s, %s, %s)""",
+                    (webshop_url, score, gelukt, (foutsoort or None), (herkomst or None)),
+                )
+        return True
+    except Exception as e:
+        print(f"Gratis scan vastleggen mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def scanoverzicht(dagen=30):
+    """De cijfers voor de beheerpagina: per dag, per herkomst, en welke winkels
+    het vaakst gescand worden."""
+    leeg = {"totaal": {}, "per_dag": [], "per_herkomst": [], "top_winkels": []}
+    conn = _get_connection()
+    if conn is None:
+        return leeg
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                sinds = f"now() - interval '{int(dagen)} days'"
+
+                cur.execute(f"""SELECT count(*) AS scans,
+                                       count(*) FILTER (WHERE gelukt) AS gelukt,
+                                       count(*) FILTER (WHERE NOT gelukt) AS mislukt,
+                                       count(DISTINCT webshop_url) AS winkels,
+                                       round(avg(score) FILTER (WHERE gelukt)) AS gemiddelde_score
+                                  FROM gratis_scans WHERE gedaan_op > {sinds}""")
+                totaal = cur.fetchone() or {}
+
+                cur.execute(f"""SELECT date_trunc('day', gedaan_op)::date AS dag, count(*) AS scans
+                                  FROM gratis_scans WHERE gedaan_op > {sinds}
+                              GROUP BY dag ORDER BY dag DESC LIMIT 60""")
+                per_dag = cur.fetchall()
+
+                cur.execute(f"""SELECT coalesce(herkomst, 'rechtstreeks') AS herkomst,
+                                       count(*) AS scans
+                                  FROM gratis_scans WHERE gedaan_op > {sinds}
+                              GROUP BY 1 ORDER BY scans DESC LIMIT 20""")
+                per_herkomst = cur.fetchall()
+
+                cur.execute(f"""SELECT webshop_url, count(*) AS scans, max(score) AS score
+                                  FROM gratis_scans
+                                 WHERE gedaan_op > {sinds} AND webshop_url IS NOT NULL
+                              GROUP BY webshop_url ORDER BY scans DESC, webshop_url LIMIT 25""")
+                top_winkels = cur.fetchall()
+
+                cur.execute(f"""SELECT count(*) AS betaald FROM rapporten
+                                 WHERE aangemaakt_op > {sinds} AND payment_id IS NOT NULL""")
+                betaald = (cur.fetchone() or {}).get("betaald") or 0
+
+                return {
+                    "totaal": dict(totaal, betaald=betaald),
+                    "per_dag": per_dag,
+                    "per_herkomst": per_herkomst,
+                    "top_winkels": top_winkels,
+                }
+    except Exception as e:
+        print(f"Scanoverzicht ophalen mislukt: {e}")
+        return leeg
+    finally:
+        conn.close()
+
+
+def get_demo_webshops():
+    """De webshops waarvoor een demo-meting gedraaid is.
+
+    Demo's herkennen we aan het rapporttype, zodat er geen aparte tabel voor
+    nodig is. Per winkel de laatste scan, en hoeveel vragen er beoordeeld zijn.
+    Dat laatste is het echte teken dat de demo af is: een rapport zonder
+    beoordelingen betekent dat de meting nog liep of misging."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT r.webshop_url,
+                              MAX(r.aangemaakt_op) AS laatste,
+                              MAX(r.score) AS score,
+                              (SELECT COUNT(DISTINCT b.vraag) FROM beoordelingen b
+                                WHERE b.webshop_url = r.webshop_url) AS vragen
+                         FROM rapporten r
+                        WHERE r.type = 'demo'
+                     GROUP BY r.webshop_url
+                     ORDER BY MAX(r.aangemaakt_op) DESC"""
+                )
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Demo-webshops ophalen mislukt: {e}")
+        return []
     finally:
         conn.close()

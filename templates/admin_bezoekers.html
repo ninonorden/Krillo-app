@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bezoekers — Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:900px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:13.5px; font-family:var(--mono); margin-bottom:28px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:17px; margin:32px 0 12px;}
+
+  .cijfers{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line);
+           border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:10px;}
+  .cijfer{background:var(--paper-raised); padding:20px;}
+  .cijfer-label{font-family:var(--mono); font-size:10px; text-transform:uppercase;
+                letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px;}
+  .cijfer-num{font-family:var(--disp); font-weight:700; font-size:26px;}
+  .cijfer-num small{font-size:14px; font-weight:500; color:var(--ink-soft);}
+  .duiding{font-size:13.5px; color:var(--ink-soft); margin-bottom:28px;}
+
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase;
+     color:var(--ink-soft); padding:11px 14px; border-bottom:1px solid var(--line); background:var(--paper);}
+  td{padding:11px 14px; font-size:13.5px; border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  td.getal{text-align:right; font-family:var(--mono); font-size:12.5px;}
+
+  .grafiek{display:flex; gap:5px; align-items:flex-end; height:110px; background:var(--paper-raised);
+           border:1px solid var(--line); border-radius:12px; padding:18px; overflow-x:auto;}
+  .balk-wrap{flex:1; min-width:16px; display:flex; flex-direction:column; align-items:center; gap:5px;}
+  .balk{width:100%; background:var(--coral); border-radius:3px 3px 0 0; min-height:3px;}
+  .balk-num{font-family:var(--mono); font-size:10px; color:var(--ink-soft);}
+  .balk-dag{font-family:var(--mono); font-size:9px; color:var(--ink-soft); white-space:nowrap;}
+
+  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+        padding:32px; text-align:center; color:var(--ink-soft);}
+  .acties{display:flex; gap:10px; flex-wrap:wrap; margin-top:28px;}
+  .knop{padding:10px 18px; border-radius:8px; font-size:13.5px; font-weight:600;
+        border:1.5px solid var(--line); color:var(--ink); background:var(--paper-raised);
+        text-decoration:none; display:inline-block; font-family:var(--disp);}
+  .voetnoot{font-size:12.5px; color:var(--ink-soft); margin-top:32px; line-height:1.7;
+            border-top:1px solid var(--line); padding-top:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Bezoekers</h1>
+  <div class="sub">Laatste {{ dagen }} dagen</div>
+
+  {% if not scans %}
+  <div class="leeg">
+    Er is in deze periode nog geen gratis scan gedaan.<br>
+    Zodra er iemand scant verschijnt het hier.
+  </div>
+  {% else %}
+
+  <div class="cijfers">
+    <div class="cijfer">
+      <div class="cijfer-label">Gratis scans</div>
+      <div class="cijfer-num">{{ totaal.scans }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Verschillende winkels</div>
+      <div class="cijfer-num">{{ totaal.winkels }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Betaald</div>
+      <div class="cijfer-num">{{ betaald }}<small> van {{ totaal.winkels }}</small></div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Gem. score</div>
+      <div class="cijfer-num">{{ totaal.gemiddelde_score or '-' }}</div>
+    </div>
+  </div>
+  <div class="duiding">
+    "Betaald" telt de betaalde bestellingen in deze periode af tegen het aantal verschillende
+    winkels dat gescand is. Dat is bewust geen percentage: bij deze aantallen zou dat een precisie
+    suggereren die er niet is.
+    {% if totaal.mislukt %}
+    Er mislukten {{ totaal.mislukt }} scans, meestal doordat een site ons niet binnenliet.
+    {% endif %}
+  </div>
+
+  <h2>Scans per dag</h2>
+  {% set hoogste = (per_dag | map(attribute='scans') | max) or 1 %}
+  <div class="grafiek">
+    {% for punt in per_dag | reverse %}
+    <div class="balk-wrap">
+      <div class="balk-num">{{ punt.scans }}</div>
+      <div class="balk" style="height:{{ (punt.scans / hoogste * 70) | round(0,'ceil') | int + 3 }}px;"></div>
+      <div class="balk-dag">{{ punt.dag.strftime('%d-%m') }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h2>Waar komen ze vandaan</h2>
+  <table>
+    <tr><th>Herkomst</th><th style="text-align:right">Scans</th></tr>
+    {% for r in per_herkomst %}
+    <tr><td>{{ r.herkomst }}</td><td class="getal">{{ r.scans }}</td></tr>
+    {% endfor %}
+  </table>
+
+  <h2>Meest gescande winkels</h2>
+  <table>
+    <tr><th>Webshop</th><th style="text-align:right">Scans</th><th style="text-align:right">Score</th></tr>
+    {% for r in top_winkels %}
+    <tr>
+      <td>{{ r.webshop_url }}</td>
+      <td class="getal">{{ r.scans }}</td>
+      <td class="getal">{{ r.score or '-' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <div class="acties">
+    <a class="knop" href="?key={{ sleutel }}&dagen=7">7 dagen</a>
+    <a class="knop" href="?key={{ sleutel }}&dagen=30">30 dagen</a>
+    <a class="knop" href="?key={{ sleutel }}&dagen=90">90 dagen</a>
+    <a class="knop" href="/admin/demo?key={{ sleutel }}">Naar de demo's</a>
+    <a class="knop" href="/admin/bestellingen?key={{ sleutel }}">Naar de bestellingen</a>
+    <a class="knop" href="/admin/kosten?key={{ sleutel }}">Naar de kosten</a>
+  </div>
+
+  <div class="voetnoot">
+    <strong>Wat hier wel en niet in staat.</strong> Elke gratis scan wordt vastgelegd met de datum,
+    de ingevulde webshop en waar de bezoeker vandaan kwam. Geen IP-adres, geen cookie, geen externe
+    partij. Daardoor hoeft er niets extra's in het privacybeleid en hoef je geen toestemming te
+    vragen.<br><br>
+    <strong>Herkomst.</strong> Staat er een campagnelabel in de link (utm_source), dan gebruiken we
+    dat. Anders het domein van de pagina waar iemand vandaan klikte. Wie het adres rechtstreeks
+    intypt of via een app komt, valt onder "rechtstreeks". Wil je weten welk bericht werkt, zet dan
+    achter je link <span style="font-family:var(--mono);">?utm_source=linkedin</span> of een andere
+    naam die je zelf kiest.
+  </div>
+</div>
+</body>
+</html>
