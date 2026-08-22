@@ -243,13 +243,18 @@ _VRAGERS = {
 }
 
 
-def stel_een_vraag(aanbieder, vraag):
+def stel_een_vraag(aanbieder, vraag, min_tekens=None):
     """Stelt een vraag aan een model, met een paar pogingen bij een storing.
 
     Mislukt het alsnog, dan geven we dat eerlijk terug in plaats van een leeg
     antwoord op te slaan alsof de winkel niet genoemd werd. Een mislukte meting
     is iets anders dan een meting zonder vermelding, en dat verschil moet in de
     cijfers terug te vinden zijn."""
+    # De ondergrens is bedoeld voor koopvragen, waar een antwoord van een paar
+    # woorden geen antwoord is. Bij een testvraag als "zeg alleen het woord
+    # werkt" is een kort antwoord juist goed, dus daar zetten we hem uit.
+    ondergrens = MIN_ANTWOORD_TEKENS if min_tekens is None else min_tekens
+
     vrager = _VRAGERS.get(aanbieder["provider"])
     if vrager is None:
         return {"gelukt": False, "foutsoort": "onbekende aanbieder", "pogingen": 0,
@@ -261,7 +266,7 @@ def stel_een_vraag(aanbieder, vraag):
         try:
             _wacht_je_beurt(aanbieder["provider"])
             antwoord, invoer, uitvoer = vrager(aanbieder["model"], vraag)
-            if len(antwoord) < MIN_ANTWOORD_TEKENS:
+            if len(antwoord) < ondergrens:
                 raise RuntimeError(
                     f"Antwoord van {len(antwoord)} tekens is te kort om iets uit te lezen. "
                     f"Dit telt als mislukt, niet als een winkel die niet genoemd werd."
@@ -549,7 +554,11 @@ def haal_modellijst(provider):
 def test_aanbieder(aanbieder):
     """Stelt een piepklein vraagje om te zien of deze combinatie van sleutel en
     modelnaam werkt. Kost bijna niets en geeft de echte foutmelding terug."""
-    uitkomst = stel_een_vraag(aanbieder, "Zeg alleen het woord: werkt")
+    uitkomst = stel_een_vraag(
+        aanbieder,
+        "Noem in twee zinnen een willekeurige Nederlandse webshop en waarom die bekend is.",
+        min_tekens=1,
+    )
     return {
         "gelukt": uitkomst["gelukt"],
         "antwoord": (uitkomst["antwoord"] or "")[:200],
