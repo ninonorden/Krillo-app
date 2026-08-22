@@ -165,11 +165,19 @@ Sitemap: https://www.krillo.nl/sitemap.xml
 
 @app.route("/sitemap.xml")
 def sitemap_xml():
-    paginas = ["/", "/artikelen", "/zo-meten-we", "/veelgestelde-vragen", "/over-ons", "/voorwaarden", "/privacybeleid", "/herroepen"]
-    paginas += [f"/artikelen/{a['slug']}" for a in artikelen.ARTIKELEN]
+    # Een sitemap zonder lastmod dwingt een zoekmachine om elke pagina steeds
+    # opnieuw op te halen om te zien of er iets veranderd is. Met een datum
+    # erbij weet hij meteen wat nieuw is, en dat is precies wat je wil op het
+    # moment dat je artikelen toevoegt.
+    nieuwste = max([a["datum"] for a in artikelen.ARTIKELEN] or ["2026-08-01"])
+    vast = ["/", "/artikelen", "/zo-meten-we", "/veelgestelde-vragen",
+            "/over-ons", "/voorwaarden", "/privacybeleid", "/herroepen"]
+    regels = [(p, nieuwste) for p in vast]
+    regels += [(f"/artikelen/{a['slug']}", a["datum"]) for a in artikelen.ARTIKELEN]
     urls = "".join(
-        f"<url><loc>https://www.krillo.nl{p}</loc><changefreq>weekly</changefreq></url>"
-        for p in paginas
+        f"<url><loc>https://www.krillo.nl{p}</loc>"
+        f"<lastmod>{datum}</lastmod><changefreq>weekly</changefreq></url>"
+        for p, datum in regels
     )
     inhoud = f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
     return Response(inhoud, mimetype="application/xml")
@@ -185,7 +193,10 @@ def llms_txt():
 
 ## Wat Krillo doet
 Krillo scant een webshop op dertien punten, verdeeld over toegang, leesbaarheid,
-structuur en inhoud. De gratis scan toont de score en alle bevindingen. De betaalde
+structuur en inhoud. De gratis scan toont de score en alle bevindingen. Daarnaast is
+er een gratis zichtbaarheidstest: die stelt vijf koopvragen aan ChatGPT en Gemini,
+zoals een koper ze zou stellen, en laat zien bij hoeveel vragen de webshop genoemd
+wordt en welke andere winkels er in het antwoord staan. De betaalde
 audit schrijft voor elk verbeterpunt een oplossing uit: herschreven teksten voor de
 producten van die specifieke webshop, en technische code die de eigenaar kan plakken.
 Het monitoring-abonnement scant elke week automatisch opnieuw.
@@ -200,11 +211,17 @@ marketingbureau en zonder technische kennis.
 - Monitoring: 39 euro per maand, maandelijks opzegbaar
 
 ## Belangrijke pagina's
-- Homepage en gratis scan: https://www.krillo.nl/
+- Homepage, gratis scan en gratis zichtbaarheidstest: https://www.krillo.nl/
 - Artikelen over AI-zichtbaarheid: https://www.krillo.nl/artikelen
 - Hoe we meten: https://www.krillo.nl/zo-meten-we
 - Veelgestelde vragen: https://www.krillo.nl/veelgestelde-vragen
 - Over Krillo en contact: https://www.krillo.nl/over-ons
+
+## Artikelen
+""" + "\n".join(
+        f"- {a['titel']}: https://www.krillo.nl/artikelen/{a['slug']}"
+        for a in artikelen.ARTIKELEN
+    ) + """
 
 ## Contact
 hallo@krillo.nl
