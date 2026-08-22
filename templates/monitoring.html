@@ -311,7 +311,9 @@
 
       <div class="meetuitleg">
         <strong>Hoe we dit meten.</strong> We stellen de vragen via de programmeerkoppeling
-        van ChatGPT en Gemini, zonder er iets omheen te zetten. Dat is een benadering van wat
+        van
+        {% for m in vermeldingen.modellen %}{{ m }}{% if not loop.last %}{% if loop.revindex == 2 %} en {% else %}, {% endif %}{% endif %}{% endfor %},
+        zonder er iets omheen te zetten. Dat is een benadering van wat
         iemand in de app zou zien: daar tellen ook de zoekresultaten van dat moment, de locatie
         en de geschiedenis van die persoon mee. We tonen daarom aantallen en geen percentages,
         want die zouden een precisie suggereren die er niet is.<br><br>

@@ -246,7 +246,7 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
       die op hetzelfde adres blijft staan. Bewaar de link hieronder.
     </p>
     <p style="font-size:13.5px; color:#3B3D57;">
-      We zijn nu ook bezig met je eerste meting bij ChatGPT en Gemini. We bedenken dertig
+      We zijn nu ook bezig met je eerste meting bij ChatGPT. We bedenken dertig
       koopvragen die kopers in jouw categorie echt stellen, en kijken of jouw webshop in het
       antwoord staat. Dat duurt ongeveer een kwartier. Kijk daarna nog eens op je pagina: je ziet
       dan bij hoeveel vragen je genoemd wordt, bij hoeveel je ook echt aanbevolen wordt, en welke

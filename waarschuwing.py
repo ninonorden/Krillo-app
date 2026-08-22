@@ -41,17 +41,43 @@ def _rondes(beoordelingen):
 
 
 def _cijfers(regels):
-    telbaar = [r for r in regels if r.get("winkel_kon_genoemd")]
+    """Telt per VRAAG, niet per antwoord.
+
+    Dit is belangrijker dan het lijkt. Doet een AI-aanbieder de ene week wel mee
+    en de andere week niet, dan verdubbelt of halveert het aantal antwoorden
+    terwijl er precies evenveel vragen gesteld zijn. Telden we per antwoord, dan
+    zouden twee rondes daardoor als onvergelijkbaar gelden en zou een klant
+    nooit te horen krijgen dat hij gestegen of gedaald is. Per vraag tellen
+    maakt de vergelijking bestand tegen een aanbieder die af en toe uitvalt.
+
+    Zeggen twee modellen iets anders over dezelfde vraag, dan telt de sterkste
+    uitkomst, net als op de klantpagina."""
+    per_vraag = {}
+    for r in regels:
+        vraag = r.get("vraag")
+        if not vraag:
+            continue
+        regel = per_vraag.setdefault(vraag, {
+            "telt_mee": False, "genoemd": False, "aanbevolen": False, "winkels": set(),
+        })
+        if r.get("winkel_kon_genoemd"):
+            regel["telt_mee"] = True
+            for w in (r.get("winkels") or []):
+                naam = (w.get("naam") or "").strip()
+                if naam:
+                    regel["winkels"].add(naam)
+        regel["genoemd"] = regel["genoemd"] or bool(r.get("genoemd"))
+        regel["aanbevolen"] = regel["aanbevolen"] or bool(r.get("aanbevolen"))
+
+    telbaar = [v for v in per_vraag.values() if v["telt_mee"]]
     winkels = {}
-    for r in telbaar:
-        for w in (r.get("winkels") or []):
-            naam = (w.get("naam") or "").strip()
-            if naam:
-                winkels[naam] = winkels.get(naam, 0) + 1
+    for v in telbaar:
+        for naam in v["winkels"]:
+            winkels[naam] = winkels.get(naam, 0) + 1
     return {
         "telbaar": len(telbaar),
-        "genoemd": len([r for r in telbaar if r.get("genoemd")]),
-        "aanbevolen": len([r for r in telbaar if r.get("aanbevolen")]),
+        "genoemd": len([v for v in telbaar if v["genoemd"]]),
+        "aanbevolen": len([v for v in telbaar if v["aanbevolen"]]),
         "winkels": winkels,
     }
 
