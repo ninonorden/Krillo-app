@@ -1,5 +1,5 @@
 """
-Vezora - scan-engine, versie 3: de volledige gratis scan.
+Krillo - scan-engine, versie 3: de volledige gratis scan.
 
 Dit haalt zoveel mogelijk uit een enkele scan van een pagina, verdeeld
 over vier categorieen die samen bepalen of AI een site kan vinden,
@@ -610,6 +610,12 @@ def run_scan(url):
     return {
         "url": url, "score": score, "checks": checks, "voorbeeldfixes": fix_previews,
         "gevonden_paginas": [p[0] for p in extra_htmls],
+        # Bewust geen controlepunt maar losse informatie. Op welk platform een
+        # winkel draait is geen goed of fout, dus het hoort niet in de score.
+        # Voor een benchmark over tientallen winkels is het wel het verschil
+        # tussen "de helft wordt niet genoemd" en "de helft wordt niet genoemd,
+        # en bij Shopify-winkels is dat twee derde".
+        "platform": herken_platform(html),
     }
 
 
@@ -653,3 +659,41 @@ def haal_sitetekst(url, max_tekens=12000):
             break
 
     return "\n\n".join(stukken)[:max_tekens]
+
+
+# ---------------------------------------------------------------------------
+# Welk winkelplatform draait hieronder?
+# ---------------------------------------------------------------------------
+
+# Elk platform laat sporen achter in de HTML. Dit is geen wetenschap en het mist
+# soms iets, maar over tientallen winkels tegelijk is het genoeg om te zien of
+# bijvoorbeeld Shopify-winkels het anders doen dan de rest.
+#
+# De volgorde telt: een Shopify-winkel met een WordPress-blog eronder zou anders
+# als WooCommerce geteld worden. Daarom staat het duidelijkste spoor bovenaan.
+PLATFORM_SPOREN = [
+    ("Shopify", ["cdn.shopify.com", "shopify.theme", "myshopify.com", "shopifycdn.com"]),
+    ("Lightspeed", ["lightspeedhq", "shoplightspeed.com", "static.webshopapp.com"]),
+    ("CCV Shop", ["ccvshop.nl", "ccvshop.be"]),
+    ("Shopware", ["shopware", "/widgets/emotion"]),
+    ("Magento", ["mage/cookies", "magento", "/static/version"]),
+    ("PrestaShop", ["prestashop", "/modules/ps_"]),
+    ("Wix", ["wix.com", "wixstatic.com", "parastorage.com"]),
+    ("Squarespace", ["squarespace.com", "static1.squarespace.com"]),
+    ("WooCommerce", ["woocommerce", "wp-content/plugins/woocommerce"]),
+    ("WordPress", ["wp-content", "wp-includes"]),
+]
+
+
+def herken_platform(html):
+    """Raadt op welk winkelplatform een site draait.
+
+    Geeft None terug als er niets herkenbaars in staat. Dat is bewust: liever
+    "onbekend" dan een gok die in een benchmark als feit gaat tellen."""
+    if not html:
+        return None
+    laag = html.lower()
+    for naam, sporen in PLATFORM_SPOREN:
+        if any(spoor in laag for spoor in sporen):
+            return naam
+    return None

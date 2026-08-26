@@ -32,6 +32,7 @@ import controle
 import verklaring
 import waarschuwing
 import zichtbaarheid
+import benchmark
 
 app = Flask(__name__)
 db.init_db()
@@ -921,7 +922,8 @@ def _beoordeel_achtergrond(webshop_url, meting_id, winkelnaam):
             _beoordelen_bezig.discard(webshop_url)
 
 
-def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None, stap=None):
+def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
+                       stap=None, max_vragen=None, controleer=True):
     """De hele keten van fase 5 achter elkaar: meten, beoordelen, controleren en
     zo nodig waarschuwen.
 
@@ -953,7 +955,7 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
     winkelnaam = _winkelnaam(webshop_url)
 
     melden("vragen stellen aan AI")
-    samenvatting = metingen.meet_webshop(webshop_url)
+    samenvatting = metingen.meet_webshop(webshop_url, max_vragen=max_vragen)
     meting_id = (samenvatting or {}).get("meting_id") or db.laatste_meting_id(webshop_url)
     if not meting_id:
         melden("mislukt: er is niets gemeten")
@@ -965,8 +967,14 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
     except Exception as e:
         print(f"Beoordelen mislukt voor {webshop_url}: {e}")
 
-    melden("uitspraken controleren")
-    controle_samenvatting = _controleer_uitspraken(webshop_url, meting_id, winkelnaam)
+    # Bij een benchmark slaan we de uitspraakcontrole over. Die kost een extra
+    # AI-aanroep per winkel en levert een oordeel op over die ene winkel, terwijl
+    # een benchmark alleen naar het patroon over alle winkels kijkt. Over zestig
+    # winkels scheelt dat zo een tientje voor iets wat je toch niet gebruikt.
+    controle_samenvatting = None
+    if controleer:
+        melden("uitspraken controleren")
+        controle_samenvatting = _controleer_uitspraken(webshop_url, meting_id, winkelnaam)
 
     # Alleen mailen als er iets te melden valt. Een wekelijks bericht dat er
     # niets veranderd is, leert een klant om je mail weg te klikken.
@@ -1050,24 +1058,43 @@ def _demo_werker():
             if not _demo_wachtrij:
                 _demo_werker_draait[0] = False
                 return
-            url = _demo_wachtrij.pop(0)
-        _demo_draaien(url)
+            url, benchmark_stand = _demo_wachtrij.pop(0)
+        _demo_draaien(url, benchmark_stand)
 
 
-def _demo_inplannen(urls):
+def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False):
     """Zet winkels in de wachtrij en start de werker als die stilstaat.
 
     Geeft terug hoeveel er echt bijgekomen zijn. Een winkel die al in de rij
-    staat of al loopt, komt er niet nog een keer bij: dan zou je twee keer
-    betalen voor dezelfde meting."""
+    staat, al loopt, of al een afgeronde meting heeft, komt er niet nog een keer
+    bij: dan zou je twee keer betalen voor dezelfde meting.
+
+    Die laatste controle gaat tegen de database aan en niet tegen het geheugen,
+    en dat is precies het punt. Bij een benchmark van zestig winkels loopt de
+    wachtrij uren. Herstart Render tussendoor, dan is de wachtrij weg terwijl de
+    afgeronde metingen gewoon bewaard zijn. Zonder deze controle zou je de lijst
+    opnieuw plakken en alles nog een keer betalen."""
+    al_gedaan = set()
+    if not opnieuw:
+        try:
+            al_gedaan = {w["webshop_url"] for w in db.get_demo_webshops()
+                         if (w.get("vragen") or 0) > 0}
+        except Exception as e:
+            print(f"Kon niet nakijken welke demo's al gedaan zijn: {e}")
+
     toegevoegd = 0
+    overgeslagen = 0
     with _demo_slot:
         for url in urls:
             huidig = _demo_status.get(url, "")
             bezig = huidig and huidig != "klaar" and not huidig.startswith("mislukt")
-            if url in _demo_wachtrij or bezig:
+            if url in al_gedaan:
+                overgeslagen += 1
+                _demo_status.setdefault(url, "klaar")
                 continue
-            _demo_wachtrij.append(url)
+            if any(w[0] == url for w in _demo_wachtrij) or bezig:
+                continue
+            _demo_wachtrij.append((url, benchmark_stand))
             _demo_status[url] = "in de wachtrij"
             toegevoegd += 1
         starten = toegevoegd and not _demo_werker_draait[0]
@@ -1075,10 +1102,15 @@ def _demo_inplannen(urls):
             _demo_werker_draait[0] = True
     if starten:
         threading.Thread(target=_demo_werker, daemon=True).start()
+    if overgeslagen:
+        print(f"{overgeslagen} winkel(s) overgeslagen, die waren al gemeten.")
     return toegevoegd
 
 
-def _demo_draaien(webshop_url):
+BENCHMARK_VRAGEN = int(os.environ.get("BENCHMARK_VRAGEN", "5"))
+
+
+def _demo_draaien(webshop_url, benchmark_stand=False):
     """De hele keten voor een winkel die geen klant is, in één keer.
 
     Bewust dezelfde route als bij een echte klant: eerst de gewone scan, dan
@@ -1101,9 +1133,14 @@ def _demo_draaien(webshop_url):
         # over echte klanten.
         db.save_report("demo", resultaat["url"], None, resultaat.get("score", 0),
                        resultaat.get("checks", []))
+        db.zet_platform(resultaat["url"], resultaat.get("platform"))
 
-        _meet_en_beoordeel(resultaat["url"],
-                           stap=lambda t: _demo_status.__setitem__(webshop_url, t))
+        _meet_en_beoordeel(
+            resultaat["url"],
+            stap=lambda t: _demo_status.__setitem__(webshop_url, t),
+            max_vragen=BENCHMARK_VRAGEN if benchmark_stand else None,
+            controleer=not benchmark_stand,
+        )
         _demo_status[webshop_url] = "klaar"
     except Exception as e:
         print(f"Demo mislukt voor {webshop_url}: {e}")
@@ -1130,7 +1167,12 @@ def admin_demo():
             for u in re.split(r"[\s,;]+", ruw) if u.strip()]
 
     if urls and (request.args.get("start") == "ja" or request.form.get("start") == "ja"):
-        _demo_inplannen(urls)
+        benchmark_stand = (request.form.get("benchmark") == "ja"
+                           or request.args.get("benchmark") == "ja")
+        # De "opnieuw"-link naast een winkel moet wel opnieuw meten. Een lijst
+        # plakken niet: dan wil je alleen de winkels die nog niet gedaan zijn.
+        opnieuw = request.args.get("opnieuw") == "ja"
+        _demo_inplannen(urls, benchmark_stand, opnieuw)
         # Terug zonder start=ja, anders begint elke keer verversen opnieuw.
         return redirect(f"/admin/demo?key={admin_key}")
 
@@ -1148,6 +1190,30 @@ def admin_demo():
                            wachtrij=len(_demo_wachtrij),
                            bezig=any(w["status"] and w["status"] not in ("klaar",)
                                      and not w["status"].startswith("mislukt") for w in winkels))
+
+
+@app.route("/admin/benchmark")
+def admin_benchmark():
+    """Telt op wat er over alle gemeten winkels uitkwam.
+
+    Dit is de pagina waar je je publiceerbare zinnen vandaan haalt. De losse
+    winkels staan eronder zodat je kan controleren of een uitschieter klopt,
+    maar wat je naar buiten brengt zijn alleen de aantallen."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    regels = db.benchmark_regels()
+    cijfers = benchmark.tel_op(regels)
+    platforms = benchmark.per_platform(regels)
+    return render_template(
+        "admin_benchmark.html",
+        regels=regels,
+        c=cijfers,
+        platforms=platforms,
+        zinnen=benchmark.kernzinnen(cijfers, platforms),
+        sleutel=admin_key,
+    )
 
 
 @app.route("/admin/voorbeeld")

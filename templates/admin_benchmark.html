@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Benchmark — Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:980px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:13.5px; font-family:var(--mono); margin-bottom:26px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:17px; margin:34px 0 12px;}
+  p.uitleg{font-size:13.5px; color:var(--ink-soft); margin-bottom:18px; max-width:70ch;}
+
+  .cijfers{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px;
+           background:var(--line); border:1px solid var(--line); border-radius:12px;
+           overflow:hidden; margin-bottom:8px;}
+  .cijfer{background:var(--paper-raised); padding:18px;}
+  .cijfer-label{font-family:var(--mono); font-size:10px; text-transform:uppercase;
+                letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px;}
+  .cijfer-num{font-family:var(--disp); font-weight:700; font-size:26px;}
+  .cijfer-num small{font-size:13px; font-weight:500; color:var(--ink-soft);}
+
+  .zinnen{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+          padding:20px 22px; margin-bottom:8px;}
+  .zinnen p{font-size:14.5px; line-height:1.7; margin-bottom:12px; max-width:74ch;}
+  .zinnen p:last-of-type{margin-bottom:0;}
+  .knop{padding:9px 16px; border-radius:8px; font-size:13px; font-weight:600;
+        border:1.5px solid var(--line); color:var(--ink); background:var(--paper-raised);
+        text-decoration:none; display:inline-block; font-family:var(--disp); cursor:pointer;}
+  .knop.vol{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+  .knop.gelukt{background:var(--teal); color:#fff; border-color:var(--teal);}
+
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase;
+     color:var(--ink-soft); padding:11px 14px; border-bottom:1px solid var(--line);
+     background:var(--paper); white-space:nowrap;}
+  td{padding:10px 14px; font-size:13.5px; border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  td.getal{text-align:right; font-family:var(--mono); font-size:12.5px;
+           font-variant-numeric:tabular-nums; white-space:nowrap;}
+  td.winkel{font-family:var(--mono); font-size:12px;}
+  .tag{display:inline-block; font-family:var(--mono); font-size:10px; padding:2px 7px;
+       border-radius:20px; white-space:nowrap;}
+  .tag.nooit{background:var(--coral-dim); color:var(--coral-tekst);}
+  .tag.wel{background:var(--teal-dim); color:#0E7A6D;}
+  .tag.blok{background:var(--amber-dim); color:#8A5A00;}
+  .tag.leeg{background:var(--line); color:var(--ink-soft);}
+  .tabelbox{overflow-x:auto; border-radius:12px;}
+
+  .leeg-blok{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+             padding:32px; text-align:center; color:var(--ink-soft);}
+  .acties{display:flex; gap:10px; flex-wrap:wrap; margin-top:28px;}
+  .voetnoot{font-size:12.5px; color:var(--ink-soft); margin-top:32px; line-height:1.7;
+            border-top:1px solid var(--line); padding-top:16px; max-width:78ch;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Benchmark</h1>
+  <div class="sub">Alle winkels waarvoor een demo gedraaid is</div>
+
+  {% if not regels %}
+  <div class="leeg-blok">
+    Er is nog geen enkele demo gedraaid.<br>
+    Zet op <a href="/admin/demo?key={{ sleutel }}">de demopagina</a> een lijst webshops in,
+    dan verschijnt de optelling hier.
+  </div>
+  {% else %}
+
+  <div class="cijfers">
+    <div class="cijfer">
+      <div class="cijfer-label">Winkels</div>
+      <div class="cijfer-num">{{ c.winkels }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Gelukt gemeten</div>
+      <div class="cijfer-num">{{ c.gemeten }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Nooit genoemd</div>
+      <div class="cijfer-num">{{ c.nooit_genoemd }}<small> van {{ c.gemeten }}</small></div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Blokkeert AI-robots</div>
+      <div class="cijfer-num">{{ c.blokkeren_robots }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Gem. score</div>
+      <div class="cijfer-num">{{ c.gemiddelde_score if c.gemiddelde_score is not none else '-' }}</div>
+    </div>
+  </div>
+  <p class="uitleg">
+    Winkels waarvan de meting niet lukte tellen niet mee als "nooit genoemd". Dat zijn er nu
+    {{ c.niet_gelukt }}. Ze als niet-genoemd meetellen zou het beeld somberder maken dan het is,
+    en daar zou je terecht op afgerekend worden.
+  </p>
+
+  <h2>Zinnen die je kan publiceren</h2>
+  <div class="zinnen">
+    {% for z in zinnen %}<p id="zin{{ loop.index }}">{{ z }}</p>{% endfor %}
+  </div>
+  <button class="knop vol" type="button" id="kopieer">Kopieer alle zinnen</button>
+
+  {% if platforms %}
+  <h2>Per winkelplatform</h2>
+  <div class="tabelbox">
+    <table>
+      <tr>
+        <th>Platform</th><th style="text-align:right">Gemeten</th>
+        <th style="text-align:right">Nooit genoemd</th><th style="text-align:right">Ooit aanbevolen</th>
+        <th style="text-align:right">Gem. score</th>
+      </tr>
+      {% for p in platforms %}
+      <tr>
+        <td>{{ p.platform }}</td>
+        <td class="getal">{{ p.gemeten }}</td>
+        <td class="getal">{{ p.nooit_genoemd }}</td>
+        <td class="getal">{{ p.ooit_aanbevolen }}</td>
+        <td class="getal">{{ p.gemiddelde_score if p.gemiddelde_score is not none else '-' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <p class="uitleg" style="margin-top:12px;">
+    Platforms met minder dan drie gemeten winkels staan er niet bij. Bij twee winkels is elk
+    verschil toeval, en een uitsplitsing zou dan een zekerheid suggereren die er niet is.
+  </p>
+  {% endif %}
+
+  <h2>Per winkel</h2>
+  <div class="tabelbox">
+    <table>
+      <tr>
+        <th>Webshop</th><th>Platform</th><th style="text-align:right">Score</th>
+        <th style="text-align:right">Genoemd</th><th style="text-align:right">Aanbevolen</th><th>Bijzonderheden</th>
+      </tr>
+      {% for r in regels %}
+      <tr>
+        <td class="winkel">{{ r.webshop_url }}</td>
+        <td>{{ r.platform or '-' }}</td>
+        <td class="getal">{{ r.score if r.score is not none else '-' }}</td>
+        <td class="getal">
+          {% if r.vragen %}{{ r.genoemd }} van {{ r.vragen }}{% else %}-{% endif %}
+        </td>
+        <td class="getal">{% if r.vragen %}{{ r.aanbevolen }}{% else %}-{% endif %}</td>
+        <td>
+          {% if not r.vragen %}<span class="tag leeg">niet gemeten</span>
+          {% elif r.genoemd == 0 %}<span class="tag nooit">nooit genoemd</span>
+          {% else %}<span class="tag wel">genoemd</span>{% endif %}
+          {% if r.blokkeert_robots %}<span class="tag blok">blokkeert robots</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="acties">
+    <a class="knop" href="/admin/demo?key={{ sleutel }}">Naar de demo's</a>
+    <a class="knop" href="/admin/bezoekers?key={{ sleutel }}">Naar de bezoekers</a>
+    <a class="knop" href="/admin/kosten?key={{ sleutel }}">Naar de kosten</a>
+  </div>
+
+  <div class="voetnoot">
+    <strong>Namen blijven binnen.</strong> De tabel per winkel staat hier zodat je kan
+    controleren of een uitschieter klopt. Wat je publiceert zijn de aantallen en de zinnen
+    erboven, zonder winkelnamen. Een openbare uitspraak over een winkel met naam en toenaam is
+    iets waar je op aangesproken kan worden, en je geeft gratis weg wat je diezelfde winkel wil
+    verkopen.<br><br>
+    <strong>Genoemd telt per vraag.</strong> Beantwoorden twee modellen dezelfde vraag en staat de
+    winkel in allebei de antwoorden, dan is dat één vraag waarbij hij genoemd werd en niet twee.
+    Precies zoals op de klantpagina, zodat deze cijfers en die van een klant elkaar nooit
+    tegenspreken.
+  </div>
+</div>
+
+<script>
+  var knop = document.getElementById('kopieer');
+  if (knop) {
+    knop.addEventListener('click', function(){
+      var zinnen = [];
+      document.querySelectorAll('.zinnen p').forEach(function(p){ zinnen.push(p.innerText); });
+      var tekst = zinnen.join('\n\n');
+      var klaar = function(){
+        knop.textContent = 'Gekopieerd';
+        knop.classList.add('gelukt');
+        setTimeout(function(){
+          knop.textContent = 'Kopieer alle zinnen';
+          knop.classList.remove('gelukt');
+        }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(tekst).then(klaar, function(){});
+      }
+    });
+  }
+</script>
+</body>
+</html>

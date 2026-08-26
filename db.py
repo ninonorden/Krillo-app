@@ -113,6 +113,7 @@ def init_db():
                         bijgewerkt_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                cur.execute("ALTER TABLE winkelprofielen ADD COLUMN IF NOT EXISTS platform TEXT;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS ai_antwoorden (
                         id SERIAL PRIMARY KEY,
@@ -1390,6 +1391,109 @@ def zichtbaarheidstest_leads(limit=200):
                 return [dict(r) for r in cur.fetchall()]
     except Exception as e:
         print(f"Leads ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def zet_platform(webshop_url, platform):
+    """Bewaart op welk winkelplatform een site draait.
+
+    Staat bij het winkelprofiel en niet bij het rapport, want het platform hoort
+    bij de winkel en niet bij een losse meting. Is het onbekend, dan schrijven we
+    niets weg: een gat is eerlijker dan een gok."""
+    if not platform:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO winkelprofielen (webshop_url, platform)
+                       VALUES (%s, %s)
+                       ON CONFLICT (webshop_url) DO UPDATE SET platform = EXCLUDED.platform""",
+                    (webshop_url, platform),
+                )
+        return True
+    except Exception as e:
+        print(f"Platform bewaren mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def benchmark_regels():
+    """Eén regel per winkel waarvoor een demo gedraaid is.
+
+    Genoemd wordt per VRAAG geteld en niet per antwoord, net als overal waar een
+    klant meekijkt. Anders verdubbelen de cijfers zodra er twee modellen meedoen
+    en klopt de benchmark niet met wat een klant op zijn eigen pagina ziet.
+
+    Alleen de laatste meetronde per winkel telt mee."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    WITH demos AS (
+                        SELECT webshop_url,
+                               MAX(score)         AS score,
+                               MAX(aangemaakt_op) AS gemeten_op
+                          FROM rapporten
+                         WHERE type = 'demo'
+                      GROUP BY webshop_url
+                    ),
+                    blokkade AS (
+                        SELECT DISTINCT r.webshop_url
+                          FROM rapporten r, jsonb_array_elements(r.checks) c
+                         WHERE r.type = 'demo'
+                           AND c->>'id' = 'robots'
+                           AND (c->>'score')::int = 0
+                    ),
+                    ronde AS (
+                        SELECT DISTINCT ON (webshop_url) webshop_url, meting_id
+                          FROM beoordelingen
+                      ORDER BY webshop_url, beoordeeld_op DESC
+                    ),
+                    per_vraag AS (
+                        SELECT b.webshop_url, b.vraag,
+                               bool_or(b.winkel_kon_genoemd)  AS telt_mee,
+                               bool_or(b.genoemd)             AS genoemd,
+                               bool_or(b.aanbevolen)          AS aanbevolen
+                          FROM beoordelingen b
+                          JOIN ronde r ON r.webshop_url = b.webshop_url
+                                      AND r.meting_id  = b.meting_id
+                      GROUP BY b.webshop_url, b.vraag
+                    ),
+                    per_winkel AS (
+                        SELECT webshop_url,
+                               COUNT(*) FILTER (WHERE telt_mee)                AS vragen,
+                               COUNT(*) FILTER (WHERE telt_mee AND genoemd)    AS genoemd,
+                               COUNT(*) FILTER (WHERE telt_mee AND aanbevolen) AS aanbevolen
+                          FROM per_vraag
+                      GROUP BY webshop_url
+                    )
+                    SELECT d.webshop_url,
+                           d.score,
+                           d.gemeten_op,
+                           w.platform,
+                           COALESCE(p.vragen, 0)     AS vragen,
+                           COALESCE(p.genoemd, 0)    AS genoemd,
+                           COALESCE(p.aanbevolen, 0) AS aanbevolen,
+                           (bl.webshop_url IS NOT NULL) AS blokkeert_robots
+                      FROM demos d
+                      LEFT JOIN per_winkel p        ON p.webshop_url  = d.webshop_url
+                      LEFT JOIN winkelprofielen w   ON w.webshop_url  = d.webshop_url
+                      LEFT JOIN blokkade bl         ON bl.webshop_url = d.webshop_url
+                  ORDER BY d.gemeten_op DESC
+                """)
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Benchmarkregels ophalen mislukt: {e}")
         return []
     finally:
         conn.close()
