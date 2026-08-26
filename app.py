@@ -305,6 +305,60 @@ def _draai_zichtbaarheidstest(test_id, webshop_url, email, base_url):
         print(f"Zichtbaarheidstest mislukt voor {webshop_url}: {e}")
 
 
+def _draai_voorproef(test_id, webshop_url):
+    """De korte meting die meteen na de gratis scan draait, zonder e-mailadres."""
+    try:
+        zichtbaarheid.draai(test_id, webshop_url,
+                            aantal_vragen=zichtbaarheid.VOORPROEF_VRAGEN,
+                            max_aanbieders=1)
+    except Exception as e:
+        print(f"Voorproef mislukt voor {webshop_url}: {e}")
+
+
+@app.route("/api/voorproef", methods=["POST"])
+def api_voorproef():
+    """Drie koopvragen, meteen na de gratis scan, zonder dat er iets gevraagd wordt.
+
+    Dit bestaat omdat de gratis scan zonder dit een SEO-tool lijkt. Het cijfer
+    over dertien technische punten is het minst bijzondere wat Krillo doet, en
+    dat stond bovenaan terwijl het enige onderscheidende eronder achter een
+    formulier zat. Wie niet doorklikte, en dat is bijna iedereen, oordeelde over
+    het verkeerde product.
+
+    Geen e-mailadres, dus ook geen mail. De rem is dezelfde als bij de volledige
+    test, en dezelfde winkel krijgt binnen dertig dagen de bewaarde uitslag."""
+    if not zichtbaarheid.VOORPROEF_AAN:
+        return jsonify({"status": "uit"}), 200
+
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "Geen webshop opgegeven."}), 400
+    url = scan_engine.normalize_url(url)
+
+    eerder = db.laatste_geslaagde_test(url, zichtbaarheid.HERGEBRUIK_DAGEN)
+    if eerder and eerder.get("resultaat"):
+        return jsonify({"status": "klaar", "resultaat": eerder["resultaat"],
+                        "zin": zichtbaarheid.samenvattingszin(eerder["resultaat"], url)})
+
+    mag, _ = zichtbaarheid.mag_starten()
+    if not mag:
+        # Bewust geen foutmelding aan de bezoeker. Hij vroeg hier niet om, hij
+        # deed gewoon een scan. Dan hoort hij geen melding te krijgen dat er
+        # iets niet kon.
+        return jsonify({"status": "uit"}), 200
+
+    # Zonder e-mailadres, dus met een vaste plaatsaanduiding. Dat is geen
+    # persoonsgegeven en er gaat nooit mail heen.
+    test_id = db.start_zichtbaarheidstest(url, "voorproef@krillo.nl", False, _herkomst(),
+                                          soort="voorproef")
+    if not test_id:
+        return jsonify({"status": "uit"}), 200
+
+    threading.Thread(target=_draai_voorproef, args=(test_id, url), daemon=True).start()
+    return jsonify({"test_id": test_id, "status": "bezig"})
+
+
 @app.route("/api/zichtbaarheidstest", methods=["POST"])
 def api_zichtbaarheidstest():
     """Fase 5 punt 12. Start de gratis zichtbaarheidstest voor een webshop.
@@ -331,7 +385,10 @@ def api_zichtbaarheidstest():
     # Is deze winkel kortgeleden al gemeten, dan hergebruiken we die uitslag.
     # Scheelt geld, maar belangrijker: wie zijn uitslag doorstuurt hoort niet
     # drie verschillende cijfers te zien door de ruis in AI-antwoorden.
-    eerder = db.laatste_geslaagde_test(url, zichtbaarheid.HERGEBRUIK_DAGEN)
+    # Met soort="volledig": een voorproef van drie vragen mag nooit doorgaan
+    # voor de volledige test van vijf. Wie zijn adres achterlaat hoort de test
+    # te krijgen waarvoor hij tekende, niet de korte versie die hij al zag.
+    eerder = db.laatste_geslaagde_test(url, zichtbaarheid.HERGEBRUIK_DAGEN, soort="volledig")
     if eerder and eerder.get("resultaat"):
         # Als hergebruik wegschrijven, want deze test kost niets. Telden we hem
         # mee in de dagteller, dan zou een uitslag die tien keer gedeeld wordt

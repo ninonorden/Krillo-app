@@ -207,6 +207,7 @@ def init_db():
                     );
                 """)
                 cur.execute("ALTER TABLE zichtbaarheidstests ADD COLUMN IF NOT EXISTS hergebruikt BOOLEAN DEFAULT false;")
+                cur.execute("ALTER TABLE zichtbaarheidstests ADD COLUMN IF NOT EXISTS soort TEXT DEFAULT 'volledig';")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_zichtbaarheid_url ON zichtbaarheidstests (webshop_url, aangevraagd_op);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_zichtbaarheid_dag ON zichtbaarheidstests (aangevraagd_op);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_controles_meting ON uitspraakcontroles (webshop_url, meting_id);")
@@ -1250,7 +1251,8 @@ def get_demo_webshops():
 # De gratis zichtbaarheidstest (fase 5 punt 12)
 # ---------------------------------------------------------------------------
 
-def start_zichtbaarheidstest(webshop_url, email, nieuwsbrief=False, herkomst=None, hergebruikt=False):
+def start_zichtbaarheidstest(webshop_url, email, nieuwsbrief=False, herkomst=None,
+                             hergebruikt=False, soort='volledig'):
     """Legt een aanvraag vast en geeft het id terug.
 
     Het akkoordmoment wordt hier gezet en niet later, want dat is het bewijs
@@ -1264,10 +1266,11 @@ def start_zichtbaarheidstest(webshop_url, email, nieuwsbrief=False, herkomst=Non
             with conn.cursor() as cur:
                 cur.execute(
                     """INSERT INTO zichtbaarheidstests
-                       (webshop_url, email, nieuwsbrief_akkoord, akkoord_op, herkomst, status, hergebruikt)
-                       VALUES (%s, %s, %s, now(), %s, %s, %s) RETURNING id""",
+                       (webshop_url, email, nieuwsbrief_akkoord, akkoord_op, herkomst,
+                        status, hergebruikt, soort)
+                       VALUES (%s, %s, %s, now(), %s, %s, %s, %s) RETURNING id""",
                     (webshop_url, email, bool(nieuwsbrief), (herkomst or None),
-                     'klaar' if hergebruikt else 'wachtrij', bool(hergebruikt)),
+                     'klaar' if hergebruikt else 'wachtrij', bool(hergebruikt), soort),
                 )
                 return cur.fetchone()[0]
     except Exception as e:
@@ -1323,7 +1326,7 @@ def get_zichtbaarheidstest(test_id):
         conn.close()
 
 
-def laatste_geslaagde_test(webshop_url, dagen=30):
+def laatste_geslaagde_test(webshop_url, dagen=30, soort=None):
     """De laatste geslaagde test voor deze winkel binnen zoveel dagen.
 
     Hiermee hoeft dezelfde winkel niet elke keer opnieuw gemeten te worden. Dat
@@ -1340,8 +1343,9 @@ def laatste_geslaagde_test(webshop_url, dagen=30):
                     """SELECT * FROM zichtbaarheidstests
                         WHERE webshop_url = %s AND status = 'klaar' AND resultaat IS NOT NULL
                           AND aangevraagd_op > now() - (%s || ' days')::interval
+                          AND (%s IS NULL OR COALESCE(soort, 'volledig') = %s)
                      ORDER BY aangevraagd_op DESC LIMIT 1""",
-                    (webshop_url, str(int(dagen))),
+                    (webshop_url, str(int(dagen)), soort, soort),
                 )
                 rij = cur.fetchone()
                 return dict(rij) if rij else None
@@ -1385,6 +1389,7 @@ def zichtbaarheidstest_leads(limit=200):
                     """SELECT id, webshop_url, email, status, nieuwsbrief_akkoord,
                               herkomst, aangevraagd_op, resultaat
                          FROM zichtbaarheidstests
+                        WHERE COALESCE(soort, 'volledig') = 'volledig'
                      ORDER BY aangevraagd_op DESC LIMIT %s""",
                     (limit,),
                 )

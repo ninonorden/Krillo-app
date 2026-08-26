@@ -355,7 +355,7 @@ def _kies_vragen(vragen, grens):
     return gekozen
 
 
-def meet_webshop(webshop_url, max_vragen=None):
+def meet_webshop(webshop_url, max_vragen=None, max_aanbieders=None):
     """Stelt de actieve koopvragen van een webshop aan alle beschikbare
     modellen en bewaart elk antwoord volledig.
 
@@ -379,6 +379,12 @@ def meet_webshop(webshop_url, max_vragen=None):
         return samenvatting
 
     aanbieders = beschikbare_aanbieders()
+    # Met max_aanbieders meet je bij één model in plaats van bij allemaal. Dat
+    # is voor de voorproef op de gratis scan: daar telt dat er meteen een cijfer
+    # staat, niet dat het cijfer zo volledig mogelijk is. Halveert de kosten en
+    # de wachttijd, en de klantpagina telt toch al per vraag en niet per model.
+    if max_aanbieders:
+        aanbieders = aanbieders[:max_aanbieders]
     if not aanbieders:
         samenvatting["reden"] = (
             "Geen enkele AI-sleutel gevonden voor de metingen. "

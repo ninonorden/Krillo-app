@@ -354,6 +354,9 @@
   .zt-rij:last-child{border-bottom:none;}
   .zt-aantal{font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
   .zt-slot{font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin:16px 0 14px;}
+  .zt-meer{border-top:1px solid var(--line); padding-top:16px; margin-top:4px; font-size:13.5px;
+           line-height:1.6;}
+  .zt-meer strong{display:block; font-family:var(--disp); font-size:15px; margin-bottom:4px;}
   @media (max-width:520px){ .zt-cijfers{grid-template-columns:1fr;} }
 
   .scan-error{color:var(--coral); font-size:13.5px; margin-top:10px;}
@@ -603,12 +606,12 @@
     <div>
       <div class="eyebrow">Voor Nederlandse &amp; Belgische webshops</div>
       <h1>Wordt jouw webshop nog <em>gevonden</em>, als niemand meer googelt?</h1>
-      <p class="hero-sub">Steeds meer kopers vragen het gewoon aan ChatGPT of Gemini. Wij laten in 60 seconden zien of jouw shop daarbij genoemd wordt, en wat je eraan doet als dat niet zo is.</p>
+      <p class="hero-sub">Steeds meer kopers vragen het gewoon aan ChatGPT of Gemini. Wij stellen die koopvragen echt, en laten zien of jouw winkel in het antwoord staat, welke winkels er wel staan, en of je genoemd wordt of echt aanbevolen. Gratis, zonder account.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="jouwwebshop.nl" aria-label="Website URL">
         <button type="button" id="scanButton">Scan gratis</button>
       </div>
-      <div class="hero-note" id="scanNote">Geen account nodig · resultaat binnen 60 sec.</div>
+      <div class="hero-note" id="scanNote">Geen account nodig · eerst je technische cijfer, daarna de echte koopvragen</div>
       <div id="scanResult" class="scan-result"></div>
     </div>
 
@@ -772,8 +775,9 @@
         <div class="price-amount">€0</div>
         <ul class="price-feats">
           <li>Je score binnen een minuut</li>
-          <li>Alle 13 controlepunten met uitleg</li>
-          <li>Je ziet welke problemen er zijn</li>
+          <li><strong>3 koopvragen aan AI</strong>, meteen, zonder iets in te vullen</li>
+          <li>Vul je mailadres in voor 5 vragen aan ChatGPT én Gemini, met citaten</li>
+          <li>Alle 13 technische controlepunten met uitleg</li>
           <li>Geen account, geen betaalgegevens</li>
         </ul>
         <a class="price-btn ghost" href="#scan">Start gratis</a>
@@ -795,10 +799,12 @@
         <div class="price-name">Monitoring</div>
         <div class="price-amount">€39 <span>/maand</span></div>
         <ul class="price-feats">
-          <li>Elke week automatisch opnieuw gescand</li>
-          <li>Je scoreverloop op een eigen pagina</li>
-          <li>Bericht bij elke scan, met een waarschuwing als je score is gedaald</li>
-          <li>Je ziet welke verbeterpunten er sinds de vorige scan bij zijn gekomen</li>
+          <li><strong>Elke week 30 koopvragen aan ChatGPT en Gemini</strong>, in de woorden van een echte koper</li>
+          <li>Per vraag: word je genoemd, word je echt aanbevolen, en het citaat waarop dat oordeel rust</li>
+          <li>Welke concurrenten er wel staan, en wie er stijgt of daalt</li>
+          <li>Controle of wat AI over je winkel zegt ook echt klopt met je site</li>
+          <li>Bericht als er iets verandert, met de duiding of het aan jou lag of aan de markt</li>
+          <li>Ook de 13 technische punten, elke week opnieuw</li>
           <li>Maandelijks opzegbaar, geen looptijd</li>
         </ul>
         <a class="price-btn ghost" href="#scan" id="monitoringCheckoutBtn">Start abonnement</a>
@@ -1056,7 +1062,37 @@
     }
 
     resultBox.innerHTML = html;
-    toonZichtbaarheidVraag(data.url);
+    startVoorproef(data.url);
+  }
+
+  // De voorproef: drie koopvragen, meteen, zonder dat we iets vragen.
+  // Zonder dit ziet een bezoeker alleen het technische cijfer en concludeert
+  // hij dat dit een SEO-tool is. Dat is precies wat er op een ondernemersforum
+  // gebeurde, en die conclusie was terecht gezien wat hij te zien kreeg.
+  function startVoorproef(url){
+    ztUrl = url;
+    var blok = ztBlok();
+    if(!blok) return;
+    blok.innerHTML =
+      '<div class="zt zt-bezig">' +
+        '<div class="zt-kop">We vragen het nu aan AI</div>' +
+        '<div class="zt-status">Koopvragen bedenken voor jouw winkel...</div>' +
+        '<div class="zt-uitleg">Het cijfer hierboven zegt of AI je site kan lezen. ' +
+        'Of AI je ook noemt is een andere vraag, en die stellen we nu.</div>' +
+      '</div>';
+
+    fetch('/api/voorproef', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: url})
+    })
+    .then(function(res){ return res.json(); })
+    .then(function(d){
+      if(d.status === 'klaar' && d.resultaat){ ztResultaat(d.resultaat, d.zin, true); return; }
+      if(d.status === 'bezig' && d.test_id){ ztVolgen(d.test_id, true); return; }
+      toonZichtbaarheidVraag(url);
+    })
+    .catch(function(){ toonZichtbaarheidVraag(url); });
   }
 
   // -------------------------------------------------------------------------
@@ -1121,10 +1157,10 @@
     .then(function(r){
       if(!r.ok){ toonZichtbaarheidVraag(ztUrl); ztFout(r.data.error || 'Het lukte even niet.'); return; }
       if(r.data.status === 'klaar' && r.data.resultaat){
-        ztResultaat(r.data.resultaat, r.data.zin);
+        ztResultaat(r.data.resultaat, r.data.zin, false);
         return;
       }
-      ztVolgen(r.data.test_id);
+      ztVolgen(r.data.test_id, false);
     })
     .catch(function(){ toonZichtbaarheidVraag(ztUrl); ztFout('Het lukte even niet. Probeer het zo nog eens.'); });
   }
@@ -1141,7 +1177,7 @@
       '</div>';
   }
 
-  function ztVolgen(testId){
+  function ztVolgen(testId, voorproef){
     if(!testId){ return; }
     var pogingen = 0;
     if(ztTimer) clearInterval(ztTimer);
@@ -1159,9 +1195,12 @@
         .then(function(d){
           if(d.status === 'klaar' && d.resultaat){
             clearInterval(ztTimer);
-            ztResultaat(d.resultaat, d.zin);
+            ztResultaat(d.resultaat, d.zin, voorproef);
           } else if(d.status === 'mislukt'){
             clearInterval(ztTimer);
+            // Bij de voorproef vroeg de bezoeker hier niet om, dus geen
+            // foutmelding maar gewoon het formulier voor de volledige test.
+            if(voorproef){ toonZichtbaarheidVraag(ztUrl); return; }
             var blok = ztBlok();
             if(blok) blok.innerHTML = '<div class="zt"><div class="zt-kop">De test kon niet afgemaakt worden</div>' +
               '<div class="zt-uitleg">' + (d.fout || '') + ' Mail hallo@krillo.nl, dan kijken we er zelf naar.</div></div>';
@@ -1173,7 +1212,7 @@
     }, 10000);
   }
 
-  function ztResultaat(r, zin){
+  function ztResultaat(r, zin, voorproef){
     var blok = ztBlok();
     if(!blok) return;
     var telbaar = r.telbaar || 0;
@@ -1213,12 +1252,42 @@
       html += '</div>';
     }
 
-    html += '<div class="zt-slot">Dit zijn vijf vragen op een moment. AI-antwoorden wisselen van dag tot dag, ' +
-            'dus een losse meting is een momentopname en geen oordeel. We hebben je nog niet verteld waaróm ' +
-            'het zo is, en ook niet of wat AI over je zegt klopt.</div>';
-    html += '<a href="#prijzen" class="scan-cta-btn">Bekijk wat monitoring hieraan doet &rarr;</a>';
+    if(voorproef){
+      html += '<div class="zt-slot">Dit waren ' + telbaar + ' vragen aan één model, op één moment. ' +
+              'AI-antwoorden wisselen van dag tot dag, dus dit is een momentopname en geen oordeel.</div>';
+      html += '<div class="zt-meer">' +
+                '<strong>Wil je de volledige gratis test?</strong> Vijf koopvragen aan ChatGPT én Gemini, ' +
+                'met per vraag het citaat waarop het oordeel rust. Je krijgt hem ook per mail.' +
+                '<div class="zt-form">' +
+                  '<input type="email" id="ztEmail" placeholder="jouw@e-mailadres.nl" autocomplete="email">' +
+                  '<button type="button" id="ztKnop">Stuur de volledige test</button>' +
+                '</div>' +
+                '<label class="zt-vink"><input type="checkbox" id="ztAkkoord"> ' +
+                  'Ik ga akkoord met het <a href="/privacy" target="_blank">privacybeleid</a> en wil de uitslag per mail.' +
+                '</label>' +
+                '<label class="zt-vink"><input type="checkbox" id="ztNieuws"> ' +
+                  'Stuur me af en toe iets over AI-zichtbaarheid voor webshops. (optioneel)' +
+                '</label>' +
+                '<div class="zt-fout" id="ztFout"></div>' +
+              '</div>';
+    } else {
+      html += '<div class="zt-slot">Dit zijn vijf vragen op een moment. AI-antwoorden wisselen van dag tot dag, ' +
+              'dus een losse meting is een momentopname en geen oordeel. We hebben je nog niet verteld waaróm ' +
+              'het zo is, en ook niet of wat AI over je zegt klopt.</div>';
+      html += '<a href="#prijzen" class="scan-cta-btn">Bekijk wat monitoring hieraan doet &rarr;</a>';
+    }
     html += '</div>';
     blok.innerHTML = html;
+
+    if(voorproef){
+      var knop = document.getElementById('ztKnop');
+      if(knop){
+        knop.addEventListener('click', startZichtbaarheid);
+        document.getElementById('ztEmail').addEventListener('keydown', function(e){
+          if(e.key === 'Enter') startZichtbaarheid();
+        });
+      }
+    }
   }
 
   function runScan(){

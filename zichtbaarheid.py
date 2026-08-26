@@ -33,6 +33,19 @@ import scan_engine
 # uitvalt dan gedacht, dan kan dit omhoog zonder dat er iets anders verandert.
 GRATIS_VRAGEN = int(os.environ.get("GRATIS_VRAGEN", "5"))
 
+# De voorproef: draait automatisch bij elke gratis scan, zonder e-mailadres.
+#
+# Waarom dit er is. Op een ondernemersforum testte iemand de gratis scan en zijn
+# conclusie was: "eigenlijk zie ik vooral basis SEO zaken". Hij had gelijk over
+# wat hij zag. Het cijfer over dertien technische punten stond bovenaan, en het
+# enige dat Krillo echt onderscheidt, of AI je winkel noemt, zat eronder achter
+# een e-mailformulier. Wie niet doorklikt ziet een SEO-tool.
+#
+# Drie vragen bij één model kost ongeveer zes cent. Dat is de prijs van een
+# eerste indruk die klopt.
+VOORPROEF_AAN = os.environ.get("VOORPROEF_AAN", "ja").lower() not in ("nee", "no", "0", "uit")
+VOORPROEF_VRAGEN = int(os.environ.get("VOORPROEF_VRAGEN", "3"))
+
 # Harde rem op de dag. Zonder dit kan een bericht dat goed loopt je in een
 # middag honderden euro's kosten aan mensen die alleen even kwamen kijken.
 MAX_TESTS_PER_DAG = int(os.environ.get("GRATIS_TESTS_PER_DAG", "40"))
@@ -81,7 +94,7 @@ def mag_starten():
     return True, None
 
 
-def draai(test_id, webshop_url):
+def draai(test_id, webshop_url, aantal_vragen=None, max_aanbieders=None):
     """De hele test voor een winkel. Draait op de achtergrond.
 
     Zet onderweg de status bij, zodat de pagina kan laten zien waar hij is in
@@ -108,7 +121,11 @@ def draai(test_id, webshop_url):
             return None
 
         db.zet_zichtbaarheidstest(test_id, "vragen stellen aan AI")
-        samenvatting = metingen.meet_webshop(webshop_url, max_vragen=GRATIS_VRAGEN)
+        samenvatting = metingen.meet_webshop(
+            webshop_url,
+            max_vragen=aantal_vragen or GRATIS_VRAGEN,
+            max_aanbieders=max_aanbieders,
+        )
         meting_id = (samenvatting or {}).get("meting_id")
         if not meting_id or not samenvatting.get("gelukt"):
             reden = (samenvatting or {}).get("reden") or "Geen enkel AI-model gaf antwoord."
