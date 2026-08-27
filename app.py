@@ -27,6 +27,7 @@ import artikelen
 import koopvragen
 import kosten
 import metingen
+import actieplan
 import beoordeling
 import bronnen
 import controle
@@ -745,6 +746,7 @@ def monitoring_pagina(klant_token):
         controle=gegevens["controle"],
         beweging=gegevens["beweging"],
         bronnen=gegevens["bronnen"],
+        actieplan=gegevens["actieplan"],
         verklaring=verklaring.maak_verklaring(
             laatste["checks"] if laatste else [], gegevens["vermeldingen"]),
         webshop_url=klant["webshop_url"],
@@ -1214,11 +1216,28 @@ def _klantgegevens(webshop_url):
     ronde = db.laatste_beoordeelde_meting_id(webshop_url)
     vindplaatsen = ([dict(v) for v in db.get_bronvindplaatsen(webshop_url, ronde)]
                     if ronde else [])
+    controle_samenvatting = controle.vat_samen(controles) if controles else None
+    bronnen_samenvatting = bronnen.vat_samen(vindplaatsen, winkelnaam) if vindplaatsen else None
+
+    # Fase 5 punt 15. Leunt op alles hierboven en op de verklaring uit de
+    # scan, dus die halen we er hier bij. Bewust op deze ene plek berekend,
+    # zodat de klantpagina en de voorbeeldweergave nooit een ander plan kunnen
+    # tonen dan elkaar.
+    checks = (db.get_rapporten_voor_webshop(webshop_url) or [{}])[0].get("checks") or []
+    plan = actieplan.maak_actieplan(
+        verklaring=verklaring.maak_verklaring(checks, vermeldingen),
+        klantbeeld=vermeldingen,
+        bronnen=bronnen_samenvatting,
+        controle=controle_samenvatting,
+        winkelnaam=winkelnaam,
+    )
+
     return {
         "vermeldingen": vermeldingen,
-        "controle": controle.vat_samen(controles) if controles else None,
+        "controle": controle_samenvatting,
         "beweging": waarschuwing.vergelijk(twee_rondes, winkelnaam),
-        "bronnen": bronnen.vat_samen(vindplaatsen, winkelnaam) if vindplaatsen else None,
+        "bronnen": bronnen_samenvatting,
+        "actieplan": plan,
     }
 
 
@@ -1442,6 +1461,7 @@ def admin_voorbeeld():
         controle=gegevens["controle"],
         beweging=gegevens["beweging"],
         bronnen=gegevens["bronnen"],
+        actieplan=gegevens["actieplan"],
         verklaring=verklaring.maak_verklaring(
             laatste["checks"] if laatste else [], gegevens["vermeldingen"]),
         laatste=laatste,

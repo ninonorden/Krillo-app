@@ -75,6 +75,29 @@
   .bronlink{color:var(--ink); text-decoration:none; border-bottom:1px solid var(--line);}
   .bronlink:hover{border-bottom-color:var(--ink);}
   .bronmeta{font-family:var(--mono); font-size:11px; color:var(--ink-soft); margin-top:2px;}
+
+  /* Het actieplan. Staat bovenaan omdat het het antwoord is: de cijfers
+     eronder zijn de onderbouwing. Bewust de enige donkere blok naast de
+     score, zodat het oog er meteen naartoe gaat. */
+  .plan{background:var(--paper-raised); border:2px solid var(--ink); border-radius:14px;
+        padding:26px; margin-bottom:32px;}
+  .plan h2{font-family:var(--disp); font-size:19px; font-weight:700; margin-bottom:6px;}
+  .plan-kop{font-size:14px; color:var(--ink-soft); margin-bottom:22px; line-height:1.6;}
+  .actie{display:flex; gap:16px; padding:20px 0; border-top:1px solid var(--line);}
+  .actie-nummer{flex-shrink:0; width:28px; height:28px; border-radius:50%; background:var(--ink);
+                color:#fff; font-family:var(--disp); font-weight:700; font-size:14px;
+                display:flex; align-items:center; justify-content:center;}
+  .actie-body{flex:1; min-width:0;}
+  .actie-titel{font-family:var(--disp); font-size:16px; font-weight:600; margin-bottom:8px;
+               display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .actie-waarom{font-size:13.5px; color:var(--ink-soft); margin-bottom:10px; line-height:1.65;}
+  .actie-hoe{font-size:13.5px; line-height:1.7; white-space:pre-line;}
+  .actie-links{margin-top:12px; background:var(--paper); border-radius:10px; padding:12px 14px;}
+  .actie-links > div{padding:5px 0; font-size:13px;}
+  .actie-links a{color:var(--ink); border-bottom:1px solid var(--line);}
+  .actie-links a:hover{border-bottom-color:var(--ink);}
+  .plan-voet{font-size:12.5px; color:var(--ink-soft); border-top:1px solid var(--line);
+             padding-top:14px; margin-top:6px; line-height:1.65;}
   .vlag{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em;
         padding:3px 8px; border-radius:100px; margin-right:8px; white-space:nowrap;}
   .vlag.aanbevolen{background:var(--coral); color:#fff;}
@@ -198,6 +221,39 @@
     {% endif %}
 
 
+
+    {% if actieplan %}
+    <div class="plan">
+      <h2>Wat je deze week kan doen</h2>
+      <div class="plan-kop">{{ actieplan.kop }}</div>
+
+      {% for a in actieplan.acties %}
+      <div class="actie">
+        <div class="actie-nummer">{{ loop.index }}</div>
+        <div class="actie-body">
+          <div class="actie-titel">
+            {{ a.titel }}
+            <span class="soort {{ a.soort }}">{{ a.soort }}</span>
+          </div>
+          <div class="actie-waarom">{{ a.waarom }}</div>
+          <div class="actie-hoe">{{ a.hoe }}</div>
+          {% if a.links %}
+          <div class="actie-links">
+            {% for l in a.links %}
+            <div><a href="{{ l.url }}" target="_blank" rel="noopener nofollow">{{ l.titel }}</a>
+              <span class="bronmeta">{{ l.domein }}</span></div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      {% if actieplan.acties %}
+      <div class="plan-voet">{{ actieplan.toelichting }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
 
     {% if nieuwe_problemen %}
     <h2 class="sectie">Nieuw sinds de vorige scan</h2>

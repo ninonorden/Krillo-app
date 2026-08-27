@@ -14,6 +14,7 @@ Bestanden:
 - koopvragen.py     Bedenkt per webshop de koopvragen en zoekt dubbelingen
 - metingen.py       Stelt die koopvragen aan de AI-modellen en bewaart de antwoorden
 - bronnen.py        Zoekt de externe pagina's op waar concurrenten wel staan en de klant niet
+- actieplan.py      Zet de meting om in hoogstens drie concrete acties per klant
 - kosten.py         Prijzen per model, kostenberekening en de kostenrem
 - db.py             Alle databasefuncties (Neon Postgres)
 - emailing.py       Alle e-mail via de Brevo API
