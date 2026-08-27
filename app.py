@@ -1060,6 +1060,18 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
         print(f"Waarschuwing versturen mislukt voor {webshop_url}: {e}")
 
 
+# Wat de laatste bronanalyse per winkel deed. Alleen in het geheugen, dus na
+# een herstart van Render is dit leeg. Dat is prima: het is bedoeld om te zien
+# waarom een poging niets opleverde, niet om te bewaren. De echte uitkomsten
+# staan in de database.
+_bronnen_status = {}
+
+
+def _zet_bronnen_status(webshop_url, tekst, klaar=False):
+    _bronnen_status[webshop_url] = {"tekst": tekst, "klaar": klaar}
+    print(f"Bronnen {webshop_url}: {tekst}")
+
+
 def _zoek_bronnen(webshop_url, meting_id=None, winkelnaam=None, melden=None):
     """Fase 5 punt 14. Zoekt de externe pagina's op waar de concurrenten wel
     staan en de klant niet.
@@ -1069,22 +1081,67 @@ def _zoek_bronnen(webshop_url, meting_id=None, winkelnaam=None, melden=None):
     bronanalyse over andere vragen gaan dan de meting erboven, en dan staan er
     twee waarheden op een pagina."""
     try:
+        if not bronnen.beschikbaar():
+            _zet_bronnen_status(webshop_url, bronnen.waarom_niet(), klaar=True)
+            return None
+
         meting_id = meting_id or db.laatste_meting_id(webshop_url)
         if not meting_id:
+            _zet_bronnen_status(webshop_url,
+                                "Er is nog geen meetronde voor deze winkel. Meet eerst.",
+                                klaar=True)
             return None
+
         beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url, meting_id)]
         if not beoordelingen:
+            _zet_bronnen_status(
+                webshop_url,
+                f"De nieuwste meetronde ({meting_id[:8]}) is nog niet beoordeeld. "
+                f"Zonder beoordeling weten we niet bij welke vragen je ontbreekt. "
+                f"Beoordeel die ronde eerst.",
+                klaar=True)
             return None
+
         klantbeeld = beoordeling.klantbeeld(webshop_url, beoordelingen)
+        vragen = bronnen.kies_vragen(klantbeeld)
+        concurrenten = bronnen.kies_concurrenten(klantbeeld)
+        if not vragen:
+            _zet_bronnen_status(
+                webshop_url,
+                "Geen vragen om na te trekken: deze winkel wordt bij elke meetellende vraag "
+                "genoemd en aanbevolen. Dan valt er hier niets te halen.", klaar=True)
+            return None
+        if not concurrenten:
+            _zet_bronnen_status(
+                webshop_url,
+                "Geen concurrenten gevonden in de beoordelingen van deze ronde. "
+                "De bronanalyse zoekt naar winkels die AI wel noemt, en die zijn er niet.",
+                klaar=True)
+            return None
+
+        _zet_bronnen_status(webshop_url,
+                            f"Bezig: {len(vragen)} vragen natrekken bij {len(concurrenten)} concurrenten.")
+
         vindplaatsen = bronnen.analyseer(
             webshop_url, klantbeeld, winkelnaam=winkelnaam,
             meting_id=meting_id, melden=melden,
         )
         if vindplaatsen:
-            db.bewaar_bronvindplaatsen(webshop_url, meting_id, vindplaatsen)
+            bewaard = db.bewaar_bronvindplaatsen(webshop_url, meting_id, vindplaatsen)
+            _zet_bronnen_status(
+                webshop_url,
+                f"Klaar: {len(vindplaatsen)} vindplaatsen gevonden over {len(vragen)} vragen, "
+                f"{bewaard} nieuw bewaard.", klaar=True)
+        else:
+            _zet_bronnen_status(
+                webshop_url,
+                f"Klaar, maar niets gevonden. {len(vragen)} vragen gezocht en geen enkele "
+                f"pagina bevatte onze winkel of een van de concurrenten. Test hieronder de "
+                f"zoekmachine: geeft die ook niets terug, dan zit het probleem daar.",
+                klaar=True)
         return bronnen.vat_samen(vindplaatsen, winkelnaam)
     except Exception as e:
-        print(f"Bronanalyse mislukt voor {webshop_url}: {e}")
+        _zet_bronnen_status(webshop_url, f"Mislukt: {type(e).__name__}: {e}"[:400], klaar=True)
         return None
 
 
@@ -1473,6 +1530,8 @@ def admin_bronnen():
                 _beoordelen_bezig.add(webshop_url)
                 start = True
         if start:
+            _zet_bronnen_status(webshop_url, "Gestart, bezig met voorbereiden.")
+
             def klus():
                 try:
                     _zoek_bronnen(webshop_url, meting_id, _winkelnaam(webshop_url))
@@ -1480,10 +1539,45 @@ def admin_bronnen():
                     with _metingen_slot:
                         _beoordelen_bezig.discard(webshop_url)
             threading.Thread(target=klus, daemon=True).start()
-        return redirect(f"/admin/bronnen?key={admin_key}&url={webshop_url}&bezig=ja")
+        else:
+            # Niet stilzwijgend niets doen. Eerder gebeurde er dan schijnbaar
+            # niets terwijl de knop wel ingedrukt was, en dan zit je te wachten
+            # op iets dat nooit komt.
+            _zet_bronnen_status(
+                webshop_url,
+                "Er liep al een taak voor deze winkel (beoordelen, controleren of zoeken). "
+                "Wacht tot die klaar is en probeer het dan opnieuw.", klaar=True)
+        return redirect(f"/admin/bronnen?key={admin_key}&url={webshop_url}")
+
+    # De zoekmachine los testen. Kost een halve cent en bewijst in een keer of
+    # de sleutel werkt. Zonder dit sta je te gissen of het aan de zoekmachine
+    # ligt of aan de winkel.
+    proef = None
+    if webshop_url and request.args.get("proef") == "ja":
+        proef = bronnen.test_zoekmachine(
+            (request.args.get("vraag") or "").strip() or None, webshop_url=webshop_url)
 
     vindplaatsen = [dict(v) for v in db.get_bronvindplaatsen(webshop_url, meting_id)] if webshop_url else []
     winkelnaam = _winkelnaam(webshop_url) if webshop_url else None
+
+    # Waarom levert dit niets op? Alles wat de bronanalyse nodig heeft, op een
+    # rij, zonder dat er iets gezocht of betaald wordt.
+    diagnose = None
+    if webshop_url:
+        laatste_meting = meting_id or db.laatste_meting_id(webshop_url)
+        beoordelingen = ([dict(b) for b in db.get_beoordelingen(webshop_url, laatste_meting)]
+                         if laatste_meting else [])
+        klantbeeld = beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None
+        diagnose = {
+            "meting_id": laatste_meting,
+            "beoordelingen": len(beoordelingen),
+            "vragen": bronnen.kies_vragen(klantbeeld) if klantbeeld else [],
+            "concurrenten": bronnen.kies_concurrenten(klantbeeld) if klantbeeld else [],
+            "genoemd": (klantbeeld or {}).get("genoemd"),
+            "telbaar": (klantbeeld or {}).get("telbaar"),
+        }
+
+    status = _bronnen_status.get(webshop_url) if webshop_url else None
 
     return render_template(
         "admin_bronnen.html",
@@ -1492,7 +1586,9 @@ def admin_bronnen():
         winkelnaam=winkelnaam,
         vindplaatsen=vindplaatsen,
         s=bronnen.vat_samen(vindplaatsen, winkelnaam) if vindplaatsen else None,
-        bezig=request.args.get("bezig") == "ja",
+        status=status,
+        diagnose=diagnose,
+        proef=proef,
         werkt=bronnen.beschikbaar(),
         waarom_niet=bronnen.waarom_niet(),
         aanbieder=bronnen.ZOEK_AANBIEDER,

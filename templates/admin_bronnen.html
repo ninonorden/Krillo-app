@@ -59,6 +59,18 @@
   .waarschuwing{background:var(--amber-dim); border-radius:10px; padding:16px 18px;
                 margin-bottom:24px; font-size:13.5px; color:#7A5200;}
   .waarschuwing strong{display:block; margin-bottom:4px; color:#5C3E00;}
+  .waarschuwing a{color:#5C3E00;}
+  .proef-goed{background:var(--teal-dim); border-radius:10px; padding:16px 18px;
+              margin-bottom:24px; font-size:13.5px; color:#0E6B60;}
+  .proef-goed strong{display:block; margin-bottom:4px; color:#0A544B;}
+  .proef-goed a{color:#0A544B;}
+  .diagnose{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+            padding:16px 18px; margin-bottom:24px; font-size:13.5px;}
+  .diagnose strong{display:block; margin-bottom:2px;}
+  .diagnose table{border:none; background:none;}
+  .diagnose td{padding:5px 0; border-bottom:1px dotted var(--line); font-size:13px;}
+  .diagnose td.uitkomst{text-align:right; font-family:var(--mono); font-size:12px;}
+  .diagnose .fout{color:var(--coral-tekst); font-weight:600;}
   .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
         padding:32px; text-align:center; color:var(--ink-soft);}
   .acties{display:flex; gap:10px; flex-wrap:wrap; margin-top:28px;}
@@ -81,11 +93,53 @@
   </div>
   {% endif %}
 
-  {% if bezig %}
+  {% if status %}
   <div class="waarschuwing">
-    <strong>Er wordt nu gezocht</strong>
-    Per vraag een zoekopdracht en daarna acht pagina's ophalen. Reken op een minuut
-    of twee. Ververs deze pagina daarna.
+    <strong>{% if status.klaar %}Laatste poging{% else %}Nu bezig{% endif %}</strong>
+    {{ status.tekst }}
+    {% if not status.klaar %}<br>Ververs deze pagina over een minuut.{% endif %}
+  </div>
+  {% endif %}
+
+  {% if proef %}
+  <div class="{% if proef.gelukt and proef.resultaten %}proef-goed{% else %}waarschuwing{% endif %}">
+    <strong>Proefzoekopdracht: "{{ proef.vraag }}"</strong>
+    {% if proef.resultaten %}
+      De zoekmachine werkt. {{ proef.resultaten | length }} resultaten terug:
+      <ol style="margin:8px 0 0 18px;">
+        {% for r in proef.resultaten[:5] %}
+        <li><a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.titel or r.url }}</a></li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      Geen resultaten. {{ proef.fout }}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if diagnose %}
+  <div class="diagnose">
+    <strong>Heeft de bronanalyse alles wat hij nodig heeft?</strong>
+    <table style="margin-top:10px;">
+      <tr><td>Nieuwste meetronde</td>
+          <td class="uitkomst">{% if diagnose.meting_id %}{{ diagnose.meting_id[:8] }}{% else %}<span class="fout">geen enkele meting</span>{% endif %}</td></tr>
+      <tr><td>Beoordelingen in die ronde</td>
+          <td class="uitkomst">{% if diagnose.beoordelingen %}{{ diagnose.beoordelingen }}{% else %}<span class="fout">nul, eerst beoordelen</span>{% endif %}</td></tr>
+      <tr><td>Genoemd bij</td>
+          <td class="uitkomst">{% if diagnose.telbaar %}{{ diagnose.genoemd }} van de {{ diagnose.telbaar }} vragen{% else %}onbekend{% endif %}</td></tr>
+      <tr><td>Vragen die nagetrokken worden</td>
+          <td class="uitkomst">{% if diagnose.vragen %}{{ diagnose.vragen | length }}{% else %}<span class="fout">geen</span>{% endif %}</td></tr>
+      <tr><td>Concurrenten om op te zoeken</td>
+          <td class="uitkomst">{% if diagnose.concurrenten %}{{ diagnose.concurrenten | join(', ') }}{% else %}<span class="fout">geen</span>{% endif %}</td></tr>
+    </table>
+    {% if diagnose.vragen %}
+    <div style="margin-top:10px; font-size:12.5px; color:var(--ink-soft);">
+      Deze vragen gaan de zoekmachine in:
+      <ul style="margin:6px 0 0 18px;">
+        {% for v in diagnose.vragen %}<li>{{ v }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
   </div>
   {% endif %}
 
@@ -153,6 +207,7 @@
   <div class="acties">
     {% if webshop_url %}
     <a class="knop vol" href="/admin/bronnen?key={{ sleutel }}&url={{ webshop_url }}&start=ja">Opnieuw zoeken</a>
+    <a class="knop" href="/admin/bronnen?key={{ sleutel }}&url={{ webshop_url }}&proef=ja">Zoekmachine testen</a>
     <a class="knop" href="/admin/beoordelingen?key={{ sleutel }}&url={{ webshop_url }}">Beoordelingen</a>
     {% endif %}
     <a class="knop" href="/admin/kosten?key={{ sleutel }}">Kosten</a>

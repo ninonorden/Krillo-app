@@ -93,6 +93,13 @@ PAGINA_TIJDSLIMIET = int(os.environ.get("BRONNEN_PAGINA_TIJDSLIMIET", "12"))
 # heeft.
 MAX_PAGINATEKENS = int(os.environ.get("BRONNEN_MAX_PAGINATEKENS", "60000"))
 
+# Land en taal van de zoekresultaten. LET OP: Brave wil de landcode in
+# HOOFDLETTERS (NL) en de taalcode in kleine letters (nl). Dat door elkaar
+# halen levert een afgekeurd verzoek op, en dat ziet er hetzelfde uit als een
+# zoekopdracht die niets vindt. Google Custom Search wil juist allebei klein.
+ZOEK_LAND = os.environ.get("BRONNEN_LAND", "NL").strip()
+ZOEK_TAAL = os.environ.get("BRONNEN_TAAL", "nl").strip().lower()
+
 _laatste_zoekopdracht = [0.0]
 
 
@@ -145,9 +152,12 @@ def _zoek_brave(vraag):
         },
         params={
             "q": vraag,
-            "count": MAX_RESULTATEN,
-            "country": "nl",
-            "search_lang": "nl",
+            # Brave staat hoogstens 20 resultaten per pagina toe. Meer vragen
+            # levert een afgekeurd verzoek op, en dat is niet te onderscheiden
+            # van een zoekopdracht zonder resultaten.
+            "count": min(MAX_RESULTATEN, 20),
+            "country": ZOEK_LAND.upper(),
+            "search_lang": ZOEK_TAAL,
         },
         timeout=30,
     )
@@ -171,9 +181,11 @@ def _zoek_google(vraag):
             "key": os.environ["GOOGLE_ZOEK_API_KEY"],
             "cx": os.environ["GOOGLE_ZOEK_CX"],
             "q": vraag,
+            # Google staat hoogstens 10 resultaten per verzoek toe, en wil land
+            # en taal juist allebei in kleine letters.
             "num": min(MAX_RESULTATEN, 10),
-            "gl": "nl",
-            "hl": "nl",
+            "gl": ZOEK_LAND.lower(),
+            "hl": ZOEK_TAAL,
         },
         timeout=30,
     )
@@ -254,6 +266,49 @@ def _normaliseer(tekst):
     laag = (tekst or "").lower()
     laag = laag.replace("&amp;", "&").replace("&#38;", "&").replace("&nbsp;", " ")
     return " ".join(laag.split())
+
+
+def test_zoekmachine(vraag=None, webshop_url=None):
+    """Eén losse zoekopdracht, met de echte foutmelding erbij.
+
+    Voor de beheerpagina. Levert de bronanalyse niets op, dan wil je als eerste
+    weten of de zoekmachine überhaupt antwoordt. Dat kost een halve cent en
+    scheelt een middag zoeken in logboeken.
+
+    Bewust apart van zoek(): die geeft bij een storing gewoon een lege lijst
+    terug omdat een meetronde niet mag klappen op een zoekmachine. Hier wil je
+    juist wél zien wat er misging."""
+    vraag = vraag or "beste webshop voor cadeaus"
+    if not beschikbaar():
+        return {"gelukt": False, "vraag": vraag, "resultaten": [], "fout": waarom_niet()}
+
+    zoeker = _ZOEKERS.get(ZOEK_AANBIEDER)
+    gestart = time.monotonic()
+    try:
+        _wacht_je_beurt()
+        resultaten = zoeker(vraag)
+        gelukt, fout = True, None
+    except Exception as e:
+        resultaten, gelukt = [], False
+        body = getattr(getattr(e, "response", None), "text", "") or ""
+        fout = (f"{type(e).__name__}: {e}"[:200]
+                + (" | " + " ".join(body.split())[:300] if body else ""))[:500]
+
+    kosten.registreer_vaste_kosten(
+        soort="bronnen-zoeken-test",
+        provider=ZOEK_AANBIEDER,
+        bedrag=PRIJS_PER_ZOEKOPDRACHT_EURO if gelukt else 0.0,
+        webshop_url=webshop_url,
+        duur_ms=int((time.monotonic() - gestart) * 1000),
+        gelukt=gelukt,
+        foutsoort=fout,
+    )
+
+    if gelukt and not resultaten:
+        fout = ("De zoekmachine antwoordde wel, maar gaf nul resultaten terug. "
+                "Dat wijst meestal op een abonnement dat nog niet actief is, of op "
+                "instellingen die te streng staan.")
+    return {"gelukt": gelukt, "vraag": vraag, "resultaten": resultaten, "fout": fout}
 
 
 def _naampatroon(naam):
