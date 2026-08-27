@@ -72,6 +72,102 @@ def _get_client():
     return anthropic.Anthropic(api_key=api_key)
 
 
+def genereer_taakoplossing(webshop_url, taak_id, taak_titel, wat_moet_er_gebeuren,
+                           extra_page_urls=None):
+    """Schrijft voor ÉÉN taak uit het actieplan de kant-en-klare oplossing.
+
+    Dit is het verschil tussen een scan en een oplossing. "Zet vragen en
+    antwoorden op je site" is een opdracht. Vijf uitgeschreven vragen met
+    antwoorden over jouw producten, plus de route waar je ze plakt, is iets wat
+    je vanmiddag af hebt.
+
+    Bewust per taak en niet alles in een keer zoals de audit doet. Het
+    actieplan toont er hoogstens drie, dus meer laten schrijven is geld
+    uitgeven aan tekst die niemand ziet. De aanroeper bewaart de uitkomst, dus
+    dit gebeurt een keer per taak per winkel en niet elke week opnieuw.
+
+    Geeft None terug als er geen sleutel is of als het misgaat. De taak blijft
+    dan gewoon staan met de algemene uitleg eronder, alleen zonder plakbare
+    tekst. Nooit laten klappen op een tekst die niet geschreven kon worden."""
+    client = _get_client()
+    if client is None:
+        return None
+
+    pagina_context = _get_page_context(webshop_url, extra_page_urls)
+
+    prompt = f"""{HUISSTIJL_INSTRUCTIES}
+
+Dit is de daadwerkelijke inhoud van de webshop {webshop_url}. Gebruik dit zodat
+je oplossing echt over DEZE winkel gaat, met zijn producten en zijn toon, en
+niet over een willekeurige webshop:
+
+{pagina_context}
+
+De eigenaar van deze webshop heeft één taak op zijn lijst staan:
+
+TAAK: {taak_titel}
+WAT ER MOET GEBEUREN: {wat_moet_er_gebeuren}
+
+Schrijf de oplossing die hij letterlijk kan overnemen. Niet uitleggen wat hij
+zou kunnen doen, maar het werk voor hem doen.
+
+- Gaat het om tekst (vragen en antwoorden, een titel, een omschrijving, een
+  bericht aan een redactie), schrijf dan de echte tekst, af, over de producten
+  van deze winkel. Verzin geen feiten die je niet uit de pagina hierboven kan
+  halen: weet je een levertijd of een prijs niet, laat dan duidelijk
+  [vul je eigen levertijd in] staan, zodat hij ziet wat hij zelf moet aanvullen.
+- Gaat het om code, geef dan de exacte code, kant en klaar.
+- Gaat het om een instelling, geef dan de exacte stappen.
+
+De lezer heeft geen technische kennis en heeft nog nooit in de instellingen van
+zijn webshop gekeken. Bij "waar" leg je stap voor stap uit waar dit heen moet,
+met de route in Shopify en in WordPress of WooCommerce als je die kan noemen.
+Is het echt te technisch om zelf te doen, zeg dat dan eerlijk en schrijf de
+tekst die hij kan doorsturen naar de bouwer van zijn site.
+
+Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
+
+{{
+  "oplossing": "de echte tekst, code of stappen om over te nemen",
+  "waar": "stap voor stap waar dit neergezet wordt, in gewone taal"
+}}
+"""
+
+    try:
+        rem = kosten.mag_doorgaan(webshop_url=webshop_url)
+        if not rem["mag"]:
+            print(f"Taakoplossing geblokkeerd door de kostenrem: {rem['reden']}")
+            return None
+
+        gestart = time.monotonic()
+        response = client.messages.create(
+            model=MODEL,
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        kosten.registreer_aanroep(
+            provider="anthropic", model=MODEL,
+            invoer_tokens=response.usage.input_tokens,
+            uitvoer_tokens=response.usage.output_tokens,
+            soort="taakoplossing", webshop_url=webshop_url,
+            duur_ms=int((time.monotonic() - gestart) * 1000),
+        )
+        ruw = response.content[0].text.strip()
+        if ruw.startswith("```"):
+            ruw = ruw.split("```")[1]
+            if ruw.startswith("json"):
+                ruw = ruw[4:]
+        data = json.loads(ruw)
+        oplossing = (data.get("oplossing") or "").strip()
+        if not oplossing:
+            return None
+        return {"taak_id": taak_id, "titel": taak_titel,
+                "oplossing": oplossing, "waar": (data.get("waar") or "").strip()}
+    except Exception as e:
+        print(f"Taakoplossing genereren mislukt voor {taak_id}: {e}")
+        return None
+
+
 def generate_ai_fixes(webshop_url, checks, extra_page_urls=None):
     """Genereert voor elk probleem (status != ok) een concrete, site-specifieke
     oplossing via Claude. Geeft een lijst met fixes terug, of None als er geen

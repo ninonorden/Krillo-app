@@ -20,7 +20,8 @@ Bestanden:
 - emailing.py       Alle e-mail via de Brevo API
 - payments.py       Mollie: betalingen, abonnementen, opzeggen
 - artikelen.py      De artikelen als Python-lijst
-- templates/        Alle pagina's
+- templates/        Alle pagina's. monitoring.html is de takenlijst die de klant
+                    standaard ziet, monitoring_details.html zijn de cijfers erachter
 - static/           Favicon en deelafbeelding
 
 Omgevingsvariabelen (in Render):
@@ -46,3 +47,4 @@ Beheerpagina's (alleen met ?key=ADMIN_KEY, zonder sleutel geven ze 404):
 - /admin/metingen       De antwoorden van de AI-modellen op die koopvragen
 - /admin/kosten         AI-kosten per klant en per model
 - /admin/bronnen        De gevonden externe pagina's en wie daarop staat
+- /admin/voorbeeld      De klantpagina; met &details=ja de cijferpagina erachter

@@ -180,8 +180,12 @@ BELEMMERING_ACTIES = {
 }
 
 
-def _actie(soort, titel, waarom, hoe, links=None):
-    return {"soort": soort, "titel": titel, "waarom": waarom, "hoe": hoe, "links": links or []}
+def _actie(taak_id, soort, titel, waarom, hoe, links=None):
+    """Elke actie heeft een vast kenmerk (taak_id), zodat de kant-en-klare
+    oplossing die erbij hoort eenmalig geschreven en daarna bewaard kan worden.
+    Zonder zo'n kenmerk zou dezelfde taak elke week een nieuwe tekst krijgen."""
+    return {"id": taak_id, "soort": soort, "titel": titel, "waarom": waarom,
+            "hoe": hoe, "links": links or [], "oplossing": None, "waar": None}
 
 
 def _blokkade_acties(verklaring):
@@ -192,6 +196,7 @@ def _blokkade_acties(verklaring):
         if not sjabloon:
             continue
         acties.append(_actie(
+            b.get("id"),
             "feit",
             sjabloon["titel"],
             "Dit houdt AI aantoonbaar tegen. Zolang dit er staat heeft de rest weinig zin, "
@@ -221,6 +226,7 @@ def _onjuistheid_acties(controle, winkelnaam):
 
     aantal = len(fouten)
     return [_actie(
+        "onjuistheden",
         "feit",
         "Zet recht wat AI verkeerd over je vertelt",
         (f"We vonden {aantal} uitspraak over {naam} die niet klopt met wat er op je site staat. "
@@ -251,6 +257,7 @@ def _bronnen_acties(bronnen, winkelnaam):
     plekken = "plek" if aantal == 1 else "plekken"
 
     return [_actie(
+        "bronnen",
         "feit",
         f"Zorg dat {naam} op deze {aantal} {plekken} komt te staan",
         (f"We hebben jouw koopvragen in een gewone zoekmachine gezet en de pagina's nagelopen "
@@ -282,6 +289,7 @@ def _belemmering_acties(verklaring):
         if not sjabloon:
             continue
         acties.append(_actie(
+            id_,
             "vermoeden",
             sjabloon["titel"],
             "Dit maakt je site beter leesbaar voor AI. Of je hierdoor vaker genoemd wordt "

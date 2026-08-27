@@ -196,6 +196,21 @@ def init_db():
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_bronnen_meting "
                             "ON bronvindplaatsen (webshop_url, meting_id);")
+                # Fase 5 punt 15: de kant-en-klare oplossing bij elke taak.
+                # Eén keer laten schrijven en dan bewaren. Elke week opnieuw
+                # laten schrijven kost geld en levert alleen een andere
+                # formulering op voor hetzelfde probleem.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS taakoplossingen (
+                        webshop_url TEXT NOT NULL,
+                        taak_id TEXT NOT NULL,
+                        titel TEXT,
+                        oplossing TEXT,
+                        waar TEXT,
+                        gemaakt_op TIMESTAMPTZ DEFAULT now(),
+                        PRIMARY KEY (webshop_url, taak_id)
+                    );
+                """)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS gratis_scans (
                         id SERIAL PRIMARY KEY,
@@ -1131,6 +1146,72 @@ def get_bronvindplaatsen(webshop_url, meting_id=None, limit=200):
         return []
     finally:
         conn.close()
+
+
+def bewaar_taakoplossing(webshop_url, taak_id, titel, oplossing, waar):
+    """Bewaart de kant-en-klare oplossing bij een taak uit het actieplan.
+
+    Bewust bewaren en niet elke week opnieuw laten schrijven. Een oplossing
+    voor "zet vragen en antwoorden op je site" verandert niet zolang de winkel
+    niet verandert, dus opnieuw laten schrijven kost geld en levert alleen maar
+    een andere formulering op. Erger nog: dan krijgt een klant elke week iets
+    anders te lezen voor hetzelfde probleem, en dan lijkt het alsof er iets
+    veranderd is terwijl dat niet zo is."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO taakoplossingen
+                       (webshop_url, taak_id, titel, oplossing, waar)
+                       VALUES (%s, %s, %s, %s, %s)
+                       ON CONFLICT (webshop_url, taak_id) DO UPDATE
+                       SET titel = EXCLUDED.titel, oplossing = EXCLUDED.oplossing,
+                           waar = EXCLUDED.waar, gemaakt_op = now()""",
+                    (webshop_url, taak_id, titel, oplossing, waar),
+                )
+        return True
+    except Exception as e:
+        print(f"Taakoplossing bewaren mislukt: {e}")
+        return False
+
+
+def get_taakoplossingen(webshop_url):
+    """Alle bewaarde oplossingen voor een winkel, als {taak_id: {...}}."""
+    conn = _get_connection()
+    if conn is None:
+        return {}
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT * FROM taakoplossingen WHERE webshop_url = %s",
+                    (webshop_url,),
+                )
+                return {r["taak_id"]: dict(r) for r in cur.fetchall()}
+    except Exception as e:
+        print(f"Taakoplossingen ophalen mislukt: {e}")
+        return {}
+
+
+def verwijder_taakoplossing(webshop_url, taak_id):
+    """Gooit een bewaarde oplossing weg, zodat hij opnieuw geschreven wordt."""
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM taakoplossingen WHERE webshop_url = %s AND taak_id = %s",
+                    (webshop_url, taak_id),
+                )
+                return cur.rowcount
+    except Exception as e:
+        print(f"Taakoplossing verwijderen mislukt: {e}")
+        return 0
 
 
 def verwijder_bronvindplaatsen(webshop_url, meting_id):

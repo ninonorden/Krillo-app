@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alle metingen — Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --amber:#C77D00; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6; -webkit-font-smoothing:antialiased;}
+  a{color:var(--coral-tekst); text-decoration:none;}
+  .wrap{max-width:800px; margin:0 auto; padding:0 24px;}
+  nav{border-bottom:1px solid var(--line); background:var(--paper);}
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:64px;}
+  .logo{font-family:var(--disp); font-weight:700; font-size:18px; display:flex; align-items:center; gap:8px; color:var(--ink);}
+  .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
+  .nav-note{font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);}
+
+  main{padding:48px 0 96px;}
+  .eyebrow{font-family:var(--mono); font-size:12px; color:var(--ink-soft); margin-bottom:10px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:27px; margin-bottom:6px; letter-spacing:-0.01em;}
+  .sub{color:var(--ink-soft); font-size:14px; margin-bottom:32px;}
+
+  .huidig{background:var(--ink); border-radius:16px; padding:32px; margin-bottom:14px; text-align:center; color:#fff;}
+  .huidig-label{font-family:var(--mono); font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;}
+  .huidig-score{font-family:var(--disp); font-weight:700; font-size:56px; line-height:1;}
+  .huidig-of{font-size:18px; color:#8B8DA8;}
+  .huidig-uitleg{font-size:12.5px; color:#B9BBD4; margin-top:10px; max-width:360px; margin-left:auto; margin-right:auto; line-height:1.55;}
+  .huidig-datum{font-size:12.5px; color:#B9BBD4; margin-top:8px; font-family:var(--mono);}
+  .verschil{
+    display:inline-flex; align-items:center; gap:6px; margin-top:14px;
+    font-size:13px; padding:6px 14px; border-radius:100px; font-weight:600;
+  }
+  .verschil.omhoog{background:var(--teal-dim); color:#085041;}
+  .verschil.omlaag{background:var(--coral-dim); color:#993C1D;}
+  .verschil.gelijk{background:rgba(255,255,255,0.1); color:#B9BBD4;}
+
+  .verloop{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px; padding:24px; margin-bottom:32px;}
+  .verloop h2{font-family:var(--disp); font-size:15px; font-weight:600; margin-bottom:16px;}
+  .grafiek{display:flex; gap:8px; align-items:flex-end; height:90px;}
+  .balk-wrap{flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;}
+  .balk{width:100%; background:var(--coral); border-radius:4px 4px 0 0; min-height:4px;}
+  .balk.laatste{background:var(--ink);}
+  .balk-score{font-family:var(--mono); font-size:10.5px; color:var(--ink-soft);}
+  .balk-datum{font-family:var(--mono); font-size:9.5px; color:var(--ink-soft);}
+
+  .vermelding{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+              padding:24px; margin-bottom:32px;}
+  .vermelding h2{font-family:var(--disp); font-size:15px; font-weight:600; margin-bottom:4px;}
+  .vermelding .kop-uitleg{font-size:13px; color:var(--ink-soft); margin-bottom:20px;}
+  .tellers{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line);
+           border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:16px;}
+  .tellers.drie{grid-template-columns:1fr 1fr 1fr;}
+  @media (max-width:640px){ .tellers.drie{grid-template-columns:1fr;} }
+  .teller{background:var(--paper); padding:18px 20px;}
+  .teller-label{font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+                letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px;}
+  .teller-num{font-family:var(--disp); font-weight:700; font-size:28px; line-height:1.1;}
+  .teller-num small{font-size:15px; font-weight:500; color:var(--ink-soft);}
+  .teller-uitleg{font-size:12px; color:var(--ink-soft); margin-top:4px;}
+  .noemer-uitleg{font-size:12.5px; color:var(--ink-soft); background:var(--paper);
+                 border-radius:10px; padding:14px 16px; margin-bottom:20px; line-height:1.6;}
+  .vraagregel{border-top:1px solid var(--line); padding:12px 0;}
+  .vraagregel .vraag{font-size:13.5px; font-weight:500; margin-bottom:6px;}
+  .bronlink{color:var(--ink); text-decoration:none; border-bottom:1px solid var(--line);}
+  .bronlink:hover{border-bottom-color:var(--ink);}
+  .bronmeta{font-family:var(--mono); font-size:11px; color:var(--ink-soft); margin-top:2px;}
+  .terug{margin-bottom:24px; font-size:13.5px;}
+  .terug a{font-family:var(--disp); font-weight:600;}
+
+  /* Het actieplan. Staat bovenaan omdat het het antwoord is: de cijfers
+     eronder zijn de onderbouwing. Bewust de enige donkere blok naast de
+     score, zodat het oog er meteen naartoe gaat. */
+  .plan{background:var(--paper-raised); border:2px solid var(--ink); border-radius:14px;
+        padding:26px; margin-bottom:32px;}
+  .plan h2{font-family:var(--disp); font-size:19px; font-weight:700; margin-bottom:6px;}
+  .plan-kop{font-size:14px; color:var(--ink-soft); margin-bottom:22px; line-height:1.6;}
+  .actie{display:flex; gap:16px; padding:20px 0; border-top:1px solid var(--line);}
+  .actie-nummer{flex-shrink:0; width:28px; height:28px; border-radius:50%; background:var(--ink);
+                color:#fff; font-family:var(--disp); font-weight:700; font-size:14px;
+                display:flex; align-items:center; justify-content:center;}
+  .actie-body{flex:1; min-width:0;}
+  .actie-titel{font-family:var(--disp); font-size:16px; font-weight:600; margin-bottom:8px;
+               display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .actie-waarom{font-size:13.5px; color:var(--ink-soft); margin-bottom:10px; line-height:1.65;}
+  .actie-hoe{font-size:13.5px; line-height:1.7; white-space:pre-line;}
+  .actie-links{margin-top:12px; background:var(--paper); border-radius:10px; padding:12px 14px;}
+  .actie-links > div{padding:5px 0; font-size:13px;}
+  .actie-links a{color:var(--ink); border-bottom:1px solid var(--line);}
+  .actie-links a:hover{border-bottom-color:var(--ink);}
+  .plan-voet{font-size:12.5px; color:var(--ink-soft); border-top:1px solid var(--line);
+             padding-top:14px; margin-top:6px; line-height:1.65;}
+  .vlag{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em;
+        padding:3px 8px; border-radius:100px; margin-right:8px; white-space:nowrap;}
+  .vlag.aanbevolen{background:var(--coral); color:#fff;}
+  .vlag.genoemd{background:var(--teal-dim); color:#085041;}
+  .vlag.niet{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .plek{font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);}
+  .citaat{font-size:12.5px; color:var(--ink-soft); border-left:2px solid var(--line);
+          padding:2px 0 2px 12px; margin-top:8px; line-height:1.55;}
+  .andere{width:100%; border-collapse:collapse; margin:8px 0 4px;}
+  .andere td{padding:7px 0; font-size:13px; border-top:1px solid var(--line);}
+  .andere td.getal{text-align:right; font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
+  .andere tr.jij td{font-weight:600; color:var(--coral-tekst);}
+  .meetuitleg{font-size:12px; color:var(--ink-soft); margin-top:18px; line-height:1.65;
+              border-top:1px solid var(--line); padding-top:14px;}
+
+  .soort{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em;
+         padding:2px 7px; border-radius:100px; margin-right:8px; flex-shrink:0;}
+  .soort.feit{background:var(--coral); color:#fff;}
+  .soort.vermoeden{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .punt{display:flex; gap:4px; align-items:flex-start; padding:9px 0; border-top:1px solid var(--line); font-size:13.5px;}
+  .conclusie{background:var(--paper); border-radius:10px; padding:16px 18px; font-size:13.5px; line-height:1.65;}
+  .beweging{border-radius:10px; padding:14px 16px; font-size:13.5px; margin-bottom:16px; line-height:1.6;}
+  .beweging.omhoog{background:var(--teal-dim); color:#085041;}
+  .beweging.omlaag{background:var(--coral-dim); color:#993C1D;}
+  .beweging.gelijk{background:var(--paper); color:var(--ink-soft);}
+  .beweging strong{display:block; margin-bottom:3px;}
+  .fout-regel{border-top:1px solid var(--line); padding:12px 0; font-size:13.5px;}
+  .fout-regel .zei{color:var(--ink-soft);}
+  .fout-regel .klopt{margin-top:4px;}
+
+  h2.sectie{font-family:var(--disp); font-weight:600; font-size:18px; margin:32px 0 12px;}
+  .categorie-label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--coral-tekst); margin:20px 0 8px;}
+  .check{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); font-size:13.5px;}
+  .tag{font-family:var(--mono); font-size:10px; padding:3px 8px; border-radius:5px; flex-shrink:0; margin-top:1px;}
+  .tag.ok{background:var(--teal-dim); color:#085041;}
+  .tag.deels{background:var(--amber-dim); color:#8A5A00;}
+  .tag.probleem{background:var(--coral-dim); color:#993C1D;}
+  .check-body strong{display:block; margin-bottom:2px;}
+  .check-body span{color:var(--ink-soft);}
+  .nieuw-badge{background:var(--coral); color:#fff; font-family:var(--mono); font-size:9.5px; padding:2px 7px; border-radius:4px; margin-left:6px;}
+
+  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:32px; text-align:center; color:var(--ink-soft); font-size:14px;}
+  footer{border-top:1px solid var(--line); padding:32px 0; text-align:center; font-size:12.5px; color:var(--ink-soft);}
+  .bewaar{background:var(--paper-raised); border:1px solid var(--line); border-radius:10px; padding:14px 16px; font-size:13px; color:var(--ink-soft); margin-bottom:28px;}
+  .opzeg{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+    padding:24px; margin-top:48px;
+  }
+  .opzeg strong{display:block; font-family:var(--disp); font-size:16px; margin-bottom:8px;}
+  .opzeg p{font-size:13.5px; color:var(--ink-soft); margin-bottom:16px;}
+  .opzeg-knop{
+    background:none; border:1.5px solid var(--line); color:var(--ink-soft);
+    padding:11px 20px; border-radius:8px; font-family:var(--body); font-size:13.5px;
+    font-weight:600; cursor:pointer;
+  }
+  .opzeg-knop:hover{border-color:var(--coral); color:var(--coral);}
+  .opzeg-knop:disabled{opacity:0.6; cursor:default;}
+  .opzeg-melding{margin-top:14px; font-size:13px; padding:12px 14px; border-radius:8px; display:none;}
+  .opzeg-melding.fout{background:var(--coral-dim); color:#993C1D; display:block;}
+  .opzeg-melding.goed{background:var(--teal-dim); color:#085041; display:block;}
+
+  /* Respecteer de voorkeur van mensen die liever geen bewegende beelden zien */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
+  }
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
+  <span class="nav-note">Monitoring actief</span>
+</div></nav>
+
+<main>
+  <div class="wrap">
+    <div class="eyebrow">Monitoring</div>
+    <h1>{{ webshop_url }}</h1>
+    <div class="sub">Deze pagina blijft altijd op hetzelfde adres staan en wordt elke week bijgewerkt.</div>
+
+    <div class="bewaar">Bewaar deze link, bijvoorbeeld als bladwijzer. Je hoeft niet in te loggen, en je vindt hier altijd je nieuwste scan terug.</div>
+
+    <div class="terug">
+      <a href="{% if voorbeeld %}/admin/voorbeeld?key={{ sleutel }}&url={{ webshop_url }}{% else %}/monitoring/{{ klant_token }}{% endif %}">&larr; Terug naar wat je deze week doet</a>
+    </div>
+
+    {% if laatste %}
+    <div class="huidig">
+      <div class="huidig-label">Huidige AI-leesbaarheid</div>
+      <div><span class="huidig-score">{{ laatste.score }}</span><span class="huidig-of">/100</span></div>
+      <div class="huidig-uitleg">Hoe goed AI je site kan lezen en begrijpen. Dit is geen kans dat je aanbevolen wordt.</div>
+      <div class="huidig-datum">Laatste scan: {{ laatste.aangemaakt_op.strftime('%d-%m-%Y') }}</div>
+      {% if verschil is not none %}
+        {% if verschil > 0 %}
+        <div class="verschil omhoog">Gestegen met {{ verschil }} punten sinds de vorige scan</div>
+        {% elif verschil < 0 %}
+        <div class="verschil omlaag">Gedaald met {{ verschil|abs }} punten sinds de vorige scan</div>
+        {% else %}
+        <div class="verschil gelijk">Gelijk gebleven sinds de vorige scan</div>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    {% if verloop|length > 1 %}
+    <div class="verloop">
+      <h2>Je scoreverloop</h2>
+      <div class="grafiek">
+        {% for punt in verloop %}
+        <div class="balk-wrap">
+          <div class="balk-score">{{ punt.score }}</div>
+          <div class="balk {% if loop.last %}laatste{% endif %}" style="height:{{ (punt.score / 100 * 60)|round(0,'ceil')|int + 4 }}px;"></div>
+          <div class="balk-datum">{{ punt.aangemaakt_op.strftime('%d-%m') }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+
+
+    {% if nieuwe_problemen %}
+    <h2 class="sectie">Nieuw sinds de vorige scan</h2>
+    {% for c in nieuwe_problemen %}
+    <div class="check">
+      <span class="tag {{ c.status }}">{{ status_labels[c.status] }}</span>
+      <div class="check-body"><strong>{{ c.titel }}<span class="nieuw-badge">nieuw</span></strong><span>{{ c.uitleg }}</span></div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <h2 class="sectie">Alle bevindingen</h2>
+    {% for categorie, items in checks_by_categorie.items() %}
+    <div class="categorie-label">{{ categorie }}</div>
+    {% for c in items %}
+    <div class="check">
+      <span class="tag {{ c.status }}">{{ status_labels[c.status] }}</span>
+      <div class="check-body"><strong>{{ c.titel }}</strong><span>{{ c.uitleg }}</span></div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+
+    {% else %}
+    <div class="leeg">Er is nog geen scan uitgevoerd. Je eerste scan verschijnt hier zodra die klaar is.</div>
+    {% endif %}
+
+    {% if vermeldingen %}
+    <div class="vermelding">
+      <h2>Word je genoemd als iemand het aan AI vraagt?</h2>
+      <div class="kop-uitleg">
+        We stellen elke week {{ vermeldingen.gesteld }} koopvragen die kopers in jouw
+        categorie echt stellen. Deze meting liep via
+        {% for m in vermeldingen.modellen %}{{ m }}{% if not loop.last %}{% if loop.revindex == 2 %} en {% else %}, {% endif %}{% endif %}{% endfor %}.
+        {% if vermeldingen.modellen|length > 1 %}
+        Zeggen de modellen niet hetzelfde over een vraag, dan tellen we de sterkste uitkomst mee.
+        {% endif %}
+      </div>
+
+      {% if beweging and beweging.melden %}
+      <div class="beweging {% if beweging.verschil > 0 %}omhoog{% else %}omlaag{% endif %}">
+        <strong>
+          {% if beweging.verschil > 0 %}Gestegen{% else %}Gedaald{% endif %}
+          sinds de vorige meting: van {{ beweging.toen.genoemd }} naar {{ beweging.nu.genoemd }}
+        </strong>
+        {{ beweging.duiding }}
+      </div>
+      {% endif %}
+
+      <div class="tellers drie">
+        <div class="teller">
+          <div class="teller-label">Genoemd</div>
+          <div class="teller-num">{{ vermeldingen.genoemd }}<small> van {{ vermeldingen.telbaar }}</small></div>
+          <div class="teller-uitleg">Je winkel komt in het antwoord voor.</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Aanbevolen</div>
+          <div class="teller-num">{{ vermeldingen.aanbevolen }}<small> van {{ vermeldingen.telbaar }}</small></div>
+          <div class="teller-uitleg">Je wordt ook echt aangeraden, niet alleen genoemd.</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Met een product erbij</div>
+          <div class="teller-num">{{ vermeldingen.product_genoemd }}<small> van {{ vermeldingen.genoemd }}</small></div>
+          <div class="teller-uitleg">Er wordt niet alleen naar je winkel verwezen, maar een concreet product van je aangeraden.</div>
+        </div>
+      </div>
+
+      {% if vermeldingen.niet_telbaar %}
+      <div class="noemer-uitleg">
+        We tellen {{ vermeldingen.telbaar }} van je {{ vermeldingen.gesteld }} vragen mee.
+        Bij {{ vermeldingen.niet_telbaar }} vragen werd er naar een merk of een product gevraagd
+        en niet naar een winkel. In zulke antwoorden komt geen enkele webshop voor, ook de beste niet.
+        Die meetellen zou je cijfer alleen maar mooier of lelijker maken dan het is.
+      </div>
+      {% endif %}
+
+      {% if vermeldingen.concurrenten %}
+      <h2 style="margin-top:8px;">Wie er nog meer genoemd worden</h2>
+      <div class="kop-uitleg">Bij dezelfde vragen. Dit zijn de winkels waar je het tegen opneemt.</div>
+      <table class="andere">
+        <tr><td style="font-family:var(--mono); font-size:10.5px; text-transform:uppercase; color:var(--ink-soft);">Winkel</td>
+            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Genoemd</td>
+            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Aanbevolen</td></tr>
+        {% for c in vermeldingen.concurrenten %}
+        <tr class="{% if c.wij %}jij{% endif %}">
+          <td>{{ c.naam }}{% if c.wij %} (jij){% endif %}</td>
+          <td class="getal">{{ c.genoemd }}</td>
+          <td class="getal">{{ c.aanbevolen }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+
+      <h2 style="margin-top:24px;">Per vraag</h2>
+      <div class="kop-uitleg">Het citaat eronder komt letterlijk uit het antwoord van de AI.</div>
+      {% for r in vermeldingen.regels %}
+      <div class="vraagregel">
+        <div class="vraag">{{ r.vraag }}</div>
+        <div>
+          {% if r.aanbevolen %}
+          <span class="vlag aanbevolen">aanbevolen</span>
+          {% elif r.genoemd %}
+          <span class="vlag genoemd">genoemd</span>
+          {% else %}
+          <span class="vlag niet">niet genoemd</span>
+          {% endif %}
+          {% if r.positie %}<span class="plek">plek {{ r.positie }} van {{ r.aantal_winkels }}</span>{% endif %}
+          {% if r.soort_vermelding in ('product', 'beide') %}
+          <span class="plek">product genoemd</span>
+          {% endif %}
+        </div>
+        {% if r.bewijs %}<div class="citaat">{{ r.bewijs }}</div>{% endif %}
+      </div>
+      {% endfor %}
+
+      <div class="meetuitleg">
+        <strong>Hoe we dit meten.</strong> We stellen de vragen via de programmeerkoppeling
+        van
+        {% for m in vermeldingen.modellen %}{{ m }}{% if not loop.last %}{% if loop.revindex == 2 %} en {% else %}, {% endif %}{% endif %}{% endfor %},
+        zonder er iets omheen te zetten. Dat is een benadering van wat
+        iemand in de app zou zien: daar tellen ook de zoekresultaten van dat moment, de locatie
+        en de geschiedenis van die persoon mee. We tonen daarom aantallen en geen percentages,
+        want die zouden een precisie suggereren die er niet is.<br><br>
+        <strong>Winkel tegenover product.</strong> "Kijk eens bij deze winkel" is iets
+        anders dan "de emaille mokken van deze winkel zijn mooi". Dat tweede levert veel
+        eerder een aankoop op, want de koper weet dan al wat hij zoekt. Daarom tellen we
+        die twee apart.<br><br>
+        <strong>Let op.</strong> Of je genoemd wordt heb je niet helemaal zelf in de hand. Komt
+        een concurrent groot in het nieuws of wordt een AI-model bijgewerkt, dan kan je cijfer
+        veranderen zonder dat je iets fout deed. Daarom laten we zien wie er nog meer genoemd
+        worden, zodat je een daling kan plaatsen.
+      </div>
+    </div>
+    {% endif %}
+
+
+    {% if verklaring and (verklaring.blokkades or verklaring.belemmeringen or vermeldingen) %}
+    <div class="vermelding">
+      <h2>Wat betekent dit voor je site?</h2>
+      <div class="kop-uitleg">
+        We zetten je scan naast je vermeldingen. Wat we op je site kunnen meten noemen we een
+        feit. Wat we vermoeden noemen we een vermoeden. Dat verschil houden we streng, want
+        iets een oorzaak noemen terwijl we het niet gemeten hebben helpt je niet.
+      </div>
+
+      {% if verklaring.blokkades %}
+      <h2 style="margin-top:8px;">Dit houdt AI aantoonbaar tegen</h2>
+      {% for b in verklaring.blokkades %}
+      <div class="punt"><span class="soort feit">feit</span><span>{{ b.tekst }}</span></div>
+      {% endfor %}
+      {% endif %}
+
+      {% if verklaring.belemmeringen %}
+      <h2 style="margin-top:20px;">Dit maakt je slechter leesbaar</h2>
+      <div class="kop-uitleg">
+        Deze punten helpen AI je site te begrijpen. Of ze bepalen of je genoemd wordt, weten
+        we niet, dus dat beweren we ook niet.
+      </div>
+      {% for b in verklaring.belemmeringen %}
+      <div class="punt"><span class="soort vermoeden">vermoeden</span><span>{{ b.tekst }}</span></div>
+      {% endfor %}
+      {% endif %}
+
+      <h2 style="margin-top:20px;">Wat dit bij elkaar betekent</h2>
+      <div class="conclusie">{{ verklaring.conclusie }}</div>
+    </div>
+    {% endif %}
+
+    {% if bronnen %}
+    <div class="vermelding">
+      <h2>Waar staan de winkels die wel genoemd worden?</h2>
+      <div class="kop-uitleg">
+        Het grootste deel van wat AI over een winkel zegt komt niet van die winkel zelf, maar
+        van wat er elders over geschreven wordt. Daarom hebben we jouw koopvragen ook in een
+        gewone zoekmachine gezet en de pagina's die daaruit kwamen nagelopen. Hieronder staat
+        wie er op die pagina's voorkomt en wie niet.
+      </div>
+
+      <div class="tellers drie">
+        <div class="teller">
+          <div class="teller-label">Plekken bekeken</div>
+          <div class="teller-num">{{ bronnen.sites }}</div>
+          <div class="teller-uitleg">Websites waar winkels in jouw categorie naast elkaar gezet worden. Je eigen site telt niet mee.</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Jij staat erop</div>
+          <div class="teller-num">{{ bronnen.wij_erop }}<small> van {{ bronnen.paginas }}</small></div>
+          <div class="teller-uitleg">Je winkelnaam of een link naar je site komt op de pagina voor.</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Concurrent wel, jij niet</div>
+          <div class="teller-num">{{ bronnen.gemist }}</div>
+          <div class="teller-uitleg">Hier zit het verschil. Deze pagina's bestaan al, je hoeft ze niet te maken.</div>
+        </div>
+      </div>
+
+      {% if bronnen.concurrenten %}
+      <h2 style="margin-top:24px;">Op hoeveel van die websites staat wie</h2>
+      <table class="andere">
+        <tr><td style="font-family:var(--mono); font-size:10.5px; text-transform:uppercase; color:var(--ink-soft);">Winkel</td>
+            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Websites</td></tr>
+        {% for c in bronnen.concurrenten %}
+        <tr>
+          <td>{{ c.naam }}</td>
+          <td class="getal">{{ c.paginas }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+
+      {% if bronnen.gemiste_paginas %}
+      <h2 style="margin-top:24px;">De pagina's waar je nog niet op staat</h2>
+      <div class="kop-uitleg">
+        Op deze pagina's staat wel een winkel die AI noemt, en jij niet. Ze bestaan al en gaan
+        over precies waar jij in handelt.
+      </div>
+      {% for g in bronnen.gemiste_paginas %}
+      <div class="vraagregel">
+        <div class="vraag"><a href="{{ g.url }}" target="_blank" rel="noopener nofollow" class="bronlink">{{ g.titel }}</a></div>
+        <div class="bronmeta">{{ g.domein }}</div>
+        <div class="bronmeta">hier genoemd: {{ g.concurrenten | join(', ') }}</div>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      <h2 style="margin-top:24px;">Wat dit betekent</h2>
+      <div class="conclusie">{{ bronnen.conclusie }}</div>
+
+      <div class="meetuitleg">
+        <strong>Wat dit wel en niet zegt.</strong> Dit is een feit: op deze pagina's staat die
+        winkel wel en jij niet, en je kan het zelf nakijken door op de link te klikken. Wat we
+        er niet bij beweren is dat je genoemd wordt zodra je er wel op staat. Dat weten we niet
+        en dat meten we niet. We laten zien waar het verschil zit, niet wat het verschil
+        veroorzaakt.<br><br>
+        <strong>Waarom we het zo doen.</strong> We vragen bewust nooit aan een AI-model waarom
+        het een winkel aanraadt. Een model weet dat niet en verzint dan een verklaring die
+        overtuigend klinkt. Daar heb je niets aan. Dit zijn echte pagina's die je zelf kan
+        openen.
+      </div>
+    </div>
+    {% endif %}
+
+    {% if controle and controle.gecontroleerd %}
+    <div class="vermelding">
+      <h2>Klopt wat AI over je zegt?</h2>
+      <div class="kop-uitleg">
+        We hebben {{ controle.gecontroleerd }} uitspraken over jouw winkel naast de tekst op je
+        eigen site gelegd. Wordt er iets beweerd dat niet klopt, dan komt een koper met een
+        verkeerde verwachting bij je aan.
+      </div>
+
+      <div class="tellers drie">
+        <div class="teller">
+          <div class="teller-label">Klopt</div>
+          <div class="teller-num">{{ controle.klopt }}</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Klopt niet</div>
+          <div class="teller-num">{{ controle.klopt_niet }}</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Niet te controleren</div>
+          <div class="teller-num">{{ controle.onbekend }}</div>
+        </div>
+      </div>
+
+      {% if controle.fouten %}
+      {% for f in controle.fouten %}
+      <div class="fout-regel">
+        <div class="zei">Bij "{{ f.vraag }}" zei AI: "{{ f.uitspraak }}"</div>
+        {% if f.watzegtdesite %}<div class="klopt"><strong>Op je site staat:</strong> {{ f.watzegtdesite }}</div>{% endif %}
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="conclusie">Er is niets gevonden dat aantoonbaar niet klopt.</div>
+      {% endif %}
+
+      <div class="meetuitleg">
+        <strong>Waarom staat er zoveel op "niet te controleren"?</strong> We lezen een paar
+        pagina's van je site, niet je hele webshop. Een uitspraak die we daar niet terugvinden
+        noemen we onbekend en geen fout. Smaakoordelen als "sfeervol" zijn sowieso niet te
+        controleren.
+      </div>
+    </div>
+    {% endif %}
+
+    {% if not voorbeeld %}
+    <div class="opzeg">
+      <strong>Je abonnement</strong>
+      <p>Je betaalt 39 euro per maand, maandelijks opzegbaar. Zeg je op, dan houd je toegang tot het einde van de periode die je al betaald hebt en wordt er daarna niets meer afgeschreven.</p>
+      <button class="opzeg-knop" id="opzegKnop">Mijn abonnement opzeggen</button>
+      <div class="opzeg-melding" id="opzegMelding"></div>
+    </div>
+    {% else %}
+    <div class="opzeg">
+      <strong>Voorbeeldweergave</strong>
+      <p>Dit is hoe een abonnee zijn eigen pagina ziet. Alleen zichtbaar met de beheersleutel.</p>
+    </div>
+    {% endif %}
+  </div>
+</main>
+
+{% if not voorbeeld %}
+<script>
+(function(){
+  var knop = document.getElementById('opzegKnop');
+  var melding = document.getElementById('opzegMelding');
+  if(!knop) return;
+
+  knop.addEventListener('click', function(){
+    if(!window.confirm('Weet je zeker dat je je monitoring wil opzeggen? Je houdt toegang tot het einde van de al betaalde periode.')) return;
+    knop.disabled = true;
+    knop.textContent = 'Bezig met opzeggen...';
+    fetch('/api/opzeggen/{{ klant_token }}', {method: 'POST'})
+      .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
+      .then(function(res){
+        if(!res.ok){
+          melding.className = 'opzeg-melding fout';
+          melding.textContent = res.data.error || 'Het opzeggen is niet gelukt. Mail hallo@krillo.nl, dan regelen we het.';
+          knop.disabled = false;
+          knop.textContent = 'Mijn abonnement opzeggen';
+          return;
+        }
+        melding.className = 'opzeg-melding goed';
+        melding.textContent = 'Je abonnement is opgezegd. Je krijgt een bevestiging per e-mail. Er wordt niets meer afgeschreven.';
+        knop.textContent = 'Opgezegd';
+      })
+      .catch(function(){
+        melding.className = 'opzeg-melding fout';
+        melding.textContent = 'Er ging iets mis. Mail hallo@krillo.nl, dan regelen we het.';
+        knop.disabled = false;
+        knop.textContent = 'Mijn abonnement opzeggen';
+      });
+  });
+})();
+</script>
+{% endif %}
+
+<footer>© 2026 Krillo &middot; <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a></footer>
+
+</body>
+</html>

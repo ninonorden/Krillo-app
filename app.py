@@ -707,7 +707,18 @@ def weekly_scans():
 
 
 @app.route("/monitoring/<klant_token>")
+@app.route("/monitoring/<klant_token>/details")
 def monitoring_pagina(klant_token):
+    """De klantpagina. Twee weergaven op dezelfde gegevens.
+
+    Standaard krijgt een klant alleen zijn takenlijst. De cijfers, citaten,
+    concurrenten en de dertien controlepunten staan op /details.
+
+    Dat is bewust zo gesplitst. Alles op een pagina zetten leverde tien blokken
+    op waar een winkeleigenaar niet doorheen kwam, en dan is het niet meer
+    duidelijk wat hij moet doen. De cijfers zijn de onderbouwing, niet het
+    product."""
+    details = request.path.endswith("/details")
     klant = db.get_klant(klant_token)
     if klant is None:
         return "Deze pagina bestaat niet of is niet meer geldig.", 404
@@ -741,7 +752,7 @@ def monitoring_pagina(klant_token):
     gegevens = _klantgegevens(klant["webshop_url"])
 
     return render_template(
-        "monitoring.html",
+        "monitoring_details.html" if details else "monitoring.html",
         vermeldingen=gegevens["vermeldingen"],
         controle=gegevens["controle"],
         beweging=gegevens["beweging"],
@@ -1049,6 +1060,16 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
         melden("externe bronnen zoeken")
         _zoek_bronnen(webshop_url, meting_id, winkelnaam, melden)
 
+    # Fase 5 punt 15. Het plan samenstellen en de kant-en-klare oplossingen
+    # laten schrijven, zodat ze klaarstaan als de klant zijn pagina opent.
+    # Hier en niet daar: een pagina die staat te wachten op een AI is
+    # onbruikbaar, en verversen zou elke keer opnieuw geld kosten.
+    try:
+        melden("actieplan klaarzetten")
+        _maak_taakoplossingen(webshop_url, _klantgegevens(webshop_url)["actieplan"], melden)
+    except Exception as e:
+        print(f"Taakoplossingen klaarzetten mislukt voor {webshop_url}: {e}")
+
     # Alleen mailen als er iets te melden valt. Een wekelijks bericht dat er
     # niets veranderd is, leert een klant om je mail weg te klikken.
     try:
@@ -1072,6 +1093,44 @@ _bronnen_status = {}
 def _zet_bronnen_status(webshop_url, tekst, klaar=False):
     _bronnen_status[webshop_url] = {"tekst": tekst, "klaar": klaar}
     print(f"Bronnen {webshop_url}: {tekst}")
+
+
+# Voor deze taak laten we geen tekst schrijven. Wat er misgaat verschilt per
+# ronde en staat al letterlijk in de taak zelf, met de verkeerde uitspraak en
+# wat de site erover zegt. Daar valt niets aan toe te voegen dat het bewaren
+# waard is.
+GEEN_OPLOSSING_NODIG = {"onjuistheden"}
+
+
+def _maak_taakoplossingen(webshop_url, plan, melden=None):
+    """Laat voor elke taak in het plan de kant-en-klare oplossing schrijven,
+    en bewaart die.
+
+    Gebeurt hier, in de wekelijkse keten, en niet bij het openen van de
+    klantpagina. Twee redenen: een pagina die een halve minuut staat te denken
+    is onbruikbaar, en een klant die vijf keer ververst zou vijf keer betalen.
+
+    Al geschreven oplossingen worden overgeslagen. Een taak die blijft staan
+    krijgt dus dezelfde tekst als vorige week, en dat hoort ook: hetzelfde
+    probleem met een andere formulering laat het lijken alsof er iets veranderd
+    is."""
+    if not plan or not plan.get("acties"):
+        return
+    bestaand = db.get_taakoplossingen(webshop_url)
+    for actie in plan["acties"]:
+        taak_id = actie.get("id")
+        if not taak_id or taak_id in GEEN_OPLOSSING_NODIG or taak_id in bestaand:
+            continue
+        if melden:
+            try:
+                melden(f"oplossing schrijven: {actie['titel'][:40]}")
+            except Exception:
+                pass
+        uitkomst = ai_content.genereer_taakoplossing(
+            webshop_url, taak_id, actie["titel"], actie["hoe"])
+        if uitkomst:
+            db.bewaar_taakoplossing(webshop_url, taak_id, uitkomst["titel"],
+                                    uitkomst["oplossing"], uitkomst["waar"])
 
 
 def _zoek_bronnen(webshop_url, meting_id=None, winkelnaam=None, melden=None):
@@ -1231,6 +1290,16 @@ def _klantgegevens(webshop_url):
         controle=controle_samenvatting,
         winkelnaam=winkelnaam,
     )
+
+    # De bewaarde oplossingen aan de taken hangen. Alleen lezen, nooit
+    # schrijven: dat gebeurt in de wekelijkse keten.
+    if plan and plan.get("acties"):
+        opgeslagen = db.get_taakoplossingen(webshop_url)
+        for actie in plan["acties"]:
+            bewaard = opgeslagen.get(actie.get("id"))
+            if bewaard:
+                actie["oplossing"] = bewaard.get("oplossing")
+                actie["waar"] = bewaard.get("waar")
 
     return {
         "vermeldingen": vermeldingen,
@@ -1453,10 +1522,11 @@ def admin_voorbeeld():
     gegevens = _klantgegevens(webshop_url)
 
     return render_template(
-        "monitoring.html",
+        "monitoring_details.html" if request.args.get("details") == "ja" else "monitoring.html",
         webshop_url=webshop_url,
         klant_token=None,
         voorbeeld=True,
+        sleutel=admin_key,
         vermeldingen=gegevens["vermeldingen"],
         controle=gegevens["controle"],
         beweging=gegevens["beweging"],
