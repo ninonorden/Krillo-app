@@ -44,7 +44,7 @@
   "@type": "Service",
   "name": "AI-zichtbaarheidsscan en audit",
   "provider": {"@type": "Organization", "name": "Krillo", "url": "https://www.krillo.nl"},
-  "description": "Een scan die laat zien hoe goed een webshop gevonden en aanbevolen wordt door AI-assistenten, plus een audit die de verbeterpunten oplost.",
+  "description": "Laat zien of AI-assistenten zoals ChatGPT en Gemini een webshop noemen en aanbevelen, en levert elke week hoogstens drie concrete taken met de teksten, code en vindplaatsen er kant en klaar bij.",
   "areaServed": ["NL", "BE"],
   "offers": [
     {"@type": "Offer", "name": "Gratis scan", "price": "0", "priceCurrency": "EUR"},
@@ -500,6 +500,21 @@
   .demo-fix-waar{font-size:13px; color:var(--ink-soft); margin-top:14px; line-height:1.65;}
   .demo-fix-waar strong{color:var(--ink);}
 
+  /* De takenlijst zoals een abonnee hem ziet. Bewust dezelfde vensterlijst als
+     bij het rapport hierboven, zodat je ziet dat het een echte pagina is en
+     geen plaatje uit een folder. */
+  .taken-demo-kop{font-family:var(--disp); font-weight:700; font-size:21px; margin-bottom:4px;}
+  .taken-demo-stand{font-size:14px; color:var(--ink-soft); margin-bottom:22px;}
+  .taak-demo{display:flex; gap:14px; align-items:flex-start; padding:16px 0;
+             border-top:1px solid var(--line);}
+  .taak-demo-num{flex-shrink:0; width:26px; height:26px; border-radius:50%; background:var(--ink);
+                 color:#fff; font-family:var(--disp); font-weight:700; font-size:13px;
+                 display:flex; align-items:center; justify-content:center;}
+  .taak-demo strong{display:block; font-family:var(--disp); font-size:15.5px; margin-bottom:4px;}
+  .taak-demo-uitleg{font-size:13.5px; color:var(--ink-soft); line-height:1.6;}
+  .taken-demo-voet{font-size:12.5px; color:var(--ink-soft); border-top:1px solid var(--line);
+                   margin-top:8px; padding-top:16px; line-height:1.6;}
+
   /* --- Prijzen --- */
   .prijzen-kop{max-width:580px; margin-bottom:44px;}
   .prijzen-kop p{font-size:16px; color:var(--ink-soft); margin-top:14px;}
@@ -593,6 +608,7 @@
     <div class="navlinks">
       <a href="#hoe">Hoe het werkt</a>
       <a href="#voorbeeld">Voorbeeld</a>
+      <a href="#monitoring">Monitoring</a>
       <a href="#prijzen">Prijzen</a>
       <a href="/zo-meten-we">Zo meten we</a>
       <a href="/artikelen">Artikelen</a>
@@ -605,13 +621,13 @@
   <div class="wrap hero-grid">
     <div>
       <div class="eyebrow">Voor Nederlandse &amp; Belgische webshops</div>
-      <h1>Wordt jouw webshop nog <em>gevonden</em>, als niemand meer googelt?</h1>
-      <p class="hero-sub">Steeds meer kopers vragen het gewoon aan ChatGPT of Gemini. Wij stellen die koopvragen echt, en laten zien of jouw winkel in het antwoord staat, welke winkels er wel staan, en of je genoemd wordt of echt aanbevolen. Gratis, zonder account.</p>
+      <h1>Beveelt ChatGPT jouw webshop aan? En zo niet, <em>wat doe je eraan?</em></h1>
+      <p class="hero-sub">Steeds meer kopers vragen het gewoon aan ChatGPT of Gemini. Wij stellen die koopvragen echt en laten zien of jouw winkel in het antwoord staat. En daarna krijg je geen rapport maar een lijstje: hoogstens drie dingen die je deze week kan doen, met de tekst er kant en klaar bij. Begin gratis, zonder account.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="jouwwebshop.nl" aria-label="Website URL">
         <button type="button" id="scanButton">Scan gratis</button>
       </div>
-      <div class="hero-note" id="scanNote">Geen account nodig · eerst je technische cijfer, daarna de echte koopvragen</div>
+      <div class="hero-note" id="scanNote">Geen account nodig · eerst je technische cijfer, daarna drie echte koopvragen aan AI</div>
       <div id="scanResult" class="scan-result"></div>
     </div>
 
@@ -763,11 +779,87 @@
   </div>
 </section>
 
+<section id="monitoring">
+  <div class="wrap">
+    <div class="voorbeeld-kop">
+      <h2>En met monitoring krijg je elke week een lijstje.</h2>
+      <p>Geen dashboard vol cijfers waar je een specialist bij nodig hebt. Hoogstens drie dingen die je zelf kan doen, met de tekst er kant en klaar bij.</p>
+    </div>
+
+    <div class="rapport-demo">
+      <div class="rapport-demo-balk">
+        <span class="stip"></span><span class="stip"></span><span class="stip"></span>
+        <span class="rapport-demo-url">krillo.nl/monitoring</span>
+      </div>
+      <div class="rapport-demo-body">
+        <div class="taken-demo-kop">Wat je deze week doet</div>
+        <div class="taken-demo-stand">Je wordt genoemd bij 4 van de 22 koopvragen.</div>
+
+        <div class="taak-demo">
+          <span class="taak-demo-num">1</span>
+          <div>
+            <strong>Zorg dat je op deze 2 plekken komt te staan</strong>
+            <span class="taak-demo-uitleg">Op deze pagina's staan winkels die AI wel noemt, en jij niet. Ze bestaan al, je hoeft ze niet te maken. De mail aan de redactie staat kant en klaar voor je klaar.</span>
+          </div>
+        </div>
+        <div class="taak-demo">
+          <span class="taak-demo-num">2</span>
+          <div>
+            <strong>Zet deze vragen en antwoorden op je site</strong>
+            <span class="taak-demo-uitleg">Vijf vragen met antwoorden, geschreven over jouw producten. Kopieerknop erbij, en de route waar je ze plakt in Shopify of WordPress.</span>
+          </div>
+        </div>
+        <div class="taak-demo">
+          <span class="taak-demo-num">3</span>
+          <div>
+            <strong>Zet recht wat AI verkeerd over je vertelt</strong>
+            <span class="taak-demo-uitleg">AI zei dat je binnen 24 uur levert, op je site staat 2 tot 3 werkdagen. Zoiets kost je klanten die al bijna besloten hadden.</span>
+          </div>
+        </div>
+
+        <div class="taken-demo-voet">Alle cijfers, citaten en de dertien controlepunten staan achter één link, voor als je wil zien waar dit op gebaseerd is.</div>
+      </div>
+    </div>
+
+    <div class="audit-teaser">
+      <div class="audit-teaser-head">
+        <h3>Wat je bij monitoring krijgt</h3>
+      </div>
+      <div class="audit-teaser-grid">
+        <div class="audit-teaser-item">
+          <strong>Elke week hoogstens drie taken</strong>
+          <p>Op volgorde van wat het meeste oplevert. Twaalf verbeterpunten is hetzelfde als nul, want daar begint niemand aan.</p>
+        </div>
+        <div class="audit-teaser-item">
+          <strong>De tekst er kant en klaar bij</strong>
+          <p>Niet "schrijf een vraag-en-antwoordpagina", maar de vragen en antwoorden zelf, over jouw producten, met een kopieerknop.</p>
+        </div>
+        <div class="audit-teaser-item">
+          <strong>Waar je concurrent wel staat en jij niet</strong>
+          <p>We zetten jouw koopvragen in een zoekmachine en lopen de gevonden pagina's na. Je krijgt de echte adressen, die je zelf kan openen.</p>
+        </div>
+        <div class="audit-teaser-item">
+          <strong>Wat AI verkeerd over je zegt</strong>
+          <p>We leggen elke uitspraak over jouw winkel naast de tekst op je site. Klopt er iets niet, dan hoor je het en weet je wat je moet aanpassen.</p>
+        </div>
+        <div class="audit-teaser-item">
+          <strong>30 koopvragen per week</strong>
+          <p>Aan ChatGPT en Gemini, in de woorden van een echte koper. Met per vraag het citaat waar het oordeel op rust.</p>
+        </div>
+        <div class="audit-teaser-item">
+          <strong>Bericht als er iets verandert</strong>
+          <p>Alleen als er echt iets te melden is, met de duiding erbij of het aan jou lag of aan de markt.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="prijzen">
   <div class="wrap">
     <div class="prijzen-kop">
       <h2>Begin gratis. Betaal pas als het iets oplevert.</h2>
-      <p>De gratis scan blijft gratis, zonder account en zonder betaalgegevens.</p>
+      <p>De gratis scan blijft gratis, zonder account en zonder betaalgegevens. Betaal je wel, dan krijg je geen rapport maar het werk: de teksten, de code en de plekken, kant en klaar.</p>
     </div>
     <div class="price-grid">
       <div class="price-card">
@@ -799,12 +891,12 @@
         <div class="price-name">Monitoring</div>
         <div class="price-amount">€39 <span>/maand</span></div>
         <ul class="price-feats">
-          <li><strong>Elke week 30 koopvragen aan ChatGPT en Gemini</strong>, in de woorden van een echte koper</li>
-          <li>Per vraag: word je genoemd, word je echt aanbevolen, en het citaat waarop dat oordeel rust</li>
-          <li>Welke concurrenten er wel staan, en wie er stijgt of daalt</li>
-          <li>Controle of wat AI over je winkel zegt ook echt klopt met je site</li>
+          <li><strong>Elke week hoogstens drie taken</strong>, op volgorde van wat het meeste oplevert</li>
+          <li><strong>De tekst er kant en klaar bij</strong>, geschreven over jouw producten, met een kopieerknop en de route waar je het plakt</li>
+          <li>De echte pagina's waar je concurrent wel op staat en jij niet, met de link erbij</li>
+          <li>30 koopvragen per week aan ChatGPT en Gemini, met per vraag het citaat waarop het oordeel rust</li>
           <li>Bericht als er iets verandert, met de duiding of het aan jou lag of aan de markt</li>
-          <li>Ook de 13 technische punten, elke week opnieuw</li>
+          <li>Alle cijfers en de 13 technische punten achter één link, voor als je ze wil zien</li>
           <li>Maandelijks opzegbaar, geen looptijd</li>
         </ul>
         <a class="price-btn ghost" href="#scan" id="monitoringCheckoutBtn">Start abonnement</a>
@@ -859,6 +951,7 @@
         <a href="/#scan">Gratis scan</a>
         <a href="/#hoe">Hoe het werkt</a>
         <a href="/#voorbeeld">Voorbeeld</a>
+        <a href="/#monitoring">Monitoring</a>
         <a href="/#prijzen">Prijzen</a>
       </div>
       <div class="footer-col">
@@ -1057,7 +1150,7 @@
     } else {
       html += '<div class="scan-cta scan-cta-good">';
       html += '<div class="scan-cta-text"><strong>Sterk resultaat.</strong> Wil je weten of AI je ook echt noemt? Met monitoring stellen we elke week dertig koopvragen aan ChatGPT en zie je of jouw webshop in het antwoord staat.</div>';
-      html += '<a href="#prijzen" class="scan-cta-btn">Bekijk monitoring &rarr;</a>';
+      html += '<a href="#monitoring" class="scan-cta-btn">Zie wat monitoring je oplevert &rarr;</a>';
       html += '</div>';
     }
 
@@ -1274,7 +1367,7 @@
       html += '<div class="zt-slot">Dit zijn vijf vragen op een moment. AI-antwoorden wisselen van dag tot dag, ' +
               'dus een losse meting is een momentopname en geen oordeel. We hebben je nog niet verteld waaróm ' +
               'het zo is, en ook niet of wat AI over je zegt klopt.</div>';
-      html += '<a href="#prijzen" class="scan-cta-btn">Bekijk wat monitoring hieraan doet &rarr;</a>';
+      html += '<a href="#monitoring" class="scan-cta-btn">Zie wat je hieraan kan doen &rarr;</a>';
     }
     html += '</div>';
     blok.innerHTML = html;

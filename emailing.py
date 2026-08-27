@@ -335,8 +335,10 @@ def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None):
         f'<p style="font-size:14.5px; line-height:1.6;">{stuk}</p>'
         for stuk in tekst.split("\n\n") if stuk.strip()
     )
-    body = alineas + _score_button(monitoring_url, "Bekijk je monitoringpagina")
-    html = _base_html(kop, f"Wat AI deze week over {webshop_url} zei.", body)
+    # De knop wijst naar de takenlijst en niet naar de cijfers. Iemand die deze
+    # mail opent wil weten wat hij eraan doet, niet nog een tabel zien.
+    body = alineas + _score_button(monitoring_url, "Bekijk wat je hieraan kan doen")
+    html = _base_html(kop, f"Wat AI deze week over {webshop_url} zei, en wat je eraan doet.", body)
     return send_email(to_email, onderwerp, html)
 
 
