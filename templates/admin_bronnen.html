@@ -171,23 +171,23 @@
 
   <div class="cijfers">
     <div class="cijfer">
-      <div class="cijfer-label">Externe pagina's</div>
-      <div class="cijfer-num">{{ s.paginas }}</div>
+      <div class="cijfer-label">Pagina's bekeken</div>
+      <div class="cijfer-num">{{ s.paginas }}<small> op {{ s.sites }} sites</small></div>
     </div>
     <div class="cijfer">
       <div class="cijfer-label">Wij staan erop</div>
       <div class="cijfer-num">{{ s.wij_erop }}<small> van {{ s.paginas }}</small></div>
     </div>
     <div class="cijfer">
-      <div class="cijfer-label">Concurrent wel, wij niet</div>
+      <div class="cijfer-label">Plekken waar wij missen</div>
       <div class="cijfer-num">{{ s.gemist }}</div>
     </div>
   </div>
   <div class="duiding">{{ s.conclusie }}</div>
 
-  <h2>Op hoeveel pagina's staat wie</h2>
+  <h2>Op hoeveel websites staat wie</h2>
   <table>
-    <tr><th>Winkel</th><th style="text-align:right">Pagina's</th></tr>
+    <tr><th>Winkel</th><th style="text-align:right">Websites</th></tr>
     {% for c in s.concurrenten %}
     <tr>
       <td>{{ c.naam }}</td>

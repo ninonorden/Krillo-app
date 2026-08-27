@@ -35,7 +35,9 @@ Omgevingsvariabelen (in Render):
          MEET_MODEL_ANTHROPIC, MEET_VRAGEN_PER_RONDE, MEET_MAX_TOKENS,
          BRONNEN_AAN, ZOEK_AANBIEDER, BRONNEN_MAX_VRAGEN, BRONNEN_MAX_PAGINAS,
          BRONNEN_MAX_CONCURRENTEN, BRONNEN_PRIJS_PER_ZOEKOPDRACHT,
-         BRONNEN_LAND (standaard NL), BRONNEN_TAAL (standaard nl)
+         BRONNEN_LAND (standaard NL), BRONNEN_TAAL (standaard nl),
+         BRONNEN_MIN_WINKELS (standaard 2: hoeveel bekende winkels er
+         minstens op een pagina moeten staan), BRONNEN_MAX_PER_DOMEIN
 
 Beheerpagina's (alleen met ?key=ADMIN_KEY, zonder sleutel geven ze 404):
 - /admin/bestellingen   Betaalde bestellingen uit Mollie

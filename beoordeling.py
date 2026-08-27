@@ -334,6 +334,11 @@ def klantbeeld(webshop_url, beoordelingen):
                 "genoemd": False, "aanbevolen": False,
                 "positie": None, "aantal_winkels": None, "bewijs": None,
                 "soort_vermelding": None,
+                # De intentie gaat mee omdat de bronanalyse hem nodig heeft.
+                # Niet elke koopvraag is even bruikbaar als zoekterm: een vraag
+                # over retourbeleid levert pagina's over retourbeleid op, geen
+                # pagina's over winkels in die categorie.
+                "intentie": b.get("intentie"),
             }
         if b.get("winkel_kon_genoemd"):
             regel["telt_mee"] = True

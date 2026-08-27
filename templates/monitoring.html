@@ -377,9 +377,9 @@
 
       <div class="tellers drie">
         <div class="teller">
-          <div class="teller-label">Pagina's bekeken</div>
-          <div class="teller-num">{{ bronnen.paginas }}</div>
-          <div class="teller-uitleg">Externe pagina's over jouw onderwerpen. Je eigen site telt niet mee.</div>
+          <div class="teller-label">Plekken bekeken</div>
+          <div class="teller-num">{{ bronnen.sites }}</div>
+          <div class="teller-uitleg">Websites waar winkels in jouw categorie naast elkaar gezet worden. Je eigen site telt niet mee.</div>
         </div>
         <div class="teller">
           <div class="teller-label">Jij staat erop</div>
@@ -394,10 +394,10 @@
       </div>
 
       {% if bronnen.concurrenten %}
-      <h2 style="margin-top:24px;">Op hoeveel van die pagina's staat wie</h2>
+      <h2 style="margin-top:24px;">Op hoeveel van die websites staat wie</h2>
       <table class="andere">
         <tr><td style="font-family:var(--mono); font-size:10.5px; text-transform:uppercase; color:var(--ink-soft);">Winkel</td>
-            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Pagina's</td></tr>
+            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Websites</td></tr>
         {% for c in bronnen.concurrenten %}
         <tr>
           <td>{{ c.naam }}</td>

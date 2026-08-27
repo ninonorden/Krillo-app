@@ -66,9 +66,42 @@ MAX_VRAGEN_PER_RONDE = int(os.environ.get("BRONNEN_MAX_VRAGEN", "4"))
 MAX_RESULTATEN = int(os.environ.get("BRONNEN_MAX_RESULTATEN", "10"))
 MAX_PAGINAS = int(os.environ.get("BRONNEN_MAX_PAGINAS", "8"))
 
-# Hoeveel concurrenten we volgen. Meer dan dit maakt de uitkomst een tabel in
-# plaats van een antwoord.
-MAX_CONCURRENTEN = int(os.environ.get("BRONNEN_MAX_CONCURRENTEN", "5"))
+# Hoeveel concurrenten we op de gevonden pagina's opzoeken. Ruimer dan wat de
+# klant uiteindelijk te zien krijgt, en dat is met opzet: hoe meer bekende
+# winkels we kunnen herkennen, hoe beter we kunnen zien of een pagina een
+# vergelijkingslijstje is of een toevallige vermelding.
+MAX_CONCURRENTEN = int(os.environ.get("BRONNEN_MAX_CONCURRENTEN", "8"))
+
+# Hoeveel bekende winkels er minstens op een pagina moeten staan voordat we hem
+# meetellen.
+#
+# Dit is de belangrijkste kwaliteitsrem. Zonder deze regel komt er van alles
+# binnen: een blog over designverlichting waar toevallig IKEA in staat, of een
+# pagina over gratis retourneren waar HEMA op staat. Dat zijn echte pagina's,
+# maar het zijn geen plekken waar winkels in deze categorie vergeleken worden,
+# en een klant die daarop afgaat verspilt zijn tijd.
+#
+# Staan er twee of meer bekende winkels op, dan gaat de pagina ergens over
+# kiezen tussen winkels. Dat is precies het soort pagina waar het om gaat.
+# Staan wij er zelf op, dan telt de pagina altijd mee, want dan is het nieuws
+# dat we er al staan.
+MIN_WINKELS_OP_PAGINA = int(os.environ.get("BRONNEN_MIN_WINKELS", "2"))
+
+# Hoeveel pagina's van hetzelfde webadres we per vraag meenemen.
+#
+# Eén website kan met drie eigen pagina's in de zoekresultaten staan. Tellen we
+# die alle drie, dan lijkt het alsof een concurrent op drie plekken genoemd
+# wordt terwijl het één site is, en dan klopt de ranglijst niet meer.
+MAX_PER_DOMEIN = int(os.environ.get("BRONNEN_MAX_PER_DOMEIN", "1"))
+
+# Welke soorten koopvragen de beste zoektermen opleveren, beste eerst.
+#
+# Dit is uit de eerste echte proef gekomen. Een vraag als "welke webshop voor
+# keukenspullen levert het snelst" is een prima vraag aan een AI, maar een
+# slechte zoekterm: je krijgt pagina's over levertijden terug, niet pagina's
+# waar webshops in die categorie vergeleken worden. Een vraag naar een winkel
+# of naar de beste in een categorie levert dat wel op.
+INTENTIE_VOLGORDE = ["winkel", "algemeen", "doelgroep", "prijs", "alternatief", "praktisch"]
 
 # Wat een zoekopdracht kost, in euro. Vijf dollar per duizend is de prijs bij
 # zowel Brave als Google, omgerekend ongeveer 0,0045 euro per stuk.
@@ -438,7 +471,20 @@ def kies_vragen(klantbeeld, grens=None):
     if not gemist:
         gemist = [r for r in regels if not r.get("aanbevolen")]
 
-    gemist.sort(key=lambda r: -(r.get("aantal_winkels") or 0))
+    # Eerst op soort vraag, dan pas op drukte. Zonder die eerste sortering
+    # winnen de vragen over levertijd en retourbeleid, want daar noemt AI de
+    # meeste winkels in. Als zoekterm zijn dat juist de slechtste: die leveren
+    # pagina's over levertijden op in plaats van pagina's waar winkels in deze
+    # categorie vergeleken worden.
+    def rangschik(regel):
+        intentie = regel.get("intentie") or "algemeen"
+        try:
+            plek = INTENTIE_VOLGORDE.index(intentie)
+        except ValueError:
+            plek = len(INTENTIE_VOLGORDE)
+        return (plek, -(regel.get("aantal_winkels") or 0))
+
+    gemist.sort(key=rangschik)
     return [r["vraag"] for r in gemist[:grens] if r.get("vraag")]
 
 
@@ -497,6 +543,7 @@ def analyseer(webshop_url, klantbeeld, winkelnaam=None, meting_id=None, melden=N
             continue
 
         bekeken = 0
+        per_domein = {}
         for r in resultaten:
             if bekeken >= MAX_PAGINAS:
                 break
@@ -507,6 +554,12 @@ def analyseer(webshop_url, klantbeeld, winkelnaam=None, meting_id=None, melden=N
             # De eigen site van de klant is geen externe bron. Dat jij op je
             # eigen website staat wisten we al.
             if ons_domein and domein_kern == ons_domein:
+                continue
+
+            # Hoogstens een paar pagina's van dezelfde website. Anders vult één
+            # site de hele uitkomst en lijkt een concurrent op vier plekken te
+            # staan terwijl het vier pagina's van één website zijn.
+            if per_domein.get(domein_kern, 0) >= MAX_PER_DOMEIN:
                 continue
 
             # Dezelfde pagina bij twee vragen tellen we een keer per vraag,
@@ -534,12 +587,27 @@ def analyseer(webshop_url, klantbeeld, winkelnaam=None, meting_id=None, melden=N
             wij = any(komt_voor(tekst, n, ook_domein=webshop_url) for n in onze_namen) \
                 if onze_namen else komt_voor(tekst, "", ook_domein=webshop_url)
 
-            # Een pagina waar niemand op staat zegt niets over het verschil
-            # tussen jou en je concurrent. Die laten we weg, anders verzuipt de
-            # uitkomst in ruis.
+            # De kwaliteitsdrempel. Een pagina telt mee als wij erop staan, of
+            # als er genoeg bekende winkels op staan om te zeggen dat hij over
+            # het kiezen tussen winkels gaat.
+            #
+            # Zonder deze regel komen er pagina's binnen waar toevallig één
+            # grote keten op voorkomt, zoals een blog over verlichting waar
+            # IKEA in staat. Dat is een echte pagina, maar het is geen plek
+            # waar winkels in deze categorie vergeleken worden, en een klant
+            # die daar achteraan gaat is zijn tijd kwijt. Liever vijf pagina's
+            # die ergens over gaan dan dertig die dat niet doen.
+            #
+            # De eigen site van een concurrent is hiervan uitgezonderd. Die
+            # telt toch nooit mee in de cijfers, maar hij blijft wel zichtbaar
+            # op de beheerpagina, zodat je kan zien dat hij overgeslagen is en
+            # niet dat hij gemist is.
             if not gevonden and not wij:
                 continue
+            if not eigen_site_van and not wij and len(gevonden) < MIN_WINKELS_OP_PAGINA:
+                continue
 
+            per_domein[domein_kern] = per_domein.get(domein_kern, 0) + 1
             vindplaatsen.append({
                 "meting_id": meting_id,
                 "webshop_url": webshop_url,
@@ -550,6 +618,11 @@ def analyseer(webshop_url, klantbeeld, winkelnaam=None, meting_id=None, melden=N
                 "eigen_site_van": eigen_site_van,
                 "wij_genoemd": bool(wij),
                 "concurrenten": gevonden,
+                # Hoeveel bekende winkels er op deze pagina staan. Hoe hoger,
+                # hoe zwaarder de pagina weegt: een lijstje met zes winkels
+                # waar jij niet bij staat is een groter gemis dan een pagina
+                # waar er twee op staan.
+                "winkels_op_pagina": len(gevonden) + (1 if wij else 0),
             })
 
     print(f"Bronanalyse klaar voor {webshop_url}: {len(vindplaatsen)} vindplaatsen "
@@ -569,11 +642,14 @@ def vat_samen(vindplaatsen, winkelnaam=None):
 
     wij_erop = [v for v in extern if v.get("wij_genoemd")]
 
+    # Tellen per WEBSITE en niet per pagina. Drie pagina's van dezelfde site
+    # zijn één plek waar je genoemd wordt, geen drie. Zonder dat onderscheid
+    # kan één website in zijn eentje een concurrent bovenaan de lijst zetten.
     per_concurrent = {}
     for v in extern:
         for naam in (v.get("concurrenten") or []):
-            regel = per_concurrent.setdefault(naam, {"naam": naam, "paginas": 0, "voorbeelden": []})
-            regel["paginas"] += 1
+            regel = per_concurrent.setdefault(naam, {"naam": naam, "domeinen": set(), "voorbeelden": []})
+            regel["domeinen"].add(v.get("bron_domein"))
             if len(regel["voorbeelden"]) < 3 and not v.get("wij_genoemd"):
                 regel["voorbeelden"].append({
                     "url": v["bron_url"],
@@ -581,7 +657,11 @@ def vat_samen(vindplaatsen, winkelnaam=None):
                     "domein": v.get("bron_domein"),
                 })
 
-    ranglijst = sorted(per_concurrent.values(), key=lambda c: -c["paginas"])
+    ranglijst = sorted(
+        ({"naam": c["naam"], "paginas": len(c["domeinen"]), "voorbeelden": c["voorbeelden"]}
+         for c in per_concurrent.values()),
+        key=lambda c: -c["paginas"],
+    )
 
     # De pagina's waar wel een concurrent staat en wij niet. Dat is de hele
     # boodschap: dit zijn de adressen waar het verschil zit.
@@ -596,30 +676,61 @@ def vat_samen(vindplaatsen, winkelnaam=None):
         for v in extern
         if v.get("concurrenten") and not v.get("wij_genoemd")
     ]
+    # De pagina met de meeste winkels erop bovenaan. Daar is jouw afwezigheid
+    # het meest opvallend, en daar is de kans het grootst dat het een lijstje is
+    # waar je op zou horen te staan.
     gemiste.sort(key=lambda g: -len(g["concurrenten"]))
+    dubbel = set()
+    ontdubbeld = []
+    for g in gemiste:
+        # Eén regel per website. Dat een site drie pagina's over hetzelfde
+        # onderwerp heeft is geen drie kansen, het is één plek waar je niet
+        # staat.
+        if g["domein"] in dubbel:
+            continue
+        dubbel.add(g["domein"])
+        ontdubbeld.append(g)
+    gemiste = ontdubbeld
+
+    sites = {v.get("bron_domein") for v in extern if v.get("bron_domein")}
+
+    def telwoord(aantal, enkel, meer):
+        """Nette Nederlandse zin bij 1 en bij meer. "1 pagina's op 1
+        verschillende websites" leest als machinetaal, en dat is precies het
+        soort detail waar een klant aan ziet dat er niemand naar gekeken
+        heeft."""
+        return f"{aantal} {enkel}" if aantal == 1 else f"{aantal} {meer}"
+
+    aantal_paginas = telwoord(len(extern), "pagina", "pagina's")
+    aantal_sites = telwoord(len(sites), "website", "verschillende websites")
+    bekeken = f"We bekeken {aantal_paginas} op {aantal_sites}"
 
     naam = winkelnaam or "je winkel"
     if not gemiste:
         conclusie = (
-            f"Op de externe pagina's die we bij deze vragen vonden, staat {naam} er net zo "
-            f"vaak bij als de winkels die AI noemt. Hier ligt je knelpunt dus niet."
+            f"Op de plekken die we bij deze vragen vonden, staat {naam} er net zo vaak bij als "
+            f"de winkels die AI noemt. Hier ligt je knelpunt dus niet."
         )
     elif not wij_erop:
+        daarvan = ("Op die ene staat" if len(gemiste) == 1
+                   else f"Op {len(gemiste)} daarvan staat")
         conclusie = (
-            f"We vonden {len(extern)} externe pagina's over deze onderwerpen. Op {len(gemiste)} "
-            f"daarvan staat wel een winkel die AI noemt, en {naam} op geen enkele. Dat is het "
-            f"verschil waar je iets aan kan doen: dit zijn bestaande pagina's, geen pagina's die "
-            f"je zelf moet maken."
+            f"{bekeken} waar "
+            f"winkels in jouw categorie naast elkaar gezet worden. {daarvan} wel een winkel die "
+            f"AI noemt, en {naam} op geen enkele. Dat is het verschil waar je zelf iets aan kan "
+            f"doen: deze pagina's bestaan al, je hoeft ze niet te maken."
         )
     else:
+        plekken = ("op nog 1 andere plek staat" if len(gemiste) == 1
+                   else f"op nog {len(gemiste)} andere plekken staat")
         conclusie = (
-            f"We vonden {len(extern)} externe pagina's over deze onderwerpen. {naam} staat op "
-            f"{len(wij_erop)} daarvan. Op {len(gemiste)} pagina's staat wel een concurrent en "
-            f"{naam} niet."
+            f"{bekeken}. {naam} "
+            f"staat op {len(wij_erop)} daarvan, en {plekken} wel een concurrent en {naam} niet."
         )
 
     return {
         "paginas": len(extern),
+        "sites": len(sites),
         "wij_erop": len(wij_erop),
         "gemist": len(gemiste),
         "concurrenten": ranglijst[:8],
