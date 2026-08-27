@@ -1133,6 +1133,36 @@ def get_bronvindplaatsen(webshop_url, meting_id=None, limit=200):
         conn.close()
 
 
+def verwijder_bronvindplaatsen(webshop_url, meting_id):
+    """Gooit de vindplaatsen van een ronde weg, zodat een nieuwe zoekronde ze
+    vervangt in plaats van erbij te zetten.
+
+    Dit moet, en dat is met schade en schande geleerd bij de koopvragen: daar
+    stapelde "opnieuw genereren" tot 478 vragen voor een winkel. Hier is het nog
+    vervelender, want oude vindplaatsen zijn opgehaald met oudere, soepelere
+    regels. Laat je ze staan, dan blijft afgekeurde rommel voor altijd naast de
+    goede resultaten zichtbaar en zie je nooit of een verbetering geholpen
+    heeft."""
+    if not meting_id:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM bronvindplaatsen WHERE webshop_url = %s AND meting_id = %s",
+                    (webshop_url, meting_id),
+                )
+                return cur.rowcount
+    except Exception as e:
+        print(f"Bronvindplaatsen verwijderen mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
 def laatste_beoordeelde_meting_id(webshop_url):
     """Het id van de nieuwste meetronde die ook echt BEOORDEELD is.
 

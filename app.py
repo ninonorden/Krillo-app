@@ -1139,11 +1139,17 @@ def _zoek_bronnen(webshop_url, meting_id=None, winkelnaam=None, melden=None):
             meting_id=meting_id, melden=melden,
         )
         if vindplaatsen:
+            # Eerst weg wat er van deze ronde stond, dan pas bewaren. Anders
+            # stapelen de resultaten van elke poging op elkaar en blijf je
+            # kijken naar vindplaatsen die met oudere, soepelere regels
+            # binnengekomen zijn. Dan zie je nooit of een verbetering geholpen
+            # heeft.
+            weg = db.verwijder_bronvindplaatsen(webshop_url, meting_id)
             bewaard = db.bewaar_bronvindplaatsen(webshop_url, meting_id, vindplaatsen)
             _zet_bronnen_status(
                 webshop_url,
-                f"Klaar: {len(vindplaatsen)} vindplaatsen gevonden over {len(vragen)} vragen, "
-                f"{bewaard} nieuw bewaard.", klaar=True)
+                f"Klaar: {bewaard} vindplaatsen over {len(vragen)} vragen"
+                + (f", {weg} oude regels vervangen." if weg else "."), klaar=True)
         else:
             _zet_bronnen_status(
                 webshop_url,

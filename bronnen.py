@@ -101,7 +101,16 @@ MAX_PER_DOMEIN = int(os.environ.get("BRONNEN_MAX_PER_DOMEIN", "1"))
 # slechte zoekterm: je krijgt pagina's over levertijden terug, niet pagina's
 # waar webshops in die categorie vergeleken worden. Een vraag naar een winkel
 # of naar de beste in een categorie levert dat wel op.
-INTENTIE_VOLGORDE = ["winkel", "algemeen", "doelgroep", "prijs", "alternatief", "praktisch"]
+INTENTIE_VOLGORDE = ["winkel", "algemeen", "prijs", "doelgroep", "alternatief", "praktisch"]
+
+# Soorten vragen die we liever helemaal overslaan als er genoeg andere zijn.
+#
+# "Welke winkel heeft een goed retourbeleid" levert pagina's over retourneren
+# op, met daarop de grote ketens die overal gratis retour aanbieden. Dat is
+# geen plek waar winkels in een categorie vergeleken worden, en er valt voor
+# een kleine winkel niets te halen. Zo'n vraag kost wel een zoekopdracht en
+# acht paginabezoeken, dus die slaan we over zolang er betere zijn.
+ZWAKKE_INTENTIES = {"praktisch"}
 
 # Wat een zoekopdracht kost, in euro. Vijf dollar per duizend is de prijs bij
 # zowel Brave als Google, omgerekend ongeveer 0,0045 euro per stuk.
@@ -485,6 +494,14 @@ def kies_vragen(klantbeeld, grens=None):
         return (plek, -(regel.get("aantal_winkels") or 0))
 
     gemist.sort(key=rangschik)
+
+    # De zwakke soorten vragen alleen gebruiken als we anders te weinig
+    # overhouden. Zijn er genoeg goede, dan besparen ze een zoekopdracht en een
+    # hoop paginabezoeken die toch niets opleveren.
+    sterk = [r for r in gemist if (r.get("intentie") or "algemeen") not in ZWAKKE_INTENTIES]
+    if len(sterk) >= grens:
+        gemist = sterk
+
     return [r["vraag"] for r in gemist[:grens] if r.get("vraag")]
 
 
