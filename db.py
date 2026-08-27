@@ -1133,6 +1133,38 @@ def get_bronvindplaatsen(webshop_url, meting_id=None, limit=200):
         conn.close()
 
 
+def laatste_beoordeelde_meting_id(webshop_url):
+    """Het id van de nieuwste meetronde die ook echt BEOORDEELD is.
+
+    Dat is iets anders dan de nieuwste meetronde. Wordt er wel gemeten maar niet
+    beoordeeld, bijvoorbeeld omdat het beoordelen afbrak, dan blijft er een
+    ronde achter met antwoorden en zonder oordelen.
+
+    Dit is de ronde die de klant op zijn pagina ziet, want get_beoordelingen()
+    kiest zonder meting_id ook de nieuwste beoordeelde ronde. Alles wat naast
+    die cijfers komt te staan moet dus dezelfde ronde gebruiken, anders staan er
+    twee waarheden op een pagina."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT meting_id FROM beoordelingen
+                        WHERE webshop_url = %s
+                     ORDER BY beoordeeld_op DESC LIMIT 1""",
+                    (webshop_url,),
+                )
+                rij = cur.fetchone()
+                return rij[0] if rij else None
+    except Exception as e:
+        print(f"Laatste beoordeelde meting ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
 def laatste_meting_id(webshop_url):
     """Het id van de nieuwste meetronde van deze webshop."""
     conn = _get_connection()

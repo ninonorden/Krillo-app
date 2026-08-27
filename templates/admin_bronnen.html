@@ -121,8 +121,10 @@
   <div class="diagnose">
     <strong>Heeft de bronanalyse alles wat hij nodig heeft?</strong>
     <table style="margin-top:10px;">
-      <tr><td>Nieuwste meetronde</td>
-          <td class="uitkomst">{% if diagnose.meting_id %}{{ diagnose.meting_id[:8] }}{% else %}<span class="fout">geen enkele meting</span>{% endif %}</td></tr>
+      <tr><td>Nieuwste gemeten ronde</td>
+          <td class="uitkomst">{% if diagnose.gemeten_ronde %}{{ diagnose.gemeten_ronde[:8] }}{% else %}<span class="fout">nog nooit gemeten</span>{% endif %}</td></tr>
+      <tr><td>Ronde die we gebruiken (nieuwste beoordeelde)</td>
+          <td class="uitkomst">{% if diagnose.meting_id %}{{ diagnose.meting_id[:8] }}{% else %}<span class="fout">geen enkele beoordeeld</span>{% endif %}</td></tr>
       <tr><td>Beoordelingen in die ronde</td>
           <td class="uitkomst">{% if diagnose.beoordelingen %}{{ diagnose.beoordelingen }}{% else %}<span class="fout">nul, eerst beoordelen</span>{% endif %}</td></tr>
       <tr><td>Genoemd bij</td>
@@ -138,6 +140,22 @@
       <ul style="margin:6px 0 0 18px;">
         {% for v in diagnose.vragen %}<li>{{ v }}</li>{% endfor %}
       </ul>
+    </div>
+    {% endif %}
+
+    {% if diagnose.onbeoordeelde_ronde or not diagnose.beoordelingen %}
+    <div style="margin-top:14px; font-size:12.5px;">
+      {% if diagnose.onbeoordeelde_ronde and diagnose.beoordelingen %}
+      Er staat een nieuwere gemeten ronde klaar die nog niet beoordeeld is. De bronanalyse
+      gebruikt bewust de beoordeelde ronde, want dat zijn ook de cijfers die de klant ziet.
+      Beoordeel die nieuwe ronde om met de laatste stand te werken.
+      {% else %}
+      Er is nog niets beoordeeld, dus de bronanalyse weet niet waar hij moet kijken.
+      Beoordeel eerst, dat duurt ongeveer een halve minuut per tien antwoorden.
+      {% endif %}
+      <div style="margin-top:10px;">
+        <a class="knop vol" href="/admin/beoordelingen?key={{ sleutel }}&url={{ webshop_url }}&start=ja">Nu beoordelen</a>
+      </div>
     </div>
     {% endif %}
   </div>

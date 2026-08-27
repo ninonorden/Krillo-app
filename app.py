@@ -1085,20 +1085,32 @@ def _zoek_bronnen(webshop_url, meting_id=None, winkelnaam=None, melden=None):
             _zet_bronnen_status(webshop_url, bronnen.waarom_niet(), klaar=True)
             return None
 
-        meting_id = meting_id or db.laatste_meting_id(webshop_url)
+        # BEWUST de nieuwste BEOORDEELDE ronde en niet de nieuwste gemeten
+        # ronde. Anders kan de bronanalyse over een andere ronde gaan dan de
+        # cijfers die de klant erboven ziet, en dan staan er twee waarheden op
+        # een pagina. De klantpagina kiest via get_beoordelingen() dezelfde.
+        meting_id = meting_id or db.laatste_beoordeelde_meting_id(webshop_url)
         if not meting_id:
-            _zet_bronnen_status(webshop_url,
-                                "Er is nog geen meetronde voor deze winkel. Meet eerst.",
-                                klaar=True)
+            gemeten = db.laatste_meting_id(webshop_url)
+            if gemeten:
+                _zet_bronnen_status(
+                    webshop_url,
+                    f"Er is wel gemeten (ronde {gemeten[:8]}) maar nog niets beoordeeld. "
+                    f"Zonder beoordeling weten we niet bij welke vragen je ontbreekt en "
+                    f"welke concurrenten er opdoken. Beoordeel die ronde eerst.",
+                    klaar=True)
+            else:
+                _zet_bronnen_status(
+                    webshop_url,
+                    "Er is nog geen enkele meetronde voor deze winkel. Meet eerst.",
+                    klaar=True)
             return None
 
         beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url, meting_id)]
         if not beoordelingen:
             _zet_bronnen_status(
                 webshop_url,
-                f"De nieuwste meetronde ({meting_id[:8]}) is nog niet beoordeeld. "
-                f"Zonder beoordeling weten we niet bij welke vragen je ontbreekt. "
-                f"Beoordeel die ronde eerst.",
+                f"Ronde {meting_id[:8]} heeft geen beoordelingen. Beoordeel die ronde eerst.",
                 klaar=True)
             return None
 
@@ -1189,7 +1201,13 @@ def _klantgegevens(webshop_url):
     vermeldingen = beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None
     controles = [dict(c) for c in db.get_uitspraakcontroles(webshop_url)]
     winkelnaam = _winkelnaam(webshop_url)
-    vindplaatsen = [dict(v) for v in db.get_bronvindplaatsen(webshop_url)]
+    # De vindplaatsen van precies de ronde die hierboven getoond wordt. Zonder
+    # dat zou je de bronnen van vorige week naast de cijfers van deze week
+    # kunnen zetten, en dan klopt het verhaal niet meer. Liever niets tonen dan
+    # iets dat bij een andere meting hoort.
+    ronde = db.laatste_beoordeelde_meting_id(webshop_url)
+    vindplaatsen = ([dict(v) for v in db.get_bronvindplaatsen(webshop_url, ronde)]
+                    if ronde else [])
     return {
         "vermeldingen": vermeldingen,
         "controle": controle.vat_samen(controles) if controles else None,
@@ -1564,12 +1582,17 @@ def admin_bronnen():
     # rij, zonder dat er iets gezocht of betaald wordt.
     diagnose = None
     if webshop_url:
-        laatste_meting = meting_id or db.laatste_meting_id(webshop_url)
-        beoordelingen = ([dict(b) for b in db.get_beoordelingen(webshop_url, laatste_meting)]
-                         if laatste_meting else [])
+        beoordeeld = meting_id or db.laatste_beoordeelde_meting_id(webshop_url)
+        gemeten = db.laatste_meting_id(webshop_url)
+        beoordelingen = ([dict(b) for b in db.get_beoordelingen(webshop_url, beoordeeld)]
+                         if beoordeeld else [])
         klantbeeld = beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None
         diagnose = {
-            "meting_id": laatste_meting,
+            "gemeten_ronde": gemeten,
+            "meting_id": beoordeeld,
+            # Is er wel gemeten maar niet beoordeeld, dan is dat precies wat je
+            # moet weten, en dan hoort er een knop bij die het oplost.
+            "onbeoordeelde_ronde": bool(gemeten and gemeten != beoordeeld),
             "beoordelingen": len(beoordelingen),
             "vragen": bronnen.kies_vragen(klantbeeld) if klantbeeld else [],
             "concurrenten": bronnen.kies_concurrenten(klantbeeld) if klantbeeld else [],
