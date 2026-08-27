@@ -13,6 +13,7 @@ Bestanden:
 - ai_content.py     De AI-teksten voor de betaalde audit
 - koopvragen.py     Bedenkt per webshop de koopvragen en zoekt dubbelingen
 - metingen.py       Stelt die koopvragen aan de AI-modellen en bewaart de antwoorden
+- bronnen.py        Zoekt de externe pagina's op waar concurrenten wel staan en de klant niet
 - kosten.py         Prijzen per model, kostenberekening en de kostenrem
 - db.py             Alle databasefuncties (Neon Postgres)
 - emailing.py       Alle e-mail via de Brevo API
@@ -25,13 +26,19 @@ Omgevingsvariabelen (in Render):
   Nodig: ANTHROPIC_API_KEY, BREVO_API_KEY, MOLLIE_API_KEY, DATABASE_URL,
          CRON_KEY, ADMIN_KEY, BEHEERDER_EMAIL
   Voor de metingen: OPENAI_API_KEY, GOOGLE_API_KEY
+  Voor de bronanalyse: BRAVE_API_KEY (of ZOEK_AANBIEDER=google plus
+         GOOGLE_ZOEK_API_KEY en GOOGLE_ZOEK_CX). Zonder deze sleutel slaat
+         Krillo de bronanalyse over en draait de rest gewoon door.
   Optioneel: BTW_REGELING, GRENS_PER_SCAN_EURO, GRENS_PER_SCAN_AANROEPEN,
          GRENS_PER_KLANT_MAAND_EURO, GRENS_TOTAAL_DAG_EURO, MAX_POGINGEN,
          METINGEN_AAN, MEET_MODEL_OPENAI, MEET_MODEL_GOOGLE,
-         MEET_MODEL_ANTHROPIC, MEET_VRAGEN_PER_RONDE, MEET_MAX_TOKENS
+         MEET_MODEL_ANTHROPIC, MEET_VRAGEN_PER_RONDE, MEET_MAX_TOKENS,
+         BRONNEN_AAN, ZOEK_AANBIEDER, BRONNEN_MAX_VRAGEN, BRONNEN_MAX_PAGINAS,
+         BRONNEN_MAX_CONCURRENTEN, BRONNEN_PRIJS_PER_ZOEKOPDRACHT
 
 Beheerpagina's (alleen met ?key=ADMIN_KEY, zonder sleutel geven ze 404):
 - /admin/bestellingen   Betaalde bestellingen uit Mollie
 - /admin/koopvragen     Koopvragen genereren, beoordelen en ontdubbelen
 - /admin/metingen       De antwoorden van de AI-modellen op die koopvragen
 - /admin/kosten         AI-kosten per klant en per model
+- /admin/bronnen        De gevonden externe pagina's en wie daarop staat

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Externe bronnen — Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:900px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:13.5px; font-family:var(--mono); margin-bottom:28px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:17px; margin:32px 0 12px;}
+
+  .cijfers{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line);
+           border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:10px;}
+  .cijfer{background:var(--paper-raised); padding:20px;}
+  .cijfer-label{font-family:var(--mono); font-size:10px; text-transform:uppercase;
+                letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px;}
+  .cijfer-num{font-family:var(--disp); font-weight:700; font-size:26px;}
+  .cijfer-num small{font-size:15px; font-weight:500; color:var(--ink-soft);}
+  .duiding{font-size:13.5px; color:var(--ink-soft); margin-bottom:28px;}
+
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase;
+     color:var(--ink-soft); padding:11px 14px; border-bottom:1px solid var(--line); background:var(--paper);}
+  td{padding:11px 14px; font-size:13.5px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  td.getal{text-align:right; font-family:var(--mono); font-size:12.5px;}
+
+  .merk{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.04em;
+        padding:2px 7px; border-radius:20px; white-space:nowrap; display:inline-block;}
+  .raak{background:var(--teal-dim); color:#0E6B60;}
+  .mis{background:var(--coral-dim); color:var(--coral-tekst);}
+  .grijs{background:var(--paper); color:#9A9AAE; border:1px solid var(--line);}
+
+  .vraagblok{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+             padding:16px 18px; margin-bottom:10px;}
+  .vraagtekst{font-size:14.5px; font-weight:500; margin-bottom:10px;}
+  .regel{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; padding:8px 0;
+         border-top:1px solid var(--line); font-size:13px;}
+  .regel a{color:var(--ink); text-decoration:none; border-bottom:1px solid var(--line);}
+  .regel a:hover{border-bottom-color:var(--ink);}
+  .domein{font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); display:block;}
+  .namen{color:var(--ink-soft); font-size:12.5px;}
+
+  .waarschuwing{background:var(--amber-dim); border-radius:10px; padding:16px 18px;
+                margin-bottom:24px; font-size:13.5px; color:#7A5200;}
+  .waarschuwing strong{display:block; margin-bottom:4px; color:#5C3E00;}
+  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+        padding:32px; text-align:center; color:var(--ink-soft);}
+  .acties{display:flex; gap:10px; flex-wrap:wrap; margin-top:28px;}
+  .knop{padding:10px 18px; border-radius:8px; font-size:13.5px; font-weight:600;
+        border:1.5px solid var(--line); color:var(--ink); background:var(--paper-raised);
+        text-decoration:none; display:inline-block; font-family:var(--disp);}
+  .knop.vol{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+  .voetnoot{font-size:12.5px; color:var(--ink-soft); margin-top:32px; line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Externe bronnen</h1>
+  <div class="sub">{{ webshop_url or 'geen webshop opgegeven' }}{% if winkelnaam %} &middot; {{ winkelnaam }}{% endif %}</div>
+
+  {% if not werkt %}
+  <div class="waarschuwing">
+    <strong>De bronanalyse draait niet</strong>
+    {{ waarom_niet }}
+  </div>
+  {% endif %}
+
+  {% if bezig %}
+  <div class="waarschuwing">
+    <strong>Er wordt nu gezocht</strong>
+    Per vraag een zoekopdracht en daarna acht pagina's ophalen. Reken op een minuut
+    of twee. Ververs deze pagina daarna.
+  </div>
+  {% endif %}
+
+  {% if not vindplaatsen %}
+  <div class="leeg">
+    Nog geen vindplaatsen voor deze webshop.<br>
+    Er moet eerst gemeten en beoordeeld zijn, want daaruit komt bij welke vragen
+    je ontbreekt en welke concurrenten er opdoken.
+  </div>
+  {% else %}
+
+  <div class="cijfers">
+    <div class="cijfer">
+      <div class="cijfer-label">Externe pagina's</div>
+      <div class="cijfer-num">{{ s.paginas }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Wij staan erop</div>
+      <div class="cijfer-num">{{ s.wij_erop }}<small> van {{ s.paginas }}</small></div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Concurrent wel, wij niet</div>
+      <div class="cijfer-num">{{ s.gemist }}</div>
+    </div>
+  </div>
+  <div class="duiding">{{ s.conclusie }}</div>
+
+  <h2>Op hoeveel pagina's staat wie</h2>
+  <table>
+    <tr><th>Winkel</th><th style="text-align:right">Pagina's</th></tr>
+    {% for c in s.concurrenten %}
+    <tr>
+      <td>{{ c.naam }}</td>
+      <td class="getal">{{ c.paginas }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Alle vindplaatsen per vraag</h2>
+  {% for vraag in s.vragen %}
+  <div class="vraagblok">
+    <div class="vraagtekst">{{ vraag }}</div>
+    {% for v in vindplaatsen %}{% if v.vraag == vraag %}
+    <div class="regel">
+      {% if v.eigen_site_van %}
+        <span class="merk grijs">eigen site</span>
+      {% elif v.wij_genoemd %}
+        <span class="merk raak">wij erop</span>
+      {% else %}
+        <span class="merk mis">wij niet</span>
+      {% endif %}
+      <div style="flex:1; min-width:240px;">
+        <a href="{{ v.bron_url }}" target="_blank" rel="noopener">{{ v.bron_titel or v.bron_domein }}</a>
+        <span class="domein">{{ v.bron_domein }}</span>
+        {% if v.concurrenten %}
+        <span class="namen">gevonden: {{ v.concurrenten | join(', ') }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}{% endfor %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <div class="acties">
+    {% if webshop_url %}
+    <a class="knop vol" href="/admin/bronnen?key={{ sleutel }}&url={{ webshop_url }}&start=ja">Opnieuw zoeken</a>
+    <a class="knop" href="/admin/beoordelingen?key={{ sleutel }}&url={{ webshop_url }}">Beoordelingen</a>
+    {% endif %}
+    <a class="knop" href="/admin/kosten?key={{ sleutel }}">Kosten</a>
+  </div>
+
+  <div class="voetnoot">
+    Zoekmachine: <strong>{{ aanbieder }}</strong>. Elke zoekopdracht kost ongeveer een halve cent
+    en staat als "bronnen-zoeken" in het kostenoverzicht. De pagina's ophalen kost niets.<br><br>
+    <strong>Waar je hier op moet letten.</strong> Het enige echte risico van deze stap is dat een
+    naam verkeerd herkend wordt. Zie je een pagina met "wij niet" waarvan je weet dat de winkel er
+    wel op staat, dan klopt de naamherkenning niet en moet dat eerst opgelost worden voordat dit
+    bij een klant komt. Een verzonnen vindplaats is erger dan geen vindplaats, want de klant gaat
+    erop af.<br><br>
+    De eigen website van een winkel telt niet mee als externe bron. Die staat er wel bij, met het
+    label "eigen site", zodat je kan zien dat hij overgeslagen is en niet dat hij gemist is.
+  </div>
+</div>
+</body>
+</html>

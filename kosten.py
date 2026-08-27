@@ -172,6 +172,39 @@ def registreer_aanroep(provider, model, invoer_tokens, uitvoer_tokens,
     })
 
 
+def registreer_vaste_kosten(soort, provider, bedrag, webshop_url=None, email=None,
+                            scan_id=None, duur_ms=None, gelukt=True, foutsoort=None,
+                            aantal=1, gebeurtenis_id=None):
+    """Legt een handeling vast die per stuk kost in plaats van per token.
+
+    Nodig sinds de bronanalyse: een zoekopdracht bij een zoekmachine kost een
+    vast bedrag, ongeacht hoe lang het antwoord is. Tokens invullen zou daar
+    een verzonnen getal van maken, en dan klopt /admin/kosten niet meer.
+
+    De prijs staat bij de aanroeper, niet hier, want die weet om welke dienst
+    het gaat. Wel gaat het door dezelfde tabel, zodat de dagrem en het
+    maandoverzicht per klant deze kosten gewoon meetellen. Dat is het punt:
+    een rem die de helft van je uitgaven niet ziet is geen rem."""
+    return db.bewaar_kostengebeurtenis({
+        "gebeurtenis_id": gebeurtenis_id or uuid.uuid4().hex,
+        "soort": soort,
+        "provider": provider,
+        "model": None,
+        "invoer_tokens": 0,
+        "uitvoer_tokens": 0,
+        "kosten": round(float(bedrag or 0) * max(1, int(aantal)), 6),
+        "kosten_status": "berekend",
+        "prijsversie": "vast-tarief",
+        "webshop_url": webshop_url,
+        "email": email,
+        "scan_id": scan_id,
+        "duur_ms": duur_ms,
+        "gelukt": gelukt,
+        "foutsoort": foutsoort,
+        "pogingen": 1,
+    })
+
+
 def mag_doorgaan(webshop_url=None, scan_id=None):
     """Wordt aangeroepen VOORDAT een dure aanroep start. Geeft terug of het
     mag, en zo niet waarom. Dit is de rem die voorkomt dat een vastgelopen

@@ -72,6 +72,9 @@
                  border-radius:10px; padding:14px 16px; margin-bottom:20px; line-height:1.6;}
   .vraagregel{border-top:1px solid var(--line); padding:12px 0;}
   .vraagregel .vraag{font-size:13.5px; font-weight:500; margin-bottom:6px;}
+  .bronlink{color:var(--ink); text-decoration:none; border-bottom:1px solid var(--line);}
+  .bronlink:hover{border-bottom-color:var(--ink);}
+  .bronmeta{font-family:var(--mono); font-size:11px; color:var(--ink-soft); margin-top:2px;}
   .vlag{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em;
         padding:3px 8px; border-radius:100px; margin-right:8px; white-space:nowrap;}
   .vlag.aanbevolen{background:var(--coral); color:#fff;}
@@ -359,6 +362,80 @@
 
       <h2 style="margin-top:20px;">Wat dit bij elkaar betekent</h2>
       <div class="conclusie">{{ verklaring.conclusie }}</div>
+    </div>
+    {% endif %}
+
+    {% if bronnen %}
+    <div class="vermelding">
+      <h2>Waar staan de winkels die wel genoemd worden?</h2>
+      <div class="kop-uitleg">
+        Het grootste deel van wat AI over een winkel zegt komt niet van die winkel zelf, maar
+        van wat er elders over geschreven wordt. Daarom hebben we jouw koopvragen ook in een
+        gewone zoekmachine gezet en de pagina's die daaruit kwamen nagelopen. Hieronder staat
+        wie er op die pagina's voorkomt en wie niet.
+      </div>
+
+      <div class="tellers drie">
+        <div class="teller">
+          <div class="teller-label">Pagina's bekeken</div>
+          <div class="teller-num">{{ bronnen.paginas }}</div>
+          <div class="teller-uitleg">Externe pagina's over jouw onderwerpen. Je eigen site telt niet mee.</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Jij staat erop</div>
+          <div class="teller-num">{{ bronnen.wij_erop }}<small> van {{ bronnen.paginas }}</small></div>
+          <div class="teller-uitleg">Je winkelnaam of een link naar je site komt op de pagina voor.</div>
+        </div>
+        <div class="teller">
+          <div class="teller-label">Concurrent wel, jij niet</div>
+          <div class="teller-num">{{ bronnen.gemist }}</div>
+          <div class="teller-uitleg">Hier zit het verschil. Deze pagina's bestaan al, je hoeft ze niet te maken.</div>
+        </div>
+      </div>
+
+      {% if bronnen.concurrenten %}
+      <h2 style="margin-top:24px;">Op hoeveel van die pagina's staat wie</h2>
+      <table class="andere">
+        <tr><td style="font-family:var(--mono); font-size:10.5px; text-transform:uppercase; color:var(--ink-soft);">Winkel</td>
+            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Pagina's</td></tr>
+        {% for c in bronnen.concurrenten %}
+        <tr>
+          <td>{{ c.naam }}</td>
+          <td class="getal">{{ c.paginas }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+
+      {% if bronnen.gemiste_paginas %}
+      <h2 style="margin-top:24px;">De pagina's waar je nog niet op staat</h2>
+      <div class="kop-uitleg">
+        Op deze pagina's staat wel een winkel die AI noemt, en jij niet. Ze bestaan al en gaan
+        over precies waar jij in handelt.
+      </div>
+      {% for g in bronnen.gemiste_paginas %}
+      <div class="vraagregel">
+        <div class="vraag"><a href="{{ g.url }}" target="_blank" rel="noopener nofollow" class="bronlink">{{ g.titel }}</a></div>
+        <div class="bronmeta">{{ g.domein }}</div>
+        <div class="bronmeta">hier genoemd: {{ g.concurrenten | join(', ') }}</div>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      <h2 style="margin-top:24px;">Wat dit betekent</h2>
+      <div class="conclusie">{{ bronnen.conclusie }}</div>
+
+      <div class="meetuitleg">
+        <strong>Wat dit wel en niet zegt.</strong> Dit is een feit: op deze pagina's staat die
+        winkel wel en jij niet, en je kan het zelf nakijken door op de link te klikken. Wat we
+        er niet bij beweren is dat je genoemd wordt zodra je er wel op staat. Dat weten we niet
+        en dat meten we niet. We laten zien waar het verschil zit, niet wat het verschil
+        veroorzaakt.<br><br>
+        <strong>Waarom we het zo doen.</strong> We vragen bewust nooit aan een AI-model waarom
+        het een winkel aanraadt. Een model weet dat niet en verzint dan een verklaring die
+        overtuigend klinkt. Daar heb je niets aan. Dit zijn echte pagina's die je zelf kan
+        openen.
+      </div>
     </div>
     {% endif %}
 

@@ -28,6 +28,7 @@ import koopvragen
 import kosten
 import metingen
 import beoordeling
+import bronnen
 import controle
 import verklaring
 import waarschuwing
@@ -743,6 +744,7 @@ def monitoring_pagina(klant_token):
         vermeldingen=gegevens["vermeldingen"],
         controle=gegevens["controle"],
         beweging=gegevens["beweging"],
+        bronnen=gegevens["bronnen"],
         verklaring=verklaring.maak_verklaring(
             laatste["checks"] if laatste else [], gegevens["vermeldingen"]),
         webshop_url=klant["webshop_url"],
@@ -980,7 +982,7 @@ def _beoordeel_achtergrond(webshop_url, meting_id, winkelnaam):
 
 
 def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
-                       stap=None, max_vragen=None, controleer=True):
+                       stap=None, max_vragen=None, controleer=True, bronnen_aan=True):
     """De hele keten van fase 5 achter elkaar: meten, beoordelen, controleren en
     zo nodig waarschuwen.
 
@@ -1033,6 +1035,18 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
         melden("uitspraken controleren")
         controle_samenvatting = _controleer_uitspraken(webshop_url, meting_id, winkelnaam)
 
+    # Fase 5 punt 14. Staat bewust ná het beoordelen, want die bepaalt bij
+    # welke vragen we ontbreken en welke concurrenten er wel opdoken. Zonder
+    # dat weet de bronanalyse niet waar hij moet kijken.
+    #
+    # Ook bewust in een eigen try en overslaanbaar: valt de zoekmachine uit of
+    # is er geen sleutel, dan mist er die week een blok op de klantpagina en
+    # draait de rest gewoon door. Dat is beter dan een meetronde die klapt op
+    # een dienst die niets met de meting zelf te maken heeft.
+    if bronnen_aan:
+        melden("externe bronnen zoeken")
+        _zoek_bronnen(webshop_url, meting_id, winkelnaam, melden)
+
     # Alleen mailen als er iets te melden valt. Een wekelijks bericht dat er
     # niets veranderd is, leert een klant om je mail weg te klikken.
     try:
@@ -1044,6 +1058,34 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
             emailing.send_vermeldingen_update(email, webshop_url, tekst, monitoring_url)
     except Exception as e:
         print(f"Waarschuwing versturen mislukt voor {webshop_url}: {e}")
+
+
+def _zoek_bronnen(webshop_url, meting_id=None, winkelnaam=None, melden=None):
+    """Fase 5 punt 14. Zoekt de externe pagina's op waar de concurrenten wel
+    staan en de klant niet.
+
+    Leunt op het klantbeeld van deze ronde, dus op precies dezelfde cijfers als
+    de klant op zijn pagina ziet. Zou dit zijn eigen selectie maken, dan kan de
+    bronanalyse over andere vragen gaan dan de meting erboven, en dan staan er
+    twee waarheden op een pagina."""
+    try:
+        meting_id = meting_id or db.laatste_meting_id(webshop_url)
+        if not meting_id:
+            return None
+        beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url, meting_id)]
+        if not beoordelingen:
+            return None
+        klantbeeld = beoordeling.klantbeeld(webshop_url, beoordelingen)
+        vindplaatsen = bronnen.analyseer(
+            webshop_url, klantbeeld, winkelnaam=winkelnaam,
+            meting_id=meting_id, melden=melden,
+        )
+        if vindplaatsen:
+            db.bewaar_bronvindplaatsen(webshop_url, meting_id, vindplaatsen)
+        return bronnen.vat_samen(vindplaatsen, winkelnaam)
+    except Exception as e:
+        print(f"Bronanalyse mislukt voor {webshop_url}: {e}")
+        return None
 
 
 def _controleer_uitspraken(webshop_url, meting_id=None, winkelnaam=None):
@@ -1089,10 +1131,13 @@ def _klantgegevens(webshop_url):
     twee_rondes = [dict(b) for b in db.get_beoordelingen_rondes(webshop_url, rondes=2)]
     vermeldingen = beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None
     controles = [dict(c) for c in db.get_uitspraakcontroles(webshop_url)]
+    winkelnaam = _winkelnaam(webshop_url)
+    vindplaatsen = [dict(v) for v in db.get_bronvindplaatsen(webshop_url)]
     return {
         "vermeldingen": vermeldingen,
         "controle": controle.vat_samen(controles) if controles else None,
-        "beweging": waarschuwing.vergelijk(twee_rondes, _winkelnaam(webshop_url)),
+        "beweging": waarschuwing.vergelijk(twee_rondes, winkelnaam),
+        "bronnen": bronnen.vat_samen(vindplaatsen, winkelnaam) if vindplaatsen else None,
     }
 
 
@@ -1197,6 +1242,12 @@ def _demo_draaien(webshop_url, benchmark_stand=False):
             stap=lambda t: _demo_status.__setitem__(webshop_url, t),
             max_vragen=BENCHMARK_VRAGEN if benchmark_stand else None,
             controleer=not benchmark_stand,
+            # In de benchmarkstand ook de bronanalyse overslaan. Die kost per
+            # winkel een paar zoekopdrachten en tientallen paginabezoeken, en
+            # een benchmark kijkt alleen naar het patroon over alle winkels
+            # samen. Over zestig winkels scheelt dat uren wachttijd voor iets
+            # wat in de optelling niet gebruikt wordt.
+            bronnen_aan=not benchmark_stand,
         )
         _demo_status[webshop_url] = "klaar"
     except Exception as e:
@@ -1309,6 +1360,7 @@ def admin_voorbeeld():
         vermeldingen=gegevens["vermeldingen"],
         controle=gegevens["controle"],
         beweging=gegevens["beweging"],
+        bronnen=gegevens["bronnen"],
         verklaring=verklaring.maak_verklaring(
             laatste["checks"] if laatste else [], gegevens["vermeldingen"]),
         laatste=laatste,
@@ -1392,6 +1444,58 @@ def admin_beoordelingen():
             (db.get_rapporten_voor_webshop(webshop_url) or [{}])[0].get("checks") or [],
             beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None,
         ) if webshop_url else None,
+    )
+
+
+@app.route("/admin/bronnen")
+def admin_bronnen():
+    """Fase 5 punt 14. Laat zien welke externe pagina's er gevonden zijn en wie
+    daarop staat.
+
+    Hier controleer je het belangrijkste risico van deze stap: dat een naam
+    verkeerd herkend wordt. Zie je een pagina waarvan je weet dat de winkel er
+    wel op staat terwijl er nee staat, dan klopt de naamherkenning niet en moet
+    dat eerst opgelost worden. Een verkeerde vindplaats is erger dan geen
+    vindplaats, want de klant gaat erop af."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    webshop_url = (request.args.get("url") or "").strip()
+    meting_id = request.args.get("meting") or None
+
+    # Opnieuw zoeken kost echt geld, dus alleen op een knop en nooit vanzelf
+    # bij het openen van de pagina. Dezelfde afspraak als bij de demo.
+    if webshop_url and request.args.get("start") == "ja":
+        start = False
+        with _metingen_slot:
+            if webshop_url not in _beoordelen_bezig:
+                _beoordelen_bezig.add(webshop_url)
+                start = True
+        if start:
+            def klus():
+                try:
+                    _zoek_bronnen(webshop_url, meting_id, _winkelnaam(webshop_url))
+                finally:
+                    with _metingen_slot:
+                        _beoordelen_bezig.discard(webshop_url)
+            threading.Thread(target=klus, daemon=True).start()
+        return redirect(f"/admin/bronnen?key={admin_key}&url={webshop_url}&bezig=ja")
+
+    vindplaatsen = [dict(v) for v in db.get_bronvindplaatsen(webshop_url, meting_id)] if webshop_url else []
+    winkelnaam = _winkelnaam(webshop_url) if webshop_url else None
+
+    return render_template(
+        "admin_bronnen.html",
+        webshop_url=webshop_url,
+        sleutel=admin_key,
+        winkelnaam=winkelnaam,
+        vindplaatsen=vindplaatsen,
+        s=bronnen.vat_samen(vindplaatsen, winkelnaam) if vindplaatsen else None,
+        bezig=request.args.get("bezig") == "ja",
+        werkt=bronnen.beschikbaar(),
+        waarom_niet=bronnen.waarom_niet(),
+        aanbieder=bronnen.ZOEK_AANBIEDER,
     )
 
 

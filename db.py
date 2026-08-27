@@ -172,6 +172,30 @@ def init_db():
                         UNIQUE (meting_id, uitspraak)
                     );
                 """)
+                # Fase 5 punt 14: waar staan de winkels die AI wel noemt.
+                # Per externe pagina leggen we vast wie erop voorkwam. Bewust
+                # de losse vindplaatsen bewaren en niet alleen de optelling:
+                # leren we later beter zoeken of beter matchen, dan willen we
+                # dat op de oude vindplaatsen opnieuw kunnen doen. Dezelfde
+                # afspraak als bij de AI-antwoorden.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS bronvindplaatsen (
+                        id SERIAL PRIMARY KEY,
+                        meting_id TEXT NOT NULL,
+                        webshop_url TEXT NOT NULL,
+                        vraag TEXT,
+                        bron_url TEXT NOT NULL,
+                        bron_titel TEXT,
+                        bron_domein TEXT,
+                        eigen_site_van TEXT,
+                        wij_genoemd BOOLEAN DEFAULT false,
+                        concurrenten JSONB,
+                        gevonden_op TIMESTAMPTZ DEFAULT now(),
+                        UNIQUE (meting_id, vraag, bron_url)
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_bronnen_meting "
+                            "ON bronvindplaatsen (webshop_url, meting_id);")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS gratis_scans (
                         id SERIAL PRIMARY KEY,
@@ -1034,6 +1058,76 @@ def get_uitspraakcontroles(webshop_url, meting_id=None, limit=100):
                 return cur.fetchall()
     except Exception as e:
         print(f"Uitspraakcontroles ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def bewaar_bronvindplaatsen(webshop_url, meting_id, vindplaatsen):
+    """Bewaart wat de bronanalyse per externe pagina vond.
+
+    Dezelfde pagina bij dezelfde vraag in dezelfde ronde komt er maar een keer
+    in. Zo kan je de bronanalyse veilig opnieuw starten na een storing zonder
+    dubbele regels te krijgen."""
+    if not vindplaatsen:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    bewaard = 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                for v in vindplaatsen:
+                    cur.execute(
+                        """INSERT INTO bronvindplaatsen
+                           (meting_id, webshop_url, vraag, bron_url, bron_titel,
+                            bron_domein, eigen_site_van, wij_genoemd, concurrenten)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                           ON CONFLICT (meting_id, vraag, bron_url) DO NOTHING""",
+                        (meting_id, webshop_url, v.get("vraag"), v.get("bron_url"),
+                         v.get("bron_titel"), v.get("bron_domein"), v.get("eigen_site_van"),
+                         bool(v.get("wij_genoemd")),
+                         json.dumps(v.get("concurrenten") or [], ensure_ascii=False)),
+                    )
+                    bewaard += cur.rowcount
+        return bewaard
+    except Exception as e:
+        print(f"Bronvindplaatsen bewaren mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def get_bronvindplaatsen(webshop_url, meting_id=None, limit=200):
+    """De vindplaatsen van de laatste ronde, of van een ronde naar keuze."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if meting_id:
+                    cur.execute(
+                        """SELECT * FROM bronvindplaatsen
+                            WHERE webshop_url = %s AND meting_id = %s
+                         ORDER BY id LIMIT %s""",
+                        (webshop_url, meting_id, limit),
+                    )
+                else:
+                    cur.execute(
+                        """SELECT * FROM bronvindplaatsen
+                            WHERE webshop_url = %s
+                              AND meting_id = (
+                                  SELECT meting_id FROM bronvindplaatsen
+                                   WHERE webshop_url = %s
+                                ORDER BY gevonden_op DESC LIMIT 1)
+                         ORDER BY id LIMIT %s""",
+                        (webshop_url, webshop_url, limit),
+                    )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Bronvindplaatsen ophalen mislukt: {e}")
         return []
     finally:
         conn.close()
