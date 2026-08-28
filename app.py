@@ -1116,12 +1116,17 @@ def _maak_taakoplossingen(webshop_url, plan, melden=None):
     krijgt dus dezelfde tekst als vorige week, en dat hoort ook: hetzelfde
     probleem met een andere formulering laat het lijken alsof er iets veranderd
     is."""
+    uitkomsten = []
     if not plan or not plan.get("acties"):
-        return
+        return uitkomsten
     bestaand = db.get_taakoplossingen(webshop_url)
     for actie in plan["acties"]:
         taak_id = actie.get("id")
-        if not taak_id or taak_id in GEEN_OPLOSSING_NODIG or taak_id in bestaand:
+        if not taak_id or taak_id in GEEN_OPLOSSING_NODIG:
+            continue
+        if taak_id in bestaand:
+            uitkomsten.append({"titel": actie["titel"], "gelukt": True, "fout": None,
+                               "was_er_al": True})
             continue
         if melden:
             try:
@@ -1129,10 +1134,17 @@ def _maak_taakoplossingen(webshop_url, plan, melden=None):
             except Exception:
                 pass
         uitkomst = ai_content.genereer_taakoplossing(
-            webshop_url, taak_id, actie["titel"], actie["hoe"])
-        if uitkomst:
+            webshop_url, taak_id, actie["titel"], actie["hoe"]) or {}
+        if uitkomst.get("gelukt"):
             db.bewaar_taakoplossing(webshop_url, taak_id, uitkomst["titel"],
                                     uitkomst["oplossing"], uitkomst["waar"])
+            uitkomsten.append({"titel": actie["titel"], "gelukt": True, "fout": None,
+                               "was_er_al": False})
+        else:
+            uitkomsten.append({"titel": actie["titel"], "gelukt": False,
+                               "fout": uitkomst.get("fout") or "onbekende reden",
+                               "was_er_al": False})
+    return uitkomsten
 
 
 def _zoek_bronnen(webshop_url, meting_id=None, winkelnaam=None, melden=None):
@@ -1630,6 +1642,69 @@ def admin_beoordelingen():
             beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None,
         ) if webshop_url else None,
     )
+
+
+@app.route("/admin/oplossingen")
+def admin_oplossingen():
+    """Laat de kant-en-klare teksten van het actieplan los schrijven.
+
+    Bestaat omdat het anders niet te doen is: de teksten worden normaal in de
+    wekelijkse keten geschreven, en die hele keten opnieuw draaien kost tien
+    minuten en ongeveer een euro. Als je alleen wil zien of het schrijven
+    werkt, is dat zonde. Hier gebeurt alleen dat laatste stukje, en je ziet per
+    taak wat eruit kwam of wat er misging.
+
+    Met &opnieuw=ja gooit hij de bewaarde teksten eerst weg, zodat je een
+    nieuwe versie kan laten schrijven na een aanpassing aan de opdracht."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "", 404
+
+    webshop_url = (request.args.get("url") or "").strip()
+    if not webshop_url:
+        return "Geef een webshop op met &url=...", 400
+
+    gegevens = _klantgegevens(webshop_url)
+    plan = gegevens["actieplan"]
+
+    if request.args.get("opnieuw") == "ja" and plan:
+        for actie in plan.get("acties", []):
+            if actie.get("id"):
+                db.verwijder_taakoplossing(webshop_url, actie["id"])
+        plan = _klantgegevens(webshop_url)["actieplan"]
+
+    uitkomsten = _maak_taakoplossingen(webshop_url, plan)
+
+    regels = []
+    for u in uitkomsten:
+        if u["was_er_al"]:
+            stand = "stond er al"
+        elif u["gelukt"]:
+            stand = "nieuw geschreven"
+        else:
+            stand = f"MISLUKT: {u['fout']}"
+        regels.append(f"{u['titel']}\n    {stand}")
+
+    if not plan:
+        tekst = ("Er is nog geen actieplan voor deze winkel. Draai eerst de keten via "
+                 "/admin/demo, of wacht op de wekelijkse ronde.")
+    elif not regels:
+        tekst = "Het actieplan heeft geen taken die een geschreven tekst nodig hebben."
+    else:
+        tekst = "\n\n".join(regels)
+
+    maand = db.kosten_per_klant_deze_maand(webshop_url) or {}
+    uitgegeven = float(maand.get("kosten") or 0)
+
+    return Response(
+        f"Taakoplossingen voor {webshop_url}\n"
+        f"{'=' * (22 + len(webshop_url))}\n\n"
+        f"{tekst}\n\n"
+        f"Deze maand uitgegeven aan deze winkel: {uitgegeven:.2f} van "
+        f"{kosten.GRENS_PER_KLANT_MAAND_EURO:.2f} euro\n\n"
+        f"Bekijk het resultaat op /admin/voorbeeld?key={admin_key}&url={webshop_url}\n"
+        f"Opnieuw laten schrijven: voeg &opnieuw=ja toe aan dit adres.\n",
+        mimetype="text/plain; charset=utf-8")
 
 
 @app.route("/admin/bronnen")

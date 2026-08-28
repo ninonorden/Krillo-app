@@ -230,6 +230,9 @@
         Taken zonder tekst: <strong>{{ taakstand.zonder_tekst|length }}</strong>{% if taakstand.zonder_tekst %} ({{ taakstand.zonder_tekst|join(', ') }}){% endif %}<br>
         Deze maand uitgegeven aan deze winkel: <strong>{{ '%.2f'|format(taakstand.uitgegeven) }}</strong> van {{ '%.2f'|format(taakstand.grens) }} euro
       </p>
+      <p><a href="/admin/oplossingen?key={{ sleutel }}&url={{ webshop_url }}" style="font-weight:600;">Teksten laten schrijven</a>
+         &nbsp;&middot;&nbsp;
+         <a href="/admin/oplossingen?key={{ sleutel }}&url={{ webshop_url }}&opnieuw=ja">opnieuw, ook de bestaande</a></p>
       {% if taakstand.rem_dicht %}
       <p style="color:var(--coral-tekst); font-weight:600;">De kostenrem voor deze winkel staat dicht. Daarom worden er geen teksten meer geschreven. Zet GRENS_PER_KLANT_MAAND_EURO tijdelijk hoger in Render, of test op een andere winkel.</p>
       {% elif taakstand.zonder_tekst %}
