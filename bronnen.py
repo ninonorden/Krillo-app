@@ -39,6 +39,7 @@ zit, niet wat het verschil veroorzaakt.
 import os
 import re
 import time
+import unicodedata
 from urllib.parse import urlparse
 
 import requests
@@ -304,9 +305,15 @@ _VERBINDINGEN = {"en", "and"}
 
 def _normaliseer(tekst):
     """Maakt tekst vergelijkbaar: kleine letters, HTML-tekens terug naar hun
-    echte teken, en alle witruimte tot een spatie."""
+    echte teken, accenten eraf, en alle witruimte tot een spatie.
+
+    De accenten moeten eraf omdat de naamherkenning op letters en cijfers
+    splitst. Zonder dat werd "Bébé-Jou" opgeknipt tot b, b en jou, en werd die
+    winkel op geen enkele pagina meer gevonden."""
     laag = (tekst or "").lower()
     laag = laag.replace("&amp;", "&").replace("&#38;", "&").replace("&nbsp;", " ")
+    laag = unicodedata.normalize("NFKD", laag)
+    laag = "".join(t for t in laag if not unicodedata.combining(t))
     return " ".join(laag.split())
 
 
@@ -370,12 +377,25 @@ def _naampatroon(naam):
     if len("".join(delen)) < 4:
         return None
 
+    # Mag het lidwoord weggelaten worden?
+    #
+    # "de Bijenkorf" staat op de meeste pagina's gewoon als "Bijenkorf", dus
+    # daar moet het weg mogen. Maar "De Tuinen" wordt dan het patroon "tuinen",
+    # en dan telt elke pagina met dat doodgewone woord als vermelding.
+    #
+    # Het onderscheid: blijft er meer dan een woord over, dan is het veilig.
+    # Blijft er een woord over, dan alleen als dat woord lang genoeg is om
+    # geen alledaags Nederlands woord te zijn. Dat is een vuistregel en geen
+    # wet, maar hij valt de goede kant op: bij twijfel eisen we het lidwoord,
+    # en missen we hoogstens een vermelding in plaats van er een te verzinnen.
+    echte_delen = [d for d in delen if d not in _LIDWOORDEN]
+    lidwoord_optioneel = (len(echte_delen) > 1
+                          or (len(echte_delen) == 1 and len(echte_delen[0]) >= 8))
+
     stukken = []
     for i, deel in enumerate(delen):
         vast = re.escape(deel)
-        # Een lidwoord vooraan mag weggelaten zijn, maar alleen als er nog een
-        # echt deel achter komt.
-        if i == 0 and deel in _LIDWOORDEN and len(delen) > 1:
+        if i == 0 and deel in _LIDWOORDEN and len(delen) > 1 and lidwoord_optioneel:
             stukken.append(f"(?:{vast}{_SCHEIDING})?")
         else:
             stukken.append(vast)
@@ -417,8 +437,16 @@ def komt_voor(tekst, naam, ook_domein=None):
     # anders geschreven staat of alleen een logo te zien is.
     if ook_domein:
         kern = _kern_van_domein(ook_domein)
-        if kern and len(kern) >= 4 and kern in re.sub(r"[^a-z0-9]", "", laag):
-            return True
+        if kern and len(kern) >= 4:
+            # MET woordgrenzen. Dit stond als een kale substring-test op de
+            # hele pagina met alle leestekens eruit, en dan zit "hema" in
+            # "thema" en "bever" in "web everything". We zoeken het domein
+            # zoals het in een link staat: de naam gevolgd door een punt en
+            # een landcode, of los tussen leestekens.
+            patroon = (r"(?<![a-z0-9])" + re.escape(kern)
+                       + r"(?:[\-_.][a-z0-9]+)*\.[a-z]{2,6}(?![a-z0-9])")
+            if re.search(patroon, laag):
+                return True
 
     patroon = _naampatroon(naam)
     return bool(patroon and re.search(patroon, laag))

@@ -239,7 +239,8 @@ def _onjuistheid_acties(controle, winkelnaam):
         kenmerk,
         "feit",
         "Zet recht wat AI verkeerd over je vertelt",
-        (f"We vonden {aantal} uitspraak over {naam} die niet klopt met wat er op je site staat. "
+        (f"We vonden {aantal} {'uitspraak' if aantal == 1 else 'uitspraken'} over {naam} die "
+         f"niet {'klopt' if aantal == 1 else 'kloppen'} met wat er op je site staat. "
          f"Dit weegt zwaarder dan het lijkt: iemand die dit leest en langskomt, vindt iets "
          f"anders dan hij verwachtte. Dat is een klant die al bijna besloten had."),
         ("Zet het juiste antwoord duidelijk en in gewone zinnen op je eigen site, het liefst "
@@ -263,7 +264,10 @@ def _bronnen_acties(bronnen, winkelnaam):
     namen = sorted({n for g in top for n in (g.get("concurrenten") or [])})
     wie = ", ".join(namen[:4]) if namen else "winkels die AI wel noemt"
 
-    aantal = (bronnen or {}).get("gemist") or len(gemist)
+    # Tel de plekken die we ook ECHT laten zien. Dit stond op het totaal uit
+    # de bronanalyse, dus bij dertig gemiste plekken las de klant "zorg dat je
+    # op deze 30 plekken komt te staan" met vier links eronder.
+    aantal = len(top)
     plekken = "plek" if aantal == 1 else "plekken"
 
     return [_actie(
@@ -340,9 +344,22 @@ def maak_actieplan(verklaring=None, klantbeeld=None, bronnen=None, controle=None
     naam = winkelnaam or "Je winkel"
 
     if not gekozen:
-        kop = (f"{naam} wordt genoemd bij {genoemd} van de {telbaar} vragen, en we vinden op dit "
-               f"moment niets om aan te pakken. Je site is in orde en op de plekken die we "
-               f"nakeken sta je erbij. Houd het zo en let vooral op wat concurrenten doen.")
+        # BELANGRIJK: niet beweren dat we plekken nagekeken hebben als de
+        # bronanalyse niets opgeleverd heeft. Die geeft ook een lege uitkomst
+        # als de zoeksleutel ontbreekt of de zoekmachine eruit lag, en dan las
+        # een klant die bij nul van de 22 vragen genoemd werd: "je site is in
+        # orde en op de plekken die we nakeken sta je erbij". Er was dan geen
+        # enkele plek nagekeken.
+        bronnen_gedaan = bool(bronnen and bronnen.get("paginas"))
+        if bronnen_gedaan:
+            kop = (f"{naam} wordt genoemd bij {genoemd} van de {telbaar} vragen, en we vinden op "
+                   f"dit moment niets om aan te pakken. Je site is in orde en op de plekken die "
+                   f"we nakeken sta je erbij. Houd het zo en let vooral op wat concurrenten doen.")
+        else:
+            kop = (f"{naam} wordt genoemd bij {genoemd} van de {telbaar} vragen. Er staan geen "
+                   f"verbeterpunten op je site open. We hebben deze ronde geen externe pagina's "
+                   f"kunnen nakijken, dus over de plekken buiten je site kunnen we nu niets "
+                   f"zeggen. Volgende week weer.")
     elif genoemd == 0:
         kop = (f"{naam} werd deze ronde bij geen enkele van de {telbaar} vragen genoemd. "
                f"Hieronder staat wat je daaraan kan doen, belangrijkste eerst.")

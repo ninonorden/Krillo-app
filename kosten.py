@@ -205,6 +205,28 @@ def registreer_vaste_kosten(soort, provider, bedrag, webshop_url=None, email=Non
     })
 
 
+# Wat we rekenen voor een aanroep waarvan we de prijs niet kennen.
+#
+# Staat een modelnaam niet in PRIJZEN, dan wordt de kostprijs als "onbekend"
+# opgeslagen en niet als nul. Maar de optelling in de database slaat die rijen
+# over, dus de rem zag ze niet. Eén typefout in een modelnaam in Render en de
+# dagrem van 25 euro sloeg nooit meer aan terwijl de rekening gewoon opliep.
+#
+# Daarom tellen onbekende aanroepen nu mee tegen een ruime schatting. Liever
+# een rem die te vroeg dichtgaat dan een rem die niets ziet.
+SCHATTING_ONBEKENDE_AANROEP_EURO = float(
+    os.environ.get("SCHATTING_ONBEKENDE_AANROEP_EURO", "0.02"))
+
+
+def _met_onbekend(regel):
+    """Telt de aanroepen zonder bekende prijs mee tegen een schatting."""
+    if not regel:
+        return 0.0
+    kosten = float(regel.get("kosten") or 0)
+    onbekend = int(regel.get("onbekende_prijs") or 0)
+    return kosten + onbekend * SCHATTING_ONBEKENDE_AANROEP_EURO
+
+
 def mag_doorgaan(webshop_url=None, scan_id=None):
     """Wordt aangeroepen VOORDAT een dure aanroep start. Geeft terug of het
     mag, en zo niet waarom. Dit is de rem die voorkomt dat een vastgelopen
@@ -219,7 +241,7 @@ def mag_doorgaan(webshop_url=None, scan_id=None):
                     f"Deze scan heeft al {scan['aantal']} AI-aanroepen gedaan, "
                     f"de grens ligt op {GRENS_PER_SCAN_AANROEPEN}."
                 )
-            if (scan["kosten"] or 0) >= GRENS_PER_SCAN_EURO:
+            if _met_onbekend(scan) >= GRENS_PER_SCAN_EURO:
                 redenen.append(
                     f"Deze scan kost al {scan['kosten']:.2f} euro, "
                     f"de grens ligt op {GRENS_PER_SCAN_EURO:.2f} euro."
@@ -227,7 +249,7 @@ def mag_doorgaan(webshop_url=None, scan_id=None):
 
     if webshop_url:
         maand = db.kosten_per_klant_deze_maand(webshop_url)
-        kosten = (maand or {}).get("kosten") or 0
+        kosten = _met_onbekend(maand)
         if kosten >= GRENS_PER_KLANT_MAAND_EURO:
             redenen.append(
                 f"Deze klant kost deze maand al {kosten:.2f} euro, "
@@ -237,7 +259,7 @@ def mag_doorgaan(webshop_url=None, scan_id=None):
             _waarschuw_bij_drempel(webshop_url, kosten, GRENS_PER_KLANT_MAAND_EURO, "klant")
 
     vandaag = db.kosten_vandaag()
-    totaal = (vandaag or {}).get("kosten") or 0
+    totaal = _met_onbekend(vandaag)
     if totaal >= GRENS_TOTAAL_DAG_EURO:
         redenen.append(
             f"De totale AI-kosten van vandaag staan op {totaal:.2f} euro, "

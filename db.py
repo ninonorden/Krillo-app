@@ -287,8 +287,12 @@ def claim_payment(payment_id):
     Voorkomt dat een herhaalde melding van Mollie een tweede e-mail oplevert."""
     conn = _get_connection()
     if conn is None:
-        # Zonder database kunnen we niets vastleggen, dan maar doorgaan.
-        return True
+        # Zonder database kunnen we niet vastleggen dat we deze betaling al
+        # gezien hebben. Dan NIET doorgaan: anders levert elke herhaling van
+        # Mollie een tweede factuur, een tweede audit en een tweede mail op.
+        # Een gemiste verwerking is te herstellen, een dubbele niet.
+        print("Betaling niet geclaimd: geen database. Verwerking overgeslagen.")
+        return False
     try:
         with conn:
             with conn.cursor() as cur:
@@ -298,8 +302,8 @@ def claim_payment(payment_id):
                 )
                 return cur.rowcount > 0
     except Exception as e:
-        print(f"Betaling claimen mislukt: {e}")
-        return True
+        print(f"Betaling claimen mislukt, verwerking overgeslagen: {e}")
+        return False
     finally:
         conn.close()
 
@@ -1176,6 +1180,8 @@ def bewaar_taakoplossing(webshop_url, taak_id, titel, oplossing, waar):
     except Exception as e:
         print(f"Taakoplossing bewaren mislukt: {e}")
         return False
+    finally:
+        conn.close()
 
 
 def get_taakoplossingen(webshop_url):
@@ -1194,6 +1200,8 @@ def get_taakoplossingen(webshop_url):
     except Exception as e:
         print(f"Taakoplossingen ophalen mislukt: {e}")
         return {}
+    finally:
+        conn.close()
 
 
 def verwijder_taakoplossing(webshop_url, taak_id):
@@ -1212,6 +1220,8 @@ def verwijder_taakoplossing(webshop_url, taak_id):
     except Exception as e:
         print(f"Taakoplossing verwijderen mislukt: {e}")
         return 0
+    finally:
+        conn.close()
 
 
 def verwijder_bronvindplaatsen(webshop_url, meting_id):

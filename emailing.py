@@ -242,11 +242,11 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
     <p style="font-size:14.5px;"><strong>Startscore: {score}/100</strong> voor {webshop_url}</p>
     <p style="font-size:13.5px; color:#3B3D57;">
       Dit is je nulmeting. Elke week scannen we opnieuw en krijg je bericht met de
-      nieuwe stand, en een duidelijke waarschuwing als je score gedaald is. Je vindt je scoreverloop altijd terug op je eigen pagina,
+      nieuwe stand, en een duidelijke waarschuwing als je score gedaald is. Op je eigen pagina staat elke week wat je als eerste kan doen, met de tekst er kant en klaar bij,
       die op hetzelfde adres blijft staan. Bewaar de link hieronder.
     </p>
     <p style="font-size:13.5px; color:#3B3D57;">
-      We zijn nu ook bezig met je eerste meting bij ChatGPT. We bedenken dertig
+      We zijn nu ook bezig met je eerste meting bij ChatGPT en Gemini. We bedenken dertig
       koopvragen die kopers in jouw categorie echt stellen, en kijken of jouw webshop in het
       antwoord staat. Dat duurt ongeveer een kwartier. Kijk daarna nog eens op je pagina: je ziet
       dan bij hoeveel vragen je genoemd wordt, bij hoeveel je ook echt aanbevolen wordt, en welke

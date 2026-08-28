@@ -266,9 +266,9 @@
       </div>
 
       {% if beweging and beweging.melden %}
-      <div class="beweging {% if beweging.verschil > 0 %}omhoog{% else %}omlaag{% endif %}">
+      <div class="beweging {% if beweging.verschil > 0 or beweging.verschil_aanbevolen > 0 %}omhoog{% elif beweging.verschil < 0 or beweging.verschil_aanbevolen < 0 %}omlaag{% else %}gelijk{% endif %}">
         <strong>
-          {% if beweging.verschil > 0 %}Gestegen{% else %}Gedaald{% endif %}
+          {% if beweging.verschil > 0 %}Gestegen{% elif beweging.verschil < 0 %}Gedaald{% elif beweging.verschil_aanbevolen > 0 %}Vaker aanbevolen{% elif beweging.verschil_aanbevolen < 0 %}Minder vaak aanbevolen{% else %}Veranderd{% endif %}
           sinds de vorige meting: van {{ beweging.toen.genoemd }} naar {{ beweging.nu.genoemd }}
         </strong>
         {{ beweging.duiding }}

@@ -70,11 +70,66 @@ def normalize_url(url):
     rekening. Een pad blijft wel hoofdlettergevoelig, want op sommige servers
     is /Producten iets anders dan /producten."""
     url = (url or "").strip()
+    # Niets erin is niets eruit. Zonder deze regel werd een leeg veld
+    # "https://", en dat is voor elke aanroeper een geldig lijkend webadres
+    # waar hij vervolgens op gaat zoeken.
+    if not url:
+        return ""
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     schema, _, rest = url.partition("://")
     host, schuin, pad = rest.partition("/")
     return f"{schema.lower()}://{host.lower()}{schuin}{pad}"
+
+
+def domeinkern(url):
+    """Het herkenbare deel van een webadres, zonder schema, www, punten of
+    streepjes. https://www.dille-kamille.nl/servies wordt dillekamille.
+
+    Bestaat omdat dit op drie plekken los was uitgeschreven en twee van die
+    drie fout waren: die deden url.split(".")[0] op een adres dat met https://
+    begint, en kregen dan "https://dille-kamille" terug. Gevolg: de eigen
+    winkel van een klant werd nooit herkend en stond als concurrent van
+    zichzelf in zijn eigen tabel."""
+    import re as _re
+    from urllib.parse import urlparse as _urlparse
+    if not url:
+        return ""
+    try:
+        netloc = _urlparse(url if "//" in url else "https://" + url).netloc.lower()
+    except ValueError:
+        return ""
+    netloc = netloc.split(":")[0]
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
+    return _re.sub(r"[^a-z0-9]", "", netloc.split(".")[0])
+
+
+def is_eigen_winkel(webshop_url, naam):
+    """Of een winkelnaam uit een AI-antwoord onze eigen winkel is.
+
+    De naam kan op allerlei manieren geschreven zijn. Het domein
+    dille-kamille.nl hoort te matchen met "Dille & Kamille", "Dille en
+    Kamille" en "Dille-Kamille". Daarom halen we de verbindingswoorden eruit
+    voordat we vergelijken, precies zoals bronnen.py dat ook doet."""
+    import re as _re
+    kern = domeinkern(webshop_url)
+    if not kern or len(kern) < 4:
+        return False
+
+    laag = (naam or "").lower().replace("&", " en ")
+    delen = [d for d in _re.split(r"[^a-z0-9]+", laag) if d]
+    if not delen:
+        return False
+
+    # Twee schrijfwijzen: met en zonder de verbindingswoorden. Een domein laat
+    # die meestal weg (dille-kamille), een geschreven naam niet altijd.
+    met = "".join(delen)
+    zonder = "".join(d for d in delen if d not in ("en", "and", "de", "het"))
+    for plat in (met, zonder):
+        if plat and (kern == plat or kern in plat or plat in kern):
+            return True
+    return False
 
 
 def fetch(url, measure_time=False, pogingen=3):
@@ -118,10 +173,22 @@ def status_from_score(score):
     return "probleem"
 
 
+# Checks die we niet hebben kunnen meten. Die krijgen de status "onbekend" en
+# tellen niet mee in het cijfer, want een pagina die niet laadde is geen
+# verbeterpunt. compute_score filtert daar al op, maar status_from_score gaf
+# die status nooit terug, dus dat filter deed niets.
+NIET_GEMETEN = "Kon de pagina niet ophalen"
+
+
 def make_check(id_, titel, categorie, impact, score, uitleg):
+    # Begint de uitleg met "Kon de pagina niet ophalen", dan hebben we niets
+    # gemeten. Dat is geen verbeterpunt en het hoort het cijfer niet omlaag te
+    # trekken. compute_score filtert al op status "onbekend"; die status werd
+    # alleen nergens gezet, dus dat filter deed niets.
+    status = "onbekend" if (uitleg or "").startswith(NIET_GEMETEN) else status_from_score(score)
     return {
         "id": id_, "titel": titel, "categorie": categorie, "impact": impact,
-        "score": score, "status": status_from_score(score), "uitleg": uitleg,
+        "score": score, "status": status, "uitleg": uitleg,
     }
 
 
@@ -143,8 +210,21 @@ def check_robots_txt(base_url):
         return make_check("robots", "Kunnen AI-robots je site bezoeken?", "toegang", "hoog", 100,
                            "Er is geen robots.txt gevonden op deze site. Dat is meestal geen probleem, AI-robots mogen dan gewoon overal binnen.")
 
+    # Een robots.txt die wel bestaat maar niet opgehaald mag worden is iets
+    # anders dan geen robots.txt. Robots behandelen een 403 of een 503 op dit
+    # bestand als "alles verboden", dus dat mogen wij niet als groen melden.
+    if resp is not None and resp.status_code in (401, 403, 429) or (
+            resp is not None and 500 <= resp.status_code < 600):
+        return make_check(
+            "robots", "Mogen AI-robots je site lezen?", "toegang", "hoog", 30,
+            f"Je robots.txt is er wel, maar hij gaf een foutmelding ({resp.status_code}) "
+            f"toen we hem opvroegen. AI-robots die dat overkomt gaan er meestal van uit "
+            f"dat de hele site verboden is. Vraag je hostingpartij of je beveiliging "
+            f"waarom dit bestand niet gewoon opvraagbaar is.")
+
     text = resp.text
     blocked_bots, current_agents = [], []
+    vorige_regel_was_agent = False
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#") or ":" not in line:
@@ -152,8 +232,18 @@ def check_robots_txt(base_url):
         key, _, value = line.partition(":")
         key, value = key.strip().lower(), value.strip()
         if key == "user-agent":
-            current_agents = [value]
-        elif key == "disallow" and value == "/":
+            # Opeenvolgende User-agent-regels horen bij dezelfde groep. Stond
+            # hier current_agents = [value], en dan telde bij een blok met drie
+            # robots alleen de laatste mee. De andere twee werden gemeld als
+            # welkom terwijl ze buitengesloten waren.
+            if vorige_regel_was_agent:
+                current_agents.append(value)
+            else:
+                current_agents = [value]
+            vorige_regel_was_agent = True
+            continue
+        vorige_regel_was_agent = False
+        if key == "disallow" and value == "/":
             for agent in current_agents:
                 for bot in AI_BOTS:
                     if agent.lower() == bot.lower() or agent == "*":
@@ -435,10 +525,19 @@ def check_alt_teksten(html):
     if not images:
         return make_check("alt_tekst", "Hebben afbeeldingen een beschrijving voor AI?", "inhoud", "laag", 100, "Geen afbeeldingen gevonden op deze pagina, dus niets om hier te missen.")
 
-    with_alt = [img for img in images if img.get("alt", "").strip()]
-    ratio = len(with_alt) / len(images)
+    # Een lege alt (alt="") is de juiste manier om te zeggen "dit plaatje is
+    # versiering en heeft geen beschrijving nodig". Die telden we als fout,
+    # waardoor een shop met twintig correct gemarkeerde icoontjes een lage
+    # score kreeg en het advies om iets te repareren dat al goed stond.
+    betekenisvol = [img for img in images if img.get("alt") is None or img.get("alt", "").strip()]
+    if not betekenisvol:
+        return make_check("alt_tekst", "Hebben afbeeldingen een beschrijving voor AI?", "inhoud", "laag", 100,
+                          "Alle afbeeldingen op deze pagina zijn als versiering gemarkeerd met een lege "
+                          "beschrijving. Dat is precies goed: dan weet een systeem dat het niets mist.")
+    with_alt = [img for img in betekenisvol if img.get("alt", "").strip()]
+    ratio = len(with_alt) / len(betekenisvol)
     score = round(ratio * 100)
-    uitleg = f"{len(with_alt)} van de {len(images)} afbeeldingen hebben een beschrijving (alt-tekst). Alt-tekst geeft tekstuele context bij een afbeelding, wat helpt als een systeem de afbeelding zelf niet meeneemt."
+    uitleg = f"{len(with_alt)} van de {len(betekenisvol)} afbeeldingen hebben een beschrijving (alt-tekst). Alt-tekst geeft tekstuele context bij een afbeelding, wat helpt als een systeem de afbeelding zelf niet meeneemt."
     return make_check("alt_tekst", "Hebben afbeeldingen een beschrijving voor AI?", "inhoud", "laag", score, uitleg)
 
 

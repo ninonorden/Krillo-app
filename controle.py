@@ -22,6 +22,7 @@ import time
 
 import anthropic
 
+import beoordeling
 import kosten
 
 MODEL = os.environ.get("CONTROLE_MODEL", "claude-sonnet-4-6")
@@ -128,12 +129,7 @@ Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
             webshop_url=webshop_url,
             duur_ms=int((time.monotonic() - gestart) * 1000),
         )
-        ruw = response.content[0].text.strip()
-        if ruw.startswith("```"):
-            ruw = ruw.split("```")[1]
-            if ruw.startswith("json"):
-                ruw = ruw[4:]
-        data = json.loads(ruw)
+        data = beoordeling._schoon_json(response.content[0].text)
 
         resultaat = []
         for u in data.get("uitkomsten", []):

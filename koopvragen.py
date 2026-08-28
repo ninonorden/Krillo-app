@@ -22,6 +22,7 @@ import time
 import anthropic
 import requests
 
+import beoordeling
 import kosten
 from bs4 import BeautifulSoup
 
@@ -145,12 +146,7 @@ Antwoord ALLEEN met geldige JSON, in dit formaat, niets ervoor of erna:
             soort="koopvragen-bedenken", webshop_url=webshop_url,
             duur_ms=int((time.monotonic() - gestart) * 1000),
         )
-        ruw = response.content[0].text.strip()
-        if ruw.startswith("```"):
-            ruw = ruw.split("```")[1]
-            if ruw.startswith("json"):
-                ruw = ruw[4:]
-        data = json.loads(ruw)
+        data = beoordeling._schoon_json(response.content[0].text)
         vragen = data.get("vragen", [])
         geldige_intenties = {naam for naam, _ in INTENTIES}
         opgeschoond = [
@@ -167,7 +163,7 @@ Antwoord ALLEEN met geldige JSON, in dit formaat, niets ervoor of erna:
         return None
 
 
-def vind_dubbele_vragen(vragen):
+def vind_dubbele_vragen(vragen, webshop_url=None):
     """Stap 2: bepaalt welke vragen in feite hetzelfde vragen.
 
     Dit kan geen simpel woordvergelijk zijn. 'Wat zijn goede alternatieven voor
@@ -179,6 +175,14 @@ def vind_dubbele_vragen(vragen):
     vallen, met de reden."""
     client = _get_client()
     if client is None or len(vragen) < 2:
+        return []
+
+    # Als enige AI-aanroep in dit bestand miste hier de rem. Zonder deze
+    # controle kon je met een paar keer verversen onbeperkt geld uitgeven,
+    # en die kosten telden ook niet mee in de maandgrens van de klant.
+    rem = kosten.mag_doorgaan(webshop_url=webshop_url)
+    if not rem["mag"]:
+        print(f"Ontdubbelen geblokkeerd door de kostenrem: {rem['reden']}")
         return []
 
     genummerd = "\n".join(
@@ -236,14 +240,12 @@ Is er niets dubbel, geef dan een lege lijst terug."""
             invoer_tokens=response.usage.input_tokens,
             uitvoer_tokens=response.usage.output_tokens,
             soort="vragen-ontdubbelen",
+            # De webshop erbij, anders tellen deze kosten niet mee in de
+            # maandgrens van de klant voor wie ze gemaakt worden.
+            webshop_url=webshop_url,
             duur_ms=int((time.monotonic() - gestart) * 1000),
         )
-        ruw = response.content[0].text.strip()
-        if ruw.startswith("```"):
-            ruw = ruw.split("```")[1]
-            if ruw.startswith("json"):
-                ruw = ruw[4:]
-        data = json.loads(ruw)
+        data = beoordeling._schoon_json(response.content[0].text)
         resultaat = []
         for d in data.get("dubbelingen", []):
             houden, weglaten = d.get("houden"), d.get("weglaten")
@@ -349,12 +351,7 @@ Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
             webshop_url=webshop_url,
             duur_ms=int((time.monotonic() - gestart) * 1000),
         )
-        ruw = response.content[0].text.strip()
-        if ruw.startswith("```"):
-            ruw = ruw.split("```")[1]
-            if ruw.startswith("json"):
-                ruw = ruw[4:]
-        data = json.loads(ruw)
+        data = beoordeling._schoon_json(response.content[0].text)
         geldig = {naam for naam, _ in INTENTIES}
         bekend = {v.lower().strip() for v in al_bedacht}
         return [

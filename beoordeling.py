@@ -46,11 +46,23 @@ def _get_client():
 
 
 def _schoon_json(ruw):
-    ruw = ruw.strip()
-    if ruw.startswith("```"):
-        ruw = ruw.split("```")[1]
-        if ruw.startswith("json"):
-            ruw = ruw[4:]
+    """Leest de JSON uit het antwoord van een model.
+
+    Bestand tegen een model dat er tekst omheen zet ("Hier is de JSON:") of een
+    code-blok gebruikt. Dat gebeurt regelmatig, en zonder deze marge klapte het
+    inlezen en telde het antwoord stil als mislukt."""
+    ruw = (ruw or "").strip()
+    if "```" in ruw:
+        stukken = ruw.split("```")
+        if len(stukken) > 1:
+            ruw = stukken[1]
+            if ruw.lstrip().lower().startswith("json"):
+                ruw = ruw.lstrip()[4:]
+    begin, eind = ruw.find("{"), ruw.rfind("}")
+    if begin == -1 or eind <= begin:
+        begin, eind = ruw.find("["), ruw.rfind("]")
+    if begin != -1 and eind > begin:
+        ruw = ruw[begin:eind + 1]
     return json.loads(ruw)
 
 
@@ -252,12 +264,14 @@ def vat_samen(beoordelingen):
     # Eerst vaststellen welke namen in deze ronde ergens als winkel herkend
     # zijn. Het slotadvies van een antwoord raadt vaak merken aan, en die
     # mogen niet in een tabel met concurrerende webshops belanden.
-    bekende_winkels = set()
+    # Kleine letters naar de schrijfwijze zoals hij het eerst voorkwam, zodat
+    # dezelfde winkel altijd onder een naam geteld wordt.
+    bekende_winkels = {}
     for b in telbaar:
         for w in (b.get("winkels") or []):
             naam = (w.get("naam") or "").strip()
             if naam:
-                bekende_winkels.add(naam.lower())
+                bekende_winkels.setdefault(naam.lower(), naam)
 
     concurrenten = {}
     for b in telbaar:
@@ -269,9 +283,15 @@ def vat_samen(beoordelingen):
             regel["genoemd"] += 1
         for naam in (b.get("aanbevolen_winkels") or []):
             naam = (naam or "").strip()
-            if not naam or naam.lower() not in bekende_winkels:
+            if not naam:
                 continue
-            regel = concurrenten.setdefault(naam, {"naam": naam, "genoemd": 0, "aanbevolen": 0})
+            # Koppelen op de schrijfwijze die we al kennen. Het model wisselt
+            # tussen "fonQ" en "FonQ", en dan kreeg je twee regels in de tabel:
+            # een met de vermeldingen en een met de aanbevelingen.
+            bekend = bekende_winkels.get(naam.lower())
+            if not bekend:
+                continue
+            regel = concurrenten.setdefault(bekend, {"naam": bekend, "genoemd": 0, "aanbevolen": 0})
             regel["aanbevolen"] += 1
 
     posities = [b["positie"] for b in genoemd if b.get("positie")]
@@ -319,7 +339,12 @@ def klantbeeld(webshop_url, beoordelingen):
     aanbevolen gaat voor genoemd, genoemd gaat voor niet genoemd. Dat staat er
     ook zo bij op de pagina, anders lees je een cijfer dat strenger of milder
     is dan het lijkt."""
-    kern = (webshop_url or "").replace("www.", "").split(".")[0].replace("-", "").lower()
+    # Bewust via scan_engine en niet zelf uitrekenen. Dit stond hier als
+    # webshop_url.split(".")[0], en sinds normalize_url elk adres met https://
+    # begint leverde dat "https://dillekamille" op. De vergelijking daarna was
+    # dus altijd onwaar en de eigen winkel van de klant stond als concurrent
+    # in zijn eigen tabel.
+    import scan_engine
 
     per_vraag = {}
     for b in beoordelingen:
@@ -361,6 +386,12 @@ def klantbeeld(webshop_url, beoordelingen):
     # er 34 in de tabel en 17 in de teller, over precies hetzelfde.
     winkels_per_vraag = {}
     aanbevolen_per_vraag = {}
+    bekende_namen = {}
+    for b in beoordelingen:
+        for w in (b.get("winkels") or []):
+            naam = (w.get("naam") or "").strip()
+            if naam:
+                bekende_namen.setdefault(naam.lower(), naam)
     for b in beoordelingen:
         vraag = b.get("vraag")
         if not vraag or not b.get("winkel_kon_genoemd"):
@@ -371,20 +402,21 @@ def klantbeeld(webshop_url, beoordelingen):
                 winkels_per_vraag.setdefault(naam, set()).add(vraag)
         for naam in (b.get("aanbevolen_winkels") or []):
             naam = (naam or "").strip()
-            if naam and naam.lower() in {
-                (w.get("naam") or "").strip().lower()
-                for x in beoordelingen for w in (x.get("winkels") or [])
-            }:
-                aanbevolen_per_vraag.setdefault(naam, set()).add(vraag)
+            # Op kleine letters koppelen aan de naam zoals we hem tellen.
+            # Anders belandde "Bijenkorf" niet bij "de Bijenkorf" en kwam de
+            # kolom aanbevolen op nul te staan, terwijl daar op gesorteerd
+            # wordt en de bronanalyse daarop selecteert.
+            bekend = bekende_namen.get(naam.lower()) if naam else None
+            if bekend:
+                aanbevolen_per_vraag.setdefault(bekend, set()).add(vraag)
 
     concurrenten = []
     for naam, vragen in winkels_per_vraag.items():
-        vergelijk = naam.replace(" ", "").replace("&", "").replace("-", "").lower()
         concurrenten.append({
             "naam": naam,
             "genoemd": len(vragen),
             "aanbevolen": len(aanbevolen_per_vraag.get(naam, ())),
-            "wij": bool(kern) and kern in vergelijk,
+            "wij": scan_engine.is_eigen_winkel(webshop_url, naam),
         })
     concurrenten.sort(key=lambda c: (c["aanbevolen"], c["genoemd"]), reverse=True)
 

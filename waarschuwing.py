@@ -18,9 +18,24 @@ en onvoorspelbaarheid aan toevoegt. De echte trend-analyse over langere tijd
 staat in fase 6.
 """
 
+from datetime import datetime, timezone
+
 # Onder dit verschil melden we niets. Een vermelding heen of weer is ruis:
 # AI-antwoorden verschillen van dag tot dag zonder dat er iets veranderd is.
 DREMPEL = int(__import__("os").environ.get("WAARSCHUWING_DREMPEL", "2"))
+
+
+def _zelfde_winkel(naam, eigen):
+    """Of twee schrijfwijzen dezelfde winkel zijn. Verbindingswoorden en
+    leestekens tellen niet mee."""
+    import re as _re
+
+    def plat(t):
+        delen = [d for d in _re.split(r"[^a-z0-9]+", (t or "").lower().replace("&", " en ")) if d]
+        return "".join(d for d in delen if d not in ("en", "and", "de", "het"))
+
+    a, b = plat(naam), plat(eigen)
+    return bool(a) and bool(b) and (a == b or a in b or b in a)
 
 
 def _rondes(beoordelingen):
@@ -33,8 +48,12 @@ def _rondes(beoordelingen):
         per_ronde.setdefault(meting_id, []).append(b)
     return sorted(
         per_ronde.values(),
+        # datetime.min als terugval, niet None. Een ronde waarvan geen enkele
+        # regel een datum heeft mag de sortering niet laten klappen; die hoort
+        # gewoon achteraan.
         key=lambda regels: max(
-            (r.get("beoordeeld_op") for r in regels if r.get("beoordeeld_op")), default=None
+            (r.get("beoordeeld_op") for r in regels if r.get("beoordeeld_op")),
+            default=datetime.min.replace(tzinfo=timezone.utc),
         ),
         reverse=True,
     )
@@ -108,15 +127,23 @@ def vergelijk(beoordelingen, eigen_naam=None):
     eigen = (eigen_naam or "").lower()
     bewegingen = []
     for naam in set(nu["winkels"]) | set(toen["winkels"]):
-        if naam.lower() == eigen:
+        # Niet op exacte gelijkheid vergelijken. Het model schrijft "Dille &
+        # Kamille" waar het winkelprofiel "Dille en Kamille" zegt, en dan
+        # stond de eigen winkel in zijn eigen stijgers- en dalerslijst met een
+        # zin als "jij daalt terwijl Dille & Kamille stijgt".
+        if _zelfde_winkel(naam, eigen):
             continue
         stap = nu["winkels"].get(naam, 0) - toen["winkels"].get(naam, 0)
         if abs(stap) >= DREMPEL:
             bewegingen.append({"naam": naam, "verschil": stap,
                                "nu": nu["winkels"].get(naam, 0)})
-    bewegingen.sort(key=lambda b: b["verschil"], reverse=True)
-    stijgers = [b for b in bewegingen if b["verschil"] > 0]
-    dalers = [b for b in bewegingen if b["verschil"] < 0]
+    # Allebei op grootte van de beweging, niet op het getal zelf. Sorteren op
+    # het getal zette de dalers precies verkeerd om: -2 kwam boven -6, en dan
+    # meldde het bericht de kleinste daler in plaats van de grootste.
+    stijgers = sorted([b for b in bewegingen if b["verschil"] > 0],
+                      key=lambda b: b["verschil"], reverse=True)
+    dalers = sorted([b for b in bewegingen if b["verschil"] < 0],
+                    key=lambda b: b["verschil"])
 
     if not vergelijkbaar:
         return {

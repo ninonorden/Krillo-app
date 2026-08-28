@@ -201,9 +201,16 @@
 
     {% else %}
     <div class="nietsgemeten">
+      {% if verloop and verloop|length > 1 %}
+      <strong>Deze week konden we niets meten</strong>
+      Er is deze ronde geen bruikbare meting uit de AI-modellen gekomen, dus we laten liever
+      niets zien dan een cijfer waar je niets aan hebt. We proberen het bij de volgende ronde
+      opnieuw. Je vorige metingen staan gewoon nog onder "Alle metingen en cijfers".
+      {% else %}
       <strong>De eerste meting loopt nog</strong>
       We stellen deze week koopvragen aan ChatGPT en Gemini om te zien of jouw winkel genoemd
-      wordt. Zodra dat klaar is staat hier wat je kan doen. Dat duurt hooguit een dag.
+      wordt. Zodra dat klaar is staat hier wat je kan doen. Reken op ongeveer een kwartier.
+      {% endif %}
     </div>
     {% endif %}
 

@@ -87,12 +87,23 @@ def herroepen_pagina():
 def api_herroepen():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip()
-    webshop_url = (data.get("url") or "").strip()
+    webshop_url = scan_engine.normalize_url((data.get("url") or "").strip())
     toelichting = (data.get("toelichting") or "").strip()
     if not email:
         return jsonify({"error": "Vul het e-mailadres in waarmee je hebt besteld."}), 400
 
     nummer = db.leg_herroeping_vast(email, webshop_url, toelichting)
+    if nummer is None:
+        # Niets vastgelegd. Dan NIET bevestigen dat we het ontvangen hebben:
+        # dit is een wettelijk verzoek met een termijn van veertien dagen, en
+        # een bevestiging op iets dat nergens staat is het ergste antwoord.
+        print(f"HERROEPING NIET VASTGELEGD voor {email} ({webshop_url}). "
+              f"Toelichting: {toelichting}")
+        return jsonify({
+            "error": "Het opslaan is niet gelukt. Mail je herroeping naar "
+                     "hallo@krillo.nl, dan verwerken we hem handmatig. "
+                     "Je herroepingsrecht blijft gewoon geldig."
+        }), 500
     emailing.send_herroeping_bevestiging(email, nummer, webshop_url)
     beheerder = os.environ.get("BEHEERDER_EMAIL")
     if beheerder:
@@ -450,7 +461,7 @@ def api_zichtbaarheidstest_status(test_id):
 @app.route("/api/checkout/audit", methods=["POST"])
 def checkout_audit():
     data = request.get_json(silent=True) or {}
-    webshop_url = (data.get("url") or "").strip()
+    webshop_url = scan_engine.normalize_url((data.get("url") or "").strip())
     email = (data.get("email") or "").strip()
     bedrijfsnaam = (data.get("bedrijfsnaam") or "").strip()
     voorwaarden = bool(data.get("voorwaarden_akkoord"))
@@ -474,7 +485,7 @@ def checkout_audit():
 def checkout_monitoring():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip()
-    webshop_url = (data.get("url") or "").strip()
+    webshop_url = scan_engine.normalize_url((data.get("url") or "").strip())
     bedrijfsnaam = (data.get("bedrijfsnaam") or "").strip()
     voorwaarden = bool(data.get("voorwaarden_akkoord"))
     if not email or not webshop_url:
@@ -495,28 +506,31 @@ def _verwerk_betaling(payment_id, base_url):
     rapport opslaan en e-mail versturen. Draait op de achtergrond zodat Mollie
     niet hoeft te wachten en de melding niet opnieuw stuurt."""
     try:
+        # Eerst kijken of er echt betaald is. Zolang dat niet zo is doen we
+        # niets en claimen we niets, zodat de melding die later WEL "paid"
+        # zegt gewoon verwerkt wordt.
+        status = payments.get_payment_status(payment_id)
+        if not (status and status["is_paid"]):
+            return
+
+        # Pas nu vastleggen dat wij deze betaling oppakken. Komt Mollie later
+        # nog een keer met dezelfde betaling, dan stopt het hier.
+        if not db.claim_payment(payment_id):
+            print(f"Betaling {payment_id} was al verwerkt, overgeslagen.")
+            return
+
         # Tweede blokkade: is er voor deze betaling al een rapport gemaakt?
         if db.report_bestaat_al(payment_id):
             print(f"Er bestaat al een rapport voor betaling {payment_id}, niets verstuurd.")
             return
 
-        status = payments.get_payment_status(payment_id)
-        if not (status and status["is_paid"]):
-            return
-
-        # Negeer late herhalingen van oude betalingen. Mollie blijft ongeveer een
-        # etmaal opnieuw melden, en zonder deze controle zou een betaling van
-        # uren geleden alsnog een nieuwe mail opleveren.
-        aangemaakt = status.get("created_at")
-        if aangemaakt:
-            try:
-                gemaakt_op = datetime.fromisoformat(aangemaakt.replace("Z", "+00:00"))
-                leeftijd = datetime.now(timezone.utc) - gemaakt_op
-                if leeftijd > timedelta(hours=3):
-                    print(f"Betaling {payment_id} is {leeftijd} oud, late herhaling genegeerd.")
-                    return
-            except Exception as e:
-                print(f"Kon de leeftijd van betaling {payment_id} niet bepalen: {e}")
+        # LET OP: hier stond een controle die betalingen ouder dan drie uur
+        # negeerde, gemeten vanaf het AANMAKEN van de betaling. Dat brak elke
+        # overboeking: die is per definitie een dag of langer onderweg, en bij
+        # aankomst werd hij als "late herhaling" weggegooid. Geld ontvangen,
+        # niets geleverd. Dubbele verwerking wordt al voorkomen door de claim
+        # hierboven en door report_bestaat_al, dus een leeftijdsgrens voegde
+        # niets toe.
 
         metadata = status.get("metadata") or {}
         payment_type = metadata.get("type")
@@ -583,11 +597,15 @@ def mollie_webhook():
     if not payment_id:
         return "", 400
 
-    # Zorg dat dezelfde betaling nooit twee keer verwerkt wordt.
-    if not db.claim_payment(payment_id):
-        print(f"Betaling {payment_id} was al verwerkt, overgeslagen.")
-        return "", 200
-
+    # BEWUST GEEN CLAIM HIER. Die zit in _verwerk_betaling, en pas nadat
+    # vaststaat dat er echt betaald is.
+    #
+    # Dit stond hier wel, en dat kostte klanten. Mollie meldt bij elke
+    # statuswissel: open, pending, canceled, failed en paid. De melding bij
+    # "pending" verbruikte de claim, en de melding bij "paid" werd daarna
+    # weggegooid als "was al verwerkt". Wie met iDEAL of een overboeking
+    # betaalde kreeg dus niets: geen factuur, geen rapport, geen mail, en geen
+    # foutmelding waaruit je het had kunnen afleiden.
     base_url = get_base_url()
     threading.Thread(target=_verwerk_betaling, args=(payment_id, base_url), daemon=True).start()
     return "", 200
@@ -847,7 +865,7 @@ def admin_koopvragen():
     if not admin_key or request.args.get("key") != admin_key:
         return "", 404
 
-    webshop_url = (request.args.get("url") or "").strip()
+    webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     if not webshop_url:
         return render_template("admin_koopvragen.html", webshop_url="geen webshop opgegeven",
                                 status="leeg", vragen=[], groepen={}, dubbelen=0, sleutel=admin_key)
@@ -872,7 +890,7 @@ def admin_koopvragen():
     # erom gevraagd wordt. Deed hij dat bij elke keer verversen, dan betaal je
     # voor elke pagina die je opent.
     zoeken = request.args.get("dubbel") == "ja" or request.args.get("ontdubbel") == "ja"
-    dubbelingen = koopvragen.vind_dubbele_vragen(vragen) if zoeken else []
+    dubbelingen = koopvragen.vind_dubbele_vragen(vragen, webshop_url=webshop_url) if zoeken else []
     if request.args.get("ontdubbel") == "ja" and dubbelingen:
         for d in dubbelingen:
             db.zet_vraag_uit(webshop_url, d["weglaten"])
@@ -944,7 +962,7 @@ def admin_metingen():
     if not admin_key or request.args.get("key") != admin_key:
         return "", 404
 
-    webshop_url = (request.args.get("url") or "").strip()
+    webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     aanbieders = metingen.beschikbare_aanbieders()
 
     if not webshop_url:
@@ -1027,11 +1045,26 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
     winkelnaam = _winkelnaam(webshop_url)
 
     melden("vragen stellen aan AI")
-    samenvatting = metingen.meet_webshop(webshop_url, max_vragen=max_vragen)
-    meting_id = (samenvatting or {}).get("meting_id") or db.laatste_meting_id(webshop_url)
+    samenvatting = metingen.meet_webshop(webshop_url, max_vragen=max_vragen) or {}
+    meting_id = samenvatting.get("meting_id")
     if not meting_id:
-        melden("mislukt: er is niets gemeten")
+        # BEWUST GEEN TERUGVAL op db.laatste_meting_id(). Die stond hier, en
+        # dan ging de hele keten bij een mislukte meting vrolijk verder op de
+        # ronde van vorige week: opnieuw beoordelen (kost geld), bronnen
+        # zoeken bij oude antwoorden, en een klantpagina met cijfers van zeven
+        # dagen oud onder de datum van vandaag. Liever niets dan oud nieuws
+        # dat zich voordoet als vers.
+        reden = samenvatting.get("reden") or "onbekende reden"
+        melden(f"mislukt: er is niets gemeten ({reden})")
+        print(f"Meting overgeslagen voor {webshop_url}: {reden}")
         return
+
+    # Is de ronde halverwege gestopt, dan is dat geen normale ronde. De klant
+    # mag geen "genoemd bij 1 van de 3 vragen" te zien krijgen alsof dat een
+    # volledige week is.
+    if samenvatting.get("gestopt_door_rem"):
+        print(f"LET OP: de meetronde voor {webshop_url} is halverwege gestopt: "
+              f"{samenvatting.get('reden')}")
 
     try:
         melden("antwoorden beoordelen")
@@ -1519,7 +1552,7 @@ def admin_voorbeeld():
     if not admin_key or request.args.get("key") != admin_key:
         return "", 404
 
-    webshop_url = (request.args.get("url") or "").strip()
+    webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     if not webshop_url:
         return "Geef een webshop op met &url=...", 400
 
@@ -1578,7 +1611,7 @@ def admin_beoordelingen():
     if not admin_key or request.args.get("key") != admin_key:
         return "", 404
 
-    webshop_url = (request.args.get("url") or "").strip()
+    webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     meting_id = request.args.get("meting") or None
 
     # Opnieuw beoordelen gooit de oordelen van deze ronde weg en doet ze over.
@@ -1624,9 +1657,8 @@ def admin_beoordelingen():
     samenvatting = beoordeling.vat_samen(beoordelingen)
 
     # Onze eigen winkel oplichten in de concurrentietabel.
-    kern = webshop_url.replace("www.", "").split(".")[0].replace("-", "").lower()
     for c in samenvatting["concurrenten"]:
-        c["wij"] = kern and kern in c["naam"].replace(" ", "").replace("&", "").replace("-", "").lower()
+        c["wij"] = scan_engine.is_eigen_winkel(webshop_url, c["naam"])
 
     return render_template(
         "admin_beoordelingen.html",
@@ -1660,7 +1692,7 @@ def admin_oplossingen():
     if not admin_key or request.args.get("key") != admin_key:
         return "", 404
 
-    webshop_url = (request.args.get("url") or "").strip()
+    webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     if not webshop_url:
         return "Geef een webshop op met &url=...", 400
 
@@ -1721,7 +1753,7 @@ def admin_bronnen():
     if not admin_key or request.args.get("key") != admin_key:
         return "", 404
 
-    webshop_url = (request.args.get("url") or "").strip()
+    webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     meting_id = request.args.get("meting") or None
 
     # Opnieuw zoeken kost echt geld, dus alleen op een knop en nooit vanzelf
@@ -1901,16 +1933,39 @@ def admin_bestellingen():
 
 @app.route("/bedankt")
 def bedankt():
+    """De pagina waar Mollie de bezoeker naartoe stuurt na het betalen.
+
+    LET OP: Mollie stuurt hierheen bij ELKE afloop, ook bij afbreken,
+    mislukken en verlopen, en geeft daarbij geen betaal-id mee dat wij kunnen
+    natrekken. Deze pagina kan dus niet weten of er betaald is.
+
+    Daarom staat er nu een tekst die in beide gevallen waar is. Hij stond hier
+    als "Bedankt voor je audit, we gaan direct aan de slag", en dat las iemand
+    die bij zijn bank op annuleren had gedrukt ook. Die zat vervolgens te
+    wachten op een mail die nooit kwam.
+
+    Beter zou zijn om de betaling hier echt na te trekken. Dat vraagt een eigen
+    kenmerk dat we bij het aanmaken van de betaling meegeven en opslaan, zodat
+    we hier weten welke betaling het was. Staat op de lijst; tot die tijd
+    beweren we niets wat we niet weten."""
     checkout_type = request.args.get("type", "audit")
     if checkout_type == "monitoring":
-        title = "Je monitoring is gestart"
-        message = "Je eerste scan is onderweg. Check zo je inbox voor de resultaten."
-        note = "Elke week ontvang je automatisch een nieuwe update."
-    else:
-        title = "Bedankt voor je audit"
-        message = "We gaan direct aan de slag. Je ontvangt de volledige audit binnen enkele minuten per e-mail."
-        note = "Niets ontvangen? Check ook je spamfolder, of mail hallo@krillo.nl."
-    return render_template("bedankt.html", title=title, message=message, note=note)
+        return render_template(
+            "bedankt.html",
+            title="Je betaling is verwerkt door Mollie",
+            message=("Is de betaling gelukt, dan is je eerste meting nu onderweg en krijg je "
+                     "binnen ongeveer een kwartier een mail met de link naar je eigen pagina. "
+                     "Daar staat wat je als eerste kan doen."),
+            note=("Is er niets afgeschreven en krijg je geen mail, dan is de betaling niet "
+                  "afgerond. Je kan het gewoon opnieuw proberen, of mail hallo@krillo.nl."))
+    return render_template(
+        "bedankt.html",
+        title="Je betaling is verwerkt door Mollie",
+        message=("Is de betaling gelukt, dan gaan we direct aan de slag en ontvang je de "
+                 "volledige audit binnen enkele minuten per e-mail."),
+        note=("Niets ontvangen? Kijk eerst in je spamfolder. Is er ook niets afgeschreven, dan "
+              "is de betaling niet afgerond en kan je het opnieuw proberen. Mail anders "
+              "hallo@krillo.nl."))
 
 
 if __name__ == "__main__":

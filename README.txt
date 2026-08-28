@@ -38,7 +38,9 @@ Omgevingsvariabelen (in Render):
          BRONNEN_AAN, ZOEK_AANBIEDER, BRONNEN_MAX_VRAGEN, BRONNEN_MAX_PAGINAS,
          BRONNEN_MAX_CONCURRENTEN, BRONNEN_PRIJS_PER_ZOEKOPDRACHT,
          BRONNEN_LAND (standaard NL), BRONNEN_TAAL (standaard nl),
-         BRONNEN_MIN_WINKELS (standaard 2: hoeveel bekende winkels er
+         SCHATTING_ONBEKENDE_AANROEP_EURO (standaard 0.02: waarmee een
+         aanroep meetelt in de kostenrem als het model niet in de prijslijst
+         staat), BRONNEN_MIN_WINKELS (standaard 2: hoeveel bekende winkels er
          minstens op een pagina moeten staan), BRONNEN_MAX_PER_DOMEIN
 
 Beheerpagina's (alleen met ?key=ADMIN_KEY, zonder sleutel geven ze 404):
@@ -47,4 +49,5 @@ Beheerpagina's (alleen met ?key=ADMIN_KEY, zonder sleutel geven ze 404):
 - /admin/metingen       De antwoorden van de AI-modellen op die koopvragen
 - /admin/kosten         AI-kosten per klant en per model
 - /admin/bronnen        De gevonden externe pagina's en wie daarop staat
+- /admin/oplossingen    Laat de kant-en-klare teksten van het actieplan schrijven
 - /admin/voorbeeld      De klantpagina; met &details=ja de cijferpagina erachter

@@ -156,7 +156,19 @@ def _vraag_openai(model, vraag):
     )
     resp.raise_for_status()
     data = resp.json()
-    antwoord = (data["choices"][0]["message"].get("content") or "").strip()
+    keuze = (data.get("choices") or [{}])[0]
+    antwoord = (keuze.get("message", {}).get("content") or "").strip()
+
+    # Kwam het antwoord niet af, dan is dat een mislukking en geen uitkomst.
+    # Het slotadvies ("ik zou vooral kijken naar X en Y") staat helemaal aan
+    # het eind, en juist daaruit lezen we "aanbevolen". Wordt dat afgekapt,
+    # dan meten we structureel te weinig aanbevelingen zonder dat iemand het
+    # ziet. Google werd hier al op gecontroleerd, OpenAI niet.
+    if keuze.get("finish_reason") == "length":
+        raise RuntimeError(
+            "OpenAI kapte het antwoord af op de tokengrens. Dat telt als mislukt, "
+            "niet als een winkel die niet aanbevolen werd. Verhoog MEET_MAX_TOKENS.")
+
     gebruik = data.get("usage") or {}
     return antwoord, gebruik.get("prompt_tokens", 0), gebruik.get("completion_tokens", 0)
 
@@ -228,6 +240,10 @@ def _vraag_anthropic(model, vraag):
     resp.raise_for_status()
     data = resp.json()
     delen = [b.get("text", "") for b in data.get("content", []) if b.get("type") == "text"]
+    if data.get("stop_reason") == "max_tokens":
+        raise RuntimeError(
+            "Anthropic kapte het antwoord af op de tokengrens. Dat telt als mislukt, "
+            "niet als een winkel die niet aanbevolen werd. Verhoog MEET_MAX_TOKENS.")
     gebruik = data.get("usage") or {}
     return (
         " ".join(delen).strip(),
