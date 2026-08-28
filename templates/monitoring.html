@@ -224,6 +224,18 @@
     <div class="opzeg">
       <strong>Voorbeeldweergave</strong>
       <p>Dit is hoe een abonnee zijn eigen pagina ziet. Alleen zichtbaar met de beheersleutel.</p>
+      {% if taakstand %}
+      <p style="font-family:var(--mono); font-size:12px; line-height:1.8;">
+        Taken met een geschreven tekst: <strong>{{ taakstand.met_tekst|length }}</strong>{% if taakstand.met_tekst %} ({{ taakstand.met_tekst|join(', ') }}){% endif %}<br>
+        Taken zonder tekst: <strong>{{ taakstand.zonder_tekst|length }}</strong>{% if taakstand.zonder_tekst %} ({{ taakstand.zonder_tekst|join(', ') }}){% endif %}<br>
+        Deze maand uitgegeven aan deze winkel: <strong>{{ '%.2f'|format(taakstand.uitgegeven) }}</strong> van {{ '%.2f'|format(taakstand.grens) }} euro
+      </p>
+      {% if taakstand.rem_dicht %}
+      <p style="color:var(--coral-tekst); font-weight:600;">De kostenrem voor deze winkel staat dicht. Daarom worden er geen teksten meer geschreven. Zet GRENS_PER_KLANT_MAAND_EURO tijdelijk hoger in Render, of test op een andere winkel.</p>
+      {% elif taakstand.zonder_tekst %}
+      <p>Er staan taken zonder tekst. Draai de keten nog een keer via /admin/demo, en kijk in de Render-logs naar regels die beginnen met "Taakoplossing".</p>
+      {% endif %}
+      {% endif %}
     </div>
     {% endif %}
   </div>

@@ -43,6 +43,8 @@ DE LADDER, van meeste naar minste opbrengst:
      het gaat over het kleinste deel van het verhaal. Daarom onderaan.
 """
 
+import hashlib
+
 # Hoeveel acties een klant maximaal krijgt. Zie regel 1 hierboven.
 MAX_ACTIES = 3
 
@@ -225,8 +227,16 @@ def _onjuistheid_acties(controle, winkelnaam):
         voorbeelden.append(f'AI zegt: "{zegt}"' + (f' Op je site staat: "{site}"' if site else ""))
 
     aantal = len(fouten)
+    # Het kenmerk hangt aan de uitspraken zelf. Verandert er wat AI fout zegt,
+    # dan hoort daar een nieuwe tekst bij. Zou het kenmerk alleen
+    # "onjuistheden" zijn, dan bleef de tekst van vorige maand staan bij een
+    # heel andere fout, en dat is erger dan geen tekst.
+    kenmerk = "onjuistheden-" + hashlib.sha1(
+        "|".join(sorted((f.get("uitspraak") or "") for f in fouten)).encode("utf-8")
+    ).hexdigest()[:10]
+
     return [_actie(
-        "onjuistheden",
+        kenmerk,
         "feit",
         "Zet recht wat AI verkeerd over je vertelt",
         (f"We vonden {aantal} uitspraak over {naam} die niet klopt met wat er op je site staat. "

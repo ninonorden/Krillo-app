@@ -1095,11 +1095,13 @@ def _zet_bronnen_status(webshop_url, tekst, klaar=False):
     print(f"Bronnen {webshop_url}: {tekst}")
 
 
-# Voor deze taak laten we geen tekst schrijven. Wat er misgaat verschilt per
-# ronde en staat al letterlijk in de taak zelf, met de verkeerde uitspraak en
-# wat de site erover zegt. Daar valt niets aan toe te voegen dat het bewaren
-# waard is.
-GEEN_OPLOSSING_NODIG = {"onjuistheden"}
+# Voor elke taak laten we een tekst schrijven, ook voor de onjuistheden.
+#
+# Dat was eerst niet zo, en dat was fout. Juist bij "AI zegt dat je 30 dagen
+# retour geeft terwijl het er 100 zijn" wil een winkelier niet horen dat hij
+# het moet rechtzetten, maar de zin lezen die hij op zijn site kan plakken.
+# Die taak heeft de kant-en-klare tekst het hardst nodig, niet het minst.
+GEEN_OPLOSSING_NODIG = set()
 
 
 def _maak_taakoplossingen(webshop_url, plan, melden=None):
@@ -1521,12 +1523,24 @@ def admin_voorbeeld():
 
     gegevens = _klantgegevens(webshop_url)
 
+    plan = gegevens["actieplan"]
+    maand = db.kosten_per_klant_deze_maand(webshop_url) or {}
+    uitgegeven = float(maand.get("kosten") or 0)
+    taakstand = {
+        "met_tekst": [a["titel"] for a in (plan or {}).get("acties", []) if a.get("oplossing")],
+        "zonder_tekst": [a["titel"] for a in (plan or {}).get("acties", []) if not a.get("oplossing")],
+        "uitgegeven": uitgegeven,
+        "grens": kosten.GRENS_PER_KLANT_MAAND_EURO,
+        "rem_dicht": uitgegeven >= kosten.GRENS_PER_KLANT_MAAND_EURO,
+    }
+
     return render_template(
         "monitoring_details.html" if request.args.get("details") == "ja" else "monitoring.html",
         webshop_url=webshop_url,
         klant_token=None,
         voorbeeld=True,
         sleutel=admin_key,
+        taakstand=taakstand,
         vermeldingen=gegevens["vermeldingen"],
         controle=gegevens["controle"],
         beweging=gegevens["beweging"],
