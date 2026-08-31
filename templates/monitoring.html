@@ -86,6 +86,15 @@
   .merk.feit{background:var(--coral); color:#fff;}
   .merk.vermoeden{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
 
+  /* "Wij doen het": de stand van de opdracht, bovenaan de pagina. Eigen namen
+     omdat .wacht hieronder al voor iets anders gebruikt wordt. */
+  .wij-blok{border-radius:14px; padding:24px 26px; margin-bottom:28px;
+            font-size:15px; line-height:1.65;}
+  .wij-blok strong{display:block; font-family:var(--disp); font-size:18px; margin-bottom:6px;}
+  .wij-wacht{background:var(--coral-dim); color:#8C1E15;}
+  .wij-bezig{background:var(--amber-dim); color:#7A4E00;}
+  .wij-klaar{background:var(--teal-dim); color:#085041;}
+
   .klaar-blok{background:var(--teal-dim); border-radius:14px; padding:26px; margin-bottom:16px;
               font-size:15px; color:#085041; line-height:1.65;}
   .klaar-blok strong{display:block; font-family:var(--disp); font-size:18px; margin-bottom:6px;}
@@ -136,7 +145,38 @@
 <main>
   <div class="wrap">
     <div class="eyebrow">{{ webshop_url }}</div>
+    {% if uitvoering and uitvoering.stand != 'opgeleverd' %}
+    <h1>Wij zijn met je webshop bezig</h1>
+    {% else %}
     <h1>Wat je deze week doet</h1>
+    {% endif %}
+
+    {# Heeft deze klant betaald voor "wij doen het", dan hoort dat bovenaan te
+       staan en niet ergens onderaan. Iemand die betaald heeft om het NIET zelf
+       te hoeven doen, moet niet als eerste een lijst met huiswerk zien. #}
+    {% if uitvoering %}
+      {% if uitvoering.stand == 'wacht_op_toegang' %}
+      <div class="wij-blok wij-wacht">
+        <strong>We wachten nog op toegang tot je webshop</strong>
+        We kunnen pas beginnen als we in je winkel kunnen. In de mail die je na je
+        betaling kreeg staat precies hoe je dat regelt, het kost je twee minuten.
+        Kwijtgeraakt of loopt het vast? Mail hallo@krillo.nl, dan helpen we je erdoorheen.
+      </div>
+      {% elif uitvoering.stand == 'bezig' %}
+      <div class="wij-blok wij-bezig">
+        <strong>We zijn bezig in je webshop</strong>
+        Je hoeft nu even niets te doen. Zodra we klaar zijn krijg je een overzicht van
+        alles wat er veranderd is, met de oude tekst erbij, zodat je alles kunt terugzetten.
+      </div>
+      {% elif uitvoering.stand == 'opgeleverd' %}
+      <div class="wij-blok wij-klaar">
+        <strong>Wij hebben je webshop opgeknapt</strong>
+        {% if uitvoering.opgeleverd_op %}Afgerond op {{ uitvoering.opgeleverd_op.strftime('%d-%m-%Y') }}. {% endif %}
+        {% if uitvoering.notitie %}{{ uitvoering.notitie }}{% else %}Je hebt per mail een overzicht gekregen van wat er veranderd is.{% endif %}
+        Hieronder zie je wat er daarna nog open staat, en of je vaker genoemd wordt.
+      </div>
+      {% endif %}
+    {% endif %}
 
     {% if actieplan %}
     <div class="stand">{{ actieplan.kop }}</div>

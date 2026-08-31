@@ -423,7 +423,28 @@
   .score-of{font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
 
   /* PRICING */
-  .price-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:20px;}
+  /* Wij doen het: de drie stappen en de uitleg over toegang. */
+  .stappen{display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:34px;}
+  .stap{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:16px;
+    padding:26px 24px;
+  }
+  .stap-num{
+    display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px;
+    border-radius:50%; background:var(--ink); color:#fff; font-family:var(--mono);
+    font-size:13px; margin-bottom:14px;
+  }
+  .stap h3{font-family:var(--disp); font-size:17px; font-weight:600; margin-bottom:8px;}
+  .stap p{font-size:14px; color:var(--ink-soft); line-height:1.65;}
+  .toegang{
+    margin-top:22px; background:var(--paper-raised); border:1px solid var(--line);
+    border-radius:16px; padding:26px 24px;
+  }
+  .toegang h3{font-family:var(--disp); font-size:17px; font-weight:600; margin-bottom:10px;}
+  .toegang p{font-size:14px; color:var(--ink-soft); line-height:1.7; margin-bottom:10px;}
+  .toegang p:last-child{margin-bottom:0;}
+  .toegang strong{color:var(--ink);}
+  .price-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:18px;}
   .price-card{
     background:var(--paper-raised); border:1px solid var(--line); border-radius:16px;
     padding:30px 26px; display:flex; flex-direction:column; gap:18px;
@@ -555,7 +576,14 @@
   .footer-bottom .flinks a{color:var(--ink-soft); text-decoration:none;}
   .footer-bottom .flinks a:hover{color:var(--ink);}
 
+  /* Vier prijskaarten passen niet naast elkaar op een smal scherm. Bij 1080
+     twee naast elkaar, daaronder onder elkaar. */
+  @media(max-width:1080px){
+    .price-grid{grid-template-columns:repeat(2,1fr);}
+  }
+
   @media(max-width:860px){
+    .stappen{grid-template-columns:1fr;}
     .probleem-grid{grid-template-columns:1fr; gap:40px;}
     .hoe-lijst{grid-template-columns:1fr; gap:32px;}
     .cijfer{flex-direction:column; gap:8px;}
@@ -621,8 +649,8 @@
   <div class="wrap hero-grid">
     <div>
       <div class="eyebrow">Voor Nederlandse &amp; Belgische webshops</div>
-      <h1>Beveelt ChatGPT jouw webshop aan? En zo niet, <em>wat doe je eraan?</em></h1>
-      <p class="hero-sub">Steeds meer kopers vragen het gewoon aan ChatGPT of Gemini. Wij stellen die koopvragen echt en laten zien of jouw winkel in het antwoord staat. En daarna krijg je geen rapport maar een lijstje: hoogstens drie dingen die je deze week kan doen, met de tekst er kant en klaar bij. Begin gratis, zonder account.</p>
+      <h1>Noemt ChatGPT jouw webshop? Zo niet, <em>dan doen wij het werk.</em></h1>
+      <p class="hero-sub">Steeds meer kopers vragen het gewoon aan ChatGPT of Gemini. Wij stellen die koopvragen echt en laten zien of jouw winkel in het antwoord staat. Daarna hoef je zelf niets uit te zoeken: geef ons toegang tot je webshop en wij zetten het erin. Je krijgt achteraf te zien wat er veranderd is, en je kunt alles terugdraaien. Begin gratis, zonder account.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="jouwwebshop.nl" aria-label="Website URL">
         <button type="button" id="scanButton">Scan gratis</button>
@@ -657,6 +685,40 @@
           <span class="cijfer-tekst">punten bepalen of AI je shop überhaupt kan vinden, lezen en begrijpen. De meeste shops missen er meerdere zonder het te weten.</span>
         </div>
       </div>
+    </div>
+  </div>
+</section>
+
+<section id="wij-doen-het">
+  <div class="wrap">
+    <div class="voorbeeld-kop">
+      <h2>Je hoeft het niet zelf te doen.</h2>
+      <p>De meeste webshopeigenaren hebben geen tijd om uit te zoeken waar ze een stukje code moeten plakken, en dat hoeft ook niet. Geef ons toegang tot je webshop, dan zetten wij het erin.</p>
+    </div>
+
+    <div class="stappen">
+      <div class="stap">
+        <span class="stap-num">1</span>
+        <h3>Je geeft ons toegang</h3>
+        <p>Op dezelfde manier als je een webshopbureau toegang geeft. Bij Shopify keur je een verzoek goed, bij WooCommerce maak je een gebruiker aan. Kost je twee minuten en je kunt het met een klik weer intrekken.</p>
+      </div>
+      <div class="stap">
+        <span class="stap-num">2</span>
+        <h3>Wij voeren het uit</h3>
+        <p>Wij zetten de vragen en antwoorden erin, schrijven je productinformatie zo op dat AI hem kan lezen, en zetten de technische punten goed. Meestal binnen twee tot vijf werkdagen.</p>
+      </div>
+      <div class="stap">
+        <span class="stap-num">3</span>
+        <h3>Je ziet wat er veranderd is</h3>
+        <p>Je krijgt een overzicht van elke wijziging, met de oude tekst erbij. Bevalt iets je niet, dan zet je het terug. En daarna meten we of je vaker genoemd wordt.</p>
+      </div>
+    </div>
+
+    <div class="toegang">
+      <h3>Wat we wel en niet aanraken</h3>
+      <p><strong>Wel:</strong> je teksten, je productomschrijvingen, je veelgestelde vragen, de beschrijvingen bij je afbeeldingen, en de technische instellingen waarmee AI je site kan lezen.</p>
+      <p><strong>Niet:</strong> je prijzen, je voorraad, je bestellingen, je klantgegevens en je vormgeving. Daar blijven we vanaf.</p>
+      <p>We vragen alleen de rechten die we nodig hebben, en van elke wijziging bewaren we de oude versie. Laat je je site door een bouwer beheren, dan regelen we het met hem in plaats van met jou.</p>
     </div>
   </div>
 </section>
@@ -858,8 +920,8 @@
 <section id="prijzen">
   <div class="wrap">
     <div class="prijzen-kop">
-      <h2>Begin gratis. Betaal pas als het iets oplevert.</h2>
-      <p>De gratis scan blijft gratis, zonder account en zonder betaalgegevens. Betaal je wel, dan krijg je geen rapport maar het werk: de teksten, de code en de plekken, kant en klaar.</p>
+      <h2>Begin gratis. Betaal pas als je verder wil.</h2>
+      <p>De gratis scan blijft gratis, zonder account en zonder betaalgegevens. Wil je meer, dan kies je of je het zelf doet of dat wij het doen.</p>
     </div>
     <div class="price-grid">
       <div class="price-card">
@@ -874,18 +936,31 @@
         </ul>
         <a class="price-btn ghost" href="#scan">Start gratis</a>
       </div>
-      <div class="price-card featured">
-        <div class="price-badge">Meest gekozen</div>
+      <div class="price-card">
         <div class="price-name">Volledige audit</div>
         <div class="price-amount">€79 <span>eenmalig</span></div>
         <ul class="price-feats">
+          <li><strong>Je doet het zelf</strong>, wij schrijven het uit</li>
           <li>Voor elk verbeterpunt een uitgeschreven oplossing</li>
           <li>Teksten geschreven voor jouw producten, niet uit een sjabloon</li>
-          <li>Technische code die je direct kan plakken, met uitleg waar het moet</li>
-          <li>Je productinformatie ook op je product- en categoriepagina's gecheckt</li>
+          <li>Technische code die je direct kan plakken, met de route waar het moet, in jouw webshopsysteem</li>
           <li>Eigen rapportpagina waar je op terug kan komen</li>
         </ul>
-        <a class="price-btn solid" href="#scan" id="auditCheckoutBtn">Vraag audit aan</a>
+        <a class="price-btn ghost" href="#scan" id="auditCheckoutBtn">Vraag audit aan</a>
+      </div>
+      <div class="price-card featured">
+        <div class="price-badge">Meeste werk uit handen</div>
+        <div class="price-name">Wij doen het</div>
+        <div class="price-amount">€149 <span>eenmalig</span></div>
+        <ul class="price-feats">
+          <li><strong>Wij voeren het uit in je webshop</strong>, jij hoeft niets te plakken</li>
+          <li>Alles uit de volledige audit zit erbij</li>
+          <li>Werkt op Shopify, WooCommerce, Lightspeed en de meeste andere systemen</li>
+          <li>Achteraf een overzicht van elke wijziging, met de oude tekst erbij</li>
+          <li>Niet tevreden over een wijziging? Wij draaien hem terug</li>
+          <li>Meestal binnen 2 tot 5 werkdagen klaar</li>
+        </ul>
+        <a class="price-btn solid" href="#scan" id="uitvoeringCheckoutBtn">Laat het ons doen</a>
       </div>
       <div class="price-card">
         <div class="price-name">Monitoring</div>
@@ -931,7 +1006,7 @@
       </label>
       <label class="checkout-vink" id="checkoutDirectVeld">
         <input type="checkbox" id="checkoutDirect">
-        <span>Ik wil dat jullie direct beginnen, en ik weet dat ik mijn herroepingsrecht verlies zodra de audit volledig geleverd is.</span>
+        <span>Ik wil dat jullie direct beginnen, en ik weet dat ik mijn herroepingsrecht verlies zodra het werk volledig geleverd is.</span>
       </label>
     </div>
     <button class="checkout-submit" id="checkoutSubmit">Doorgaan naar betalen</button>
@@ -1462,6 +1537,16 @@
       ],
       delivery: 'Levering: automatisch, direct na betaling ontvang je de audit per e-mail.'
     },
+    uitvoering: {
+      items: [
+        'Wij voeren de verbeteringen uit in je webshop, jij hoeft niets te plakken',
+        'Alles uit de volledige audit zit erbij',
+        'Achteraf een overzicht van elke wijziging, met de oude tekst erbij',
+        'Bevalt een wijziging je niet, dan draaien wij hem terug',
+        'We blijven van je prijzen, voorraad, bestellingen en vormgeving af'
+      ],
+      delivery: 'Levering: direct na betaling vragen we je per e-mail om toegang tot je webshop. Zodra we binnen zijn is het meestal binnen 2 tot 5 werkdagen klaar.'
+    },
     monitoring: {
       items: [
         'We vragen elke week aan ChatGPT of jouw webshop genoemd wordt bij echte koopvragen',
@@ -1498,7 +1583,10 @@
     bedrijfInput.value = '';
     vinkVoorwaarden.checked = false;
     vinkDirect.checked = false;
-    vinkDirectVeld.style.display = (type === 'audit') ? 'flex' : 'none';
+    // Zowel de audit als de uitvoering beginnen meteen na betaling, dus voor
+    // allebei moet de klant bevestigen dat we direct mogen starten. Bij het
+    // abonnement niet: dat loopt door en daar geldt de gewone bedenktijd.
+    vinkDirectVeld.style.display = (type === 'audit' || type === 'uitvoering') ? 'flex' : 'none';
     var content = includesContent[type];
     var html = '';
     content.items.forEach(function(item){
@@ -1510,6 +1598,10 @@
     if(type === 'audit'){
       eyebrow.textContent = 'Volledige audit \u00b7 \u20ac79 eenmalig';
       title.textContent = 'Waar mogen we de audit op uitvoeren?';
+      emailField.style.display = 'block';
+    } else if(type === 'uitvoering'){
+      eyebrow.textContent = 'Wij doen het \u00b7 \u20ac149 eenmalig';
+      title.textContent = 'Welke webshop gaan we voor je opknappen?';
       emailField.style.display = 'block';
     } else {
       eyebrow.textContent = 'Monitoring \u00b7 \u20ac39 /maand';
@@ -1534,14 +1626,20 @@
     }
     var email = emailInput.value.trim();
     if(!email){
-      showError(currentType === 'audit' ? 'Vul een e-mailadres in, daarop sturen we de audit.' : 'Vul een e-mailadres in, daarop sturen we je wekelijkse update.');
+      if(currentType === 'audit'){
+        showError('Vul een e-mailadres in, daarop sturen we de audit.');
+      } else if(currentType === 'uitvoering'){
+        showError('Vul een e-mailadres in, daarop vragen we je om toegang tot je webshop.');
+      } else {
+        showError('Vul een e-mailadres in, daarop sturen we je wekelijkse update.');
+      }
       return;
     }
     if(!vinkVoorwaarden.checked){
       showError('Vink aan dat je akkoord gaat met de voorwaarden en het privacybeleid.');
       return;
     }
-    if(currentType === 'audit' && !vinkDirect.checked){
+    if((currentType === 'audit' || currentType === 'uitvoering') && !vinkDirect.checked){
       showError('Vink aan dat we direct mogen beginnen. Zonder dat mogen we pas na veertien dagen starten.');
       return;
     }
@@ -1549,7 +1647,10 @@
     submitBtn.disabled = true;
     submitBtn.textContent = 'Bezig...';
 
-    var endpoint = currentType === 'audit' ? '/api/checkout/audit' : '/api/checkout/monitoring';
+    var endpoints = {audit: '/api/checkout/audit',
+                     uitvoering: '/api/checkout/uitvoering',
+                     monitoring: '/api/checkout/monitoring'};
+    var endpoint = endpoints[currentType] || endpoints.monitoring;
     var body = {url: url, email: email, bedrijfsnaam: bedrijfInput.value.trim(),
                 voorwaarden_akkoord: vinkVoorwaarden.checked,
                 directe_uitvoering_akkoord: vinkDirect.checked,
@@ -1578,9 +1679,13 @@
   }
 
   var auditBtn = document.getElementById('auditCheckoutBtn');
+  var uitvoeringBtn = document.getElementById('uitvoeringCheckoutBtn');
   var monitoringBtn = document.getElementById('monitoringCheckoutBtn');
   if(auditBtn){
     auditBtn.addEventListener('click', function(e){ e.preventDefault(); openModal('audit'); });
+  }
+  if(uitvoeringBtn){
+    uitvoeringBtn.addEventListener('click', function(e){ e.preventDefault(); openModal('uitvoering'); });
   }
   if(monitoringBtn){
     monitoringBtn.addEventListener('click', function(e){ e.preventDefault(); openModal('monitoring'); });

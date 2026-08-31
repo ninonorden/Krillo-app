@@ -76,6 +76,24 @@ def init_db():
                 # Waar deze betalende klant vandaan kwam. Voor bestaande
                 # installaties bijgezet, want de tabel bestond al.
                 cur.execute("ALTER TABLE facturen ADD COLUMN IF NOT EXISTS bron TEXT;")
+                # De werklijst voor "wij voeren het uit". Dit is bewust een
+                # eigen tabel en geen vlaggetje bij het rapport: het is een
+                # opdracht die dagen loopt en die van hand tot hand gaat.
+                # Zolang dit handwerk is, is deze tabel het product.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS uitvoeringen (
+                        id SERIAL PRIMARY KEY,
+                        payment_id TEXT UNIQUE,
+                        webshop_url TEXT NOT NULL,
+                        email TEXT NOT NULL,
+                        platform TEXT,
+                        stand TEXT NOT NULL DEFAULT 'wacht_op_toegang',
+                        notitie TEXT,
+                        aangemaakt_op TIMESTAMPTZ DEFAULT now(),
+                        toegang_op TIMESTAMPTZ,
+                        opgeleverd_op TIMESTAMPTZ
+                    );
+                """)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS toestemmingen (
                         id SERIAL PRIMARY KEY,
@@ -688,6 +706,101 @@ def leg_herroeping_vast(email, webshop_url, toelichting):
     except Exception as e:
         print(f"Herroeping vastleggen mislukt: {e}")
         return None
+    finally:
+        conn.close()
+
+
+# De standen die een uitvoering kan hebben, op volgorde. Bewust een korte,
+# vaste lijst: elke extra stand is een vraag die je jezelf elke dag opnieuw moet
+# stellen, en dat is precies wat een werklijst onbruikbaar maakt.
+UITVOERING_STANDEN = ["wacht_op_toegang", "bezig", "opgeleverd", "afgebroken"]
+
+UITVOERING_STAND_TEKST = {
+    "wacht_op_toegang": "Wacht op toegang",
+    "bezig": "Bezig",
+    "opgeleverd": "Opgeleverd",
+    "afgebroken": "Afgebroken",
+}
+
+
+def start_uitvoering(payment_id, webshop_url, email, platform=None):
+    """Zet een betaalde uitvoering op de werklijst.
+
+    Geeft True terug als hij nu op de lijst staat, ook als hij er al stond.
+    Bewust niet klappen bij een herhaling: Mollie kan dezelfde betaling twee
+    keer melden, en een dubbele opdracht op de lijst is verwarrender dan een
+    ontbrekende foutmelding."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO uitvoeringen (payment_id, webshop_url, email, platform)
+                       VALUES (%s, %s, %s, %s)
+                       ON CONFLICT (payment_id) DO NOTHING""",
+                    (payment_id, webshop_url, email, (platform or None)),
+                )
+        return True
+    except Exception as e:
+        print(f"Uitvoering op de werklijst zetten mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_uitvoeringen(webshop_url=None):
+    """De werklijst, nieuwste eerst. Met een webshop-URL erbij alleen die winkel."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if webshop_url:
+                    cur.execute("""SELECT * FROM uitvoeringen WHERE webshop_url = %s
+                                    ORDER BY aangemaakt_op DESC""", (webshop_url,))
+                else:
+                    cur.execute("SELECT * FROM uitvoeringen ORDER BY aangemaakt_op DESC LIMIT 100")
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Werklijst ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def zet_uitvoering_stand(uitvoering_id, stand, notitie=None):
+    """Verandert de stand van een opdracht, en zet meteen de bijbehorende datum.
+
+    Een onbekende stand wordt geweigerd in plaats van opgeslagen. Anders staat
+    er over een maand "bezigg" in de database en filtert de werklijst hem weg."""
+    if stand not in UITVOERING_STANDEN:
+        print(f"Onbekende stand geweigerd: {stand!r}")
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE uitvoeringen
+                          SET stand = %s,
+                              notitie = coalesce(%s, notitie),
+                              toegang_op = CASE WHEN %s IN ('bezig','opgeleverd')
+                                                 AND toegang_op IS NULL
+                                                THEN now() ELSE toegang_op END,
+                              opgeleverd_op = CASE WHEN %s = 'opgeleverd'
+                                                   THEN now() ELSE opgeleverd_op END
+                        WHERE id = %s""",
+                    (stand, notitie, stand, stand, int(uitvoering_id)),
+                )
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Stand aanpassen mislukt voor uitvoering {uitvoering_id}: {e}")
+        return False
     finally:
         conn.close()
 

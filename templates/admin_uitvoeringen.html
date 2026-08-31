@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Werklijst bij Krillo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.5;}
+  .wrap{max-width:1000px; margin:0 auto; padding:48px 24px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:14px; margin-bottom:24px; font-family:var(--mono);}
+  .melding{background:var(--teal-dim); color:#085041; padding:10px 14px; border-radius:8px;
+           font-size:13.5px; margin-bottom:20px;}
+  .kaart{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+         padding:20px 22px; margin-bottom:14px;}
+  .kaart.wacht{border-left:4px solid var(--coral);}
+  .kaart.bezig{border-left:4px solid #C77D00;}
+  .kaart.opgeleverd{border-left:4px solid var(--teal);}
+  .kaart.afgebroken{opacity:0.55;}
+  .kop{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap;}
+  .winkel{font-family:var(--disp); font-weight:600; font-size:17px;}
+  .stand{font-family:var(--mono); font-size:11px; text-transform:uppercase; padding:3px 8px;
+         border-radius:5px; background:var(--paper); border:1px solid var(--line);}
+  .regels{font-size:13.5px; color:var(--ink-soft); margin-top:8px; line-height:1.7;}
+  .regels b{color:var(--ink); font-weight:600;}
+  form{margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  select, input[type=text]{font-family:var(--body); font-size:13.5px; padding:8px 10px;
+    border:1px solid var(--line); border-radius:8px; background:var(--paper-raised); color:var(--ink);}
+  input[type=text]{flex:1; min-width:200px;}
+  button{font-family:var(--body); font-size:13.5px; font-weight:600; padding:8px 16px;
+    border:none; border-radius:8px; background:var(--ink); color:#fff; cursor:pointer;}
+  .empty{padding:40px; text-align:center; color:var(--ink-soft); background:var(--paper-raised);
+         border-radius:12px; border:1px solid var(--line);}
+  .uitleg{font-size:13px; color:var(--ink-soft); margin-top:28px; line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Werklijst</h1>
+  <div class="sub">Wie heeft betaald voor de uitvoering, en hoe ver staat het</div>
+
+  {% if melding %}<div class="melding">{{ melding }}</div>{% endif %}
+
+  {% if not uitvoeringen %}
+  <div class="empty">Nog geen opdrachten. Zodra iemand betaalt voor de uitvoering staat hij hier.</div>
+  {% endif %}
+
+  {% for u in uitvoeringen %}
+  <div class="kaart {{ u.stand }}">
+    <div class="kop">
+      <span class="winkel">{{ u.webshop_url }}</span>
+      <span class="stand">{{ standtekst.get(u.stand, u.stand) }}</span>
+    </div>
+    <div class="regels">
+      <b>{{ u.email }}</b>{% if u.platform %} · {{ u.platform }}{% else %} · platform onbekend{% endif %}<br>
+      Betaald op {{ u.aangemaakt_op.strftime('%d-%m-%Y om %H:%M') if u.aangemaakt_op else 'onbekend' }}
+      {% if u.toegang_op %}· toegang sinds {{ u.toegang_op.strftime('%d-%m-%Y') }}{% endif %}
+      {% if u.opgeleverd_op %}· opgeleverd op {{ u.opgeleverd_op.strftime('%d-%m-%Y') }}{% endif %}
+      {% if u.notitie %}<br><b>Notitie:</b> {{ u.notitie }}{% endif %}
+    </div>
+    <form method="post" action="/admin/uitvoeringen?key={{ sleutel }}">
+      <input type="hidden" name="id" value="{{ u.id }}">
+      <select name="stand">
+        {% for s in standen %}
+        <option value="{{ s }}" {% if s == u.stand %}selected{% endif %}>{{ standtekst.get(s, s) }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="notitie" placeholder="Notitie, bijvoorbeeld wat je aangepast hebt">
+      <button type="submit">Opslaan</button>
+    </form>
+  </div>
+  {% endfor %}
+
+  <div class="uitleg">
+    <b>Wacht op toegang</b> betekent: betaald, mail verstuurd, wij kunnen nog niet in de winkel.
+    Hoor je binnen twee dagen niets, bel of mail dan zelf. Dit is de enige stand waarin een klant
+    geld heeft betaald en nog niets gekregen heeft.<br>
+    <b>Bezig</b> zet je zodra je binnen bent. De datum van toegang wordt dan vanzelf vastgelegd.<br>
+    <b>Opgeleverd</b> zet je pas als de klant het overzicht van de wijzigingen heeft gehad.
+  </div>
+</div>
+</body>
+</html>

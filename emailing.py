@@ -236,6 +236,72 @@ def send_audit_email(to_email, webshop_url, scan_result, fix_previews, report_ur
     return send_email(to_email, "Je Krillo-audit is klaar", html)
 
 
+# Hoe iemand ons toegang geeft, per platform. Dit is de belangrijkste tekst van
+# het hele product: hier haakt een klant af die net betaald heeft. Daarom overal
+# de echte menunamen en nooit "ga naar de instellingen".
+TOEGANG_UITLEG = {
+    "Shopify": """
+      <li>Wij sturen je een verzoek voor een samenwerkersaccount. Dat is de
+          standaardmanier waarop bureaus in een Shopify-winkel werken.</li>
+      <li>Je krijgt er een mail over van Shopify. Klik op goedkeuren.</li>
+      <li>Staat er in je beheerscherm een viercijferige code onder
+          Instellingen, Gebruikers, dan hebben we die van je nodig. Mail hem terug.</li>
+      <li>Je bepaalt zelf welke onderdelen we mogen zien, en je kunt de toegang
+          met een klik weer intrekken. Het telt niet mee voor je aantal
+          medewerkers en het kost je niets.</li>""",
+    "WooCommerce": """
+      <li>Ga in WordPress naar Gebruikers, Nieuwe gebruiker.</li>
+      <li>Maak een gebruiker aan op toegang@krillo.nl met de rol Beheerder.</li>
+      <li>Vink aan dat WordPress de gebruiker een mail stuurt.</li>
+      <li>Als we klaar zijn kun je die gebruiker gewoon verwijderen.</li>""",
+    "WordPress": """
+      <li>Ga in WordPress naar Gebruikers, Nieuwe gebruiker.</li>
+      <li>Maak een gebruiker aan op toegang@krillo.nl met de rol Beheerder.</li>
+      <li>Vink aan dat WordPress de gebruiker een mail stuurt.</li>
+      <li>Als we klaar zijn kun je die gebruiker gewoon verwijderen.</li>""",
+}
+
+TOEGANG_ALGEMEEN = """
+      <li>Geef ons een account in het beheerscherm van je webshop, met genoeg
+          rechten om teksten en pagina's aan te passen. Ons adres is
+          toegang@krillo.nl.</li>
+      <li>Weet je niet hoe dat moet, mail dan terug met de naam van je
+          webshopsysteem, dan sturen we de stappen voor jouw systeem.</li>
+      <li>Laat je site door een bouwer beheren, stuur deze mail dan aan hem
+          door. Wij regelen het verder met hem.</li>"""
+
+
+def send_uitvoering_welkom(to_email, webshop_url, platform=None, monitoring_url=None):
+    """De mail direct na de betaling van "wij voeren het uit".
+
+    Deze mail heeft één taak: zorgen dat we toegang krijgen. Alles wat daarna
+    komt kunnen wij zelf, maar zonder toegang staat de opdracht stil en heeft de
+    klant wel betaald. Daarom staat er precies één vraag in en verder niets."""
+    stappen = TOEGANG_UITLEG.get(platform or "", TOEGANG_ALGEMEEN)
+    platform_zin = (
+        f"Je webshop draait op {platform}, dus zo werkt het bij jou:"
+        if platform in TOEGANG_UITLEG else
+        "Zo geef je ons toegang:"
+    )
+    body = f"""
+    <p style="font-size:14.5px;">Je betaling is binnen. We gaan aan de slag met
+      {webshop_url} zodra we in je webshop kunnen.</p>
+    <p style="font-size:14.5px;"><strong>{platform_zin}</strong></p>
+    <ul style="font-size:14px; color:#3B3D57; line-height:1.7;">{stappen}</ul>
+    <p style="font-size:14.5px;">Zodra we binnen zijn hoor je niets meer van ons
+      tot het klaar is. Dat duurt meestal twee tot vijf werkdagen. Daarna krijg
+      je een overzicht van precies wat er veranderd is, en wat de oude tekst
+      was, zodat je alles kunt terugdraaien.</p>
+    <p style="font-size:13.5px; color:#3B3D57;">We veranderen niets aan je
+      prijzen, je voorraad, je bestellingen of je vormgeving. Alleen de teksten
+      en instellingen waardoor AI je winkel beter kan lezen.</p>
+    {_score_button(monitoring_url, "Bekijk je pagina") if monitoring_url else ""}
+    """
+    html = _base_html("We hebben nog één ding van je nodig",
+                      f"Bedankt voor je opdracht voor {webshop_url}.", body)
+    return send_email(to_email, "Krillo: we hebben toegang tot je webshop nodig", html)
+
+
 def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None):
     score = scan_result.get("score", 0)
     body = f"""

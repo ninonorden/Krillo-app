@@ -17,6 +17,11 @@ from mollie.api.error import Error as MollieError
 
 AUDIT_PRICE = {"currency": "EUR", "value": "79.00"}
 MONITORING_PRICE = {"currency": "EUR", "value": "39.00"}
+# Wij voeren het uit in de webshop zelf. Dit is handwerk, geen software: er
+# wordt niets automatisch aangepast zolang er geen koppeling per platform is.
+# De prijs is een keuze en geen berekening, en mag veranderen zodra er genoeg
+# klanten zijn geweest om te weten hoeveel tijd het echt kost.
+UITVOERING_PRICE = {"currency": "EUR", "value": "149.00"}
 
 
 def get_mollie_client():
@@ -54,6 +59,32 @@ def create_audit_payment(base_url, webshop_url, email, bedrijfsnaam=None, bron=N
             "webhookUrl": f"{base_url}/webhooks/mollie",
             "metadata": {"type": "audit", "webshop_url": webshop_url, "email": email,
                          "bedrijfsnaam": bedrijfsnaam, "bron": bron},
+        })
+        return {"checkout_url": payment.checkout_url, "payment_id": payment.id}
+    except (MollieError, Exception) as e:
+        return {"error": str(e)}
+
+
+def create_uitvoering_payment(base_url, webshop_url, email, bedrijfsnaam=None, bron=None,
+                              platform=None):
+    """Eenmalige betaling voor "wij voeren het uit in je webshop".
+
+    Het platform gaat mee in de metadata omdat de vervolgmail per platform
+    anders is: bij Shopify vragen we om een samenwerkersverzoek goed te keuren,
+    bij WooCommerce om een beheerdersaccount. Sturen we de verkeerde uitleg,
+    dan blijft de klant steken op stap één en hebben we zijn geld al."""
+    client = get_mollie_client()
+    if client is None:
+        return {"error": "Betalen is nog niet actief, probeer het later opnieuw."}
+
+    try:
+        payment = client.payments.create({
+            "amount": UITVOERING_PRICE,
+            "description": f"Krillo voert de verbeteringen uit voor {webshop_url}",
+            "redirectUrl": f"{base_url}/bedankt?type=uitvoering",
+            "webhookUrl": f"{base_url}/webhooks/mollie",
+            "metadata": {"type": "uitvoering", "webshop_url": webshop_url, "email": email,
+                         "bedrijfsnaam": bedrijfsnaam, "bron": bron, "platform": platform},
         })
         return {"checkout_url": payment.checkout_url, "payment_id": payment.id}
     except (MollieError, Exception) as e:

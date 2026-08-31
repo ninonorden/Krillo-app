@@ -498,6 +498,46 @@ def checkout_audit():
     return jsonify(result)
 
 
+@app.route("/api/checkout/uitvoering", methods=["POST"])
+def checkout_uitvoering():
+    """Wij voeren het uit in de webshop van de klant.
+
+    Zelfde toestemmingen als bij de audit, want het is net zo goed een dienst
+    die meteen begint: zodra wij toegang hebben en aan het werk gaan, kan de
+    klant zijn herroepingsrecht niet meer inroepen voor het deel dat af is.
+
+    Het platform komt uit een eerdere scan als we die hebben. Weten we het niet,
+    dan gaat er algemene uitleg mee in plaats van een gok."""
+    data = request.get_json(silent=True) or {}
+    webshop_url = scan_engine.normalize_url((data.get("url") or "").strip())
+    email = (data.get("email") or "").strip()
+    bedrijfsnaam = (data.get("bedrijfsnaam") or "").strip()
+    voorwaarden = bool(data.get("voorwaarden_akkoord"))
+    direct = bool(data.get("directe_uitvoering_akkoord"))
+    if not webshop_url or not email:
+        return jsonify({"error": "Vul een webshop-URL en e-mailadres in."}), 400
+    if not voorwaarden:
+        return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
+    if not direct:
+        return jsonify({"error": "Geef aan dat we direct mogen beginnen."}), 400
+
+    platform = None
+    try:
+        platform = (db.get_winkelprofiel(webshop_url) or {}).get("platform")
+    except Exception as e:
+        print(f"Platform ophalen mislukt bij de kassa voor {webshop_url}: {e}")
+
+    bron = _schoon_bron(data.get("herkomst")) or _schoon_bron(_herkomst())
+    result = payments.create_uitvoering_payment(get_base_url(), webshop_url, email,
+                                                bedrijfsnaam, bron=bron, platform=platform)
+    if "payment_id" in result:
+        db.leg_toestemming_vast(result["payment_id"], email, webshop_url, "uitvoering",
+                                voorwaarden, direct)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
 @app.route("/api/checkout/monitoring", methods=["POST"])
 def checkout_monitoring():
     data = request.get_json(silent=True) or {}
@@ -567,6 +607,8 @@ def _verwerk_betaling(payment_id, base_url):
         if email:
             if payment_type == "audit":
                 omschrijving = f"Krillo volledige audit voor {webshop_url}"
+            elif payment_type == "uitvoering":
+                omschrijving = f"Krillo voert de verbeteringen uit voor {webshop_url}"
             else:
                 omschrijving = f"Krillo monitoring, eerste maand, voor {webshop_url}"
             bedrag = status.get("bedrag")
@@ -576,7 +618,21 @@ def _verwerk_betaling(payment_id, base_url):
                 if factuurnummer:
                     emailing.send_factuur_email(email, factuurnummer, omschrijving, bedrag, bedrijfsnaam)
 
-        if payment_type == "audit" and webshop_url and email:
+        if payment_type == "uitvoering" and webshop_url and email:
+            # Deze opdracht wordt door een mens uitgevoerd, dus het enige wat
+            # hier gebeurt is: op de werklijst zetten en om toegang vragen.
+            # Eerst de werklijst en dan pas de mail: gaat de mail mis, dan staat
+            # de opdracht er tenminste, en zie je op de beheerpagina dat er
+            # iemand wacht. Andersom zou een klant gevraagd worden om toegang
+            # voor een opdracht die nergens staat.
+            platform = metadata.get("platform")
+            if not db.start_uitvoering(payment_id, webshop_url, email, platform):
+                print(f"LET OP: uitvoering voor {webshop_url} staat NIET op de werklijst.")
+            klant_token = db.get_or_create_klant(webshop_url, email)
+            monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
+            emailing.send_uitvoering_welkom(email, webshop_url, platform, monitoring_url)
+
+        elif payment_type == "audit" and webshop_url and email:
             scan_result = run_scan(webshop_url)
             if "error" not in scan_result:
                 # Op welk winkelplatform deze shop draait. Werd tot nu toe
@@ -818,6 +874,7 @@ def monitoring_pagina(klant_token):
         verloop=verloop,
         nieuwe_problemen=nieuwe_problemen,
         checks_by_categorie=checks_by_categorie,
+        uitvoering=_laatste_uitvoering(klant["webshop_url"]),
         status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
     )
 
@@ -1168,6 +1225,22 @@ def _zet_bronnen_status(webshop_url, tekst, klaar=False):
 # het moet rechtzetten, maar de zin lezen die hij op zijn site kan plakken.
 # Die taak heeft de kant-en-klare tekst het hardst nodig, niet het minst.
 GEEN_OPLOSSING_NODIG = set()
+
+
+def _laatste_uitvoering(webshop_url):
+    """De meest recente opdracht "wij doen het" van deze winkel, of None.
+
+    Bewust de nieuwste en niet de eerste: bestelt iemand het een jaar later nog
+    eens, dan hoort de klantpagina die tweede opdracht te tonen en niet de
+    afgeronde van vorig jaar. Afgebroken opdrachten laten we weg, want daar
+    hoeft een klant niets meer van te zien."""
+    try:
+        for u in db.get_uitvoeringen(webshop_url):
+            if u.get("stand") != "afgebroken":
+                return u
+    except Exception as e:
+        print(f"Uitvoering ophalen mislukt voor {webshop_url}: {e}")
+    return None
 
 
 def _maak_taakoplossingen(webshop_url, plan, melden=None):
@@ -1645,6 +1718,7 @@ def admin_voorbeeld():
         verloop=list(reversed(rapporten))[-8:],
         nieuwe_problemen=[],
         checks_by_categorie=checks_by_categorie,
+        uitvoering=_laatste_uitvoering(webshop_url),
         status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
     )
 
@@ -1979,6 +2053,37 @@ def admin_bestellingen():
     return render_template("admin_bestellingen.html", orders=orders)
 
 
+@app.route("/admin/uitvoeringen", methods=["GET", "POST"])
+def admin_uitvoeringen():
+    """De werklijst voor "wij voeren het uit".
+
+    Zolang dit handwerk is, is dit de belangrijkste pagina van het hele systeem:
+    hier staat wie betaald heeft en nog zit te wachten. Een klant die betaalt en
+    daarna niets hoort is erger dan een klant die nooit betaalt."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "Niet gevonden.", 404
+
+    melding = None
+    if request.method == "POST":
+        uitvoering_id = request.form.get("id")
+        stand = (request.form.get("stand") or "").strip()
+        notitie = (request.form.get("notitie") or "").strip() or None
+        if uitvoering_id and db.zet_uitvoering_stand(uitvoering_id, stand, notitie):
+            melding = "Opgeslagen."
+        else:
+            melding = "Dat is niet gelukt. Controleer de stand."
+
+    return render_template(
+        "admin_uitvoeringen.html",
+        uitvoeringen=db.get_uitvoeringen(),
+        standen=db.UITVOERING_STANDEN,
+        standtekst=db.UITVOERING_STAND_TEKST,
+        melding=melding,
+        sleutel=admin_key,
+    )
+
+
 @app.route("/bedankt")
 def bedankt():
     """De pagina waar Mollie de bezoeker naartoe stuurt na het betalen.
@@ -2006,6 +2111,17 @@ def bedankt():
                      "Daar staat wat je als eerste kan doen."),
             note=("Is er niets afgeschreven en krijg je geen mail, dan is de betaling niet "
                   "afgerond. Je kan het gewoon opnieuw proberen, of mail hallo@krillo.nl."))
+    if checkout_type == "uitvoering":
+        return render_template(
+            "bedankt.html",
+            title="Je betaling is verwerkt door Mollie",
+            message=("Is de betaling gelukt, dan staat er binnen enkele minuten een mail voor "
+                     "je klaar. Daarin staat precies één ding: hoe je ons toegang geeft tot je "
+                     "webshop. Zonder die stap kunnen we niet beginnen, dus doe hem even. Het "
+                     "kost twee minuten."),
+            note=("Niets ontvangen? Kijk eerst in je spamfolder. Is er ook niets afgeschreven, "
+                  "dan is de betaling niet afgerond en kan je het opnieuw proberen. Mail "
+                  "anders hallo@krillo.nl."))
     return render_template(
         "bedankt.html",
         title="Je betaling is verwerkt door Mollie",
