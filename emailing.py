@@ -36,6 +36,26 @@ def send_email(to_email, subject, html_body):
 
     from_email = os.environ.get("SMTP_FROM_EMAIL", "hallo@krillo.nl")
 
+    # Waar een antwoord heen gaat. Onder elke mail staat "mail gewoon terug naar
+    # dit adres", en dat moet waar zijn. Brevo verstuurt wel maar ontvangt niet:
+    # zonder MX-records op krillo.nl komt een antwoord op hallo@krillo.nl
+    # nergens aan, en dan is een klantvraag stilletjes weg.
+    #
+    # Zet SMTP_REPLY_TO in Render op een adres dat je echt leest, bijvoorbeeld
+    # je eigen Gmail, zolang de mailbox op het domein nog niet werkt. Staat hij
+    # niet ingevuld, dan gaat een antwoord gewoon naar het afzenderadres, net
+    # als voorheen.
+    reply_to = (os.environ.get("SMTP_REPLY_TO") or "").strip()
+
+    inhoud = {
+        "sender": {"name": "Krillo", "email": from_email},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_body,
+    }
+    if reply_to:
+        inhoud["replyTo"] = {"name": "Krillo", "email": reply_to}
+
     try:
         response = requests.post(
             BREVO_API_URL,
@@ -44,12 +64,7 @@ def send_email(to_email, subject, html_body):
                 "api-key": api_key,
                 "content-type": "application/json",
             },
-            json={
-                "sender": {"name": "Krillo", "email": from_email},
-                "to": [{"email": to_email}],
-                "subject": subject,
-                "htmlContent": html_body,
-            },
+            json=inhoud,
             timeout=15,
         )
         if response.status_code >= 300:
