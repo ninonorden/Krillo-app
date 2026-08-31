@@ -73,6 +73,9 @@ def init_db():
                         aangemaakt_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                # Waar deze betalende klant vandaan kwam. Voor bestaande
+                # installaties bijgezet, want de tabel bestond al.
+                cur.execute("ALTER TABLE facturen ADD COLUMN IF NOT EXISTS bron TEXT;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS toestemmingen (
                         id SERIAL PRIMARY KEY,
@@ -689,9 +692,14 @@ def leg_herroeping_vast(email, webshop_url, toelichting):
         conn.close()
 
 
-def maak_factuur(payment_id, email, bedrijfsnaam, omschrijving, bedrag):
+def maak_factuur(payment_id, email, bedrijfsnaam, omschrijving, bedrag, bron=None):
     """Legt een factuur vast en geeft het factuurnummer terug. Elk nummer wordt
-    maar één keer uitgegeven, en per betaling kan er maar één factuur bestaan."""
+    maar één keer uitgegeven, en per betaling kan er maar één factuur bestaan.
+
+    "bron" is het campagnelabel waarmee deze klant binnenkwam, zoals het uit de
+    metadata van Mollie terugkomt. Dit is de enige plek waar omzet en herkomst
+    bij elkaar staan: de bezoekerstabel weet wel waar de klikken vandaan komen,
+    maar niet welke klik geld werd."""
     conn = _get_connection()
     if conn is None:
         return None
@@ -703,9 +711,9 @@ def maak_factuur(payment_id, email, bedrijfsnaam, omschrijving, bedrag):
                 if bestaand:
                     return bestaand["factuurnummer"]
                 cur.execute(
-                    """INSERT INTO facturen (payment_id, email, bedrijfsnaam, omschrijving, bedrag)
-                       VALUES (%s, %s, %s, %s, %s) RETURNING factuurnummer""",
-                    (payment_id, email, bedrijfsnaam, omschrijving, bedrag),
+                    """INSERT INTO facturen (payment_id, email, bedrijfsnaam, omschrijving, bedrag, bron)
+                       VALUES (%s, %s, %s, %s, %s, %s) RETURNING factuurnummer""",
+                    (payment_id, email, bedrijfsnaam, omschrijving, bedrag, (bron or None)),
                 )
                 return cur.fetchone()["factuurnummer"]
     except Exception as e:
@@ -1410,8 +1418,16 @@ def bewaar_gratis_scan(webshop_url, score=None, gelukt=True, foutsoort=None, her
 
 def scanoverzicht(dagen=30):
     """De cijfers voor de beheerpagina: per dag, per herkomst, en welke winkels
-    het vaakst gescand worden."""
-    leeg = {"totaal": {}, "per_dag": [], "per_herkomst": [], "top_winkels": []}
+    het vaakst gescand worden.
+
+    Sinds vandaag ook de omzet per bron. Dat is de vraag waar het bij adverteren
+    en bij partners om draait: niet hoeveel bezoekers een plek oplevert, maar
+    hoeveel betalende klanten. Scans en omzet worden aan elkaar geplakt op het
+    label, en een bron die alleen aan de ene kant voorkomt blijft gewoon staan.
+    Anders zie je een partner die drie klanten opleverde niet terug omdat er
+    toevallig geen gratis scan bij zat."""
+    leeg = {"totaal": {}, "per_dag": [], "per_herkomst": [], "per_bron": [],
+            "top_winkels": []}
     conn = _get_connection()
     if conn is None:
         return leeg
@@ -1439,6 +1455,24 @@ def scanoverzicht(dagen=30):
                               GROUP BY 1 ORDER BY scans DESC LIMIT 20""")
                 per_herkomst = cur.fetchall()
 
+                cur.execute(f"""
+                    SELECT coalesce(s.bron, f.bron) AS bron,
+                           coalesce(s.scans, 0)      AS scans,
+                           coalesce(f.klanten, 0)    AS klanten,
+                           coalesce(f.omzet, 0)      AS omzet
+                      FROM (SELECT coalesce(herkomst, 'rechtstreeks') AS bron,
+                                   count(*) AS scans
+                              FROM gratis_scans WHERE gedaan_op > {sinds}
+                          GROUP BY 1) s
+                 FULL OUTER JOIN
+                           (SELECT coalesce(bron, 'rechtstreeks') AS bron,
+                                   count(*) AS klanten, sum(bedrag) AS omzet
+                              FROM facturen WHERE aangemaakt_op > {sinds}
+                          GROUP BY 1) f
+                        ON f.bron = s.bron
+                  ORDER BY omzet DESC, scans DESC LIMIT 25""")
+                per_bron = cur.fetchall()
+
                 cur.execute(f"""SELECT webshop_url, count(*) AS scans, max(score) AS score
                                   FROM gratis_scans
                                  WHERE gedaan_op > {sinds} AND webshop_url IS NOT NULL
@@ -1453,6 +1487,7 @@ def scanoverzicht(dagen=30):
                     "totaal": dict(totaal, betaald=betaald),
                     "per_dag": per_dag,
                     "per_herkomst": per_herkomst,
+                    "per_bron": per_bron,
                     "top_winkels": top_winkels,
                 }
     except Exception as e:

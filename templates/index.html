@@ -979,18 +979,37 @@
 </footer>
 
 <script>
-  // Waar deze bezoeker vandaan kwam. Wordt eenmalig bij het laden bepaald en
-  // meegestuurd met de scan. Bewust geen cookie en geen identificatie: we
-  // willen alleen weten of een bericht ergens bezoekers oplevert.
+  // Waar deze bezoeker vandaan kwam. Wordt bij het laden bepaald en
+  // meegestuurd met de scan en met de bestelling. Bewust geen cookie en geen
+  // identificatie: we willen alleen weten of een bericht ergens bezoekers en
+  // klanten oplevert, niet wie die bezoekers zijn.
+  //
+  // Het label wordt binnen dit bezoek onthouden. Iemand komt binnen via
+  // ?utm_source=webwinkelkeur, leest eerst de voorbeeldpagina en bestelt pas
+  // daarna. Zonder dit onthouden staat er bij die bestelling "krillo.nl" of
+  // niets, en dan lijkt elke partner nul klanten op te leveren. Bewust
+  // sessionStorage en geen cookie van dertig dagen: dat laatste is volgen over
+  // bezoeken heen en daar heb je toestemming voor nodig. Dit verdwijnt zodra
+  // het tabblad dicht gaat.
   var krilloHerkomst = (function(){
+    function onthoud(waarde){
+      try { if (waarde) window.sessionStorage.setItem('krillo_bron', waarde); } catch (e) {}
+      return waarde;
+    }
     try {
       var params = new URLSearchParams(window.location.search);
       var bron = (params.get('utm_source') || '').trim();
-      if (bron) return bron.toLowerCase().slice(0, 60);
+      if (bron) return onthoud(bron.toLowerCase().slice(0, 60));
+
+      var eerder = null;
+      try { eerder = window.sessionStorage.getItem('krillo_bron'); } catch (e) {}
+      if (eerder) return eerder;
+
       if (!document.referrer) return null;
       var domein = new URL(document.referrer).hostname.toLowerCase().replace('www.', '');
       if (!domein || domein.indexOf('krillo.nl') !== -1) return null;
-      return domein.slice(0, 60);
+      if (domein === window.location.hostname.toLowerCase().replace('www.', '')) return null;
+      return onthoud(domein.slice(0, 60));
     } catch (e) { return null; }
   })();
   function bepaalHerkomst(){ return krilloHerkomst; }
@@ -1533,7 +1552,8 @@
     var endpoint = currentType === 'audit' ? '/api/checkout/audit' : '/api/checkout/monitoring';
     var body = {url: url, email: email, bedrijfsnaam: bedrijfInput.value.trim(),
                 voorwaarden_akkoord: vinkVoorwaarden.checked,
-                directe_uitvoering_akkoord: vinkDirect.checked};
+                directe_uitvoering_akkoord: vinkDirect.checked,
+                herkomst: bepaalHerkomst()};
 
     fetch(endpoint, {
       method: 'POST',

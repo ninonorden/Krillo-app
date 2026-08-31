@@ -271,6 +271,21 @@ def _herkomst():
     return domein[:60]
 
 
+def _schoon_bron(waarde):
+    """Maakt een bronlabel schoon voordat het de database of Mollie in gaat.
+
+    Het label komt uit de browser van de bezoeker en is dus door iedereen te
+    verzinnen. Het wordt nergens uitgevoerd of als HTML getoond, maar een label
+    van tienduizend tekens of met regeleinden erin maakt de beheerpagina en de
+    metadata van Mollie onleesbaar. Daarom kort, kleine letters, en alleen
+    tekens die in een campagnenaam thuishoren."""
+    tekst = (waarde or "")
+    if not isinstance(tekst, str):
+        return None
+    tekst = re.sub(r"[^a-z0-9._\-]", "", tekst.strip().lower())[:60]
+    return tekst or None
+
+
 @app.route("/api/scan", methods=["POST"])
 def api_scan():
     data = request.get_json(silent=True) or {}
@@ -473,7 +488,9 @@ def checkout_audit():
     if not direct:
         return jsonify({"error": "Geef aan dat we direct mogen beginnen."}), 400
 
-    result = payments.create_audit_payment(get_base_url(), webshop_url, email, bedrijfsnaam)
+    bron = _schoon_bron(data.get("herkomst")) or _schoon_bron(_herkomst())
+    result = payments.create_audit_payment(get_base_url(), webshop_url, email,
+                                           bedrijfsnaam, bron=bron)
     if "payment_id" in result:
         db.leg_toestemming_vast(result["payment_id"], email, webshop_url, "audit", voorwaarden, direct)
     if "error" in result:
@@ -493,7 +510,9 @@ def checkout_monitoring():
     if not voorwaarden:
         return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
 
-    result = payments.create_monitoring_signup(get_base_url(), email, webshop_url, bedrijfsnaam)
+    bron = _schoon_bron(data.get("herkomst")) or _schoon_bron(_herkomst())
+    result = payments.create_monitoring_signup(get_base_url(), email, webshop_url,
+                                               bedrijfsnaam, bron=bron)
     if "payment_id" in result:
         db.leg_toestemming_vast(result["payment_id"], email, webshop_url, "monitoring", voorwaarden, False)
     if "error" in result:
@@ -537,6 +556,11 @@ def _verwerk_betaling(payment_id, base_url):
         webshop_url = metadata.get("webshop_url")
         email = metadata.get("email")
         bedrijfsnaam = metadata.get("bedrijfsnaam")
+        # Waar deze klant vandaan kwam. Komt ongewijzigd terug uit de metadata
+        # van Mollie, ook bij een overboeking die een dag onderweg was. Bij
+        # betalingen van voor deze wijziging staat er niets, en dan blijft het
+        # veld leeg in plaats van dat we iets gaan raden.
+        bron = _schoon_bron(metadata.get("bron"))
 
         # Eerst de betaalbevestiging met factuur, die hoort er meteen te zijn.
         # De audit zelf duurt langer omdat er gescand en geschreven moet worden.
@@ -547,13 +571,20 @@ def _verwerk_betaling(payment_id, base_url):
                 omschrijving = f"Krillo monitoring, eerste maand, voor {webshop_url}"
             bedrag = status.get("bedrag")
             if bedrag is not None:
-                factuurnummer = db.maak_factuur(payment_id, email, bedrijfsnaam, omschrijving, bedrag)
+                factuurnummer = db.maak_factuur(payment_id, email, bedrijfsnaam,
+                                                omschrijving, bedrag, bron=bron)
                 if factuurnummer:
                     emailing.send_factuur_email(email, factuurnummer, omschrijving, bedrag, bedrijfsnaam)
 
         if payment_type == "audit" and webshop_url and email:
             scan_result = run_scan(webshop_url)
             if "error" not in scan_result:
+                # Op welk winkelplatform deze shop draait. Werd tot nu toe
+                # alleen bij demo's opgeslagen, waardoor we het van betalende
+                # klanten juist niet wisten. Zonder dit schrijft de tekst bij
+                # "waar zet je dit neer" een route in Shopify voor iemand met
+                # WooCommerce.
+                db.zet_platform(webshop_url, scan_result.get("platform"))
                 ai_fixes = ai_content.generate_ai_fixes(
                     webshop_url, scan_result.get("checks", []), scan_result.get("gevonden_paginas")
                 )
@@ -570,6 +601,7 @@ def _verwerk_betaling(payment_id, base_url):
             if webshop_url and email:
                 scan_result = run_scan(webshop_url)
                 if "error" not in scan_result:
+                    db.zet_platform(webshop_url, scan_result.get("platform"))
                     klant_token = db.get_or_create_klant(webshop_url, email)
                     db.save_report("monitoring", webshop_url, email, scan_result.get("score", 0),
                                     scan_result.get("checks", []), None, payment_id, klant_token)
@@ -674,6 +706,7 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                     print(f"Scan mislukt voor {c['webshop_url']}, overgeslagen.")
                     continue
 
+                db.zet_platform(c["webshop_url"], scan_result.get("platform"))
                 klant_token = db.get_or_create_klant(c["webshop_url"], c["email"])
                 vorige = db.get_previous_score(c["webshop_url"])
                 vorige_score = vorige["score"] if vorige else None
@@ -1152,6 +1185,19 @@ def _maak_taakoplossingen(webshop_url, plan, melden=None):
     uitkomsten = []
     if not plan or not plan.get("acties"):
         return uitkomsten
+
+    # Op welk winkelplatform deze shop draait, zodat de tekst bij "waar zet je
+    # dit neer" de menunamen van dat platform gebruikt. Weten we het niet, dan
+    # blijft het None en vraagt de prompt om twee routes. Nooit gokken: een
+    # route in Shopify voorschrijven aan iemand met WooCommerce laat het hele
+    # product onbetrouwbaar lijken.
+    platform = None
+    try:
+        profiel = db.get_winkelprofiel(webshop_url) or {}
+        platform = profiel.get("platform")
+    except Exception as e:
+        print(f"Platform ophalen mislukt voor {webshop_url}: {e}")
+
     bestaand = db.get_taakoplossingen(webshop_url)
     for actie in plan["acties"]:
         taak_id = actie.get("id")
@@ -1167,7 +1213,8 @@ def _maak_taakoplossingen(webshop_url, plan, melden=None):
             except Exception:
                 pass
         uitkomst = ai_content.genereer_taakoplossing(
-            webshop_url, taak_id, actie["titel"], actie["hoe"]) or {}
+            webshop_url, taak_id, actie["titel"], actie["hoe"],
+            platform=platform) or {}
         if uitkomst.get("gelukt"):
             db.bewaar_taakoplossing(webshop_url, taak_id, uitkomst["titel"],
                                     uitkomst["oplossing"], uitkomst["waar"])
@@ -1886,6 +1933,7 @@ def admin_bezoekers():
         scans=scans,
         per_dag=overzicht["per_dag"],
         per_herkomst=overzicht["per_herkomst"],
+        per_bron=overzicht.get("per_bron") or [],
         top_winkels=overzicht["top_winkels"],
         leads=db.zichtbaarheidstest_leads(),
         sleutel=admin_key,

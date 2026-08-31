@@ -78,8 +78,40 @@ def _get_client():
     return anthropic.Anthropic(api_key=api_key)
 
 
+def _zonder_markdown(tekst):
+    """Haalt opmaaktekens uit een tekst die iemand letterlijk gaat plakken.
+
+    Een model schrijft graag **vet** en # koppen. In het tekstvak van Shopify
+    of WordPress verschijnen die sterretjes gewoon op de website. De belofte
+    boven dit blok is "neem dit letterlijk over", dus dan moet er ook niets
+    meer opgeruimd hoeven worden. Vangnet naast de instructie in de opdracht,
+    want een model vergeet zo'n regel soms."""
+    import re as _re
+    if not (tekst or "").strip():
+        return ""
+
+    schoon = []
+    for regel in tekst.split("\n"):
+        # Regels die code bevatten laten we met rust. In JSON-LD of HTML kan
+        # een sterretje of een accolade gewoon bij de code horen, en een
+        # opgeschoonde regel code is stukke code.
+        if any(teken in regel for teken in ("<", ">", "{", "}", '":')):
+            schoon.append(regel)
+            continue
+        regel = _re.sub(r"\*\*(.+?)\*\*", r"\1", regel)                    # **vet**
+        regel = _re.sub(r"(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"\1", regel)  # *schuin*
+        regel = _re.sub(r"^#{1,6}\s+", "", regel)                          # # koppen
+        # Opsommingstekens laten we staan. "- Log in op Shopify" leest in een
+        # gewoon tekstvak prima; die weghalen maakt een lijstje juist
+        # onleesbaar. Alleen een sterretje als opsommingsteken wordt een
+        # streepje, want dat leest als markdown.
+        regel = _re.sub(r"^(\s*)\*\s+", r"\1- ", regel)
+        schoon.append(regel)
+    return "\n".join(schoon).strip()
+
+
 def genereer_taakoplossing(webshop_url, taak_id, taak_titel, wat_moet_er_gebeuren,
-                           extra_page_urls=None):
+                           extra_page_urls=None, platform=None):
     """Schrijft voor ÉÉN taak uit het actieplan de kant-en-klare oplossing.
 
     Dit is het verschil tussen een scan en een oplossing. "Zet vragen en
@@ -107,6 +139,26 @@ def genereer_taakoplossing(webshop_url, taak_id, taak_titel, wat_moet_er_gebeure
 
     pagina_context = _get_page_context(webshop_url, extra_page_urls)
 
+    # Het platform komt uit de scan (herken_platform) en staat bij het
+    # winkelprofiel. Weten we het niet, dan vragen we bewust om twee routes in
+    # plaats van er een te gokken: een klant die "ga naar Winkelinstellingen"
+    # leest terwijl hij WooCommerce heeft, denkt dat het product niet klopt.
+    if platform:
+        platform_regel = (
+            f"Deze webshop draait op {platform}. Beschrijf bij \"waar\" ALLEEN de "
+            f"route binnen {platform}, met de menunamen zoals ze daar heten, en "
+            f"noem geen andere platforms. Klopt {platform} volgens jou niet met "
+            f"wat je op de pagina hierboven ziet, zeg dat dan in een zin aan het "
+            f"begin van \"waar\" en geef daarna de route die wel klopt."
+        )
+    else:
+        platform_regel = (
+            "We hebben niet kunnen vaststellen op welk platform deze webshop "
+            "draait. Geef bij \"waar\" daarom de route in Shopify en de route in "
+            "WooCommerce of WordPress, allebei kort, zodat de lezer de zijne "
+            "herkent. Verzin geen menunamen die je niet zeker weet."
+        )
+
     prompt = f"""{HUISSTIJL_INSTRUCTIES}
 
 Dit is de daadwerkelijke inhoud van de webshop {webshop_url}. Gebruik dit zodat
@@ -131,9 +183,24 @@ zou kunnen doen, maar het werk voor hem doen.
 - Gaat het om code, geef dan de exacte code, kant en klaar.
 - Gaat het om een instelling, geef dan de exacte stappen.
 
+SCHRIJF GEWONE TEKST, GEEN MARKDOWN. Dus geen sterretjes om woorden heen voor
+vet, geen hekjes voor koppen, geen streepjes voor opsommingen. Deze tekst wordt
+letterlijk geplakt in het tekstvak van Shopify of WordPress, en die kennen geen
+markdown. Een kop is gewoon een regel tekst met een lege regel eronder. Iemand
+die jouw tekst overneemt moet er niets meer aan hoeven opruimen.
+
+SCHRIJF PLATTE TEKST, GEEN MARKDOWN. Geen sterretjes om iets vet te maken,
+geen hekjes voor koppen. Deze tekst wordt letterlijk geplakt in het tekstvak
+van een webshop, en daar blijven die tekens gewoon staan: dan zet een klant
+"**Veelgestelde vragen**" op zijn website. Wil je een kop, zet die dan op een
+eigen regel met een lege regel eronder. De enige uitzondering is code, die
+geef je precies zoals hij moet zijn.
+
 De lezer heeft geen technische kennis en heeft nog nooit in de instellingen van
-zijn webshop gekeken. Bij "waar" leg je stap voor stap uit waar dit heen moet,
-met de route in Shopify en in WordPress of WooCommerce als je die kan noemen.
+zijn webshop gekeken. Bij "waar" leg je stap voor stap uit waar dit heen moet.
+
+{platform_regel}
+
 Is het echt te technisch om zelf te doen, zeg dat dan eerlijk en schrijf de
 tekst die hij kan doorsturen naar de bouwer van zijn site.
 
@@ -175,11 +242,11 @@ Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
         if begin != -1 and eind > begin:
             ruw = ruw[begin:eind + 1]
         data = json.loads(ruw)
-        oplossing = (data.get("oplossing") or "").strip()
+        oplossing = _zonder_markdown(data.get("oplossing"))
         if not oplossing:
             return {"gelukt": False, "fout": "Het model gaf een leeg antwoord terug."}
         return {"gelukt": True, "taak_id": taak_id, "titel": taak_titel,
-                "oplossing": oplossing, "waar": (data.get("waar") or "").strip()}
+                "oplossing": oplossing, "waar": _zonder_markdown(data.get("waar"))}
     except Exception as e:
         fout = f"{type(e).__name__}: {e}"[:300]
         print(f"Taakoplossing genereren mislukt voor {taak_id}: {fout}")

@@ -34,8 +34,14 @@ def get_mollie_client():
     return client
 
 
-def create_audit_payment(base_url, webshop_url, email, bedrijfsnaam=None):
-    """Maakt een eenmalige betaling aan voor de volledige audit."""
+def create_audit_payment(base_url, webshop_url, email, bedrijfsnaam=None, bron=None):
+    """Maakt een eenmalige betaling aan voor de volledige audit.
+
+    "bron" is het campagnelabel waarmee deze bezoeker binnenkwam. Dat gaat
+    bewust mee in de metadata van Mollie en niet in de terugkeerlink: metadata
+    krijgen we ongewijzigd terug in de webhook, ook als iemand een dag over een
+    overboeking doet en zijn browser allang dicht is. Zonder dit weten we wel
+    hoeveel omzet er was, maar niet welke klik die omzet werd."""
     client = get_mollie_client()
     if client is None:
         return {"error": "Betalen is nog niet actief, probeer het later opnieuw."}
@@ -46,14 +52,15 @@ def create_audit_payment(base_url, webshop_url, email, bedrijfsnaam=None):
             "description": f"Krillo volledige audit voor {webshop_url}",
             "redirectUrl": f"{base_url}/bedankt?type=audit",
             "webhookUrl": f"{base_url}/webhooks/mollie",
-            "metadata": {"type": "audit", "webshop_url": webshop_url, "email": email, "bedrijfsnaam": bedrijfsnaam},
+            "metadata": {"type": "audit", "webshop_url": webshop_url, "email": email,
+                         "bedrijfsnaam": bedrijfsnaam, "bron": bron},
         })
         return {"checkout_url": payment.checkout_url, "payment_id": payment.id}
     except (MollieError, Exception) as e:
         return {"error": str(e)}
 
 
-def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None):
+def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, bron=None):
     """Stap 1 van het abonnement: klant aanmaken en de eerste betaling starten.
     Zodra deze betaling lukt (zie webhook), maken we het echte, doorlopende
     abonnement aan via create_subscription hieronder."""
@@ -73,7 +80,9 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None):
             "redirectUrl": f"{base_url}/bedankt?type=monitoring",
             "webhookUrl": f"{base_url}/webhooks/mollie",
             "sequenceType": "first",
-            "metadata": {"type": "monitoring_first_payment", "webshop_url": webshop_url, "customer_id": customer.id, "email": email, "bedrijfsnaam": bedrijfsnaam},
+            "metadata": {"type": "monitoring_first_payment", "webshop_url": webshop_url,
+                         "customer_id": customer.id, "email": email,
+                         "bedrijfsnaam": bedrijfsnaam, "bron": bron},
         })
         return {"checkout_url": first_payment.checkout_url, "payment_id": first_payment.id, "customer_id": customer.id}
     except (MollieError, Exception) as e:
@@ -202,6 +211,7 @@ def list_recent_orders(limit=25):
                 "type": metadata.get("type", "onbekend"),
                 "webshop_url": metadata.get("webshop_url", "-"),
                 "email": metadata.get("email", "-"),
+                "bron": metadata.get("bron") or "rechtstreeks",
                 "amount": payment.amount.get("value") if payment.amount else "-",
                 "paid_at": payment.paid_at,
                 "description": payment.description,

@@ -37,6 +37,7 @@
       <th>Type</th>
       <th>Webshop</th>
       <th>E-mail</th>
+      <th>Bron</th>
       <th>Bedrag</th>
       <th>Betaald op</th>
     </tr>
@@ -45,6 +46,7 @@
       <td><span class="tag">{{ o.type }}</span></td>
       <td>{{ o.webshop_url }}</td>
       <td>{{ o.email }}</td>
+      <td>{{ o.bron or 'rechtstreeks' }}</td>
       <td>€{{ o.amount }}</td>
       <td>{{ o.paid_at }}</td>
     </tr>

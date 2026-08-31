@@ -108,13 +108,36 @@
     {% endfor %}
   </div>
 
-  <h2>Waar komen ze vandaan</h2>
+  <h2>Waar komen ze vandaan, en wat leverde het op</h2>
   <table>
-    <tr><th>Herkomst</th><th style="text-align:right">Scans</th></tr>
-    {% for r in per_herkomst %}
-    <tr><td>{{ r.herkomst }}</td><td class="getal">{{ r.scans }}</td></tr>
+    <tr>
+      <th>Bron</th>
+      <th style="text-align:right">Scans</th>
+      <th style="text-align:right">Klanten</th>
+      <th style="text-align:right">Omzet</th>
+      <th style="text-align:right">Per klant</th>
+    </tr>
+    {% for r in per_bron %}
+    <tr>
+      <td>{{ r.bron }}</td>
+      <td class="getal">{{ r.scans }}</td>
+      <td class="getal">{{ r.klanten }}</td>
+      <td class="getal">{% if r.omzet %}&euro; {{ '%.2f'|format(r.omzet) }}{% else %}-{% endif %}</td>
+      <td class="getal">
+        {% if r.klanten and r.scans %}1 op {{ (r.scans / r.klanten) | round(0,'common') | int }} scans
+        {% elif r.klanten %}geen scan vooraf
+        {% else %}-{% endif %}
+      </td>
+    </tr>
     {% endfor %}
   </table>
+  <div class="uitleg" style="font-size:13px; color:#3B3D57; margin-top:8px;">
+    De omzet per bron telt alleen betalingen die na 31 augustus 2026 binnenkwamen.
+    Bij oudere betalingen werd de bron nog nergens vastgelegd, en die staan dus
+    onder "rechtstreeks" of helemaal niet in deze tabel. Bij monitoring telt
+    alleen de eerste maand mee, want de maanden daarna komen als losse incasso
+    binnen zonder campagnelabel.
+  </div>
 
   <h2>Meest gescande winkels</h2>
   <table>
