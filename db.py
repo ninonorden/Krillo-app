@@ -76,6 +76,26 @@ def init_db():
                 # Waar deze betalende klant vandaan kwam. Voor bestaande
                 # installaties bijgezet, want de tabel bestond al.
                 cur.execute("ALTER TABLE facturen ADD COLUMN IF NOT EXISTS bron TEXT;")
+                # De winkels die onze Shopify-app geïnstalleerd hebben.
+                #
+                # De toegangssleutel staat hier in platte tekst. Dat is niet
+                # mooi, maar het is wel hoe het werkt: we moeten hem kunnen
+                # gebruiken en Shopify geeft hem maar één keer. Wat we er wel
+                # aan doen: bij het verwijderen van de app wordt hij meteen
+                # gewist, en shop/redact gooit alles weg.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS shopify_winkels (
+                        winkel TEXT PRIMARY KEY,
+                        toegangssleutel TEXT,
+                        rechten TEXT,
+                        webshop_url TEXT,
+                        email TEXT,
+                        naam TEXT,
+                        actief BOOLEAN NOT NULL DEFAULT true,
+                        geinstalleerd_op TIMESTAMPTZ DEFAULT now(),
+                        verwijderd_op TIMESTAMPTZ
+                    );
+                """)
                 # Wat wij in de winkel van een klant veranderd hebben, met de
                 # oude tekst erbij. Dit is geen logboek voor onszelf maar het
                 # product: we beloven dat de klant alles kan terugzetten, en
@@ -724,6 +744,176 @@ def leg_herroeping_vast(email, webshop_url, toelichting):
     except Exception as e:
         print(f"Herroeping vastleggen mislukt: {e}")
         return None
+    finally:
+        conn.close()
+
+
+def bewaar_shopify_winkel(winkel, toegangssleutel, rechten=None, webshop_url=None,
+                          email=None, naam=None):
+    """Legt een geïnstalleerde Shopify-winkel vast, of werkt hem bij.
+
+    Installeert iemand opnieuw, dan hoort de nieuwe sleutel de oude te
+    vervangen en moet de winkel weer op actief. Anders blijft er een dode
+    sleutel staan van een winkel die wel gewoon werkt."""
+    if not winkel or not toegangssleutel:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO shopify_winkels
+                           (winkel, toegangssleutel, rechten, webshop_url, email, naam,
+                            actief, geinstalleerd_op, verwijderd_op)
+                       VALUES (%s, %s, %s, %s, %s, %s, true, now(), NULL)
+                       ON CONFLICT (winkel) DO UPDATE
+                       SET toegangssleutel = EXCLUDED.toegangssleutel,
+                           rechten = EXCLUDED.rechten,
+                           webshop_url = coalesce(EXCLUDED.webshop_url, shopify_winkels.webshop_url),
+                           email = coalesce(EXCLUDED.email, shopify_winkels.email),
+                           naam = coalesce(EXCLUDED.naam, shopify_winkels.naam),
+                           actief = true,
+                           geinstalleerd_op = now(),
+                           verwijderd_op = NULL""",
+                    (winkel, toegangssleutel, rechten, webshop_url, email, naam),
+                )
+        return True
+    except Exception as e:
+        print(f"Shopify-winkel bewaren mislukt voor {winkel}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_shopify_winkel(winkel):
+    """Eén geïnstalleerde winkel, of None."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM shopify_winkels WHERE winkel = %s", (winkel,))
+                return cur.fetchone()
+    except Exception as e:
+        print(f"Shopify-winkel ophalen mislukt voor {winkel}: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def get_shopify_winkels(alleen_actief=True):
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if alleen_actief:
+                    cur.execute("""SELECT * FROM shopify_winkels WHERE actief
+                                    ORDER BY geinstalleerd_op DESC""")
+                else:
+                    cur.execute("SELECT * FROM shopify_winkels ORDER BY geinstalleerd_op DESC")
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Shopify-winkels ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def shopify_verwijderd(winkel):
+    """De app is uit deze winkel gehaald.
+
+    De toegangssleutel wordt meteen gewist. Hij werkt toch niet meer, en een
+    sleutel die nergens meer voor dient hoort niet in een database te staan."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE shopify_winkels
+                                  SET actief = false, toegangssleutel = NULL,
+                                      verwijderd_op = now()
+                                WHERE winkel = %s""", (winkel,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Shopify-verwijdering vastleggen mislukt voor {winkel}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def wis_shopify_winkel(winkel):
+    """Alles van deze winkel weggooien, voor de verplichte shop/redact.
+
+    Shopify stuurt die 48 uur nadat de app verwijderd is, en dan MOET alles
+    weg. Niet alleen de rij hierboven: ook wat we over die webshop gemeten en
+    geschreven hebben, want dat gaat over hem."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT webshop_url FROM shopify_winkels WHERE winkel = %s",
+                            (winkel,))
+                rij = cur.fetchone()
+                webshop_url = (rij or {}).get("webshop_url")
+                cur.execute("DELETE FROM shopify_winkels WHERE winkel = %s", (winkel,))
+
+                if webshop_url:
+                    # Alle tabellen die op de webshop-URL staan. Bewust een
+                    # vaste lijst en geen slimmigheid over alle tabellen heen:
+                    # een tabel die je vergeet valt zo op bij het lezen, een
+                    # lus over de hele database niet.
+                    for tabel in ("wijzigingen", "uitvoeringen", "taakoplossingen",
+                                  "bronvindplaatsen", "winkelprofielen", "klanten",
+                                  "rapporten", "gratis_scans", "zichtbaarheidstests",
+                                  "beoordelingen", "uitspraakcontroles", "koopvragen",
+                                  "ai_antwoorden"):
+                        # Elk wissen in een eigen tussenstap. Een tabel die niet
+                        # bestaat of geen webshop_url heeft laat anders de hele
+                        # transactie sneuvelen, en dan wordt er NIETS gewist
+                        # terwijl Shopify eist dat alles weg is.
+                        cur.execute("SAVEPOINT per_tabel")
+                        try:
+                            cur.execute(
+                                f"DELETE FROM {tabel} WHERE webshop_url = %s",
+                                (webshop_url,))
+                            cur.execute("RELEASE SAVEPOINT per_tabel")
+                        except Exception as e:
+                            print(f"Wissen uit {tabel} overgeslagen: {e}")
+                            cur.execute("ROLLBACK TO SAVEPOINT per_tabel")
+
+                    # De kostenregels blijven staan maar zonder de winkelnaam.
+                    # De regels zelf zijn onze eigen boekhouding: gooi je die
+                    # weg, dan klopt je uitgavenoverzicht niet meer. Het adres
+                    # van de winkel hoeft er niet in te blijven staan.
+                    cur.execute("SAVEPOINT per_tabel")
+                    try:
+                        cur.execute("""UPDATE kostengebeurtenissen SET webshop_url = NULL
+                                        WHERE webshop_url = %s""", (webshop_url,))
+                        cur.execute("RELEASE SAVEPOINT per_tabel")
+                    except Exception as e:
+                        print(f"Kostenregels anonimiseren overgeslagen: {e}")
+                        cur.execute("ROLLBACK TO SAVEPOINT per_tabel")
+
+                    # BEWUST NIET GEWIST: facturen, toestemmingen en
+                    # herroepingen. Daar zit een wettelijke bewaarplicht op:
+                    # een factuur moet zeven jaar bewaard blijven, en een
+                    # vastgelegd akkoord en een herroepingsverzoek zijn het
+                    # bewijs dat wij ons aan de regels gehouden hebben. Die
+                    # plicht gaat voor op een wisverzoek. Dit hoort meegenomen
+                    # te worden in de juridische controle die al op de roadmap
+                    # staat, want het is een afweging en geen zekerheid.
+        return True
+    except Exception as e:
+        print(f"Shopify-winkel wissen mislukt voor {winkel}: {e}")
+        return False
     finally:
         conn.close()
 

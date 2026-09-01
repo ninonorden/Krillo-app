@@ -12,6 +12,7 @@ Starten:
 Ga daarna naar http://127.0.0.1:5000 in je browser.
 """
 
+import json
 import os
 import re
 import threading
@@ -35,6 +36,7 @@ import verklaring
 import waarschuwing
 import zichtbaarheid
 import benchmark
+import shopify_app
 
 app = Flask(__name__)
 db.init_db()
@@ -2082,6 +2084,220 @@ def admin_uitvoeringen():
         standen=db.UITVOERING_STANDEN,
         standtekst=db.UITVOERING_STAND_TEKST,
         melding=melding,
+        sleutel=admin_key,
+    )
+
+
+# ---------------------------------------------------------------------------
+# De Shopify-app
+# ---------------------------------------------------------------------------
+#
+# Stap 1: installeren en de verplichte webhooks. Nog geen scherm met cijfers en
+# nog geen betaling; die komen in de volgende stappen. Dit stuk moet eerst
+# kloppen, want zonder een geldige installatie en zonder die webhooks komt de
+# app de beoordeling van Shopify niet door.
+
+
+@app.route("/shopify")
+def shopify_start():
+    """Waar Shopify de winkelier heen stuurt om te installeren.
+
+    Shopify hangt er ?shop=naam.myshopify.com aan. Staat dat er niet, dan komt
+    hier iemand rechtstreeks, en dan tonen we een uitleg in plaats van een
+    foutmelding."""
+    winkel = (request.args.get("shop") or "").strip().lower()
+
+    if not shopify_app.beschikbaar():
+        print(f"Shopify-installatie geweigerd: {shopify_app.waarom_niet()}")
+        return render_template(
+            "fout.html",
+            titel="De Shopify-app is nog niet actief",
+            bericht=("We zijn de app aan het klaarzetten. Probeer het later opnieuw, "
+                     "of mail hallo@krillo.nl.")), 503
+
+    if not winkel:
+        return render_template(
+            "fout.html",
+            titel="Installeren vanuit je Shopify-winkel",
+            bericht=("Deze pagina hoort geopend te worden vanuit de Shopify App Store "
+                     "of vanuit je eigen beheerscherm. Ga naar krillo.nl als je wilt "
+                     "zien wat Krillo doet.")), 400
+
+    if not shopify_app.geldige_winkel(winkel):
+        # BEWUST het opgegeven adres niet terugtonen op de pagina. Dat komt van
+        # buiten en hoort niet in onze HTML terecht te komen.
+        print(f"Shopify-installatie geweigerd, geen geldig winkeladres: {winkel!r}")
+        return render_template(
+            "fout.html",
+            titel="Dit is geen geldig winkeladres",
+            bericht="Open de app vanuit je eigen Shopify-beheerscherm."), 400
+
+    link = shopify_app.installatielink(winkel, get_base_url())
+    if not link:
+        return render_template(
+            "fout.html", titel="Installeren lukt nu niet",
+            bericht="Probeer het zo nog eens, of mail hallo@krillo.nl."), 503
+    return redirect(link)
+
+
+@app.route("/shopify/callback")
+def shopify_callback():
+    """Waar Shopify de winkelier terugstuurt nadat hij toestemming gaf.
+
+    Hier gebeuren drie controles die geen van drieën mogen worden overgeslagen:
+    klopt de handtekening, is het winkeladres echt, en hebben wij deze
+    installatie zelf in gang gezet."""
+    argumenten = request.args.to_dict()
+    winkel = (argumenten.get("shop") or "").strip().lower()
+    code = argumenten.get("code")
+    kenmerk = argumenten.get("state")
+
+    if not shopify_app.klopt_query_handtekening(argumenten):
+        print(f"Shopify-callback geweigerd: handtekening klopt niet, winkel {winkel!r}")
+        return "Ongeldig verzoek.", 401
+    if not shopify_app.geldige_winkel(winkel) or not code:
+        print(f"Shopify-callback geweigerd: winkel of code ontbreekt, {winkel!r}")
+        return "Ongeldig verzoek.", 400
+    if not shopify_app.kenmerk_klopt(kenmerk):
+        # Dit gebeurt ook gewoon als Render tussendoor opnieuw is opgestart,
+        # want de openstaande installaties staan alleen in het geheugen. Daarom
+        # geen enge foutmelding maar de vraag om het nog eens te proberen.
+        print(f"Shopify-callback geweigerd: onbekend of verlopen kenmerk, {winkel!r}")
+        return render_template(
+            "fout.html", titel="De installatie is verlopen",
+            bericht="Begin opnieuw vanuit je Shopify-beheerscherm."), 400
+
+    uitkomst = shopify_app.haal_toegangssleutel(winkel, code)
+    if not uitkomst.get("gelukt"):
+        print(f"Shopify-sleutel ophalen mislukt voor {winkel}: {uitkomst.get('fout')}")
+        return render_template(
+            "fout.html", titel="Installeren is niet gelukt",
+            bericht="Probeer het nog eens. Blijft het misgaan, mail dan hallo@krillo.nl."), 502
+
+    sleutel = uitkomst["sleutel"]
+    gegevens = shopify_app.winkelgegevens(winkel, sleutel) or {}
+    webshop_url = scan_engine.normalize_url(shopify_app.winkeladres(winkel, sleutel))
+
+    bewaard = db.bewaar_shopify_winkel(
+        winkel, sleutel, rechten=uitkomst.get("rechten"), webshop_url=webshop_url,
+        email=gegevens.get("email"), naam=gegevens.get("naam"))
+    if not bewaard:
+        # Zonder opslaan hebben we straks geen sleutel meer en kunnen we niets.
+        # Dan liever nu een eerlijke fout dan een app die stil niets doet.
+        print(f"LET OP: Shopify-winkel {winkel} is NIET opgeslagen.")
+        return render_template(
+            "fout.html", titel="Installeren is half gelukt",
+            bericht="Verwijder de app en installeer hem opnieuw, of mail hallo@krillo.nl."), 500
+
+    # De verplichte webhooks. Op de achtergrond, want de winkelier hoeft daar
+    # niet op te wachten, maar wel meteen: zonder deze webhooks komt de app de
+    # beoordeling niet door.
+    threading.Thread(
+        target=shopify_app.meld_webhooks_aan,
+        args=(winkel, sleutel, get_base_url()), daemon=True).start()
+
+    # Terug naar het beheerscherm van de winkel. In de volgende stap komt hier
+    # het scherm van de app zelf.
+    return redirect(f"https://{winkel}/admin/apps")
+
+
+def _webhook_binnen(onderwerp):
+    """Gemeenschappelijke controle voor elke webhook van Shopify.
+
+    Geeft (winkel, gegevens) terug, of (None, None) als het verzoek niet klopt.
+    De handtekening wordt over de RUWE body berekend, want anders klopt hij
+    nooit."""
+    handtekening = request.headers.get("X-Shopify-Hmac-Sha256")
+    ruw = request.get_data()
+    if not shopify_app.klopt_webhook_handtekening(ruw, handtekening):
+        print(f"Shopify-webhook {onderwerp} geweigerd: handtekening klopt niet.")
+        return None, None
+    winkel = (request.headers.get("X-Shopify-Shop-Domain") or "").strip().lower()
+    try:
+        gegevens = json.loads(ruw.decode("utf-8")) if ruw else {}
+    except Exception:
+        gegevens = {}
+    return winkel, gegevens
+
+
+@app.route("/shopify/webhooks/klantgegevens", methods=["POST"])
+def shopify_klantgegevens():
+    """customers/data_request. Verplicht.
+
+    Een consument vraagt via de winkelier welke gegevens wij van hem hebben.
+    Krillo bewaart geen gegevens van de klanten van een webshop: we meten de
+    winkel, niet de kopers. Er is dus niets te leveren, en dat leggen we vast
+    zodat we het kunnen laten zien als het gevraagd wordt."""
+    winkel, gegevens = _webhook_binnen("customers/data_request")
+    if winkel is None:
+        return "", 401
+    print(f"AVG-verzoek gegevens van {winkel}: Krillo bewaart geen gegevens van "
+          f"kopers van deze winkel. Niets te leveren.")
+    return "", 200
+
+
+@app.route("/shopify/webhooks/klant-wissen", methods=["POST"])
+def shopify_klant_wissen():
+    """customers/redact. Verplicht.
+
+    Zelfde verhaal: wij hebben niets van individuele kopers, dus er valt niets
+    te wissen. We antwoorden wel netjes, want anders blijft Shopify het
+    opnieuw sturen."""
+    winkel, gegevens = _webhook_binnen("customers/redact")
+    if winkel is None:
+        return "", 401
+    print(f"AVG-wisverzoek klant van {winkel}: niets opgeslagen, niets gewist.")
+    return "", 200
+
+
+@app.route("/shopify/webhooks/winkel-wissen", methods=["POST"])
+def shopify_winkel_wissen():
+    """shop/redact. Verplicht.
+
+    Komt 48 uur nadat de app verwijderd is. Hier moet ALLES van deze winkel
+    weg, niet alleen de installatie: ook wat we gemeten en geschreven hebben,
+    want dat gaat over hem."""
+    winkel, gegevens = _webhook_binnen("shop/redact")
+    if winkel is None:
+        return "", 401
+    if db.wis_shopify_winkel(winkel):
+        print(f"Alles gewist voor {winkel} na shop/redact.")
+    else:
+        # Bewust toch 200 terug: anders blijft Shopify het herhalen terwijl het
+        # probleem aan onze kant zit. Wel luid in de logs, want dit is een
+        # wettelijke verplichting die we dan niet zijn nagekomen.
+        print(f"LET OP: wissen na shop/redact MISLUKT voor {winkel}. Handmatig nakijken.")
+    return "", 200
+
+
+@app.route("/shopify/webhooks/verwijderd", methods=["POST"])
+def shopify_verwijderd():
+    """app/uninstalled. De winkelier heeft de app eruit gehaald.
+
+    De sleutel werkt vanaf nu toch niet meer, dus die gooien we meteen weg. De
+    rest van de gegevens blijft nog 48 uur staan tot shop/redact komt: haalt
+    iemand de app er per ongeluk uit en zet hem terug, dan is zijn geschiedenis
+    er nog."""
+    winkel, gegevens = _webhook_binnen("app/uninstalled")
+    if winkel is None:
+        return "", 401
+    db.shopify_verwijderd(winkel)
+    print(f"Shopify-app verwijderd uit {winkel}, sleutel gewist.")
+    return "", 200
+
+
+@app.route("/admin/shopify")
+def admin_shopify():
+    """Welke winkels de app geïnstalleerd hebben. Voor jou, niet voor klanten."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "Niet gevonden.", 404
+    return render_template(
+        "admin_shopify.html",
+        winkels=db.get_shopify_winkels(alleen_actief=False),
+        actief=shopify_app.beschikbaar(),
+        waarom_niet=shopify_app.waarom_niet(),
+        rechten=shopify_app.SCOPES,
         sleutel=admin_key,
     )
 

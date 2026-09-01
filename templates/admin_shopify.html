@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shopify bij Krillo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral-dim:#FFE3E0; --teal-dim:#DFF5F1;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:900px; margin:0 auto; padding:40px 24px 90px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:14px; margin-bottom:24px; font-family:var(--mono);}
+  .goed{background:var(--teal-dim); color:#085041; padding:14px 18px; border-radius:10px;
+        font-size:14px; margin-bottom:20px;}
+  .fout{background:var(--coral-dim); color:#8C1E15; padding:14px 18px; border-radius:10px;
+        font-size:14px; margin-bottom:20px;}
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border-radius:12px; overflow:hidden; border:1px solid var(--line);}
+  th{text-align:left; font-family:var(--mono); font-size:11px; text-transform:uppercase;
+     color:var(--ink-soft); padding:12px 14px; border-bottom:1px solid var(--line);
+     background:var(--paper);}
+  td{padding:12px 14px; font-size:13.5px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .uit{color:var(--ink-soft);}
+  .leeg{padding:36px; text-align:center; color:var(--ink-soft); background:var(--paper-raised);
+        border-radius:12px; border:1px solid var(--line);}
+  .uitleg{font-size:13px; color:var(--ink-soft); margin-top:26px; line-height:1.75;}
+  code{font-family:var(--mono); font-size:12px; background:var(--paper-raised);
+       border:1px solid var(--line); border-radius:5px; padding:1px 5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Shopify-app</h1>
+  <div class="sub">Welke winkels de app geïnstalleerd hebben</div>
+
+  {% if actief %}
+  <div class="goed">De app staat aan. Gevraagde rechten: <code>{{ rechten }}</code></div>
+  {% else %}
+  <div class="fout">De app staat uit. {{ waarom_niet }} Zet dat in Render onder Environment.</div>
+  {% endif %}
+
+  {% if not winkels %}
+  <div class="leeg">Nog geen installaties.</div>
+  {% else %}
+  <table>
+    <tr>
+      <th>Winkel</th><th>Webshop</th><th>E-mail</th><th>Stand</th><th>Sinds</th>
+    </tr>
+    {% for w in winkels %}
+    <tr {% if not w.actief %}class="uit"{% endif %}>
+      <td>{{ w.winkel }}</td>
+      <td>{{ w.webshop_url or '-' }}</td>
+      <td>{{ w.email or '-' }}</td>
+      <td>{% if w.actief %}Actief{% else %}Verwijderd{% if w.verwijderd_op %} op {{ w.verwijderd_op.strftime('%d-%m-%Y') }}{% endif %}{% endif %}</td>
+      <td>{{ w.geinstalleerd_op.strftime('%d-%m-%Y') if w.geinstalleerd_op else '-' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <div class="uitleg">
+    <strong>Wat er nu werkt:</strong> een winkel kan de app installeren, wij bewaren zijn
+    sleutel, en de vier webhooks worden aangemeld. Drie daarvan zijn verplicht voor de
+    App Store: een verzoek om klantgegevens, een verzoek om een klant te wissen, en het
+    wissen van een hele winkel 48 uur nadat de app eruit gehaald is. Elk bericht van
+    Shopify wordt op zijn handtekening gecontroleerd, en een bericht met een foute
+    handtekening krijgt 401 terug.<br><br>
+    <strong>Wat er nog niet is:</strong> het scherm binnen Shopify met de meting en de
+    actielijst, de betaling via het betaalsysteem van Shopify, en het met één knop
+    doorvoeren van de verbeteringen. Die staan als volgende stappen in de roadmap.<br><br>
+    <strong>Bij het testen:</strong> gebruik een ontwikkelwinkel uit je Partner Dashboard.
+    Raakt een installatie halverwege vast met de melding dat hij verlopen is, dan is
+    Render tussendoor opnieuw opgestart. Gewoon opnieuw beginnen.
+  </div>
+</div>
+</body>
+</html>
