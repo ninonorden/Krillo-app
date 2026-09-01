@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Werkbriefje bij Krillo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-dim:#FFE3E0; --teal:#1FB6A4;
+    --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:820px; margin:0 auto; padding:40px 24px 90px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:14px; margin-bottom:24px; font-family:var(--mono);}
+  a{color:#D42E22;}
+  .melding{background:var(--teal-dim); color:#085041; padding:10px 14px; border-radius:8px;
+           font-size:13.5px; margin-bottom:20px;}
+  .zoek{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+        padding:16px 18px; margin-bottom:22px; display:flex; gap:8px; flex-wrap:wrap;}
+  .zoek input{flex:1; min-width:240px; font-family:var(--body); font-size:14px; padding:9px 11px;
+              border:1px solid var(--line); border-radius:8px;}
+  button{font-family:var(--body); font-size:13.5px; font-weight:600; padding:9px 16px;
+         border:none; border-radius:8px; background:var(--ink); color:#fff; cursor:pointer;}
+  button.licht{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .let-op{background:var(--coral-dim); color:#8C1E15; border-radius:12px; padding:16px 18px;
+          font-size:14px; margin-bottom:22px; line-height:1.6;}
+  .let-op strong{display:block; font-family:var(--disp); margin-bottom:4px;}
+  .stand{background:var(--amber-dim); color:#7A4E00; border-radius:12px; padding:14px 18px;
+         font-size:14px; margin-bottom:22px;}
+  .taak{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+        padding:22px 24px; margin-bottom:18px;}
+  .taak.af{border-left:4px solid var(--teal);}
+  .taak-kop{font-family:var(--disp); font-size:18px; font-weight:600; margin-bottom:4px;}
+  .merk{font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.05em;
+        padding:3px 8px; border-radius:100px; margin-left:8px; vertical-align:middle;}
+  .merk.feit{background:var(--coral); color:#fff;}
+  .merk.vermoeden{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .label{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em;
+         color:var(--ink-soft); margin:16px 0 6px;}
+  .plak{position:relative; background:#12142B; color:#EDEDF5; border-radius:10px; padding:16px;
+        font-family:var(--mono); font-size:12.5px; line-height:1.7; white-space:pre-wrap;
+        word-break:break-word; max-height:320px; overflow:auto;}
+  .kopieer{position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.14); color:#fff;
+           border:none; border-radius:6px; padding:5px 11px; font-size:11px; cursor:pointer;}
+  .kopieer.gelukt{background:var(--teal); color:#04322B;}
+  .waar{font-size:14px; line-height:1.7; white-space:pre-line; background:var(--paper);
+        border-radius:10px; padding:14px 16px;}
+  .links a{display:block; font-size:13.5px; padding:5px 0;}
+  textarea{width:100%; font-family:var(--mono); font-size:12.5px; padding:10px 12px;
+           border:1px solid var(--line); border-radius:8px; min-height:90px; resize:vertical;
+           background:var(--paper-raised); color:var(--ink);}
+  .knoppen{margin-top:14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .vast{font-size:12.5px; color:var(--ink-soft); font-family:var(--mono);}
+  .leeg{padding:36px; text-align:center; color:var(--ink-soft); background:var(--paper-raised);
+        border-radius:12px; border:1px solid var(--line);}
+  .voet{margin-top:28px; padding-top:22px; border-top:1px solid var(--line);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Werkbriefje</h1>
+  <div class="sub">Wat jij in de webshop van de klant gaat doen</div>
+
+  {% if melding %}<div class="melding">{{ melding }}</div>{% endif %}
+
+  <form class="zoek" method="get" action="/admin/werkbriefje">
+    <input type="hidden" name="key" value="{{ sleutel }}">
+    <input type="text" name="url" value="{{ webshop_url }}" placeholder="jouwwebshop.nl">
+    <button type="submit">Ophalen</button>
+    {% if webshop_url %}
+    <a href="/admin/oplevering?key={{ sleutel }}&url={{ webshop_url }}"><button type="button" class="licht">Naar de oplevering</button></a>
+    {% endif %}
+  </form>
+
+  {% if not webshop_url %}
+  <div class="leeg">Vul een webshop-adres in. Je vindt de openstaande opdrachten op
+    <a href="/admin/uitvoeringen?key={{ sleutel }}">de werklijst</a>.</div>
+  {% else %}
+
+  {% if uitvoering %}
+  <div class="stand">
+    Opdracht van <strong>{{ uitvoering.email }}</strong>{% if uitvoering.platform %}, platform {{ uitvoering.platform }}{% else %}, platform onbekend{% endif %}.
+    Stand: {{ uitvoering.stand.replace('_', ' ') }}.
+  </div>
+  {% else %}
+  <div class="stand">Er staat voor deze winkel geen betaalde opdracht. Je kunt hier wel
+    kijken wat er zou moeten gebeuren, maar zet niets in een winkel zonder opdracht.</div>
+  {% endif %}
+
+  <div class="let-op">
+    <strong>Plak de oude tekst in vóórdat je hem vervangt</strong>
+    We hebben de klant beloofd dat hij alles kan terugzetten. Ben je de oude tekst
+    eenmaal kwijt, dan is die belofte niet meer waar te maken. Stond er nog niets,
+    laat het vak dan gewoon leeg.
+  </div>
+
+  {% if not plan or not plan.acties %}
+  <div class="leeg">Voor deze winkel staat er nu geen actieplan klaar. Draai eerst een
+    meting, of kijk op <a href="/admin/metingen?key={{ sleutel }}">de metingen</a>.</div>
+  {% endif %}
+
+  {% for a in (plan.acties if plan else []) %}
+  {% set vast = vastgelegd.get(a.id) %}
+  <div class="taak {% if vast %}af{% endif %}">
+    <div class="taak-kop">{{ loop.index }}. {{ a.titel }}<span class="merk {{ a.soort }}">{{ a.soort }}</span></div>
+
+    {% if a.oplossing %}
+    <div class="label">Neem dit letterlijk over</div>
+    <div class="plak"><button type="button" class="kopieer" data-doel="plak{{ loop.index }}">Kopieer</button><span id="plak{{ loop.index }}">{{ a.oplossing }}</span></div>
+    {% endif %}
+
+    {% if a.links %}
+    <div class="label">Deze pagina's gaat het om</div>
+    <div class="links">
+      {% for l in a.links %}
+      <a href="{{ l.url }}" target="_blank" rel="noopener">{{ l.titel or l.url }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="label">{% if a.waar %}Waar zet je dit neer{% else %}Wat er moet gebeuren{% endif %}</div>
+    <div class="waar">{{ a.waar or a.hoe }}{% if a.waar and a.hoe %}
+
+{{ a.hoe }}{% endif %}</div>
+
+    <form method="post" action="/admin/werkbriefje?key={{ sleutel }}&url={{ webshop_url }}">
+      <input type="hidden" name="taak_id" value="{{ a.id }}">
+      <input type="hidden" name="wat" value="{{ a.titel }}">
+      <input type="hidden" name="waar" value="{{ a.waar or '' }}">
+
+      <div class="label">Wat stond er (plakken vóór je iets vervangt)</div>
+      <textarea name="oude_waarde" placeholder="De tekst zoals hij was. Stond er niets, laat leeg.">{{ vast.oude_waarde if vast and vast.oude_waarde else '' }}</textarea>
+
+      <div class="label">Wat heb je erneergezet</div>
+      <textarea name="nieuwe_waarde" placeholder="Meestal de tekst hierboven. Heb je iets aangepast, zet dan neer wat er echt staat.">{{ vast.nieuwe_waarde if vast and vast.nieuwe_waarde else '' }}</textarea>
+
+      <div class="knoppen">
+        <button type="submit">Vastleggen</button>
+        {% if vast %}
+        <button type="submit" name="actie" value="verwijderen" class="licht">Weghalen</button>
+        <span class="vast">Vastgelegd op {{ vast.gedaan_op.strftime('%d-%m-%Y om %H:%M') if vast.gedaan_op else 'onbekend' }}</span>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+  {% endfor %}
+
+  {% if wijzigingen %}
+  <div class="voet">
+    <strong>{{ wijzigingen|length }} wijziging(en) vastgelegd.</strong>
+    Klaar met het werk? Ga dan naar
+    <a href="/admin/oplevering?key={{ sleutel }}&url={{ webshop_url }}">de oplevering</a>
+    om het overzicht te lezen en naar de klant te sturen.
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+
+<script>
+  document.querySelectorAll('.kopieer').forEach(function(knop){
+    knop.addEventListener('click', function(){
+      var doel = document.getElementById(knop.dataset.doel);
+      if(!doel) return;
+      navigator.clipboard.writeText(doel.innerText).then(function(){
+        knop.textContent = 'Gekopieerd';
+        knop.classList.add('gelukt');
+        setTimeout(function(){ knop.textContent = 'Kopieer'; knop.classList.remove('gelukt'); }, 2000);
+      });
+    });
+  });
+</script>
+</body>
+</html>

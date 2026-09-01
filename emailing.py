@@ -317,6 +317,64 @@ def send_uitvoering_welkom(to_email, webshop_url, platform=None, monitoring_url=
     return send_email(to_email, "Krillo: we hebben toegang tot je webshop nodig", html)
 
 
+def _veilig(tekst, maxlengte=1200):
+    """Zet tekst veilig in een HTML-mail.
+
+    Wat hier binnenkomt is door een mens ingetypt en komt deels uit de webshop
+    van de klant, dus er kunnen gewoon punthaken in staan. Zonder dit zou een
+    stukje HTML uit een productomschrijving de opmaak van de mail slopen."""
+    if not tekst:
+        return ""
+    kort = str(tekst).strip()
+    afgekapt = len(kort) > maxlengte
+    kort = kort[:maxlengte]
+    veilig = (kort.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+              .replace('"', "&quot;").replace("\n", "<br>"))
+    return veilig + ("<br>[ingekort]" if afgekapt else "")
+
+
+def send_oplevering(to_email, webshop_url, wijzigingen, monitoring_url=None):
+    """Het overzicht van wat wij in de webshop veranderd hebben.
+
+    Per wijziging staat erbij wat er nu staat en wat er stond. Dat laatste is
+    geen extraatje: we hebben beloofd dat de klant alles kan terugzetten, en
+    zonder de oude tekst kan hij dat niet."""
+    if not wijzigingen:
+        print("Oplevering niet verstuurd: er is niets vastgelegd.")
+        return False
+
+    blokken = []
+    for i, w in enumerate(wijzigingen, start=1):
+        oud = _veilig(w.get("oude_waarde"))
+        nieuw = _veilig(w.get("nieuwe_waarde"))
+        blokken.append(f"""
+        <div style="border:1px solid #E4E2DA; border-radius:10px; padding:16px 18px; margin-bottom:14px;">
+          <div style="font-weight:600; font-size:15px; margin-bottom:4px;">{i}. {_veilig(w.get('wat'), 200)}</div>
+          {f'<div style="font-size:13px; color:#3B3D57; margin-bottom:10px;">Waar: {_veilig(w.get("waar"), 300)}</div>' if w.get('waar') else ''}
+          {f'<div style="font-size:13px; margin-bottom:8px;"><strong>Wat er nu staat:</strong><br>{nieuw}</div>' if nieuw else ''}
+          <div style="font-size:13px; color:#3B3D57;"><strong>Wat er stond:</strong><br>
+            {oud if oud else '<em>Hier stond nog niets, dit is nieuw toegevoegd.</em>'}</div>
+        </div>""")
+
+    body = f"""
+    <p style="font-size:14.5px;">We zijn klaar met {webshop_url}. Hieronder staat
+      precies wat we veranderd hebben, en wat er stond voordat we begonnen.</p>
+    {''.join(blokken)}
+    <p style="font-size:14.5px;">Wil je iets terug hebben zoals het was, dan staat
+      de oude tekst hierboven. Je kunt hem zelf terugzetten, of mail ons en dan
+      doen wij het.</p>
+    <p style="font-size:13.5px; color:#3B3D57;">We hebben niets aangepast aan je
+      prijzen, voorraad, bestellingen of vormgeving. Het duurt een paar weken
+      voordat AI-modellen je nieuwe teksten hebben opgepikt, dus verwacht niet
+      morgen al een ander antwoord.</p>
+    {_score_button(monitoring_url, "Bekijk je pagina") if monitoring_url else ""}
+    """
+    html = _base_html("Je webshop is klaar",
+                      f"Hierbij het overzicht van wat we voor {webshop_url} gedaan hebben.",
+                      body)
+    return send_email(to_email, f"Klaar: wat we aangepast hebben aan {webshop_url}", html)
+
+
 def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None):
     score = scan_result.get("score", 0)
     body = f"""

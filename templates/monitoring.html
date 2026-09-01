@@ -175,6 +175,28 @@
         {% if uitvoering.notitie %}{{ uitvoering.notitie }}{% else %}Je hebt per mail een overzicht gekregen van wat er veranderd is.{% endif %}
         Hieronder zie je wat er daarna nog open staat, en of je vaker genoemd wordt.
       </div>
+
+      {# Wat er precies veranderd is, met de oude tekst erbij. Ingeklapt, want
+         wie het niet wil zien heeft er dan geen last van, en wie iets wil
+         terugzetten vindt het hier terug in plaats van in een oude mail. #}
+      {% if wijzigingen %}
+      <details class="waarom" style="margin-bottom:28px;">
+        <summary>Wat we precies veranderd hebben ({{ wijzigingen|length }})</summary>
+        <div class="inhoud">
+          {% for w in wijzigingen %}
+          <p><strong>{{ loop.index }}. {{ w.wat }}</strong>
+          {% if w.waar %}<br>Waar: {{ w.waar }}{% endif %}
+          {% if w.nieuwe_waarde %}<br><br>Wat er nu staat:<br>{{ w.nieuwe_waarde }}{% endif %}
+          <br><br>Wat er stond:<br>
+          {% if w.oude_waarde %}{{ w.oude_waarde }}{% else %}Hier stond nog niets, dit is nieuw toegevoegd.{% endif %}
+          </p>
+          {% if not loop.last %}<hr style="border:none; border-top:1px solid var(--line); margin:16px 0;">{% endif %}
+          {% endfor %}
+          <p style="margin-top:14px;">Wil je iets terug zoals het was, dan kan dat.
+            Zet het zelf terug met de tekst hierboven, of mail ons en wij doen het.</p>
+        </div>
+      </details>
+      {% endif %}
       {% endif %}
     {% endif %}
 

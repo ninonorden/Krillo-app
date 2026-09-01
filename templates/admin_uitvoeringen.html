@@ -66,6 +66,9 @@
       {% if u.toegang_op %}· toegang sinds {{ u.toegang_op.strftime('%d-%m-%Y') }}{% endif %}
       {% if u.opgeleverd_op %}· opgeleverd op {{ u.opgeleverd_op.strftime('%d-%m-%Y') }}{% endif %}
       {% if u.notitie %}<br><b>Notitie:</b> {{ u.notitie }}{% endif %}
+      <br><a href="/admin/werkbriefje?key={{ sleutel }}&url={{ u.webshop_url }}">Naar het werkbriefje</a>
+      &nbsp;·&nbsp;
+      <a href="/admin/oplevering?key={{ sleutel }}&url={{ u.webshop_url }}">Naar de oplevering</a>
     </div>
     <form method="post" action="/admin/uitvoeringen?key={{ sleutel }}">
       <input type="hidden" name="id" value="{{ u.id }}">

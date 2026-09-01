@@ -875,6 +875,7 @@ def monitoring_pagina(klant_token):
         nieuwe_problemen=nieuwe_problemen,
         checks_by_categorie=checks_by_categorie,
         uitvoering=_laatste_uitvoering(klant["webshop_url"]),
+        wijzigingen=db.get_wijzigingen(klant["webshop_url"]),
         status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
     )
 
@@ -1719,6 +1720,7 @@ def admin_voorbeeld():
         nieuwe_problemen=[],
         checks_by_categorie=checks_by_categorie,
         uitvoering=_laatste_uitvoering(webshop_url),
+        wijzigingen=db.get_wijzigingen(webshop_url),
         status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
     )
 
@@ -2079,6 +2081,112 @@ def admin_uitvoeringen():
         uitvoeringen=db.get_uitvoeringen(),
         standen=db.UITVOERING_STANDEN,
         standtekst=db.UITVOERING_STAND_TEKST,
+        melding=melding,
+        sleutel=admin_key,
+    )
+
+
+@app.route("/admin/werkbriefje", methods=["GET", "POST"])
+def admin_werkbriefje():
+    """Wat jij precies moet doen in de webshop van een klant die betaald heeft.
+
+    Dit is de handmatige uitvoering van het actieplan. De klantpagina toont
+    hetzelfde plan aan de klant; deze pagina voegt er toe wat jij nodig hebt om
+    het werk te doen: een vak om de OUDE tekst in te plakken voordat je hem
+    vervangt, en een vak voor wat je er neergezet hebt.
+
+    Die oude tekst is het hele punt. We beloven de klant dat hij alles kan
+    terugzetten, en die belofte is alleen waar als het ergens staat. Plak hem
+    dus in voordat je iets vervangt, niet erna, want dan is hij weg."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "Niet gevonden.", 404
+
+    webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
+    melding = None
+
+    if request.method == "POST":
+        taak_id = (request.form.get("taak_id") or "").strip()
+        actie = (request.form.get("actie") or "opslaan").strip()
+        if not webshop_url or not taak_id:
+            melding = "Er ontbrak een winkel of een taak."
+        elif actie == "verwijderen":
+            melding = ("Weggehaald." if db.verwijder_wijziging(webshop_url, taak_id)
+                       else "Er stond niets om weg te halen.")
+        else:
+            gelukt = db.bewaar_wijziging(
+                webshop_url, taak_id,
+                wat=(request.form.get("wat") or "").strip() or taak_id,
+                waar=(request.form.get("waar") or "").strip() or None,
+                oude_waarde=(request.form.get("oude_waarde") or "").strip() or None,
+                nieuwe_waarde=(request.form.get("nieuwe_waarde") or "").strip() or None,
+            )
+            melding = "Opgeslagen." if gelukt else "Opslaan is niet gelukt."
+
+    plan = None
+    uitvoering = None
+    wijzigingen = []
+    if webshop_url:
+        plan = _klantgegevens(webshop_url)["actieplan"]
+        uitvoering = _laatste_uitvoering(webshop_url)
+        wijzigingen = db.get_wijzigingen(webshop_url)
+
+    return render_template(
+        "admin_werkbriefje.html",
+        webshop_url=webshop_url,
+        plan=plan,
+        uitvoering=uitvoering,
+        # Op taak-id, zodat het formulier bij elke taak meteen laat zien wat er
+        # al vastgelegd is en je niet twee keer hetzelfde intypt.
+        vastgelegd={w["taak_id"]: w for w in wijzigingen},
+        wijzigingen=wijzigingen,
+        melding=melding,
+        sleutel=admin_key,
+    )
+
+
+@app.route("/admin/oplevering", methods=["GET", "POST"])
+def admin_oplevering():
+    """Het overzicht dat de klant krijgt als het werk klaar is.
+
+    Bewust een aparte stap en niet automatisch bij "opgeleverd": jij hoort dit
+    eerst zelf te lezen voordat het naar een betalende klant gaat."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "Niet gevonden.", 404
+
+    webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
+    wijzigingen = db.get_wijzigingen(webshop_url) if webshop_url else []
+    uitvoering = _laatste_uitvoering(webshop_url) if webshop_url else None
+    melding = None
+
+    if request.method == "POST":
+        if not wijzigingen:
+            melding = "Er is nog niets vastgelegd om te versturen."
+        elif not (uitvoering and uitvoering.get("email")):
+            melding = "Bij deze winkel staat geen opdracht met een e-mailadres."
+        else:
+            klant_token = db.get_or_create_klant(webshop_url, uitvoering["email"])
+            monitoring_url = (f"{get_base_url()}/monitoring/{klant_token}"
+                              if klant_token else None)
+            verstuurd = emailing.send_oplevering(
+                uitvoering["email"], webshop_url, [dict(w) for w in wijzigingen],
+                monitoring_url)
+            if verstuurd:
+                db.zet_uitvoering_stand(uitvoering["id"], "opgeleverd")
+                melding = "Verstuurd, en de opdracht staat nu op opgeleverd."
+            else:
+                # BEWUST de stand niet aanpassen als de mail mislukte. Anders
+                # staat er "opgeleverd" terwijl de klant niets gekregen heeft,
+                # en dan valt hij tussen wal en schip.
+                melding = ("De mail is NIET verstuurd, dus de opdracht blijft op de "
+                           "oude stand staan. Kijk in de logs van Render waarom.")
+
+    return render_template(
+        "admin_oplevering.html",
+        webshop_url=webshop_url,
+        wijzigingen=wijzigingen,
+        uitvoering=uitvoering,
         melding=melding,
         sleutel=admin_key,
     )

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oplevering bij Krillo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral-dim:#FFE3E0; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:760px; margin:0 auto; padding:40px 24px 90px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:14px; margin-bottom:24px; font-family:var(--mono);}
+  a{color:#D42E22;}
+  .melding{background:var(--teal-dim); color:#085041; padding:10px 14px; border-radius:8px;
+           font-size:13.5px; margin-bottom:20px;}
+  button{font-family:var(--body); font-size:14px; font-weight:600; padding:11px 20px;
+         border:none; border-radius:8px; background:var(--ink); color:#fff; cursor:pointer;}
+  .kaart{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+         padding:18px 20px; margin-bottom:14px;}
+  .wat{font-family:var(--disp); font-size:16px; font-weight:600; margin-bottom:3px;}
+  .waar{font-size:13px; color:var(--ink-soft); margin-bottom:10px;}
+  .label{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em;
+         color:var(--ink-soft); margin:12px 0 5px;}
+  .tekst{font-size:13.5px; white-space:pre-wrap; word-break:break-word; background:var(--paper);
+         border-radius:8px; padding:12px 14px; max-height:220px; overflow:auto;}
+  .tekst.leegje{color:var(--ink-soft); font-style:italic;}
+  .stand{background:var(--amber-dim); color:#7A4E00; border-radius:12px; padding:14px 18px;
+         font-size:14px; margin-bottom:22px;}
+  .waarschuwing{background:var(--coral-dim); color:#8C1E15; border-radius:12px; padding:16px 18px;
+                font-size:14px; margin-bottom:22px; line-height:1.6;}
+  .leeg{padding:36px; text-align:center; color:var(--ink-soft); background:var(--paper-raised);
+        border-radius:12px; border:1px solid var(--line);}
+  .voet{margin-top:26px; padding-top:22px; border-top:1px solid var(--line);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Oplevering</h1>
+  <div class="sub">{{ webshop_url or 'geen winkel gekozen' }}</div>
+
+  {% if melding %}<div class="melding">{{ melding }}</div>{% endif %}
+
+  {% if not webshop_url %}
+  <div class="leeg">Open deze pagina vanuit
+    <a href="/admin/werkbriefje?key={{ sleutel }}">het werkbriefje</a>.</div>
+  {% elif not wijzigingen %}
+  <div class="leeg">Er is voor deze winkel nog niets vastgelegd. Ga eerst naar
+    <a href="/admin/werkbriefje?key={{ sleutel }}&url={{ webshop_url }}">het werkbriefje</a>.</div>
+  {% else %}
+
+  {% if uitvoering %}
+  <div class="stand">Gaat naar <strong>{{ uitvoering.email }}</strong>. Stand van de opdracht:
+    {{ uitvoering.stand.replace('_', ' ') }}.</div>
+  {% else %}
+  <div class="waarschuwing">Er staat voor deze winkel geen betaalde opdracht met een
+    e-mailadres, dus versturen kan niet. Dit is alleen een overzicht.</div>
+  {% endif %}
+
+  <div class="waarschuwing">
+    Lees dit eerst zelf helemaal door. Zodra je op versturen klikt gaat het naar een
+    betalende klant en komt de opdracht op opgeleverd te staan. Ontbreekt er ergens een
+    oude tekst terwijl er wel iets vervangen is, ga dan eerst terug naar het werkbriefje.
+  </div>
+
+  {% for w in wijzigingen %}
+  <div class="kaart">
+    <div class="wat">{{ loop.index }}. {{ w.wat }}</div>
+    {% if w.waar %}<div class="waar">Waar: {{ w.waar }}</div>{% endif %}
+
+    {% if w.nieuwe_waarde %}
+    <div class="label">Wat er nu staat</div>
+    <div class="tekst">{{ w.nieuwe_waarde }}</div>
+    {% endif %}
+
+    <div class="label">Wat er stond</div>
+    {% if w.oude_waarde %}
+    <div class="tekst">{{ w.oude_waarde }}</div>
+    {% else %}
+    <div class="tekst leegje">Hier stond nog niets, dit is nieuw toegevoegd.</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="voet">
+    <form method="post" action="/admin/oplevering?key={{ sleutel }}&url={{ webshop_url }}">
+      <button type="submit">Versturen naar de klant</button>
+    </form>
+    <p style="font-size:13px; color:var(--ink-soft); margin-top:12px;">
+      Lukt het versturen niet, dan blijft de opdracht op zijn oude stand staan. Dat is
+      met opzet: liever een opdracht die nog openstaat dan een klant die als opgeleverd
+      geldt maar niets gekregen heeft.
+    </p>
+    <p style="font-size:13px; margin-top:10px;">
+      <a href="/admin/werkbriefje?key={{ sleutel }}&url={{ webshop_url }}">Terug naar het werkbriefje</a>
+    </p>
+  </div>
+
+  {% endif %}
+</div>
+</body>
+</html>

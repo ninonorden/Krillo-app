@@ -76,6 +76,24 @@ def init_db():
                 # Waar deze betalende klant vandaan kwam. Voor bestaande
                 # installaties bijgezet, want de tabel bestond al.
                 cur.execute("ALTER TABLE facturen ADD COLUMN IF NOT EXISTS bron TEXT;")
+                # Wat wij in de winkel van een klant veranderd hebben, met de
+                # oude tekst erbij. Dit is geen logboek voor onszelf maar het
+                # product: we beloven dat de klant alles kan terugzetten, en
+                # zonder de oude waarde is die belofte niet waar te maken.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS wijzigingen (
+                        id SERIAL PRIMARY KEY,
+                        webshop_url TEXT NOT NULL,
+                        taak_id TEXT NOT NULL,
+                        wat TEXT NOT NULL,
+                        waar TEXT,
+                        oude_waarde TEXT,
+                        nieuwe_waarde TEXT,
+                        gedaan_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
+                cur.execute("""CREATE UNIQUE INDEX IF NOT EXISTS wijzigingen_uniek
+                               ON wijzigingen (webshop_url, taak_id);""")
                 # De werklijst voor "wij voeren het uit". Dit is bewust een
                 # eigen tabel en geen vlaggetje bij het rapport: het is een
                 # opdracht die dagen loopt en die van hand tot hand gaat.
@@ -706,6 +724,83 @@ def leg_herroeping_vast(email, webshop_url, toelichting):
     except Exception as e:
         print(f"Herroeping vastleggen mislukt: {e}")
         return None
+    finally:
+        conn.close()
+
+
+def bewaar_wijziging(webshop_url, taak_id, wat, waar=None, oude_waarde=None,
+                     nieuwe_waarde=None):
+    """Legt vast wat wij bij een klant veranderd hebben.
+
+    Per taak per winkel één regel: sla je hem nog eens op, dan wordt de vorige
+    bijgewerkt. Zo kan je tijdens het werk tussentijds opslaan zonder dat er
+    tien halve regels ontstaan.
+
+    De oude waarde is het belangrijkste veld van de hele tabel. Zonder dat kan
+    een klant niets terugzetten, en dat is wel wat we hem beloofd hebben."""
+    if not webshop_url or not taak_id:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO wijzigingen
+                           (webshop_url, taak_id, wat, waar, oude_waarde, nieuwe_waarde)
+                       VALUES (%s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (webshop_url, taak_id) DO UPDATE
+                       SET wat = EXCLUDED.wat,
+                           waar = EXCLUDED.waar,
+                           oude_waarde = EXCLUDED.oude_waarde,
+                           nieuwe_waarde = EXCLUDED.nieuwe_waarde,
+                           gedaan_op = now()""",
+                    (webshop_url, taak_id, wat, waar, oude_waarde, nieuwe_waarde),
+                )
+        return True
+    except Exception as e:
+        print(f"Wijziging bewaren mislukt voor {webshop_url}, taak {taak_id}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_wijzigingen(webshop_url):
+    """Alles wat wij bij deze winkel veranderd hebben, oudste eerst.
+
+    Oudste eerst omdat dit als overzicht naar de klant gaat en dan de volgorde
+    van het werk aanhoudt."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT * FROM wijzigingen WHERE webshop_url = %s
+                                ORDER BY gedaan_op""", (webshop_url,))
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Wijzigingen ophalen mislukt voor {webshop_url}: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def verwijder_wijziging(webshop_url, taak_id):
+    """Haalt één vastgelegde wijziging weg. Voor als je je vergist hebt."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM wijzigingen WHERE webshop_url = %s AND taak_id = %s",
+                            (webshop_url, taak_id))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Wijziging verwijderen mislukt voor {webshop_url}: {e}")
+        return False
     finally:
         conn.close()
 
