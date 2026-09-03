@@ -2098,14 +2098,126 @@ def admin_uitvoeringen():
 # app de beoordeling van Shopify niet door.
 
 
+# Waar de meting van een Shopify-winkel is. Alleen in het geheugen: na een
+# herstart van Render is dit leeg, en dan ziet de winkelier gewoon de laatste
+# uitkomst uit de database. De echte gegevens staan nooit alleen hier.
+_shopify_status = {}
+
+
+def _shopify_meten(winkel, webshop_url, email=None):
+    """Scant de winkel en meet daarna bij ChatGPT en Gemini.
+
+    Draait op de achtergrond, want dit duurt minuten. De winkelier ziet
+    ondertussen waar we zijn.
+
+    Bewust dezelfde keten als bij een betalende monitoringklant, zodat een
+    winkel via Shopify en een winkel via krillo.nl nooit iets anders te zien
+    krijgen bij dezelfde uitkomst."""
+    def melden(tekst, klaar=False):
+        _shopify_status[winkel] = {"tekst": tekst, "klaar": klaar,
+                                   "mislukt": False}
+        print(f"Shopify {winkel}: {tekst}")
+
+    try:
+        melden("je winkel doorlezen")
+        resultaat = run_scan(webshop_url)
+        if "error" in resultaat:
+            _shopify_status[winkel] = {
+                "tekst": "We konden je winkel niet inlezen. Staat er een wachtwoord op?",
+                "klaar": True, "mislukt": True}
+            return
+
+        db.zet_platform(resultaat["url"], "Shopify")
+        # Het e-mailadres MOET mee. De rapportentabel eist het, en zonder
+        # rapport is er geen verklaring, en zonder verklaring blijft het
+        # actieplan leeg terwijl er wel gemeten is. Dat ging hier eerst mis en
+        # het viel alleen op in de logs, niet op het scherm.
+        db.save_report("shopify", resultaat["url"], email or f"shopify@{winkel}",
+                       resultaat.get("score", 0), resultaat.get("checks", []))
+        _meet_en_beoordeel(resultaat["url"], stap=lambda t: melden(t))
+        melden("klaar", klaar=True)
+    except Exception as e:
+        print(f"Shopify-meting mislukt voor {winkel}: {e}")
+        _shopify_status[winkel] = {
+            "tekst": "Er ging iets mis bij het meten. Probeer het zo nog eens.",
+            "klaar": True, "mislukt": True}
+
+
+def _shopify_scherm(winkel, rij):
+    """Het scherm dat de winkelier binnen Shopify ziet."""
+    webshop_url = rij.get("webshop_url") or ""
+    gegevens = _klantgegevens(webshop_url) if webshop_url else {}
+    laatste = (db.get_rapporten_voor_webshop(webshop_url) or [None])[0] if webshop_url else None
+
+    return render_template(
+        "shopify_app.html",
+        api_key=os.environ.get("SHOPIFY_API_KEY", ""),
+        winkel=winkel,
+        winkelnaam=rij.get("naam") or webshop_url,
+        webshop_url=webshop_url,
+        vermeldingen=gegevens.get("vermeldingen"),
+        actieplan=gegevens.get("actieplan"),
+        bronnen=gegevens.get("bronnen"),
+        laatste=laatste,
+        stand=_shopify_status.get(winkel),
+    )
+
+
+def _shopify_uit_kaartje(id_token, winkel_uit_link=None):
+    """Controleert het kaartje van Shopify en zorgt dat we een sleutel hebben.
+
+    Geeft (winkel, rij) terug, of (None, None) als het kaartje niet deugt. Bij
+    een winkel die we nog niet kennen, of waarvan de sleutel weg is, ruilen we
+    het kaartje meteen in. Zo is een winkel die de app opnieuw installeert
+    zonder gedoe weer werkend."""
+    inhoud = shopify_app.controleer_id_token(id_token)
+    if not inhoud:
+        return None, None
+    winkel = inhoud["winkel"]
+    # Als er ook een winkel in de link staat, moet die dezelfde zijn. Anders
+    # zou iemand met een geldig kaartje van zijn eigen winkel de gegevens van
+    # een andere winkel kunnen opvragen.
+    if winkel_uit_link and winkel_uit_link != winkel:
+        print(f"Shopify: kaartje van {winkel} maar link zegt {winkel_uit_link}. Geweigerd.")
+        return None, None
+
+    rij = db.get_shopify_winkel(winkel)
+    if rij and rij.get("toegangssleutel"):
+        return winkel, rij
+
+    uitkomst = shopify_app.wissel_id_token(winkel, id_token)
+    if not uitkomst.get("gelukt"):
+        print(f"Shopify: inwisselen mislukt voor {winkel}: {uitkomst.get('fout')}")
+        return winkel, None
+
+    sleutel = uitkomst["sleutel"]
+    gegevens = shopify_app.winkelgegevens(winkel, sleutel) or {}
+    webshop_url = scan_engine.normalize_url(shopify_app.winkeladres(winkel, sleutel))
+    db.bewaar_shopify_winkel(winkel, sleutel, rechten=uitkomst.get("rechten"),
+                             webshop_url=webshop_url, email=gegevens.get("email"),
+                             naam=gegevens.get("naam"))
+    threading.Thread(target=shopify_app.meld_webhooks_aan,
+                     args=(winkel, sleutel, get_base_url()), daemon=True).start()
+    return winkel, db.get_shopify_winkel(winkel)
+
+
 @app.route("/shopify")
 def shopify_start():
-    """Waar Shopify de winkelier heen stuurt om te installeren.
+    """Waar Shopify de winkelier heen stuurt.
 
-    Shopify hangt er ?shop=naam.myshopify.com aan. Staat dat er niet, dan komt
-    hier iemand rechtstreeks, en dan tonen we een uitleg in plaats van een
-    foutmelding."""
+    Twee gevallen, en die moeten allebei werken:
+
+    1. Er staat een id_token in de link. Dan heeft Shopify het installeren zelf
+       geregeld en zit de winkelier in het beheerscherm naar ons scherm te
+       kijken. Wij controleren het kaartje en tonen zijn cijfers.
+    2. Er staat alleen ?shop=... in de link. Dan komt hij via de oude manier
+       binnen en beginnen we het installeren zelf.
+
+    Allebei nodig zolang de app nog op de oude installatiemanier staat
+    ingesteld. Zodra dat omgezet is loopt alles via geval 1, en dan blijft
+    geval 2 gewoon werken zonder kwaad te kunnen."""
     winkel = (request.args.get("shop") or "").strip().lower()
+    id_token = request.args.get("id_token")
 
     if not shopify_app.beschikbaar():
         print(f"Shopify-installatie geweigerd: {shopify_app.waarom_niet()}")
@@ -2114,6 +2226,20 @@ def shopify_start():
             titel="De Shopify-app is nog niet actief",
             bericht=("We zijn de app aan het klaarzetten. Probeer het later opnieuw, "
                      "of mail hallo@krillo.nl.")), 503
+
+    # Geval 1: Shopify heeft het installeren zelf gedaan en stuurt ons een
+    # kaartje mee. Dan is dit geen installatiepagina maar het scherm van de app.
+    if id_token:
+        echte_winkel, rij = _shopify_uit_kaartje(
+            id_token, winkel if shopify_app.geldige_winkel(winkel) else None)
+        if not echte_winkel:
+            return "Ongeldig verzoek.", 401
+        if not rij or not rij.get("toegangssleutel"):
+            return render_template(
+                "fout.html", titel="We konden je winkel niet openen",
+                bericht=("Verwijder de app en installeer hem opnieuw. Blijft het "
+                         "misgaan, mail dan hallo@krillo.nl.")), 502
+        return _shopify_scherm(echte_winkel, rij)
 
     if not winkel:
         return render_template(
@@ -2138,6 +2264,50 @@ def shopify_start():
             "fout.html", titel="Installeren lukt nu niet",
             bericht="Probeer het zo nog eens, of mail hallo@krillo.nl."), 503
     return redirect(link)
+
+
+def _shopify_uit_kop():
+    """Haalt de winkel uit het kaartje in de Authorization-kop.
+
+    Het scherm binnen Shopify vraagt bij elke actie een vers kaartje op en
+    stuurt dat mee. Zo hoeft er geen sessie of cookie te bestaan, en kan een
+    verzoek niet van een andere winkel komen dan het kaartje zegt."""
+    kop = request.headers.get("Authorization") or ""
+    if not kop.lower().startswith("bearer "):
+        return None, None
+    return _shopify_uit_kaartje(kop[7:].strip())
+
+
+@app.route("/shopify/api/meten", methods=["POST"])
+def shopify_api_meten():
+    """Start de meting voor deze winkel."""
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij or not rij.get("toegangssleutel"):
+        return jsonify({"error": "Niet toegestaan."}), 401
+
+    webshop_url = rij.get("webshop_url")
+    if not webshop_url:
+        return jsonify({"error": "We weten het adres van je winkel nog niet."}), 400
+
+    bezig = _shopify_status.get(winkel)
+    if bezig and not bezig.get("klaar"):
+        # Al bezig. Twee metingen tegelijk kosten dubbel en leveren niets
+        # extra's op, dus we melden gewoon waar de lopende meting is.
+        return jsonify({"stand": bezig})
+
+    _shopify_status[winkel] = {"tekst": "we beginnen", "klaar": False, "mislukt": False}
+    threading.Thread(target=_shopify_meten,
+                     args=(winkel, webshop_url, rij.get("email")), daemon=True).start()
+    return jsonify({"stand": _shopify_status[winkel]})
+
+
+@app.route("/shopify/api/stand")
+def shopify_api_stand():
+    """Waar de meting is. Het scherm vraagt dit elke paar seconden."""
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij:
+        return jsonify({"error": "Niet toegestaan."}), 401
+    return jsonify({"stand": _shopify_status.get(winkel)})
 
 
 @app.route("/shopify/callback")

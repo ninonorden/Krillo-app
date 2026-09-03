@@ -230,6 +230,148 @@ def haal_toegangssleutel(winkel, code):
 # Praten met de winkel
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# De nieuwe manier: Shopify regelt het installeren, wij ruilen een kaartje in
+# ---------------------------------------------------------------------------
+#
+# Bij de nieuwe manier stuurt Shopify de winkelier rechtstreeks naar ons scherm
+# en krijgen wij een kort geldig kaartje mee, een id_token. Dat is een JWT die
+# ondertekend is met ons eigen geheim, en die een minuut geldig is. Wij
+# controleren die handtekening en ruilen hem daarna in voor de echte sleutel
+# van de winkel.
+#
+# Bewust zelf uitgerekend en geen extra pakket erbij. Het is HMAC-SHA256 en
+# vier controles, en elk pakket dat je toevoegt is er een die op Render mis kan
+# gaan bij een versie-update.
+
+
+def _vul_aan(stuk):
+    """Base64 uit een JWT mist soms de opvulling aan het eind."""
+    return stuk + "=" * (-len(stuk) % 4)
+
+
+def _hostnaam(waarde):
+    """De kale hostnaam uit iets als https://winkel.myshopify.com/admin."""
+    if not waarde:
+        return ""
+    tekst = str(waarde).strip().lower()
+    tekst = tekst.split("://")[-1]
+    return tekst.split("/")[0].split("?")[0]
+
+
+def controleer_id_token(id_token, speling_seconden=10):
+    """Controleert het kaartje van Shopify en geeft de inhoud terug.
+
+    Geeft None terug als er iets niet klopt. De aanroeper hoort dan met 401 te
+    antwoorden en NIET door te gaan naar het inwisselen, want dan zou iemand
+    met een zelfgemaakt kaartje onze sleutel kunnen opvragen.
+
+    Wat er gecontroleerd wordt, en dat is precies wat Shopify eist:
+    de handtekening, dat hij nog niet verlopen is, dat hij al geldig is, dat
+    hij voor onze app bedoeld is, en dat de afzender en de bestemming dezelfde
+    winkel zijn.
+
+    De speling van tien seconden is er omdat de klok van Render en die van
+    Shopify nooit precies gelijk lopen. Zonder die speling faalt af en toe een
+    geldig kaartje, en dat is een fout die je nooit kunt namaken."""
+    api_key, geheim = _sleutels()
+    if not api_key or not geheim or not id_token:
+        return None
+
+    delen = str(id_token).split(".")
+    if len(delen) != 3:
+        return None
+    kop_deel, inhoud_deel, handtekening_deel = delen
+
+    try:
+        kop = json.loads(base64.urlsafe_b64decode(_vul_aan(kop_deel)))
+        inhoud = json.loads(base64.urlsafe_b64decode(_vul_aan(inhoud_deel)))
+    except Exception:
+        return None
+
+    # Alleen HS256. Zou je hier meegaan met wat er in de kop staat, dan kan
+    # iemand "alg": "none" sturen en is de handtekening niets meer waard.
+    if kop.get("alg") != "HS256":
+        return None
+
+    bericht = f"{kop_deel}.{inhoud_deel}".encode("ascii")
+    verwacht = base64.urlsafe_b64encode(
+        hmac.new(geheim.encode("utf-8"), bericht, hashlib.sha256).digest()
+    ).decode("ascii").rstrip("=")
+    if not hmac.compare_digest(verwacht, handtekening_deel.rstrip("=")):
+        return None
+
+    nu = time.time()
+    try:
+        if float(inhoud.get("exp", 0)) < nu - speling_seconden:
+            return None
+        if float(inhoud.get("nbf", 0)) > nu + speling_seconden:
+            return None
+    except (TypeError, ValueError):
+        return None
+
+    # Voor welke app is dit kaartje bedoeld.
+    doel = inhoud.get("aud")
+    if isinstance(doel, list):
+        if api_key not in doel:
+            return None
+    elif doel != api_key:
+        return None
+
+    # Afzender en bestemming moeten dezelfde winkel zijn.
+    afzender = _hostnaam(inhoud.get("iss"))
+    bestemming = _hostnaam(inhoud.get("dest"))
+    if not afzender or afzender != bestemming:
+        return None
+    if not geldige_winkel(bestemming):
+        return None
+
+    inhoud["winkel"] = bestemming
+    return inhoud
+
+
+def wissel_id_token(winkel, id_token):
+    """Ruilt het kaartje in voor de echte sleutel van deze winkel.
+
+    Vraagt bewust een blijvende sleutel (offline), want Krillo meet ook 's
+    nachts door als er niemand in het beheerscherm zit. Een sleutel die aan een
+    ingelogde gebruiker hangt is dan waardeloos.
+
+    Roep dit ALLEEN aan nadat controleer_id_token gelukt is."""
+    api_key, geheim = _sleutels()
+    winkel = _schoon(winkel)
+    if not api_key or not geheim:
+        return {"gelukt": False, "fout": waarom_niet()}
+    if not geldige_winkel(winkel):
+        return {"gelukt": False, "fout": f"Geen geldig winkeladres: {winkel!r}"}
+
+    try:
+        antwoord = requests.post(
+            f"https://{winkel}/admin/oauth/access_token",
+            json={
+                "client_id": api_key,
+                "client_secret": geheim,
+                "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+                "subject_token": id_token,
+                "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+                "requested_token_type":
+                    "urn:shopify:params:oauth:token-type:offline-access-token",
+            },
+            timeout=20,
+        )
+        if antwoord.status_code >= 300:
+            return {"gelukt": False,
+                    "fout": f"Shopify gaf {antwoord.status_code}: {antwoord.text[:200]}"}
+        gegevens = antwoord.json()
+        sleutel = gegevens.get("access_token")
+        if not sleutel:
+            return {"gelukt": False, "fout": "Shopify gaf geen toegangssleutel terug."}
+        return {"gelukt": True, "sleutel": sleutel,
+                "rechten": gegevens.get("scope") or SCOPES}
+    except Exception as e:
+        return {"gelukt": False, "fout": f"{type(e).__name__}: {e}"[:300]}
+
+
 def _kop(sleutel):
     return {"X-Shopify-Access-Token": sleutel, "Content-Type": "application/json"}
 

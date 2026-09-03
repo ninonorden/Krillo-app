@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Krillo</title>
+<meta name="robots" content="noindex">
+{# App Bridge moet als ALLEREERSTE script staan en van het adres van Shopify
+   zelf komen, met onze client id erbij. Zet je hem lager of host je hem zelf,
+   dan werkt het scherm binnen het beheerscherm niet en word je afgekeurd. #}
+<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="{{ api_key }}"></script>
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+    --body:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;
+       -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:720px; margin:0 auto; padding:28px 20px 80px;}
+  .merk{display:flex; align-items:center; gap:8px; font-weight:700; font-size:17px;
+        margin-bottom:22px;}
+  .stip{width:9px; height:9px; background:var(--coral); border-radius:50%;}
+  h1{font-size:26px; font-weight:700; letter-spacing:-0.01em; margin-bottom:8px;}
+  .onder{color:var(--ink-soft); font-size:15px; margin-bottom:24px;}
+
+  .kaart{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+         padding:24px; margin-bottom:16px;}
+  .cijfer{font-size:40px; font-weight:700; line-height:1.1;}
+  .cijfer span{font-size:17px; color:var(--ink-soft); font-weight:500;}
+  .toelichting{font-size:14px; color:var(--ink-soft); margin-top:6px;}
+
+  button{font-family:var(--body); font-size:15px; font-weight:600; padding:12px 22px;
+         border:none; border-radius:9px; background:var(--ink); color:#fff; cursor:pointer;}
+  button:disabled{opacity:0.6; cursor:default;}
+
+  .bezig{background:var(--amber-dim); color:#7A4E00; border-radius:12px; padding:16px 18px;
+         font-size:14.5px; margin-bottom:16px;}
+  .misgegaan{background:var(--coral-dim); color:#8C1E15; border-radius:12px; padding:16px 18px;
+             font-size:14.5px; margin-bottom:16px;}
+
+  .taak{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+        padding:22px 24px; margin-bottom:14px;}
+  .taak-titel{font-size:17px; font-weight:600; margin-bottom:6px;}
+  .merkje{font-family:var(--mono); font-size:9.5px; text-transform:uppercase;
+          letter-spacing:0.05em; padding:3px 8px; border-radius:100px; margin-left:8px;
+          vertical-align:middle;}
+  .merkje.feit{background:var(--coral); color:#fff;}
+  .merkje.vermoeden{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .label{font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+         letter-spacing:0.06em; color:var(--ink-soft); margin:16px 0 6px;}
+  .plak{position:relative; background:#12142B; color:#EDEDF5; border-radius:10px; padding:16px;
+        font-family:var(--mono); font-size:12.5px; line-height:1.7; white-space:pre-wrap;
+        word-break:break-word; max-height:280px; overflow:auto;}
+  .kopieer{position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.14); color:#fff;
+           border:none; border-radius:6px; padding:5px 11px; font-size:11px; cursor:pointer;}
+  .kopieer.gelukt{background:var(--teal); color:#04322B;}
+  .waar{font-size:14px; line-height:1.7; white-space:pre-line; background:var(--paper);
+        border-radius:10px; padding:14px 16px;}
+  .concurrenten{font-size:14px; color:var(--ink-soft); line-height:1.9;}
+  .concurrenten b{color:var(--ink);}
+  .voet{font-size:12.5px; color:var(--ink-soft); margin-top:26px; line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="merk"><span class="stip"></span>Krillo</div>
+
+  {% if not vermeldingen %}
+    {# Nog nooit gemeten. Eén knop, en verder niets waar iemand op kan klikken. #}
+    <h1>Noemt ChatGPT jouw winkel?</h1>
+    <p class="onder">We stellen straks echte koopvragen aan ChatGPT en Gemini, van het
+      soort dat jouw klanten stellen, en kijken of jouw winkel in het antwoord staat.
+      De eerste meting duurt een paar minuten. Je kunt dit scherm ondertussen sluiten.</p>
+
+    <div id="bezigblok" style="display:none;" class="bezig">
+      <span id="bezigtekst">We beginnen...</span>
+    </div>
+    <div id="foutblok" style="display:none;" class="misgegaan">
+      <span id="fouttekst"></span>
+    </div>
+
+    <button id="metenknop">Meet mijn winkel</button>
+
+  {% else %}
+    <h1>Je wordt genoemd bij {{ vermeldingen.genoemd }} van de {{ vermeldingen.telbaar }} koopvragen</h1>
+    <p class="onder">
+      {% if laatste and laatste.aangemaakt_op %}Laatst gemeten op {{ laatste.aangemaakt_op.strftime('%d-%m-%Y') }}.{% endif %}
+      We tellen per vraag, niet per antwoord.
+    </p>
+
+    <div id="bezigblok" style="display:none;" class="bezig">
+      <span id="bezigtekst">We beginnen...</span>
+    </div>
+    <div id="foutblok" style="display:none;" class="misgegaan">
+      <span id="fouttekst"></span>
+    </div>
+
+    {% if vermeldingen.concurrenten %}
+    <div class="kaart">
+      <div class="label">Winkels die bij dezelfde vragen genoemd worden</div>
+      <div class="concurrenten">
+        {% for c in vermeldingen.concurrenten[:6] %}
+        <div><b>{{ c.naam }}</b>{% if c.wij %} (jij){% endif %} · genoemd bij {{ c.genoemd }} {% if c.genoemd == 1 %}vraag{% else %}vragen{% endif %}</div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if actieplan and actieplan.acties %}
+    <h1 style="font-size:20px; margin-top:32px; margin-bottom:14px;">Wat je hieraan kunt doen</h1>
+    {% for a in actieplan.acties %}
+    <div class="taak">
+      <div class="taak-titel">{{ a.titel }}<span class="merkje {{ a.soort }}">{{ a.soort }}</span></div>
+      {% if a.oplossing %}
+      <div class="label">Neem dit letterlijk over</div>
+      <div class="plak"><button type="button" class="kopieer" data-doel="p{{ loop.index }}">Kopieer</button><span id="p{{ loop.index }}">{{ a.oplossing }}</span></div>
+      {% endif %}
+      <div class="label">{% if a.waar %}Waar zet je dit neer{% else %}Wat je doet{% endif %}</div>
+      <div class="waar">{{ a.waar or a.hoe }}</div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <button id="metenknop">Opnieuw meten</button>
+  {% endif %}
+
+  <div class="voet">
+    Krillo stelt de vragen echt aan ChatGPT en Gemini en leest de antwoorden na. We tellen
+    per vraag en niet per antwoord, en we tonen aantallen en geen percentages, want bij
+    kleine aantallen suggereert een percentage een precisie die er niet is.
+  </div>
+</div>
+
+<script>
+(function(){
+  var knop = document.getElementById('metenknop');
+  var bezigBlok = document.getElementById('bezigblok');
+  var bezigTekst = document.getElementById('bezigtekst');
+  var foutBlok = document.getElementById('foutblok');
+  var foutTekst = document.getElementById('fouttekst');
+  var kijken = null;
+
+  // Bij elk verzoek een VERS kaartje ophalen. Een kaartje is een minuut geldig,
+  // dus eentje hergebruiken tijdens een meting van vijf minuten gaat gegarandeerd
+  // mis. Daarom hier ophalen en niet ergens bewaren.
+  function metKaartje(doen){
+    if (!window.shopify || !window.shopify.idToken) {
+      toonFout('Dit scherm hoort geopend te worden vanuit je Shopify-beheerscherm.');
+      return;
+    }
+    window.shopify.idToken().then(doen).catch(function(){
+      toonFout('We konden je niet herkennen. Ververs de pagina.');
+    });
+  }
+
+  function toonFout(tekst){
+    if (kijken) { clearInterval(kijken); kijken = null; }
+    bezigBlok.style.display = 'none';
+    foutTekst.textContent = tekst;
+    foutBlok.style.display = 'block';
+    knop.disabled = false;
+    knop.textContent = 'Probeer opnieuw';
+  }
+
+  function toonStand(stand){
+    if (!stand) { return; }
+    if (stand.mislukt) { toonFout(stand.tekst); return; }
+    if (stand.klaar) {
+      if (kijken) { clearInterval(kijken); kijken = null; }
+      bezigTekst.textContent = 'Klaar. Een moment, we halen je uitkomst op.';
+      window.location.reload();
+      return;
+    }
+    foutBlok.style.display = 'none';
+    bezigBlok.style.display = 'block';
+    bezigTekst.textContent = 'Bezig: ' + stand.tekst;
+  }
+
+  function kijkenNaarStand(){
+    metKaartje(function(kaartje){
+      fetch('/shopify/api/stand', {headers: {'Authorization': 'Bearer ' + kaartje}})
+        .then(function(r){ return r.json(); })
+        .then(function(d){ toonStand(d.stand); })
+        .catch(function(){ /* eén mislukte peiling is geen ramp, we proberen zo weer */ });
+    });
+  }
+
+  if (knop) {
+    knop.addEventListener('click', function(){
+      knop.disabled = true;
+      knop.textContent = 'Bezig...';
+      foutBlok.style.display = 'none';
+      bezigBlok.style.display = 'block';
+      bezigTekst.textContent = 'We beginnen...';
+
+      metKaartje(function(kaartje){
+        fetch('/shopify/api/meten', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + kaartje, 'Content-Type': 'application/json'}
+        })
+        .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
+        .then(function(res){
+          if (!res.ok) { toonFout(res.data.error || 'Het lukte niet om te beginnen.'); return; }
+          toonStand(res.data.stand);
+          if (!kijken) { kijken = setInterval(kijkenNaarStand, 5000); }
+        })
+        .catch(function(){ toonFout('Er ging iets mis. Probeer het zo nogmaals.'); });
+      });
+    });
+  }
+
+  // Liep er al een meting toen je dit scherm opende, dan pikken we die op.
+  {% if stand and not stand.klaar %}
+  bezigBlok.style.display = 'block';
+  knop.disabled = true;
+  knop.textContent = 'Bezig...';
+  kijkenNaarStand();
+  kijken = setInterval(kijkenNaarStand, 5000);
+  {% endif %}
+
+  document.querySelectorAll('.kopieer').forEach(function(k){
+    k.addEventListener('click', function(){
+      var doel = document.getElementById(k.dataset.doel);
+      if (!doel) return;
+      navigator.clipboard.writeText(doel.innerText).then(function(){
+        k.textContent = 'Gekopieerd';
+        k.classList.add('gelukt');
+        setTimeout(function(){ k.textContent = 'Kopieer'; k.classList.remove('gelukt'); }, 2000);
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
