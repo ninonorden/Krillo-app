@@ -30,14 +30,29 @@ MODEL = "claude-sonnet-4-6"
 
 # De soorten vragen die kopers stellen. Per soort minstens een paar vragen,
 # zodat we een eerlijk beeld krijgen en niet alleen meten op een smal stukje.
-INTENTIES = [
-    ("algemeen", "Iemand zoekt het beste product in deze categorie, zonder verdere eisen."),
-    ("prijs", "Iemand zoekt binnen een bepaald budget, of juist het goedkoopste of het beste voor de prijs."),
-    ("doelgroep", "Iemand zoekt iets voor een specifieke situatie of persoon, bijvoorbeeld voor beginners, voor kinderen, of voor intensief gebruik."),
-    ("alternatief", "Iemand zoekt een alternatief voor een bekend merk of product."),
-    ("winkel", "Iemand zoekt niet een product maar een betrouwbare Nederlandse of Belgische webshop om het te kopen."),
-    ("praktisch", "Iemand let op levertijd, retourneren, voorraad of garantie, maar vraagt WEL naar een winkel die dat goed geregeld heeft. Dus niet 'hoe lang duurt levering', wel 'welke Nederlandse webshop levert servies het snelst'."),
-]
+# De namen van de intenties zijn vast; alleen de uitleg past zich aan aan het
+# land van de winkel. Die namen staan namelijk in de database en in de
+# bronanalyse, dus die mogen nooit veranderen.
+INTENTIE_NAMEN = ["algemeen", "prijs", "doelgroep", "alternatief", "winkel", "praktisch"]
+
+
+def intenties(landnaam="Nederlandse"):
+    """De soorten vragen die kopers stellen, met het land van de winkel erin.
+
+    Stond hier eerst als vaste lijst met "Nederlandse" erin gebakken. Daardoor
+    kreeg een Amerikaanse winkel vragen over Nederlandse webshops."""
+    return [
+        ("algemeen", "Iemand zoekt het beste product in deze categorie, zonder verdere eisen."),
+        ("prijs", "Iemand zoekt binnen een bepaald budget, of juist het goedkoopste of het beste voor de prijs."),
+        ("doelgroep", "Iemand zoekt iets voor een specifieke situatie of persoon, bijvoorbeeld voor beginners, voor kinderen, of voor intensief gebruik."),
+        ("alternatief", "Iemand zoekt een alternatief voor een bekend merk of product."),
+        ("winkel", f"Iemand zoekt niet een product maar een betrouwbare {landnaam} webshop om het te kopen."),
+        ("praktisch", f"Iemand let op levertijd, retourneren, voorraad of garantie, maar vraagt WEL naar een winkel die dat goed geregeld heeft. Dus niet 'hoe lang duurt levering', wel 'welke {landnaam} webshop levert servies het snelst'."),
+    ]
+
+
+# Blijft bestaan voor code die de oude lijst gebruikt.
+INTENTIES = intenties()
 
 
 def _get_client():
@@ -69,7 +84,8 @@ def _haal_winkelinfo_op(webshop_url, extra_paginas=None):
     return "\n\n".join(stukken) if stukken else ""
 
 
-def genereer_koopvragen(webshop_url, extra_paginas=None, aantal=30):
+def genereer_koopvragen(webshop_url, extra_paginas=None, aantal=30,
+                        taal="Nederlands", landnaam="Nederlandse"):
     """Laat een agent bepalen wat deze webshop verkoopt, en daaruit de
     koopvragen afleiden die mensen aan een AI-assistent stellen.
 
@@ -83,7 +99,8 @@ def genereer_koopvragen(webshop_url, extra_paginas=None, aantal=30):
     if not winkelinfo:
         return None
 
-    intentie_uitleg = "\n".join(f"- {naam}: {uitleg}" for naam, uitleg in INTENTIES)
+    intentie_uitleg = "\n".join(f"- {naam}: {uitleg}"
+                                for naam, uitleg in intenties(landnaam))
     per_intentie = max(2, aantal // len(INTENTIES))
 
     prompt = f"""Je helpt bij het meten of een webshop wordt aanbevolen door AI-assistenten.
@@ -99,9 +116,10 @@ Verdeel de vragen over deze soorten koopintenties, ongeveer {per_intentie} per s
 {intentie_uitleg}
 
 Belangrijke regels:
-- Schrijf de vragen zoals een gewoon mens ze typt, in het Nederlands. Dus
-  "welke wandelschoenen zijn goed voor brede voeten" en niet "wandelschoenen
-  brede voeten kopen".
+- SCHRIJF DE VRAGEN IN HET {taal}. Dat is de taal van de klanten van deze
+  winkel, en in die taal worden ze straks aan ChatGPT gesteld. Schrijf ze
+  zoals een gewoon mens ze typt, dus als hele vraag en niet als rijtje
+  zoekwoorden.
 - Noem de naam van deze webshop NIET in de vragen. We willen meten of de shop
   uit zichzelf genoemd wordt, niet of AI de naam kan herhalen.
 - Maak de vragen niet te breed. "Wat is een goede webshop" zegt niets. Maak ze
@@ -114,8 +132,8 @@ Belangrijke regels:
   of merk noemen? Zo nee, bedenk een andere vraag.
 - Zorg dat de vragen echt van elkaar verschillen. Dertig varianten van dezelfde
   vraag meten niets.
-- Als de winkel duidelijk op Nederland of Belgie gericht is, laat dat in een
-  deel van de vragen terugkomen.
+- Laat in een deel van de vragen terugkomen dat de koper een {landnaam}
+  winkel zoekt, want daar zit deze webshop.
 
 Antwoord ALLEEN met geldige JSON, in dit formaat, niets ervoor of erna:
 
@@ -316,7 +334,7 @@ inhoudelijk op lijkt:
 {bestaande}
 
 Belangrijke regels:
-- Schrijf ze zoals een gewoon mens ze typt, in het Nederlands.
+- Schrijf ze in dezelfde taal als de vragen die er al zijn.
 - Noem de naam van deze webshop NIET in de vragen.
 - Elke vraag moet om een aanbeveling vragen: een winkel, een merk of een
   product. Geen vragen waar alleen algemene uitleg uit komt.

@@ -173,6 +173,11 @@ def init_db():
                     );
                 """)
                 cur.execute("ALTER TABLE winkelprofielen ADD COLUMN IF NOT EXISTS platform TEXT;")
+                # In welke taal en voor welk land we deze winkel meten. Zonder
+                # dit kreeg elke winkel Nederlandse koopvragen, ook een winkel
+                # in Texas.
+                cur.execute("ALTER TABLE winkelprofielen ADD COLUMN IF NOT EXISTS taal TEXT;")
+                cur.execute("ALTER TABLE winkelprofielen ADD COLUMN IF NOT EXISTS land TEXT;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS ai_antwoorden (
                         id SERIAL PRIMARY KEY,
@@ -2077,6 +2082,36 @@ def zichtbaarheidstest_leads(limit=200):
     except Exception as e:
         print(f"Leads ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+def zet_markt(webshop_url, taal, land):
+    """Bewaart in welke taal en voor welk land we deze winkel meten.
+
+    Komt bij Shopify uit de winkel zelf. Bij een winkel die via krillo.nl
+    binnenkomt weten we het niet, en dan blijft het leeg en valt alles terug op
+    Nederlands, precies zoals het altijd al werkte."""
+    if not webshop_url or (not taal and not land):
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO winkelprofielen (webshop_url, taal, land)
+                       VALUES (%s, %s, %s)
+                       ON CONFLICT (webshop_url) DO UPDATE
+                       SET taal = coalesce(EXCLUDED.taal, winkelprofielen.taal),
+                           land = coalesce(EXCLUDED.land, winkelprofielen.land)""",
+                    (webshop_url, taal or None, land or None),
+                )
+        return True
+    except Exception as e:
+        print(f"Markt bewaren mislukt voor {webshop_url}: {e}")
+        return False
     finally:
         conn.close()
 

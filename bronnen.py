@@ -140,6 +140,9 @@ MAX_PAGINATEKENS = int(os.environ.get("BRONNEN_MAX_PAGINATEKENS", "60000"))
 # HOOFDLETTERS (NL) en de taalcode in kleine letters (nl). Dat door elkaar
 # halen levert een afgekeurd verzoek op, en dat ziet er hetzelfde uit als een
 # zoekopdracht die niets vindt. Google Custom Search wil juist allebei klein.
+# Waar we standaard zoeken. Per winkel kan dit anders zijn: een winkel in
+# Texas moet in Amerikaanse zoekresultaten gezocht worden, niet in Nederlandse.
+# De aanroeper geeft land en taal mee; deze twee zijn alleen de terugval.
 ZOEK_LAND = os.environ.get("BRONNEN_LAND", "NL").strip()
 ZOEK_TAAL = os.environ.get("BRONNEN_TAAL", "nl").strip().lower()
 
@@ -186,7 +189,7 @@ def _wacht_je_beurt():
     _laatste_zoekopdracht[0] = time.monotonic()
 
 
-def _zoek_brave(vraag):
+def _zoek_brave(vraag, land=None, taal=None):
     resp = requests.get(
         "https://api.search.brave.com/res/v1/web/search",
         headers={
@@ -199,8 +202,12 @@ def _zoek_brave(vraag):
             # levert een afgekeurd verzoek op, en dat is niet te onderscheiden
             # van een zoekopdracht zonder resultaten.
             "count": min(MAX_RESULTATEN, 20),
-            "country": ZOEK_LAND.upper(),
-            "search_lang": ZOEK_TAAL,
+            # LET OP: land in HOOFDLETTERS en taal in kleine letters. Andersom
+            # geeft Brave stilletjes niets terug, en dat is niet te
+            # onderscheiden van een zoekopdracht zonder resultaten. Die fout
+            # hebben we in augustus al een keer gemaakt.
+            "country": (land or ZOEK_LAND).upper(),
+            "search_lang": (taal or ZOEK_TAAL).lower(),
         },
         timeout=30,
     )
@@ -217,7 +224,7 @@ def _zoek_brave(vraag):
     return uit
 
 
-def _zoek_google(vraag):
+def _zoek_google(vraag, land=None, taal=None):
     resp = requests.get(
         "https://www.googleapis.com/customsearch/v1",
         params={
@@ -227,8 +234,8 @@ def _zoek_google(vraag):
             # Google staat hoogstens 10 resultaten per verzoek toe, en wil land
             # en taal juist allebei in kleine letters.
             "num": min(MAX_RESULTATEN, 10),
-            "gl": ZOEK_LAND.lower(),
-            "hl": ZOEK_TAAL,
+            "gl": (land or ZOEK_LAND).lower(),
+            "hl": (taal or ZOEK_TAAL).lower(),
         },
         timeout=30,
     )
@@ -248,7 +255,7 @@ def _zoek_google(vraag):
 _ZOEKERS = {"brave": _zoek_brave, "google": _zoek_google}
 
 
-def zoek(vraag, webshop_url=None):
+def zoek(vraag, webshop_url=None, land=None, taal=None):
     """Eén zoekopdracht, met de kosten erbij geregistreerd.
 
     Geeft altijd een lijst terug, ook bij een storing. Een zoekmachine die
@@ -261,7 +268,7 @@ def zoek(vraag, webshop_url=None):
     gestart = time.monotonic()
     try:
         _wacht_je_beurt()
-        resultaten = zoeker(vraag)
+        resultaten = zoeker(vraag, land=land, taal=taal)
         gelukt, foutsoort = True, None
     except Exception as e:
         resultaten = []
@@ -317,7 +324,7 @@ def _normaliseer(tekst):
     return " ".join(laag.split())
 
 
-def test_zoekmachine(vraag=None, webshop_url=None):
+def test_zoekmachine(vraag=None, webshop_url=None, land=None, taal=None):
     """Eén losse zoekopdracht, met de echte foutmelding erbij.
 
     Voor de beheerpagina. Levert de bronanalyse niets op, dan wil je als eerste
@@ -335,7 +342,7 @@ def test_zoekmachine(vraag=None, webshop_url=None):
     gestart = time.monotonic()
     try:
         _wacht_je_beurt()
-        resultaten = zoeker(vraag)
+        resultaten = zoeker(vraag, land=land, taal=taal)
         gelukt, fout = True, None
     except Exception as e:
         resultaten, gelukt = [], False
@@ -544,7 +551,8 @@ def kies_concurrenten(klantbeeld, grens=None):
     return [c["naam"] for c in lijst[:grens] if c.get("naam")]
 
 
-def analyseer(webshop_url, klantbeeld, winkelnaam=None, meting_id=None, melden=None):
+def analyseer(webshop_url, klantbeeld, winkelnaam=None, meting_id=None, melden=None,
+              land=None, taal=None):
     """De hele bronanalyse voor één webshop.
 
     Geeft een lijst vindplaatsen terug: per externe pagina wie erop staat.
@@ -583,7 +591,7 @@ def analyseer(webshop_url, klantbeeld, winkelnaam=None, meting_id=None, melden=N
             break
 
         zeg(f"externe bronnen zoeken ({nummer} van {len(vragen)})")
-        resultaten = zoek(vraag, webshop_url=webshop_url)
+        resultaten = zoek(vraag, webshop_url=webshop_url, land=land, taal=taal)
         if not resultaten:
             continue
 

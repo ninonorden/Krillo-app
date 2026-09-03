@@ -36,6 +36,7 @@ import verklaring
 import waarschuwing
 import zichtbaarheid
 import benchmark
+import markt
 import shopify_app
 
 app = Flask(__name__)
@@ -908,13 +909,29 @@ def rapport(token):
     )
 
 
+def _markt_van(webshop_url):
+    """In welke taal en voor welk land we deze winkel meten.
+
+    Weten we het niet, dan komt er Nederlands uit, want dat is wat Krillo altijd
+    al deed en wat voor alle bestaande klanten klopt."""
+    try:
+        profiel = db.get_winkelprofiel(webshop_url) or {}
+        return markt.bepaal(profiel.get("taal"), profiel.get("land"))
+    except Exception as e:
+        print(f"Markt ophalen mislukt voor {webshop_url}: {e}")
+        return markt.bepaal(None, None)
+
+
 def _genereer_koopvragen_achtergrond(webshop_url, vervang=False):
     """Draait op de achtergrond, want scannen plus vragen bedenken duurt een
     minuut of meer. De pagina hoeft daar niet op te wachten."""
     try:
         scan_result = run_scan(webshop_url)
         extra = scan_result.get("gevonden_paginas") if "error" not in scan_result else None
-        resultaat = koopvragen.genereer_koopvragen(webshop_url, extra)
+        m = _markt_van(webshop_url)
+        print(f"Koopvragen voor {webshop_url} in {markt.omschrijving(m)}.")
+        resultaat = koopvragen.genereer_koopvragen(
+            webshop_url, extra, taal=m["taal"], landnaam=m["land"])
         if resultaat is None:
             print(f"Koopvragen genereren mislukt voor {webshop_url}")
             return
@@ -1365,9 +1382,15 @@ def _zoek_bronnen(webshop_url, meting_id=None, winkelnaam=None, melden=None):
         _zet_bronnen_status(webshop_url,
                             f"Bezig: {len(vragen)} vragen natrekken bij {len(concurrenten)} concurrenten.")
 
+        # In het land van de winkel zoeken. Een winkel in Texas moet in
+        # Amerikaanse zoekresultaten gezocht worden; zoeken we daar met de
+        # Nederlandse instelling, dan vinden we pagina's waar hij nooit op zou
+        # staan en klopt de hele bronanalyse niet.
+        m = _markt_van(webshop_url)
         vindplaatsen = bronnen.analyseer(
             webshop_url, klantbeeld, winkelnaam=winkelnaam,
             meting_id=meting_id, melden=melden,
+            land=m["zoek_land"], taal=m["zoek_taal"],
         )
         if vindplaatsen:
             # Eerst weg wat er van deze ronde stond, dan pas bewaren. Anders
@@ -2159,6 +2182,7 @@ def _shopify_scherm(winkel, rij):
         actieplan=gegevens.get("actieplan"),
         bronnen=gegevens.get("bronnen"),
         laatste=laatste,
+        markt=_markt_van(webshop_url) if webshop_url else None,
         stand=_shopify_status.get(winkel),
     )
 
@@ -2196,6 +2220,11 @@ def _shopify_uit_kaartje(id_token, winkel_uit_link=None):
     db.bewaar_shopify_winkel(winkel, sleutel, rechten=uitkomst.get("rechten"),
                              webshop_url=webshop_url, email=gegevens.get("email"),
                              naam=gegevens.get("naam"))
+    # Shopify vertelt ons de taal en het land van de winkel. Dat leggen we
+    # meteen vast, want zonder dat krijgt een winkel in Texas Nederlandse
+    # koopvragen. Dit moet gebeuren VOORDAT er gemeten wordt.
+    if webshop_url:
+        db.zet_markt(webshop_url, gegevens.get("taal"), gegevens.get("land"))
     threading.Thread(target=shopify_app.meld_webhooks_aan,
                      args=(winkel, sleutel, get_base_url()), daemon=True).start()
     return winkel, db.get_shopify_winkel(winkel)
