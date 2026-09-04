@@ -227,15 +227,19 @@ zoals een koper ze zou stellen, en laat zien bij hoeveel vragen de webshop genoe
 wordt en welke andere winkels er in het antwoord staan. De betaalde
 audit schrijft voor elk verbeterpunt een oplossing uit: herschreven teksten voor de
 producten van die specifieke webshop, en technische code die de eigenaar kan plakken.
-Het monitoring-abonnement scant elke week automatisch opnieuw.
+Wil de eigenaar het niet zelf doen, dan voert Krillo de verbeteringen zelf uit in zijn
+webshop, met achteraf een overzicht van elke wijziging en de oude tekst erbij zodat
+alles terug te draaien is. Het monitoring-abonnement meet elke week opnieuw.
 
 ## Voor wie
-Eigenaren van webshops in Nederland en Belgie die dit zelf regelen, zonder
-marketingbureau en zonder technische kennis.
+Eigenaren van webshops in Nederland en Belgie, zonder marketingbureau en zonder
+technische kennis. Ze kunnen het zelf doen met de uitgeschreven oplossingen, of het
+door Krillo laten uitvoeren.
 
 ## Prijzen
 - Gratis scan: 0 euro, geen account nodig
-- Volledige audit: 79 euro eenmalig
+- Volledige audit: 79 euro eenmalig, alle oplossingen uitgeschreven om zelf te doen
+- Wij doen het: 149 euro eenmalig, Krillo voert de verbeteringen uit in de webshop
 - Monitoring: 39 euro per maand, maandelijks opzegbaar
 
 ## Belangrijke pagina's
@@ -244,6 +248,7 @@ marketingbureau en zonder technische kennis.
 - Hoe we meten: https://www.krillo.nl/zo-meten-we
 - Veelgestelde vragen: https://www.krillo.nl/veelgestelde-vragen
 - Over Krillo en contact: https://www.krillo.nl/over-ons
+- Onderzoek naar AI-antwoorden over Nederlandse webshops: https://www.krillo.nl/onderzoek
 
 ## Artikelen
 """ + "\n".join(
@@ -848,6 +853,13 @@ def monitoring_pagina(klant_token):
     laatste = rapporten[0] if rapporten else None
     vorige = rapporten[1] if len(rapporten) > 1 else None
 
+    # Loopt er echt een abonnement? Een klant die alleen de uitvoering van 149
+    # euro kocht krijgt dezelfde pagina, en die las tot nu toe "je betaalt 39
+    # euro per maand" met een opzegknop eronder. Dat is een onjuiste mededeling
+    # over een betalingsverplichting, en het is precies het soort fout waar
+    # iemand zijn geld voor terugvraagt.
+    abonnement = any((r.get("type") or "") == "monitoring" for r in rapporten)
+
     verschil = None
     nieuwe_problemen = []
     checks_by_categorie = {}
@@ -890,6 +902,7 @@ def monitoring_pagina(klant_token):
         checks_by_categorie=checks_by_categorie,
         uitvoering=_laatste_uitvoering(klant["webshop_url"]),
         wijzigingen=db.get_wijzigingen(klant["webshop_url"]),
+        abonnement=abonnement,
         status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
     )
 
@@ -1886,6 +1899,7 @@ def admin_voorbeeld():
         checks_by_categorie=checks_by_categorie,
         uitvoering=_laatste_uitvoering(webshop_url),
         wijzigingen=db.get_wijzigingen(webshop_url),
+        abonnement=True,
         status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
     )
 

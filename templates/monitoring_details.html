@@ -512,12 +512,23 @@
     </div>
     {% endif %}
 
-    {% if not voorbeeld %}
+    {# BEWUST afhankelijk van of er echt een abonnement loopt. Wie alleen de
+       uitvoering van 149 euro kocht las hier "je betaalt 39 euro per maand"
+       met een opzegknop eronder, en dat is een onjuiste mededeling over een
+       betalingsverplichting. #}
+    {% if not voorbeeld and abonnement %}
     <div class="opzeg">
       <strong>Je abonnement</strong>
       <p>Je betaalt 39 euro per maand, maandelijks opzegbaar. Zeg je op, dan houd je toegang tot het einde van de periode die je al betaald hebt en wordt er daarna niets meer afgeschreven.</p>
       <button class="opzeg-knop" id="opzegKnop">Mijn abonnement opzeggen</button>
       <div class="opzeg-melding" id="opzegMelding"></div>
+    </div>
+    {% elif not voorbeeld %}
+    <div class="opzeg">
+      <strong>Je hebt eenmalig betaald</strong>
+      <p>Er loopt geen abonnement en er wordt niets van je afgeschreven. Wil je wel
+        blijven meten, dan kan dat voor 39 euro per maand, maandelijks opzegbaar.</p>
+      <a class="opzeg-knop" href="/#prijzen" style="display:inline-block; text-decoration:none;">Bekijk monitoring</a>
     </div>
     {% else %}
     <div class="opzeg">

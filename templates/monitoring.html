@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wat je deze week doet — Krillo</title>
+{# De titel in het tabblad hoort hetzelfde te zeggen als de kop. Wie de
+   uitvoering kocht las hier ook "wat je deze week doet", en dat is precies
+   het huiswerk waarvoor hij betaald heeft om het niet te hoeven doen. #}
+<title>{% if uitvoering and uitvoering.stand != 'opgeleverd' %}We zijn met je webshop bezig{% elif uitvoering and not abonnement %}Wat wij voor je gedaan hebben{% else %}Wat je deze week doet{% endif %} — Krillo</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -147,6 +150,8 @@
     <div class="eyebrow">{{ webshop_url }}</div>
     {% if uitvoering and uitvoering.stand != 'opgeleverd' %}
     <h1>Wij zijn met je webshop bezig</h1>
+    {% elif uitvoering and not abonnement %}
+    <h1>Wat wij voor je gedaan hebben</h1>
     {% else %}
     <h1>Wat je deze week doet</h1>
     {% endif %}
@@ -268,10 +273,14 @@
       Er is deze ronde geen bruikbare meting uit de AI-modellen gekomen, dus we laten liever
       niets zien dan een cijfer waar je niets aan hebt. We proberen het bij de volgende ronde
       opnieuw. Je vorige metingen staan gewoon nog onder "Alle metingen en cijfers".
-      {% else %}
+      {% elif abonnement %}
       <strong>De eerste meting loopt nog</strong>
       We stellen deze week koopvragen aan ChatGPT en Gemini om te zien of jouw winkel genoemd
       wordt. Zodra dat klaar is staat hier wat je kan doen. Reken op ongeveer een kwartier.
+      {% else %}
+      <strong>Er is nog niet gemeten</strong>
+      Bij een eenmalige opdracht meten we niet doorlopend. Wil je elke week weten of AI je
+      winkel noemt, dan kan dat met monitoring voor 39 euro per maand.
       {% endif %}
     </div>
     {% endif %}
@@ -282,12 +291,23 @@
       zijn en alle dertien controlepunten van je site.</span>
     </a>
 
-    {% if not voorbeeld %}
+    {# BEWUST afhankelijk van of er echt een abonnement loopt. Wie alleen de
+       uitvoering van 149 euro kocht las hier "je betaalt 39 euro per maand"
+       met een opzegknop eronder, en dat is een onjuiste mededeling over een
+       betalingsverplichting. #}
+    {% if not voorbeeld and abonnement %}
     <div class="opzeg">
       <strong>Je abonnement</strong>
       <p>Je betaalt 39 euro per maand, maandelijks opzegbaar. Zeg je op, dan houd je toegang tot het einde van de periode die je al betaald hebt en wordt er daarna niets meer afgeschreven.</p>
       <button class="opzeg-knop" id="opzegKnop">Mijn abonnement opzeggen</button>
       <div class="opzeg-melding" id="opzegMelding"></div>
+    </div>
+    {% elif not voorbeeld %}
+    <div class="opzeg">
+      <strong>Je hebt eenmalig betaald</strong>
+      <p>Er loopt geen abonnement en er wordt niets van je afgeschreven. Wil je wel
+        blijven meten, dan kan dat voor 39 euro per maand, maandelijks opzegbaar.</p>
+      <a class="opzeg-knop" href="/#prijzen" style="display:inline-block; text-decoration:none;">Bekijk monitoring</a>
     </div>
     {% else %}
     <div class="opzeg">

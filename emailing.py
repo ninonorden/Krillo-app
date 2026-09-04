@@ -274,6 +274,30 @@ TOEGANG_UITLEG = {
       <li>Maak een gebruiker aan op toegang@krillo.nl met de rol Beheerder.</li>
       <li>Vink aan dat WordPress de gebruiker een mail stuurt.</li>
       <li>Als we klaar zijn kun je die gebruiker gewoon verwijderen.</li>""",
+    "Lightspeed": """
+      <li>Ga in je Lightspeed-beheerscherm naar Instellingen en dan Gebruikers.</li>
+      <li>Klik op een nieuwe gebruiker toevoegen en vul toegang@krillo.nl in.</li>
+      <li>Geef die gebruiker rechten op producten, pagina's en instellingen. Rechten op
+          bestellingen en klanten heb je ons niet te geven, die hebben we niet nodig.</li>
+      <li>Als we klaar zijn kun je de gebruiker verwijderen.</li>""",
+    "Shopware": """
+      <li>Ga in je Shopware-beheerscherm naar Instellingen, Systeem, Gebruikers en rechten.</li>
+      <li>Maak een gebruiker aan op toegang@krillo.nl.</li>
+      <li>Geef die gebruiker rechten op producten en inhoud. Bestellingen en klanten
+          hoeven niet.</li>
+      <li>Als we klaar zijn kun je de gebruiker verwijderen.</li>""",
+    "CCV Shop": """
+      <li>Ga in je CCV Shop-beheerscherm naar Instellingen en dan Gebruikers.</li>
+      <li>Maak een gebruiker aan op toegang@krillo.nl.</li>
+      <li>Geef die gebruiker rechten op producten en pagina's. Bestellingen en klanten
+          hoeven niet.</li>
+      <li>Als we klaar zijn kun je de gebruiker verwijderen.</li>""",
+    "PrestaShop": """
+      <li>Ga in je PrestaShop-beheerscherm naar Geavanceerde instellingen, Team.</li>
+      <li>Maak een medewerker aan op toegang@krillo.nl.</li>
+      <li>Geef die medewerker rechten op catalogus en ontwerp. Bestellingen en klanten
+          hoeven niet.</li>
+      <li>Als we klaar zijn kun je de medewerker verwijderen.</li>""",
 }
 
 TOEGANG_ALGEMEEN = """
@@ -477,7 +501,7 @@ def send_weekly_update_email(to_email, webshop_url, scan_result, report_url=None
             <div style="background:#DFF5F1; border-radius:10px; padding:16px 18px; margin-bottom:16px;">
               <strong style="font-size:15px; color:#085041;">Gestegen van {vorige_score} naar {score}</strong>
               <p style="font-size:13.5px; color:#085041; margin:6px 0 0;">
-                Je aanpassingen werken. AI kan je webshop nu beter vinden en begrijpen.
+                Op je pagina zie je welke punten er beter staan dan vorige week.
               </p>
             </div>
             """

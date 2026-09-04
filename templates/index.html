@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Krillo: wordt jouw webshop aanbevolen door ChatGPT en Gemini?</title>
 <meta name="google-site-verification" content="-rhhZoHmZMYdIbtYgGXCj-Zg4FY0j0lSAQdJOPTtEwQ" />
-<meta name="description" content="Krillo scant je webshop en laat zien of AI-assistenten zoals ChatGPT en Gemini je vinden en aanbevelen. Gratis scan, en een audit die de verbeterpunten voor je oplost. Voor Nederlandse en Belgische webshops.">
+<meta name="description" content="Krillo scant je webshop en laat zien of AI-assistenten zoals ChatGPT en Gemini je vinden en aanbevelen. Gratis scan, en wij lossen de verbeterpunten voor je op in je webshop. Voor Nederlandse en Belgische webshops.">
 <link rel="canonical" href="https://www.krillo.nl/">
 
 <meta property="og:type" content="website">
@@ -27,7 +27,7 @@
   "name": "Krillo",
   "url": "https://www.krillo.nl",
   "email": "hallo@krillo.nl",
-  "description": "Krillo laat webshop-eigenaren zien of AI-assistenten zoals ChatGPT en Gemini hun webshop vinden en aanbevelen, en lost de verbeterpunten op.",
+  "description": "Krillo laat webshop-eigenaren zien of AI-assistenten zoals ChatGPT en Gemini hun webshop vinden en aanbevelen, en lost de verbeterpunten voor je op in je webshop.",
   "address": {
     "@type": "PostalAddress",
     "streetAddress": "Gerard Doustraat 22-3V",
@@ -49,6 +49,7 @@
   "offers": [
     {"@type": "Offer", "name": "Gratis scan", "price": "0", "priceCurrency": "EUR"},
     {"@type": "Offer", "name": "Volledige audit", "price": "79", "priceCurrency": "EUR"},
+    {"@type": "Offer", "name": "Wij doen het", "price": "149", "priceCurrency": "EUR"},
     {"@type": "Offer", "name": "Monitoring", "price": "39", "priceCurrency": "EUR"}
   ]
 }
@@ -637,7 +638,8 @@
       <a href="#hoe">Hoe het werkt</a>
       <a href="#voorbeeld">Voorbeeld</a>
       <a href="#monitoring">Monitoring</a>
-      <a href="#prijzen">Prijzen</a>
+      <a href="#wij-doen-het">Wij doen het</a>
+    <a href="#prijzen">Prijzen</a>
       <a href="/zo-meten-we">Zo meten we</a>
       <a href="/artikelen">Artikelen</a>
     </div>
@@ -660,7 +662,7 @@
     </div>
 
     <div class="sim-card" id="simCard">
-      <div class="sim-topbar"><span class="sim-dot"></span>Live gesimuleerd AI-antwoord</div>
+      <div class="sim-topbar"><span class="sim-dot"></span>Voorbeeld van een AI-antwoord</div>
       <div class="sim-query">"beste sneakers webshop nederland"</div>
       <div class="sim-answer" id="simAnswer"></div>
       <div class="sim-badge missed" id="simBadge">niet genoemd</div>
@@ -855,7 +857,7 @@
       </div>
       <div class="rapport-demo-body">
         <div class="taken-demo-kop">Wat je deze week doet</div>
-        <div class="taken-demo-stand">Je wordt genoemd bij 4 van de 22 koopvragen.</div>
+        <div class="taken-demo-stand">Je wordt genoemd bij 4 van de 30 koopvragen.</div>
 
         <div class="taak-demo">
           <span class="taak-demo-num">1</span>
@@ -1026,6 +1028,7 @@
         <a href="/#scan">Gratis scan</a>
         <a href="/#hoe">Hoe het werkt</a>
         <a href="/#voorbeeld">Voorbeeld</a>
+        <a href="/#wij-doen-het">Wij doen het</a>
         <a href="/#monitoring">Monitoring</a>
         <a href="/#prijzen">Prijzen</a>
       </div>
@@ -1096,7 +1099,6 @@
   var before = "Voor sneakers in Nederland raad ik meestal aan om te kijken bij ";
   var missedBrand = "Sneakerbaas of Solebox";
   var after = ", die een breed assortiment en snelle levering bieden.";
-  var foundBrand = "JouwShop.nl";
 
   function typeText(el, text, speed, cb){
     var i = 0;
@@ -1113,6 +1115,15 @@
     step();
   }
 
+  // BEWUST GEEN "na"-staat meer waarin JouwShop.nl wel genoemd wordt.
+  //
+  // Die animatie liet zien dat ChatGPT je winkel na Krillo aanbeveelt, en dat
+  // kunnen we niet waarmaken. Het staat zelfs met zoveel woorden uitgesloten in
+  // onze eigen voorwaarden. Er stond bovendien een verzonnen zin in waarin
+  // ChatGPT een Krillo-score noemde; dat gebeurt nooit.
+  //
+  // Wat er nu staat is wat we echt doen: de vraag stellen en laten zien wie er
+  // in het antwoord voorkomt en wie niet.
   function run(){
     answerEl.textContent = '';
     badgeEl.style.opacity = 0;
@@ -1129,27 +1140,7 @@
       answerEl.appendChild(restSpan);
       typeText(restSpan, after, 22, function(){
         badgeEl.style.opacity = 1;
-        setTimeout(function(){
-          badgeEl.style.opacity = 0;
-          setTimeout(function(){
-            answerEl.innerHTML = '';
-            var b = document.createElement('span');
-            b.textContent = before;
-            answerEl.appendChild(b);
-            var found = document.createElement('span');
-            found.textContent = foundBrand;
-            found.style.color = '#1FB6A4';
-            found.style.fontWeight = '600';
-            answerEl.appendChild(found);
-            var a = document.createElement('span');
-            a.textContent = after.replace('bieden', 'bieden, met een AI-leesbaarheid van 94 van 100');
-            answerEl.appendChild(a);
-            badgeEl.className = 'sim-badge found';
-            badgeEl.textContent = 'wel genoemd';
-            badgeEl.style.opacity = 1;
-            setTimeout(run, 4200);
-          }, 500);
-        }, 1600);
+        setTimeout(function(){ badgeEl.style.opacity = 0; setTimeout(run, 900); }, 3400);
       });
     });
   }
