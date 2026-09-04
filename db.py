@@ -178,6 +178,22 @@ def init_db():
                 # in Texas.
                 cur.execute("ALTER TABLE winkelprofielen ADD COLUMN IF NOT EXISTS taal TEXT;")
                 cur.execute("ALTER TABLE winkelprofielen ADD COLUMN IF NOT EXISTS land TEXT;")
+                # Het kenmerk waarmee een gemeten winkel zijn eigen uitkomst
+                # opent. Alleen voor winkels uit de benchmark, en bewust niet
+                # hetzelfde kenmerk als dat van een betalende klant.
+                cur.execute("ALTER TABLE winkelprofielen "
+                            "ADD COLUMN IF NOT EXISTS benchmark_token TEXT;")
+                # Het adres waarop we de eigenaar van een gemeten winkel
+                # bereiken, en of we hem al bericht hebben. Dat laatste is geen
+                # bijzaak: twee keer dezelfde mail naar een winkelier die er
+                # niet om vroeg is het verschil tussen een onderzoek en spam.
+                cur.execute("ALTER TABLE winkelprofielen "
+                            "ADD COLUMN IF NOT EXISTS contact_email TEXT;")
+                cur.execute("ALTER TABLE winkelprofielen "
+                            "ADD COLUMN IF NOT EXISTS onderzoeksmail_op TIMESTAMPTZ;")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS winkelprofielen_bmtoken "
+                            "ON winkelprofielen (benchmark_token) "
+                            "WHERE benchmark_token IS NOT NULL;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS ai_antwoorden (
                         id SERIAL PRIMARY KEY,
@@ -2082,6 +2098,117 @@ def zichtbaarheidstest_leads(limit=200):
     except Exception as e:
         print(f"Leads ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+def get_benchmark_token(webshop_url, maak_aan=True):
+    """Het vaste kenmerk waarmee een gemeten winkel zijn eigen uitkomst opent.
+
+    Bewust GEEN klant_token: dat hangt aan een betalende klant en geeft toegang
+    tot de klantpagina met alles erop. Dit is een eigen, kortere weg naar één
+    leesbare pagina, en het bestaat alleen voor winkels die we in de benchmark
+    gemeten hebben.
+
+    Het kenmerk is niet te raden, want de link gaat naar iemand die er niet om
+    gevraagd heeft en die hem kan doorsturen."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT benchmark_token FROM winkelprofielen
+                                WHERE webshop_url = %s""", (webshop_url,))
+                rij = cur.fetchone()
+                if rij and rij.get("benchmark_token"):
+                    return rij["benchmark_token"]
+                if not maak_aan:
+                    return None
+                token = uuid.uuid4().hex
+                cur.execute(
+                    """INSERT INTO winkelprofielen (webshop_url, benchmark_token)
+                       VALUES (%s, %s)
+                       ON CONFLICT (webshop_url) DO UPDATE
+                       SET benchmark_token = coalesce(winkelprofielen.benchmark_token,
+                                                      EXCLUDED.benchmark_token)
+                       RETURNING benchmark_token""",
+                    (webshop_url, token),
+                )
+                uit = cur.fetchone()
+                return (uit or {}).get("benchmark_token") or token
+    except Exception as e:
+        print(f"Benchmark-token ophalen mislukt voor {webshop_url}: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def zet_contact_email(webshop_url, email):
+    """Het adres waarop we de eigenaar van een gemeten winkel bereiken."""
+    if not webshop_url or not email:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO winkelprofielen (webshop_url, contact_email)
+                       VALUES (%s, %s)
+                       ON CONFLICT (webshop_url) DO UPDATE
+                       SET contact_email = EXCLUDED.contact_email""",
+                    (webshop_url, email.strip()),
+                )
+        return True
+    except Exception as e:
+        print(f"Contactadres bewaren mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def markeer_onderzoeksmail(webshop_url):
+    """Legt vast dat deze winkel bericht heeft gehad.
+
+    Alleen als het er nog niet stond. Zo kan dezelfde knop twee keer ingedrukt
+    worden zonder dat de datum verspringt, en zie je altijd wanneer iemand voor
+    het eerst iets van ons hoorde."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE winkelprofielen
+                                  SET onderzoeksmail_op = coalesce(onderzoeksmail_op, now())
+                                WHERE webshop_url = %s""", (webshop_url,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Onderzoeksmail vastleggen mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def winkel_bij_benchmark_token(token):
+    """Welke winkel hoort bij dit kenmerk. None als het niet bestaat."""
+    if not token:
+        return None
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT webshop_url FROM winkelprofielen
+                                WHERE benchmark_token = %s""", (token,))
+                rij = cur.fetchone()
+                return (rij or {}).get("webshop_url")
+    except Exception as e:
+        print(f"Winkel bij benchmark-token zoeken mislukt: {e}")
+        return None
     finally:
         conn.close()
 

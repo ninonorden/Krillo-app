@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Onderzoeksmail bij Krillo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:1000px; margin:0 auto; padding:40px 24px 90px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:14px; margin-bottom:20px; font-family:var(--mono);}
+  a{color:#D42E22;}
+  .melding{background:var(--teal-dim); color:#085041; padding:10px 14px; border-radius:8px;
+           font-size:13.5px; margin-bottom:18px;}
+  .uitleg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+          padding:16px 20px; font-size:13.5px; color:var(--ink-soft); margin-bottom:22px;
+          line-height:1.7;}
+  .uitleg b{color:var(--ink);}
+  .kaart{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+         padding:16px 18px; margin-bottom:10px;}
+  .kaart.gemaild{border-left:4px solid var(--teal);}
+  .kop{display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+       flex-wrap:wrap; margin-bottom:6px;}
+  .winkel{font-family:var(--disp); font-weight:600; font-size:16px;}
+  .cijfer{font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
+  form{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px;}
+  input[type=email]{flex:1; min-width:220px; font-family:var(--body); font-size:13.5px;
+    padding:8px 10px; border:1px solid var(--line); border-radius:8px;}
+  button{font-family:var(--body); font-size:13.5px; font-weight:600; padding:8px 16px;
+    border:none; border-radius:8px; background:var(--ink); color:#fff; cursor:pointer;}
+  button.licht{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .link{font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); margin-top:6px;
+        word-break:break-all;}
+  .leeg{padding:40px; text-align:center; color:var(--ink-soft); background:var(--paper-raised);
+        border-radius:12px; border:1px solid var(--line);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Onderzoeksmail</h1>
+  <div class="sub">{{ regels|length }} gemeten winkel(s)</div>
+
+  {% if melding %}<div class="melding">{{ melding }}</div>{% endif %}
+
+  <div class="uitleg">
+    <b>Hoe je dit gebruikt.</b> Zoek per winkel het mailadres van de eigenaar op, meestal
+    op zijn contactpagina. Vul het in, klik op Bewaren als je het alleen wil vastleggen,
+    of op Versturen als de mail eruit mag.<br><br>
+    <b>Eén voor één, met opzet.</b> Er is geen knop die alles ineens verstuurt. Zestig
+    mails tegelijk naar mensen die er niet om gevraagd hebben is precies het verschil
+    tussen een onderzoek en spam, en het is de snelste manier om je afzenderadres op een
+    zwarte lijst te krijgen. Spreid ze over de dag.<br><br>
+    <b>Wat er in die mail staat.</b> Zijn eigen uitkomst, de vergelijking met de rest, een
+    link naar zijn pagina, en hoe hij eraf komt. Geen verkooppraatje. Het aanbod staat op
+    de pagina, niet in de mail.
+  </div>
+
+  {% if not regels %}
+  <div class="leeg">Er zijn nog geen winkels gemeten. Draai eerst de benchmark via
+    <a href="/admin/demo?key={{ sleutel }}">de demopagina</a>.</div>
+  {% endif %}
+
+  {% for r in regels %}
+  <div class="kaart {% if r.gemaild_op %}gemaild{% endif %}">
+    <div class="kop">
+      <span class="winkel">{{ r.webshop_url }}</span>
+      <span class="cijfer">
+        genoemd bij {{ r.genoemd if r.genoemd is not none else '?' }} van de {{ r.vragen or '?' }}
+        {% if r.score is not none %}· score {{ r.score }}{% endif %}
+        {% if r.gemaild_op %}· gemaild op {{ r.gemaild_op.strftime('%d-%m-%Y') }}{% endif %}
+      </span>
+    </div>
+
+    <form method="post" action="/admin/onderzoeksmail?key={{ sleutel }}">
+      <input type="hidden" name="url" value="{{ r.webshop_url }}">
+      <input type="email" name="email" placeholder="mailadres van de eigenaar"
+             value="{{ r.email or '' }}">
+      <button type="submit" name="actie" value="bewaren" class="licht">Bewaren</button>
+      <button type="submit" name="actie" value="versturen">
+        {% if r.gemaild_op %}Nogmaals versturen{% else %}Versturen{% endif %}
+      </button>
+    </form>
+
+    {% if r.token %}
+    <div class="link">Zijn pagina: <a href="{{ basis }}/uitkomst/{{ r.token }}" target="_blank" rel="noopener">{{ basis }}/uitkomst/{{ r.token }}</a></div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+</body>
+</html>

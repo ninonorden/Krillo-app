@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jouw uitkomst — Krillo</title>
+{# Niet indexeren. Deze pagina gaat over één winkel met naam en toenaam, en die
+   hoort niet in Google te komen. #}
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.7;
+       -webkit-font-smoothing:antialiased;}
+  a{color:var(--coral-tekst);}
+  .wrap{max-width:680px; margin:0 auto; padding:0 24px;}
+  nav{border-bottom:1px solid var(--line);}
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:64px;}
+  .logo{font-family:var(--disp); font-weight:700; font-size:18px; display:flex;
+        align-items:center; gap:8px; color:var(--ink); text-decoration:none;}
+  .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
+  main{padding:44px 0 80px;}
+
+  .waarom{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+          padding:16px 20px; font-size:13.5px; color:var(--ink-soft); margin-bottom:32px;
+          line-height:1.65;}
+  .eyebrow{font-family:var(--mono); font-size:12px; color:var(--ink-soft); margin-bottom:10px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:32px; line-height:1.2;
+     letter-spacing:-0.015em; margin-bottom:12px;}
+  .datum{font-family:var(--mono); font-size:12px; color:var(--ink-soft); margin-bottom:30px;}
+  h2{font-family:var(--disp); font-weight:700; font-size:20px; margin:36px 0 12px;}
+  p{margin-bottom:14px;}
+
+  .vergelijk{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+             padding:24px 26px; margin-bottom:16px; font-size:16px;}
+  .vergelijk b{font-family:var(--disp);}
+  .lijst{font-size:15px; color:var(--ink-soft); line-height:2;}
+  .lijst b{color:var(--ink);}
+
+  .taak{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+        padding:20px 24px; margin-bottom:12px;}
+  .taak-titel{font-family:var(--disp); font-size:17px; font-weight:600;}
+  .taak p{font-size:14.5px; color:var(--ink-soft); margin:6px 0 0;}
+  .merkje{font-family:var(--mono); font-size:9.5px; text-transform:uppercase;
+          letter-spacing:0.05em; padding:3px 8px; border-radius:100px; margin-left:8px;
+          vertical-align:middle;}
+  .merkje.feit{background:var(--coral); color:#fff;}
+  .merkje.vermoeden{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+
+  .cta{background:var(--ink); color:#fff; border-radius:16px; padding:30px; margin-top:40px;}
+  .cta h2{color:#fff; margin-top:0;}
+  .cta p{color:#B9BBD4; font-size:15px;}
+  .cta a{display:inline-block; background:var(--coral); color:#fff; text-decoration:none;
+         padding:13px 26px; border-radius:9px; font-weight:600; font-size:15px; margin-top:8px;}
+  .cta .tweede{background:none; border:1px solid rgba(255,255,255,0.3); margin-left:8px;}
+  footer{border-top:1px solid var(--line); padding:24px 0; font-size:12.5px; color:var(--ink-soft);}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
+  <a href="/onderzoek" style="font-size:14px;">Het hele onderzoek</a>
+</div></nav>
+
+<main><div class="wrap">
+  {# Eerlijk zijn over waarom iemand deze link heeft. Dat is niet alleen netjes,
+     het is ook het verschil tussen een mail die gelezen wordt en een mail die
+     als spam wordt gemeld. #}
+  <div class="waarom">
+    Je krijgt deze pagina omdat {{ webshop_url }} is meegenomen in ons onderzoek naar
+    Nederlandse webshops in AI-antwoorden. We hebben alleen openbare informatie gebruikt
+    en niets van je site aangepast. Wil je dat we je uitkomst weghalen, mail dan
+    <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a> en het is dezelfde dag weg.
+  </div>
+
+  <div class="eyebrow">{{ webshop_url }}</div>
+
+  {% if vermeldingen %}
+  <h1>Je wordt genoemd bij {{ vermeldingen.genoemd }} van de {{ vermeldingen.telbaar }} koopvragen</h1>
+  <div class="datum">
+    {% if laatste and laatste.aangemaakt_op %}Gemeten op {{ laatste.aangemaakt_op.strftime('%d-%m-%Y') }}{% endif %}
+    · we tellen per vraag, niet per antwoord
+  </div>
+
+  {% if c and (c.gemeten or 0) >= 10 %}
+  <div class="vergelijk">
+    Ter vergelijking: van de <b>{{ c.gemeten }}</b> winkels die we maten werden er
+    <b>{{ c.nooit_genoemd }}</b> bij geen enkele koopvraag genoemd.
+    {% if vermeldingen.genoemd == 0 %}
+    Jij zit in die groep.
+    {% else %}
+    Jij zit daar niet bij.
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if vermeldingen.concurrenten %}
+  <h2>Winkels die bij dezelfde vragen wel genoemd worden</h2>
+  <div class="lijst">
+    {% for con in vermeldingen.concurrenten[:8] %}
+    <div><b>{{ con.naam }}</b>{% if con.wij %} (jij){% endif %} · genoemd bij {{ con.genoemd }} {% if con.genoemd == 1 %}vraag{% else %}vragen{% endif %}</div>
+    {% endfor %}
+  </div>
+  <p style="font-size:14px; color:var(--ink-soft); margin-top:12px;">Dit zijn precies
+    dezelfde vragen als die van jou. Er is dus niets aan de vraag dat jou uitsluit.</p>
+  {% endif %}
+
+  {% if actieplan and actieplan.acties %}
+  <h2>Wat er aan jouw kant opvalt</h2>
+  <p style="font-size:14.5px; color:var(--ink-soft);">Hoogstens drie dingen, op volgorde
+    van wat het meeste uitmaakt. Staat er <em>feit</em> bij, dan hebben we het gemeten.
+    Staat er <em>vermoeden</em> bij, dan is het onze lezing en zeggen we dat erbij in
+    plaats van te doen alsof we het zeker weten.</p>
+  {% for a in actieplan.acties %}
+  <div class="taak">
+    <div class="taak-titel">{{ a.titel }}<span class="merkje {{ a.soort }}">{{ a.soort }}</span></div>
+    <p>{{ a.waarom }}</p>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% else %}
+  <h1>De meting van {{ webshop_url }} is nog niet af</h1>
+  <p>We konden nog geen volledige uitkomst voor deze winkel vaststellen. Dat kan aan
+    onze kant liggen. Mail ons gerust, dan kijken we ernaar.</p>
+  {% endif %}
+
+  <div class="cta">
+    <h2>Wij kunnen dit voor je oplossen</h2>
+    <p>Je hoeft dit niet zelf uit te zoeken. Geef ons toegang tot je webshop, dan zetten
+      wij het erin: de veelgestelde vragen, je productinformatie zo opgeschreven dat AI
+      hem kan lezen, en de technische punten goed. Je krijgt achteraf een overzicht van
+      elke wijziging, met de oude tekst erbij, zodat je alles kunt terugzetten.</p>
+    <a href="/#prijzen">Laat het ons doen</a>
+    <a class="tweede" href="/onderzoek">Bekijk het onderzoek</a>
+  </div>
+</div></main>
+
+<footer><div class="wrap">
+  Krillo, Amsterdam · <a href="/privacybeleid">Privacy</a> ·
+  <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a>
+</div></footer>
+</body>
+</html>

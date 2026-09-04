@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Onderzoek: noemt AI Nederlandse webshops? — Krillo</title>
+<meta name="description" content="We stelden echte koopvragen aan ChatGPT en Gemini en keken welke Nederlandse webshops er in de antwoorden voorkwamen. De uitkomsten, met de methode erbij.">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --teal:#1FB6A4;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.7;
+       -webkit-font-smoothing:antialiased;}
+  a{color:var(--coral-tekst);}
+  .wrap{max-width:720px; margin:0 auto; padding:0 24px;}
+  nav{border-bottom:1px solid var(--line);}
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:64px;}
+  .logo{font-family:var(--disp); font-weight:700; font-size:18px; display:flex;
+        align-items:center; gap:8px; color:var(--ink); text-decoration:none;}
+  .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
+  main{padding:52px 0 90px;}
+  .eyebrow{font-family:var(--mono); font-size:12px; color:var(--ink-soft); margin-bottom:12px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:38px; line-height:1.15;
+     letter-spacing:-0.02em; margin-bottom:16px;}
+  .inleiding{font-size:18px; color:var(--ink-soft); margin-bottom:36px;}
+  h2{font-family:var(--disp); font-weight:700; font-size:23px; margin:44px 0 14px;}
+  p{margin-bottom:16px;}
+
+  .bevinding{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+             padding:24px 26px; margin-bottom:14px; font-size:17px; line-height:1.6;}
+  .bevinding b{font-family:var(--disp); font-size:20px;}
+
+  .cijfers{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:32px;}
+  @media(max-width:640px){ .cijfers{grid-template-columns:1fr;} }
+  .cijfer{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+          padding:22px 24px;}
+  .cijfer .getal{font-family:var(--disp); font-size:34px; font-weight:700; line-height:1;}
+  .cijfer .bij{font-size:13.5px; color:var(--ink-soft); margin-top:6px;}
+
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:20px;}
+  th{text-align:left; font-family:var(--mono); font-size:11px; text-transform:uppercase;
+     color:var(--ink-soft); padding:12px 16px; border-bottom:1px solid var(--line);
+     background:var(--paper);}
+  td{padding:12px 16px; font-size:14.5px; border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+
+  .methode{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+           padding:24px 26px; font-size:15px; color:var(--ink-soft);}
+  .methode h3{font-family:var(--disp); font-size:16px; color:var(--ink); margin-bottom:8px;}
+  .methode ul{list-style:none; line-height:1.9;}
+  .methode li::before{content:"– "; color:var(--coral);}
+
+  .cta{background:var(--ink); color:#fff; border-radius:16px; padding:32px; margin-top:44px;}
+  .cta h2{color:#fff; margin-top:0;}
+  .cta p{color:#B9BBD4; font-size:15.5px;}
+  .cta a{display:inline-block; background:var(--coral); color:#fff; text-decoration:none;
+         padding:13px 26px; border-radius:9px; font-weight:600; font-size:15px; margin-top:8px;}
+  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+        padding:32px; text-align:center; color:var(--ink-soft);}
+  footer{border-top:1px solid var(--line); padding:26px 0; font-size:13px; color:var(--ink-soft);}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
+  <a href="/#scan" style="font-size:14px;">Gratis scan</a>
+</div></nav>
+
+<main><div class="wrap">
+  <div class="eyebrow">Onderzoek · Krillo</div>
+  <h1>Noemt AI jouw webshop? Wij vroegen het aan ChatGPT en Gemini.</h1>
+  <p class="inleiding">Steeds meer kopers vragen niet meer aan Google waar ze iets
+    moeten kopen, maar aan een AI-assistent. Wij stelden echte koopvragen aan ChatGPT
+    en Gemini en keken welke Nederlandse webshops er in de antwoorden voorkwamen.
+    Hieronder wat eruit kwam, en hoe we het gemeten hebben.</p>
+
+  {% if (c.gemeten or 0) < 10 %}
+  <div class="leeg">
+    Dit onderzoek loopt nog. Er zijn tot nu toe {{ c.gemeten or 0 }} winkels gemeten,
+    en dat is te weinig om er iets over te zeggen dat standhoudt. Vanaf ongeveer dertig
+    winkels publiceren we de uitkomst hier.
+  </div>
+  {% else %}
+
+  <div class="cijfers">
+    <div class="cijfer">
+      <div class="getal">{{ c.gemeten }}</div>
+      <div class="bij">webshops gemeten</div>
+    </div>
+    <div class="cijfer">
+      <div class="getal">{{ c.nooit_genoemd }}</div>
+      <div class="bij">daarvan bij geen enkele koopvraag genoemd</div>
+    </div>
+    <div class="cijfer">
+      <div class="getal">{{ c.vragen_totaal }}</div>
+      <div class="bij">koopvragen gesteld</div>
+    </div>
+  </div>
+
+  <h2>Wat eruit kwam</h2>
+  {% for zin in zinnen %}
+  <div class="bevinding">{{ zin }}</div>
+  {% endfor %}
+
+  {% set bekend = platforms | selectattr('platform', 'ne', 'onbekend') | list %}
+  {% if bekend | length >= 2 %}
+  <h2>Per winkelplatform</h2>
+  <table>
+    <tr>
+      <th>Platform</th>
+      <th style="text-align:right">Gemeten</th>
+      <th style="text-align:right">Nooit genoemd</th>
+    </tr>
+    {% for p in bekend %}
+    <tr>
+      <td>{{ p.platform }}</td>
+      <td style="text-align:right">{{ p.gemeten }}</td>
+      <td style="text-align:right">{{ p.nooit_genoemd }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p style="font-size:14px; color:var(--ink-soft);">Let op bij het lezen: dit zijn
+    kleine aantallen. Een verschil tussen platforms kan net zo goed toeval zijn als een
+    patroon. We zetten er daarom geen percentages bij.</p>
+  {% endif %}
+
+  {% endif %}
+
+  <h2>Hoe we gemeten hebben</h2>
+  <div class="methode">
+    <h3>De methode, zodat je hem kan narekenen</h3>
+    <ul>
+      <li>Per winkel bepaalt een model eerst uit de eigen productpagina's wat die
+        winkel verkoopt en aan wie.</li>
+      <li>Daaruit komen koopvragen zoals een koper ze zelf typt. De naam van de
+        winkel staat er nooit in, want dan meet je of AI een naam kan herhalen.</li>
+      <li>Die vragen gaan naar ChatGPT en Gemini via hun eigen koppeling. Dat is niet
+        precies hetzelfde als wat een gebruiker in het chatvenster ziet, en dat zeggen
+        we erbij.</li>
+      <li>We tellen per vraag en niet per antwoord. Anders verdubbelen de cijfers
+        zodra er twee modellen meedoen.</li>
+      <li>Genoemd worden en aanbevolen worden tellen we apart. Dat is niet hetzelfde.</li>
+      <li>We publiceren aantallen en geen percentages. Bij deze aantallen suggereert
+        een percentage een precisie die er niet is.</li>
+      <li>Namen van individuele winkels publiceren we niet. Het patroon gaat naar
+        buiten, de losse winkel blijft binnen.</li>
+    </ul>
+  </div>
+
+
+  <div class="cta">
+    <h2>Wil je weten hoe jouw winkel het doet?</h2>
+    <p>De gratis scan laat binnen een minuut zien of AI je site kan lezen, en stelt
+      meteen drie echte koopvragen. Geen account, geen betaalgegevens.</p>
+    <a href="/#scan">Doe de gratis scan</a>
+  </div>
+</div></main>
+
+<footer><div class="wrap">
+  Krillo, Amsterdam · <a href="/">krillo.nl</a> ·
+  <a href="/zo-meten-we">Zo meten we</a> ·
+  Vragen over dit onderzoek? <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a>
+</div></footer>
+</body>
+</html>

@@ -375,6 +375,54 @@ def send_oplevering(to_email, webshop_url, wijzigingen, monitoring_url=None):
     return send_email(to_email, f"Klaar: wat we aangepast hebben aan {webshop_url}", html)
 
 
+def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
+                        telbaar=None, nooit_genoemd=None, gemeten=None):
+    """De mail aan een webshop die we in het onderzoek gemeten hebben.
+
+    Dit is geen verkoopmail en zo hoort hij ook niet te lezen. Er staat één
+    uitkomst in die over hem gaat, waar hij hem kan bekijken, en hoe hij eraf
+    komt. Het aanbod staat op de pagina, niet in de mail.
+
+    Waarom dat verschil ertoe doet: iemand die niet om deze mail gevraagd heeft
+    leest de eerste twee zinnen en beslist dan of het spam is. Begin je met wat
+    je verkoopt, dan is het spam. Begin je met zijn eigen cijfer, dan niet."""
+    if not to_email or not uitkomst_url:
+        print("Onderzoeksmail niet verstuurd: adres of link ontbreekt.")
+        return False
+
+    if genoemd is not None and telbaar:
+        kern = (f"Bij <strong>{genoemd} van de {telbaar}</strong> koopvragen kwam "
+                f"{webshop_url} in het antwoord voor.")
+    else:
+        kern = f"We hebben {webshop_url} meegenomen in de meting."
+
+    vergelijking = ""
+    if nooit_genoemd is not None and gemeten:
+        vergelijking = (f"<p style=\"font-size:14.5px;\">Ter vergelijking: van de "
+                        f"{gemeten} winkels die we maten werden er {nooit_genoemd} bij "
+                        f"geen enkele vraag genoemd.</p>")
+
+    body = f"""
+    <p style="font-size:14.5px;">We onderzoeken welke Nederlandse webshops door
+      ChatGPT en Gemini genoemd worden als iemand vraagt waar hij iets moet kopen.
+      Jouw winkel zat in die meting.</p>
+    <p style="font-size:15px;">{kern}</p>
+    {vergelijking}
+    <p style="font-size:14.5px;">Op de pagina hieronder staat je eigen uitkomst: bij
+      hoeveel vragen je genoemd werd, welke winkels er bij diezelfde vragen wel uitkwamen,
+      en wat er aan jouw kant opvalt. Geen account nodig.</p>
+    {_score_button(uitkomst_url, "Bekijk je uitkomst")}
+    <p style="font-size:13px; color:#3B3D57; margin-top:26px;">
+      Je krijgt deze mail omdat je winkel in ons onderzoek zit. We hebben alleen
+      openbare informatie gebruikt en niets aan je site veranderd. Wil je dat we je
+      uitkomst weghalen, antwoord dan op deze mail en het is dezelfde dag weg.</p>
+    """
+    html = _base_html(
+        "Je webshop zat in ons onderzoek naar AI-antwoorden",
+        f"Wat ChatGPT en Gemini wel en niet over {webshop_url} zeggen.", body)
+    return send_email(to_email, f"{webshop_url} in ons onderzoek naar AI-antwoorden", html)
+
+
 def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None):
     score = scan_result.get("score", 0)
     body = f"""

@@ -157,8 +157,17 @@ def pagina_niet_gevonden(e):
 
 @app.route("/robots.txt")
 def robots_txt():
+    # LET OP: één groep per User-agent. Twee keer "User-agent: *" in hetzelfde
+    # bestand is precies de fout waar Krillo bij klanten op controleert: de
+    # meeste robots pakken dan alleen de eerste groep en negeren de tweede, en
+    # dan staan de privépagina's alsnog open. Nieuwe verboden horen dus hier
+    # bij de eerste groep en niet onderaan in een tweede.
     inhoud = """User-agent: *
 Allow: /
+Disallow: /uitkomst/
+Disallow: /monitoring/
+Disallow: /rapport/
+Disallow: /admin/
 
 User-agent: GPTBot
 Allow: /
@@ -187,8 +196,10 @@ def sitemap_xml():
     # erbij weet hij meteen wat nieuw is, en dat is precies wat je wil op het
     # moment dat je artikelen toevoegt.
     nieuwste = max([a["datum"] for a in artikelen.ARTIKELEN] or ["2026-08-01"])
+    # /uitkomst/<token> staat hier BEWUST niet in. Die pagina's gaan over één
+    # winkel met naam en toenaam en horen niet in Google.
     vast = ["/", "/artikelen", "/zo-meten-we", "/veelgestelde-vragen",
-            "/over-ons", "/voorwaarden", "/privacybeleid", "/herroepen"]
+            "/onderzoek", "/over-ons", "/voorwaarden", "/privacybeleid", "/herroepen"]
     regels = [(p, nieuwste) for p in vast]
     regels += [(f"/artikelen/{a['slug']}", a["datum"]) for a in artikelen.ARTIKELEN]
     urls = "".join(
@@ -1660,6 +1671,135 @@ def admin_demo():
                            wachtrij=len(_demo_wachtrij),
                            bezig=any(w["status"] and w["status"] not in ("klaar",)
                                      and not w["status"].startswith("mislukt") for w in winkels))
+
+
+@app.route("/admin/onderzoeksmail", methods=["GET", "POST"])
+def admin_onderzoeksmail():
+    """De gemeten winkels, met per winkel de link naar zijn eigen uitkomst en
+    een knop om hem die te mailen.
+
+    Bewust één voor één en geen knop die alles ineens verstuurt. Zestig mails
+    tegelijk naar mensen die er niet om gevraagd hebben is precies het verschil
+    tussen een onderzoek en spam, en het is ook de snelste manier om je
+    mailadres bij Brevo op een zwarte lijst te krijgen."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "Niet gevonden.", 404
+
+    melding = None
+    if request.method == "POST":
+        webshop_url = scan_engine.normalize_url((request.form.get("url") or "").strip())
+        email = (request.form.get("email") or "").strip()
+        actie = (request.form.get("actie") or "bewaren").strip()
+
+        if not webshop_url:
+            melding = "Er ontbrak een winkel."
+        elif not email or not _EMAIL_VORM.match(email):
+            melding = "Vul een geldig e-mailadres in."
+        else:
+            db.zet_contact_email(webshop_url, email)
+            if actie != "versturen":
+                melding = f"Adres bewaard bij {webshop_url}."
+            else:
+                token = db.get_benchmark_token(webshop_url)
+                if not token:
+                    melding = "Er kon geen link gemaakt worden. Probeer het nog eens."
+                else:
+                    gegevens = _klantgegevens(webshop_url)
+                    v = gegevens.get("vermeldingen") or {}
+                    c = benchmark.tel_op(db.benchmark_regels())
+                    verstuurd = emailing.send_onderzoeksmail(
+                        email, webshop_url, f"{get_base_url()}/uitkomst/{token}",
+                        genoemd=v.get("genoemd"), telbaar=v.get("telbaar"),
+                        nooit_genoemd=c.get("nooit_genoemd"), gemeten=c.get("gemeten"))
+                    if verstuurd:
+                        db.markeer_onderzoeksmail(webshop_url)
+                        melding = f"Verstuurd naar {email}."
+                    else:
+                        # BEWUST niet als verstuurd markeren. Anders sla je hem
+                        # over bij de volgende ronde terwijl hij niets gehad
+                        # heeft.
+                        melding = ("De mail is NIET verstuurd. Kijk in de logs van "
+                                   "Render waarom, en probeer het opnieuw.")
+
+    regels = []
+    for r in db.benchmark_regels():
+        url = r.get("webshop_url")
+        profiel = db.get_winkelprofiel(url) or {}
+        regels.append({
+            "webshop_url": url,
+            "genoemd": r.get("genoemd"),
+            "vragen": r.get("vragen"),
+            "score": r.get("score"),
+            "email": profiel.get("contact_email"),
+            "gemaild_op": profiel.get("onderzoeksmail_op"),
+            "token": profiel.get("benchmark_token"),
+        })
+
+    return render_template(
+        "admin_onderzoeksmail.html",
+        regels=regels,
+        melding=melding,
+        basis=get_base_url(),
+        sleutel=admin_key,
+    )
+
+
+@app.route("/onderzoek")
+def onderzoek():
+    """De publieke uitkomst van de benchmark.
+
+    Dit is geen verkooppagina maar een onderzoek. Er staan aantallen in en geen
+    namen van winkels: het patroon gaat naar buiten, de losse winkel blijft
+    binnen. Dat is ook precies waarom een gemeten winkelier hem durft te openen
+    en waarom een vakblad hem durft over te nemen.
+
+    De cijfers komen uit dezelfde optelling als de beheerpagina, zodat er nooit
+    twee verschillende uitkomsten in omloop zijn."""
+    regels = db.benchmark_regels()
+    cijfers = benchmark.tel_op(regels)
+    platforms = benchmark.per_platform(regels)
+    return render_template(
+        "onderzoek.html",
+        c=cijfers,
+        platforms=platforms,
+        zinnen=benchmark.kernzinnen(cijfers, platforms),
+        # Geen winkelnamen mee naar de sjabloon. Wat er niet is kan er ook niet
+        # per ongeluk op komen te staan.
+    )
+
+
+@app.route("/uitkomst/<token>")
+def uitkomst(token):
+    """De eigen uitkomst van een winkel die wij in de benchmark gemeten hebben.
+
+    Deze link gaat naar iemand die er niet om gevraagd heeft. Daarom drie
+    dingen: het kenmerk is niet te raden, de pagina wordt niet geïndexeerd, en
+    er staat bovenaan waarom hij deze mail kreeg en hoe hij eraf komt.
+
+    Bewust geen actielijst met kant-en-klare teksten. Dat is het betaalde deel.
+    Hier staat wat we gemeten hebben en hoe hij het doet ten opzichte van de
+    rest, en dat is genoeg om te willen weten wat je eraan doet."""
+    webshop_url = db.winkel_bij_benchmark_token(token)
+    if not webshop_url:
+        return render_template(
+            "fout.html", titel="Deze link werkt niet meer",
+            bericht="Vraag ons om een nieuwe, of doe de gratis scan op de homepage."), 404
+
+    gegevens = _klantgegevens(webshop_url)
+    laatste = (db.get_rapporten_voor_webshop(webshop_url) or [None])[0]
+    cijfers = benchmark.tel_op(db.benchmark_regels())
+
+    return render_template(
+        "uitkomst.html",
+        webshop_url=webshop_url,
+        winkelnaam=_winkelnaam(webshop_url),
+        vermeldingen=gegevens["vermeldingen"],
+        actieplan=gegevens["actieplan"],
+        laatste=laatste,
+        c=cijfers,
+        token=token,
+    )
 
 
 @app.route("/admin/benchmark")
