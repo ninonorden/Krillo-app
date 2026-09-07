@@ -295,6 +295,21 @@ def _herkomst():
     return domein[:60]
 
 
+def _mailtaal(webshop_url):
+    """"nl" of "en" voor deze winkel.
+
+    Een winkel in Texas hoort geen Nederlandse weekmail te krijgen. De taal
+    staat in het winkelprofiel; is die onbekend, dan wordt het Nederlands, want
+    daar zit bijna elke klant."""
+    if not webshop_url:
+        return "nl"
+    try:
+        return "nl" if _markt_van(webshop_url)["is_nederlands"] else "en"
+    except Exception as e:
+        print(f"Taal bepalen mislukt voor {webshop_url}: {e}")
+        return "nl"
+
+
 def _sleutel_klopt(gegeven, verwacht):
     """Vergelijkt een sleutel zonder dat de duur iets verraadt.
 
@@ -778,7 +793,8 @@ def _verwerk_betaling(payment_id, base_url):
                 token = db.save_report("audit", webshop_url, email, scan_result.get("score", 0),
                                         scan_result.get("checks", []), fixes, payment_id)
                 report_url = f"{base_url}/rapport/{token}" if token else None
-                emailing.send_audit_email(email, webshop_url, scan_result, fixes, report_url)
+                emailing.send_audit_email(email, webshop_url, scan_result, fixes, report_url,
+                                          taal=_mailtaal(webshop_url))
 
         elif payment_type == "monitoring_first_payment":
             customer_id = metadata.get("customer_id")
@@ -813,7 +829,9 @@ def _verwerk_betaling(payment_id, base_url):
                     db.save_report("monitoring", webshop_url, email, scan_result.get("score", 0),
                                     scan_result.get("checks", []), None, payment_id, klant_token)
                     monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
-                    emailing.send_monitoring_welcome_email(email, webshop_url, scan_result, monitoring_url)
+                    emailing.send_monitoring_welcome_email(
+                        email, webshop_url, scan_result, monitoring_url,
+                        taal=_mailtaal(webshop_url))
 
                     # Meteen de eerste meting bij de AI-modellen, niet pas over
                     # een week. Een nieuwe klant die zeven dagen naar een lege
@@ -974,7 +992,8 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                 monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
 
                 emailing.send_weekly_update_email(
-                    c["email"], c["webshop_url"], scan_result, monitoring_url, vorige_score
+                    c["email"], c["webshop_url"], scan_result, monitoring_url, vorige_score,
+                    taal=_mailtaal(c["webshop_url"])
                 )
 
                 # Fase 5 stap 3: dezelfde ronde meteen gebruiken om de
@@ -1270,7 +1289,8 @@ def monitoring_pagina(klant_token):
         bronnen=gegevens["bronnen"],
         actieplan=gegevens["actieplan"],
         verklaring=verklaring.maak_verklaring(
-            laatste["checks"] if laatste else [], gegevens["vermeldingen"]),
+            laatste["checks"] if laatste else [], gegevens["vermeldingen"],
+            taal=_mailtaal(klant["webshop_url"])),
         webshop_url=klant["webshop_url"],
         klant_token=klant_token,
         laatste=laatste,
@@ -1626,7 +1646,8 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
         tekst = waarschuwing.bericht(webshop_url, beweging, controle_samenvatting)
         if tekst and email:
             monitoring_url = f"{base_url}/monitoring/{klant_token}" if (base_url and klant_token) else None
-            emailing.send_vermeldingen_update(email, webshop_url, tekst, monitoring_url)
+            emailing.send_vermeldingen_update(email, webshop_url, tekst, monitoring_url,
+                                              taal=_mailtaal(webshop_url))
     except Exception as e:
         print(f"Waarschuwing versturen mislukt voor {webshop_url}: {e}")
 
@@ -1908,13 +1929,14 @@ def _klantgegevens(webshop_url):
     # Weten we de markt niet, dan geeft _markt_van Nederlands terug, dus voor
     # bestaande klanten verandert er niets.
     m = _markt_van(webshop_url)
+    plantaal = "nl" if m["is_nederlands"] else "en"
     plan = actieplan.maak_actieplan(
-        verklaring=verklaring.maak_verklaring(checks, vermeldingen),
+        verklaring=verklaring.maak_verklaring(checks, vermeldingen, taal=plantaal),
         klantbeeld=vermeldingen,
         bronnen=bronnen_samenvatting,
         controle=controle_samenvatting,
         winkelnaam=winkelnaam,
-        taal="nl" if m["is_nederlands"] else "en",
+        taal=plantaal,
     )
 
     # De bewaarde oplossingen aan de taken hangen. Alleen lezen, nooit
@@ -2299,7 +2321,8 @@ def admin_voorbeeld():
         bronnen=gegevens["bronnen"],
         actieplan=gegevens["actieplan"],
         verklaring=verklaring.maak_verklaring(
-            laatste["checks"] if laatste else [], gegevens["vermeldingen"]),
+            laatste["checks"] if laatste else [], gegevens["vermeldingen"],
+            taal=_mailtaal(webshop_url)),
         laatste=laatste,
         verschil=verschil,
         verloop=list(reversed(rapporten))[-8:],
@@ -2382,6 +2405,7 @@ def admin_beoordelingen():
         verklaring=verklaring.maak_verklaring(
             (db.get_rapporten_voor_webshop(webshop_url) or [{}])[0].get("checks") or [],
             beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None,
+            taal=_mailtaal(webshop_url),
         ) if webshop_url else None,
     )
 

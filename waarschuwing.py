@@ -101,11 +101,16 @@ def _cijfers(regels):
     }
 
 
-def vergelijk(beoordelingen, eigen_naam=None):
+def vergelijk(beoordelingen, eigen_naam=None, taal="nl"):
     """Vergelijkt de laatste meetronde met de vorige.
+
+    taal is "nl" of "en", en gaat alleen over de duiding: de zin die de klant
+    leest. De cijfers, de drempel en of we iets melden zijn in beide talen
+    precies gelijk. Alles wat niet "en" is wordt Nederlands.
 
     Geeft None terug als er nog geen twee rondes zijn, want dan valt er niets
     te vergelijken en is elke melding een verzinsel."""
+    taal = "en" if taal == "en" else "nl"
     rondes = _rondes(beoordelingen)
     if len(rondes) < 2:
         return None
@@ -146,16 +151,25 @@ def vergelijk(beoordelingen, eigen_naam=None):
                     key=lambda b: b["verschil"])
 
     if not vergelijkbaar:
-        return {
-            "nu": nu, "toen": toen, "verschil": verschil,
-            "verschil_aanbevolen": verschil_aanbevolen,
-            "stijgers": [], "dalers": [], "melden": False, "vergelijkbaar": False,
-            "duiding": (
+        if taal == "en":
+            onvergelijkbaar = (
+                f"This measurement counted {nu['telbaar']} usable questions, the previous one "
+                f"{toen['telbaar']}. That gap is too big to put the two side by side fairly, so "
+                f"we are not saying yet whether you went up or down. From the next measurement on "
+                f"we can."
+            )
+        else:
+            onvergelijkbaar = (
                 f"Deze meting telde {nu['telbaar']} bruikbare vragen, de vorige "
                 f"{toen['telbaar']}. Dat verschil is te groot om de twee eerlijk naast elkaar te "
                 f"leggen, dus we zeggen nog niet of je gestegen of gedaald bent. Vanaf de volgende "
                 f"meting kan dat wel."
-            ),
+            )
+        return {
+            "nu": nu, "toen": toen, "verschil": verschil,
+            "verschil_aanbevolen": verschil_aanbevolen,
+            "stijgers": [], "dalers": [], "melden": False, "vergelijkbaar": False,
+            "duiding": onvergelijkbaar,
         }
 
     return {
@@ -167,12 +181,46 @@ def vergelijk(beoordelingen, eigen_naam=None):
         "dalers": dalers[:3],
         "vergelijkbaar": True,
         "melden": abs(verschil) >= DREMPEL or abs(verschil_aanbevolen) >= DREMPEL,
-        "duiding": _duiding(verschil, nu, toen, stijgers, dalers),
+        "duiding": _duiding(verschil, nu, toen, stijgers, dalers, taal),
     }
 
 
-def _duiding(verschil, nu, toen, stijgers, dalers):
+def _duiding_en(verschil, nu, toen, stijgers, dalers):
+    """De Engelse tegenhanger van _duiding. Dezelfde gevallen, dezelfde
+    volgorde, dezelfde grenzen."""
+    if abs(verschil) < DREMPEL:
+        return ("Your mentions stayed about the same. Small differences are normal: AI answers "
+                "vary from day to day without anything having changed.")
+
+    if verschil < 0:
+        totaal_nu = sum(nu["winkels"].values())
+        totaal_toen = sum(toen["winkels"].values())
+        if totaal_toen and totaal_nu < totaal_toen * 0.75:
+            return ("Almost every store is mentioned less this round, not just you. That points to "
+                    "a change at the AI models themselves and not to something you did wrong. "
+                    "Waiting to see what the next round does is the sensible thing here.")
+        if stijgers:
+            namen = ", ".join(s["naam"] for s in stijgers)
+            return (f"You are going down while {namen} is going up. That is the most useful "
+                    f"outcome: something changed in favour of those stores. Look at what they do "
+                    f"differently, for example new articles or listings on comparison sites.")
+        return ("You are going down without a competitor clearly going up. That can be down to a "
+                "change on your own site, or to normal variation. If it drops further next round, "
+                "something is really going on.")
+
+    if dalers:
+        namen = ", ".join(d["naam"] for d in dalers)
+        return (f"You are going up while {namen} is going down. You have gained ground on these "
+                f"stores.")
+    return ("You are mentioned more often than last round. The market as a whole has not shifted, "
+            "so this is a gain.")
+
+
+def _duiding(verschil, nu, toen, stijgers, dalers, taal="nl"):
     """De zin die eronder hoort: lag het aan jou of aan de markt?"""
+    if taal == "en":
+        return _duiding_en(verschil, nu, toen, stijgers, dalers)
+
     if abs(verschil) < DREMPEL:
         return ("Je vermeldingen zijn ongeveer gelijk gebleven. Kleine verschillen horen "
                 "erbij: AI-antwoorden wisselen van dag tot dag zonder dat er iets veranderd is.")
@@ -202,34 +250,61 @@ def _duiding(verschil, nu, toen, stijgers, dalers):
             "dus dit is winst.")
 
 
-def bericht(webshop_url, uitkomst, controle_samenvatting=None):
+def bericht(webshop_url, uitkomst, controle_samenvatting=None, taal="nl"):
     """Maakt de tekst voor de klant. Geen opsmuk, gewoon wat er veranderd is en
-    wat dat betekent. Geeft None terug als er niets te melden valt."""
+    wat dat betekent. Geeft None terug als er niets te melden valt.
+
+    taal is "nl" of "en". De duiding zit al in uitkomst en hoort dan in dezelfde
+    taal gemaakt te zijn, dus geef vergelijk() dezelfde taal mee.
+
+    De woorden "gone up" en "gone down" zijn niet vrijblijvend: de mail leest de
+    eerste zin om te bepalen of het goed of slecht nieuws is. Verander je ze
+    hier, verander ze dan ook in emailing.send_vermeldingen_update."""
     if not uitkomst or not uitkomst["melden"]:
         if not (controle_samenvatting and controle_samenvatting.get("klopt_niet")):
             return None
 
+    engels = taal == "en"
     regels = []
     if uitkomst and uitkomst["melden"]:
         verschil = uitkomst["verschil"]
         nu, toen = uitkomst["nu"], uitkomst["toen"]
-        richting = "gestegen" if verschil > 0 else "gedaald"
-        regels.append(
-            f"Je vermeldingen zijn {richting}: van {toen['genoemd']} naar {nu['genoemd']} "
-            f"van de {nu['telbaar']} vragen."
-        )
-        if uitkomst["verschil_aanbevolen"]:
+        if engels:
+            richting = "gone up" if verschil > 0 else "gone down"
             regels.append(
-                f"Je wordt nu bij {nu['aanbevolen']} vragen echt aanbevolen, vorige ronde waren "
-                f"dat er {toen['aanbevolen']}."
+                f"Your mentions have {richting}: from {toen['genoemd']} to {nu['genoemd']} "
+                f"of the {nu['telbaar']} questions."
             )
+            if uitkomst["verschil_aanbevolen"]:
+                regels.append(
+                    f"You are now really recommended in {nu['aanbevolen']} questions, last round "
+                    f"that was {toen['aanbevolen']}."
+                )
+        else:
+            richting = "gestegen" if verschil > 0 else "gedaald"
+            regels.append(
+                f"Je vermeldingen zijn {richting}: van {toen['genoemd']} naar {nu['genoemd']} "
+                f"van de {nu['telbaar']} vragen."
+            )
+            if uitkomst["verschil_aanbevolen"]:
+                regels.append(
+                    f"Je wordt nu bij {nu['aanbevolen']} vragen echt aanbevolen, vorige ronde waren "
+                    f"dat er {toen['aanbevolen']}."
+                )
         regels.append(uitkomst["duiding"])
 
     if controle_samenvatting and controle_samenvatting.get("klopt_niet"):
         aantal = controle_samenvatting["klopt_niet"]
-        regels.append(
-            f"Daarnaast zegt AI {aantal} keer iets over je winkel dat niet klopt met wat er op "
-            f"je site staat. Dat staat op je monitoringpagina, met de zin erbij."
-        )
+        if engels:
+            regels.append(
+                f"On top of that, AI says something about your store {aantal} times that does not "
+                f"match what your site says. That is on your monitoring page, with the sentence "
+                f"itself."
+            )
+        else:
+            regels.append(
+                f"Daarnaast zegt AI {aantal} keer iets over je winkel dat niet klopt met wat er op "
+                f"je site staat. Dat staat op je monitoringpagina, met de zin erbij."
+            )
 
     return "\n\n".join(regels) if regels else None

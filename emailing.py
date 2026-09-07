@@ -81,7 +81,27 @@ def send_email(to_email, subject, html_body, koppen=None):
         return False
 
 
-def _base_html(title, intro, body_html):
+# TWEETALIG, op dezelfde manier als in actieplan.py en verklaring.py. Alleen de
+# mails die een KLANT na een meting krijgt zijn tweetalig: de wekelijkse
+# update, de welkomstmail van de monitoring, het bericht over de vermeldingen
+# en de audit. De onderzoeksmail en de factuurmail blijven met opzet Nederlands.
+# De factuur omdat hij een Nederlandse factuur is, de onderzoeksmail omdat het
+# onderzoek over Nederlandse en Belgische webshops gaat.
+#
+# Alles wat niet "en" is wordt Nederlands. Voor een bestaande klant verandert er
+# daardoor niets, ook niet als er ooit een taal langskomt die we niet kennen.
+
+# De voettekst onder elke mail. Staat hier apart omdat hij anders in het Engels
+# Nederlands zou blijven, en dat is precies het soort halve vertaling waaraan
+# een klant ziet dat hij niet de bedoeling was.
+VOETTEKST = {
+    "nl": "Vragen? Mail gewoon terug naar dit adres.<br>Krillo, KVK 78439620",
+    "en": "Questions? Just reply to this email.<br>Krillo, Dutch chamber of commerce 78439620",
+}
+
+
+def _base_html(title, intro, body_html, taal="nl"):
+    voet = VOETTEKST.get("en" if taal == "en" else "nl", VOETTEKST["nl"])
     return f"""
     <div style="font-family: -apple-system, Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #12142B;">
       <div style="padding: 24px 0 8px;">
@@ -92,8 +112,7 @@ def _base_html(title, intro, body_html):
       <p style="color:#3B3D57; font-size:14.5px; line-height:1.6;">{intro}</p>
       {body_html}
       <p style="color:#3B3D57; font-size:13px; margin-top:32px;">
-        Vragen? Mail gewoon terug naar dit adres.<br>
-        Krillo, KVK 78439620
+        {voet}
       </p>
     </div>
     """
@@ -231,29 +250,50 @@ def _score_button(report_url, label="Bekijk het volledige rapport"):
     """
 
 
-def send_audit_email(to_email, webshop_url, scan_result, fix_previews, report_url=None):
+def send_audit_email(to_email, webshop_url, scan_result, fix_previews, report_url=None, taal="nl"):
     score = scan_result.get("score", 0)
     problemen = [c for c in scan_result.get("checks", []) if c["status"] != "ok"]
     score_color = "#1FB6A4" if score >= 80 else ("#C77D00" if score >= 40 else "#FF4B3E")
+    engels = taal == "en"
 
-    intro_line = (
-        f"We hebben {len(problemen)} verbeterpunten gevonden en {len(fix_previews)} concrete oplossingen voor je klaargezet."
-        if problemen else
-        "Sterk resultaat: er waren nauwelijks verbeterpunten te vinden."
-    )
+    if engels:
+        kopje = "AI readability"
+        intro_line = (
+            f"We found {len(problemen)} points to improve and put {len(fix_previews)} ready made "
+            f"fixes together for you."
+            if problemen else
+            "Strong result: there was hardly anything to improve."
+        )
+        tweede = ("All findings and the ready made fixes are set out on your own report page.")
+        knop = "See the full report"
+        titel = "Your Krillo audit is ready"
+        intro = f"Here is the audit for {webshop_url}."
+        onderwerp = "Your Krillo audit is ready"
+    else:
+        kopje = "AI-leesbaarheid"
+        intro_line = (
+            f"We hebben {len(problemen)} verbeterpunten gevonden en {len(fix_previews)} concrete oplossingen voor je klaargezet."
+            if problemen else
+            "Sterk resultaat: er waren nauwelijks verbeterpunten te vinden."
+        )
+        tweede = "Alle bevindingen en de kant-en-klare oplossingen staan overzichtelijk op je eigen rapportpagina."
+        knop = "Bekijk het volledige rapport"
+        titel = "Je Krillo-audit is klaar"
+        intro = f"Hierbij de audit voor {webshop_url}."
+        onderwerp = "Je Krillo-audit is klaar"
 
     body = f"""
     <div style="background:#12142B; border-radius:12px; padding:24px; margin-bottom:20px; text-align:center;">
-      <div style="font-family:'Courier New',monospace; font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;">AI-leesbaarheid</div>
+      <div style="font-family:'Courier New',monospace; font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;">{kopje}</div>
       <div style="font-size:40px; font-weight:700; color:{score_color};">{score}<span style="font-size:18px; color:#8B8DA8;">/100</span></div>
       <div style="font-size:13px; color:#B9BBD4; margin-top:4px;">{webshop_url}</div>
     </div>
     <p style="font-size:14.5px;">{intro_line}</p>
-    <p style="font-size:14.5px;">Alle bevindingen en de kant-en-klare oplossingen staan overzichtelijk op je eigen rapportpagina.</p>
-    {_score_button(report_url)}
+    <p style="font-size:14.5px;">{tweede}</p>
+    {_score_button(report_url, knop)}
     """
-    html = _base_html("Je Krillo-audit is klaar", f"Hierbij de audit voor {webshop_url}.", body)
-    return send_email(to_email, "Je Krillo-audit is klaar", html)
+    html = _base_html(titel, intro, body, taal=taal)
+    return send_email(to_email, onderwerp, html)
 
 
 # Hoe iemand ons toegang geeft, per platform. Dit is de belangrijkste tekst van
@@ -565,8 +605,34 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
                       html, koppen=koppen)
 
 
-def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None):
+def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None, taal="nl"):
     score = scan_result.get("score", 0)
+    if taal == "en":
+        body_en = f"""
+    <p style="font-size:14.5px;"><strong>Starting score: {score}/100</strong> for {webshop_url}</p>
+    <p style="font-size:13.5px; color:#3B3D57;">
+      This is your baseline. Every week we scan again and you get a message with the new
+      standing, and a clear warning if your score has dropped. Your own page shows every week
+      what to do first, with the text ready to use, and it stays at the same address. Keep the
+      link below.
+    </p>
+    <p style="font-size:13.5px; color:#3B3D57;">
+      We are also busy with your first measurement at ChatGPT and Gemini. We come up with thirty
+      buying questions that shoppers in your category really ask, and check whether your store is
+      in the answer. That takes about fifteen minutes. Have another look at your page after that:
+      you will see in how many questions you are mentioned, in how many you are really
+      recommended, and which stores come out above you on the same questions.
+    </p>
+    {_score_button(report_url, "Open your monitoring page")}
+    """
+        html_en = _base_html(
+            "Welcome to Krillo monitoring",
+            f"Your monitoring for {webshop_url} has started.",
+            body_en,
+            taal="en",
+        )
+        return send_email(to_email, "Welcome to Krillo monitoring", html_en)
+
     body = f"""
     <p style="font-size:14.5px;"><strong>Startscore: {score}/100</strong> voor {webshop_url}</p>
     <p style="font-size:13.5px; color:#3B3D57;">
@@ -591,8 +657,61 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
     return send_email(to_email, "Welkom bij Krillo monitoring", html)
 
 
-def send_weekly_update_email(to_email, webshop_url, scan_result, report_url=None, vorige_score=None):
+def _weekly_en(to_email, webshop_url, score, report_url, vorige_score):
+    """De Engelse tegenhanger van send_weekly_update_email.
+
+    Dezelfde drie gevallen in dezelfde volgorde: gedaald, gestegen, gelijk.
+    Het cijfer, de kleuren en de knop staan op dezelfde plek, alleen de woorden
+    zijn anders."""
+    if vorige_score is None:
+        onderwerp = f"Your weekly Krillo update ({score}/100)"
+        kop = "Your weekly update"
+        melding = (f"<p style='font-size:14.5px;'><strong>Current score: {score}/100</strong> "
+                   f"for {webshop_url}</p>")
+    else:
+        verschil = score - vorige_score
+        if verschil < 0:
+            onderwerp = f"Heads up: your Krillo score dropped to {score}/100"
+            kop = "Your score has dropped"
+            melding = f"""
+            <div style="background:#FFE3E0; border-radius:10px; padding:16px 18px; margin-bottom:16px;">
+              <strong style="font-size:15px; color:#993C1D;">Down from {vorige_score} to {score}</strong>
+              <p style="font-size:13.5px; color:#993C1D; margin:6px 0 0;">
+                Something changed on your website that makes it harder for AI to read your shop.
+                Your monitoring page shows exactly what is new.
+              </p>
+            </div>
+            """
+        elif verschil > 0:
+            onderwerp = f"Good news: your Krillo score is now {score}/100"
+            kop = "Your score has gone up"
+            melding = f"""
+            <div style="background:#DFF5F1; border-radius:10px; padding:16px 18px; margin-bottom:16px;">
+              <strong style="font-size:15px; color:#085041;">Up from {vorige_score} to {score}</strong>
+              <p style="font-size:13.5px; color:#085041; margin:6px 0 0;">
+                Your page shows which points stand better than last week.
+              </p>
+            </div>
+            """
+        else:
+            onderwerp = f"Your weekly Krillo update ({score}/100)"
+            kop = "Your weekly update"
+            melding = f"""
+            <p style="font-size:14.5px;"><strong>Your score is still {score}/100</strong> for {webshop_url}.
+            Nothing changed this week.</p>
+            """
+
+    body = melding + _score_button(report_url, "See your monitoring page")
+    html = _base_html(kop, f"The latest scan for {webshop_url}.", body, taal="en")
+    return send_email(to_email, onderwerp, html)
+
+
+def send_weekly_update_email(to_email, webshop_url, scan_result, report_url=None,
+                             vorige_score=None, taal="nl"):
     score = scan_result.get("score", 0)
+
+    if taal == "en":
+        return _weekly_en(to_email, webshop_url, score, report_url, vorige_score)
 
     if vorige_score is None:
         onderwerp = f"Je wekelijkse Krillo-update ({score}/100)"
@@ -636,7 +755,7 @@ def send_weekly_update_email(to_email, webshop_url, scan_result, report_url=None
     return send_email(to_email, onderwerp, html)
 
 
-def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None):
+def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None, taal="nl"):
     """Fase 5 stap 10. Een bericht over de vermeldingen bij AI, en alleen als er
     iets veranderd is dat de moeite waard is.
 
@@ -649,16 +768,35 @@ def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None):
     if not tekst:
         return False
 
-    eerste = tekst.split("\n\n")[0]
-    if "gedaald" in eerste.lower():
-        onderwerp = f"Je wordt minder genoemd door AI ({webshop_url})"
-        kop = "Je vermeldingen zijn gedaald"
-    elif "gestegen" in eerste.lower():
-        onderwerp = f"Je wordt vaker genoemd door AI ({webshop_url})"
-        kop = "Je vermeldingen zijn gestegen"
+    # De richting uit de eerste zin halen. Die zin komt uit waarschuwing.bericht
+    # en staat daar in dezelfde taal, dus we kijken naar de woorden van die taal.
+    eerste = tekst.split("\n\n")[0].lower()
+    engels = taal == "en"
+
+    if engels:
+        if "gone down" in eerste:
+            onderwerp = f"AI mentions you less often ({webshop_url})"
+            kop = "Your mentions have gone down"
+        elif "gone up" in eerste:
+            onderwerp = f"AI mentions you more often ({webshop_url})"
+            kop = "Your mentions have gone up"
+        else:
+            onderwerp = f"Update on your AI mentions ({webshop_url})"
+            kop = "Update on your mentions"
+        knop = "See what you can do about it"
+        intro = f"What AI said about {webshop_url} this week, and what you do about it."
     else:
-        onderwerp = f"Update over je AI-vermeldingen ({webshop_url})"
-        kop = "Update over je vermeldingen"
+        if "gedaald" in eerste:
+            onderwerp = f"Je wordt minder genoemd door AI ({webshop_url})"
+            kop = "Je vermeldingen zijn gedaald"
+        elif "gestegen" in eerste:
+            onderwerp = f"Je wordt vaker genoemd door AI ({webshop_url})"
+            kop = "Je vermeldingen zijn gestegen"
+        else:
+            onderwerp = f"Update over je AI-vermeldingen ({webshop_url})"
+            kop = "Update over je vermeldingen"
+        knop = "Bekijk wat je hieraan kan doen"
+        intro = f"Wat AI deze week over {webshop_url} zei, en wat je eraan doet."
 
     alineas = "".join(
         f'<p style="font-size:14.5px; line-height:1.6;">{stuk}</p>'
@@ -666,8 +804,8 @@ def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None):
     )
     # De knop wijst naar de takenlijst en niet naar de cijfers. Iemand die deze
     # mail opent wil weten wat hij eraan doet, niet nog een tabel zien.
-    body = alineas + _score_button(monitoring_url, "Bekijk wat je hieraan kan doen")
-    html = _base_html(kop, f"Wat AI deze week over {webshop_url} zei, en wat je eraan doet.", body)
+    body = alineas + _score_button(monitoring_url, knop)
+    html = _base_html(kop, intro, body, taal=taal)
     return send_email(to_email, onderwerp, html)
 
 

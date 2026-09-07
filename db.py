@@ -143,6 +143,28 @@ def init_db():
                 """)
                 cur.execute("""CREATE INDEX IF NOT EXISTS benadering_stand
                                ON benadering (stand);""")
+                # Koppelingen met winkels die niet op Shopify draaien.
+                #
+                # De sleutels staan hier versleuteld in, niet in platte tekst.
+                # Bij Shopify konden we dat verantwoorden omdat een sleutel per
+                # winkel geldt en meteen gewist wordt bij verwijderen. Hier is
+                # het anders: dit zijn sleutels die de eigenaar zelf heeft
+                # aangemaakt in zijn eigen beheerscherm, en waarmee je in zijn
+                # hele winkel kunt schrijven. Die horen niet leesbaar in een
+                # database te staan.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS koppelingen (
+                        webshop_url TEXT PRIMARY KEY,
+                        platform TEXT NOT NULL,
+                        basis_url TEXT NOT NULL,
+                        geheim TEXT,
+                        stand TEXT NOT NULL DEFAULT 'nieuw',
+                        laatste_fout TEXT,
+                        gecontroleerd_op TIMESTAMPTZ,
+                        aangemaakt_op TIMESTAMPTZ DEFAULT now(),
+                        bijgewerkt_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
                 # Knoppen die aan of uit staan zonder dat er een nieuwe versie
                 # van de site voor nodig is. Nu alleen voor de dagrem op de
                 # post, maar bewust algemeen gehouden.
@@ -1011,7 +1033,7 @@ def wis_shopify_winkel(winkel):
                                   # Bij een winkel die eerst benaderd is en later
                                   # de app installeerde, bleef dat na een
                                   # wisverzoek allemaal gewoon staan.
-                                  "benadering",
+                                  "benadering", "koppelingen",
                                   "ai_antwoorden"):
                         # Elk wissen in een eigen tussenstap. Een tabel die niet
                         # bestaat of geen webshop_url heeft laat anders de hele
@@ -2815,5 +2837,149 @@ def zet_instelling(sleutel, waarde):
     except Exception as e:
         print(f"Instelling bewaren mislukt ({sleutel}): {e}")
         return False
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Koppelingen met winkels die niet op Shopify draaien
+#
+# De sleutels gaan versleuteld de database in. Zie kluis.py voor waarom.
+# ---------------------------------------------------------------------------
+
+def bewaar_koppeling(webshop_url, platform, basis_url, geheimen):
+    """Legt een koppeling vast. De sleutels worden versleuteld.
+
+    Lukt het versleutelen niet, dan bewaren wij NIETS. Liever een klant die
+    zijn sleutels opnieuw moet invullen dan sleutels waarmee je in zijn hele
+    winkel kunt schrijven, leesbaar in een database."""
+    import kluis
+    if not webshop_url or not platform or not basis_url:
+        return False
+    try:
+        gesloten = kluis.sluit(geheimen or {})
+    except kluis.GeenSleutel as e:
+        print(f"Koppeling NIET bewaard voor {webshop_url}: {e}")
+        return False
+    except Exception as e:
+        print(f"Koppeling versleutelen mislukt voor {webshop_url}: {e}")
+        return False
+
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO koppelingen
+                           (webshop_url, platform, basis_url, geheim, stand, bijgewerkt_op)
+                       VALUES (%s, %s, %s, %s, 'nieuw', now())
+                       ON CONFLICT (webshop_url) DO UPDATE
+                       SET platform = EXCLUDED.platform,
+                           basis_url = EXCLUDED.basis_url,
+                           geheim = EXCLUDED.geheim,
+                           stand = 'nieuw',
+                           laatste_fout = NULL,
+                           bijgewerkt_op = now()""",
+                    (webshop_url, platform, basis_url, gesloten),
+                )
+        return True
+    except Exception as e:
+        print(f"Koppeling bewaren mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_koppeling(webshop_url, met_geheimen=False):
+    """De koppeling van deze winkel.
+
+    Zonder met_geheimen krijg je hem ZONDER de sleutels. Dat is de standaard,
+    zodat een beheerpagina of een logregel er nooit per ongeluk bij kan."""
+    import kluis
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM koppelingen WHERE webshop_url = %s",
+                            (webshop_url,))
+                rij = cur.fetchone()
+    except Exception as e:
+        print(f"Koppeling ophalen mislukt voor {webshop_url}: {e}")
+        return None
+    finally:
+        conn.close()
+
+    if not rij:
+        return None
+    uit = dict(rij)
+    versleuteld = uit.pop("geheim", None)
+    uit["heeft_sleutels"] = bool(versleuteld)
+    if met_geheimen:
+        geopend = kluis.open_(versleuteld)
+        if geopend is None and versleuteld:
+            print(f"LET OP: de sleutels van {webshop_url} zijn niet te openen.")
+        uit.update(geopend or {})
+    return uit
+
+
+def zet_koppeling_stand(webshop_url, stand, fout=None):
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE koppelingen
+                          SET stand = %s, laatste_fout = %s,
+                              gecontroleerd_op = now(), bijgewerkt_op = now()
+                        WHERE webshop_url = %s""",
+                    (stand, (fout or None), webshop_url),
+                )
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Koppelingstand bijwerken mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def wis_koppeling(webshop_url):
+    """Haalt de koppeling en de sleutels weg. Moet altijd kunnen, in een klik."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM koppelingen WHERE webshop_url = %s",
+                            (webshop_url,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Koppeling wissen mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_koppelingen():
+    """Alle koppelingen, zonder sleutels. Voor de beheerpagina."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT webshop_url, platform, basis_url, stand,
+                                      laatste_fout, gecontroleerd_op, aangemaakt_op
+                                 FROM koppelingen ORDER BY aangemaakt_op DESC""")
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Koppelingen ophalen mislukt: {e}")
+        return []
     finally:
         conn.close()
