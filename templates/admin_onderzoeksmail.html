@@ -28,6 +28,8 @@
   .kaart{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
          padding:16px 18px; margin-bottom:10px;}
   .kaart.gemaild{border-left:4px solid var(--teal);}
+  .afgemeld{background:var(--coral-dim); color:#8A1A12; padding:9px 12px;
+            border-radius:8px; font-size:13px; margin-top:8px;}
   .kop{display:flex; justify-content:space-between; align-items:baseline; gap:12px;
        flex-wrap:wrap; margin-bottom:6px;}
   .winkel{font-family:var(--disp); font-weight:600; font-size:16px;}
@@ -80,6 +82,9 @@
       </span>
     </div>
 
+    {% if r.afgemeld %}
+      <div class="afgemeld">Deze winkel heeft zich afgemeld. Hier gaat geen post meer heen.</div>
+    {% else %}
     <form method="post" action="/admin/onderzoeksmail?key={{ sleutel }}">
       <input type="hidden" name="url" value="{{ r.webshop_url }}">
       <input type="email" name="email" placeholder="mailadres van de eigenaar"
@@ -89,6 +94,7 @@
         {% if r.gemaild_op %}Nogmaals versturen{% else %}Versturen{% endif %}
       </button>
     </form>
+    {% endif %}
 
     {% if r.token %}
     <div class="link">Zijn pagina: <a href="{{ basis }}/uitkomst/{{ r.token }}" target="_blank" rel="noopener">{{ basis }}/uitkomst/{{ r.token }}</a></div>

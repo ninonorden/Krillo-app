@@ -224,6 +224,14 @@ def init_db():
                             "ADD COLUMN IF NOT EXISTS contact_email TEXT;")
                 cur.execute("ALTER TABLE winkelprofielen "
                             "ADD COLUMN IF NOT EXISTS onderzoeksmail_op TIMESTAMPTZ;")
+                # Of iemand gezegd heeft dat hij niets meer wil. Dit staat hier
+                # en niet alleen bij de benaderlijst, want een winkel kan ook
+                # via een andere weg gemeten en gemaild zijn. Stond het alleen
+                # daar, dan zou een afmelding van zo'n winkel nergens landen en
+                # kreeg hij gewoon opnieuw post. Dit veld is de enige waarheid
+                # over afmeldingen.
+                cur.execute("ALTER TABLE winkelprofielen "
+                            "ADD COLUMN IF NOT EXISTS afgemeld_op TIMESTAMPTZ;")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS winkelprofielen_bmtoken "
                             "ON winkelprofielen (benchmark_token) "
                             "WHERE benchmark_token IS NOT NULL;")
@@ -2207,16 +2215,28 @@ def markeer_onderzoeksmail(webshop_url):
 
     Alleen als het er nog niet stond. Zo kan dezelfde knop twee keer ingedrukt
     worden zonder dat de datum verspringt, en zie je altijd wanneer iemand voor
-    het eerst iets van ons hoorde."""
+    het eerst iets van ons hoorde.
+
+    Bewust een INSERT en geen UPDATE. Een winkel van de benaderlijst heeft nog
+    geen winkelprofiel, en met een UPDATE raakte dit dan nul regels: de post
+    ging wel de deur uit maar op de beheerpagina bleef de kolom leeg, en dan
+    druk je met de hand nog een keer op versturen. Dan krijgt iemand die er
+    niet om vroeg twee keer dezelfde mail."""
+    if not webshop_url:
+        return False
     conn = _get_connection()
     if conn is None:
         return False
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute("""UPDATE winkelprofielen
-                                  SET onderzoeksmail_op = coalesce(onderzoeksmail_op, now())
-                                WHERE webshop_url = %s""", (webshop_url,))
+                cur.execute(
+                    """INSERT INTO winkelprofielen (webshop_url, onderzoeksmail_op)
+                       VALUES (%s, now())
+                       ON CONFLICT (webshop_url) DO UPDATE
+                       SET onderzoeksmail_op = coalesce(
+                               winkelprofielen.onderzoeksmail_op, now())""",
+                    (webshop_url,))
                 return cur.rowcount > 0
     except Exception as e:
         print(f"Onderzoeksmail vastleggen mislukt voor {webshop_url}: {e}")
@@ -2579,9 +2599,68 @@ def tel_benaderingen():
 
 
 def meld_benadering_af(webshop_url):
-    """Iemand wil geen post meer. Dat is definitief en gaat voor alles."""
-    return zet_benadering(webshop_url, stand="afgevallen", afgemeld=True,
-                          notitie="Afgemeld via de link in de mail.")
+    """Iemand wil geen post meer. Dat is definitief en gaat voor alles.
+
+    Het wordt op TWEE plekken vastgelegd, en dat is met opzet. De benaderlijst
+    is de werklijst, maar een winkel kan ook langs een andere weg gemeten en
+    gemaild zijn en dan staat hij daar helemaal niet op. Zou de afmelding
+    alleen daar landen, dan zou zo iemand op een bevestigingsscherm kijken
+    terwijl er niets bewaard is, en gewoon opnieuw post krijgen.
+
+    Het winkelprofiel is daarom de plek die telt. De benaderlijst wordt
+    bijgewerkt als de winkel er toevallig op staat."""
+    if not webshop_url:
+        return False
+    gelukt = False
+    conn = _get_connection()
+    if conn is not None:
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """INSERT INTO winkelprofielen (webshop_url, afgemeld_op)
+                           VALUES (%s, now())
+                           ON CONFLICT (webshop_url) DO UPDATE
+                           SET afgemeld_op = coalesce(winkelprofielen.afgemeld_op, now())""",
+                        (webshop_url,))
+                    gelukt = True
+        except Exception as e:
+            print(f"Afmelding bewaren mislukt voor {webshop_url}: {e}")
+        finally:
+            conn.close()
+    zet_benadering(webshop_url, stand="afgevallen", afgemeld=True,
+                   notitie="Afgemeld via de link in de mail.")
+    return gelukt
+
+
+def is_afgemeld(webshop_url):
+    """Of deze winkel gezegd heeft geen post meer te willen.
+
+    Bij twijfel JA. Kunnen wij het niet nakijken omdat de database hapert, dan
+    gaat er geen post uit. Een mail te weinig is een ongemak, een mail naar
+    iemand die zich heeft afgemeld is een klacht."""
+    if not webshop_url:
+        return True
+    conn = _get_connection()
+    if conn is None:
+        return True
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT afgemeld_op FROM winkelprofielen
+                                WHERE webshop_url = %s""", (webshop_url,))
+                rij = cur.fetchone()
+                if rij and rij[0]:
+                    return True
+                cur.execute("""SELECT afgemeld FROM benadering
+                                WHERE webshop_url = %s""", (webshop_url,))
+                rij = cur.fetchone()
+                return bool(rij and rij[0])
+    except Exception as e:
+        print(f"Afmelding nakijken mislukt voor {webshop_url}: {e}")
+        return True
+    finally:
+        conn.close()
 
 
 def get_instelling(sleutel, standaard=None):

@@ -572,6 +572,22 @@ def checkout_monitoring():
     if not voorwaarden:
         return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
 
+    # Loopt er al een abonnement op deze winkel, dan houden wij het hier tegen.
+    # Zonder deze controle maakt elke nieuwe aanmelding een tweede abonnement
+    # bij Mollie met dezelfde winkel erin, en dan wordt er elke maand twee keer
+    # geïncasseerd. Erger nog: het opzeggen zegt maar een van de twee op, dus
+    # hij krijgt een bevestiging terwijl er gewoon geld af blijft gaan.
+    try:
+        if payments.zoek_abonnement(webshop_url):
+            return jsonify({
+                "error": "Op deze webshop loopt al een abonnement. Kijk in je mail naar "
+                         "je eigen pagina, of mail hallo@krillo.nl als je die kwijt bent."
+            }), 400
+    except Exception as e:
+        # Kunnen wij het niet nakijken, dan gaan wij door. Iemand tegenhouden
+        # die wil betalen omdat onze controle hapert is erger dan het risico.
+        print(f"Bestaand abonnement nakijken mislukt voor {webshop_url}: {e}")
+
     bron = _schoon_bron(data.get("herkomst")) or _schoon_bron(_herkomst())
     result = payments.create_monitoring_signup(get_base_url(), email, webshop_url,
                                                bedrijfsnaam, bron=bron)
@@ -907,6 +923,11 @@ def _benadering_ronde():
             gelukt, fout = _stuur_onderzoeksmail(winkel["webshop_url"], winkel["email"],
                                                  winkel.get("land"))
             benadering.markeer_gemaild(winkel["webshop_url"], gelukt, fout)
+            if gelukt:
+                # Ook in het winkelprofiel, want dat is wat de beheerpagina
+                # toont. Stond het alleen op de benaderlijst, dan zag je daar
+                # een lege kolom en drukte je met de hand nog eens op versturen.
+                db.markeer_onderzoeksmail(winkel["webshop_url"])
             print(f"Benadering, mail naar {winkel['webshop_url']}: "
                   f"{'gelukt' if gelukt else fout}")
     except Exception as e:
@@ -920,6 +941,11 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None):
     nooit twee versies van deze mail ontstaan."""
     if not email or not _EMAIL_VORM.match(email or ""):
         return False, "Geen geldig mailadres."
+    # De enige plek waar de onderzoeksmail vandaan komt, dus ook de enige plek
+    # waar de afmelding gecontroleerd hoeft te worden. Zowel de knop met de
+    # hand als de automatische ronde komt hier langs.
+    if db.is_afgemeld(webshop_url):
+        return False, "Deze winkel heeft zich afgemeld. Er gaat geen post meer heen."
     token = db.get_benchmark_token(webshop_url)
     if not token:
         return False, "Er kon geen link naar de uitkomst gemaakt worden."
@@ -967,7 +993,17 @@ def afmelden(token):
         if request.method == "POST":
             return "", 404
         return render_template("afgemeld.html", gelukt=False), 404
-    db.meld_benadering_af(webshop_url)
+
+    # Kijken of het echt bewaard is. Een bevestigingsscherm tonen terwijl er
+    # niets is opgeslagen is erger dan een foutmelding: hij denkt dat het
+    # geregeld is en krijgt toch weer post.
+    bewaard = db.meld_benadering_af(webshop_url)
+    if not bewaard:
+        print(f"LET OP: afmelding NIET bewaard voor {webshop_url}")
+        if request.method == "POST":
+            return "", 500
+        return render_template("afgemeld.html", gelukt=False), 500
+
     if request.method == "POST":
         return "", 200
     return render_template("afgemeld.html", gelukt=True, winkel=webshop_url)
@@ -1927,13 +1963,18 @@ def admin_onderzoeksmail():
     for r in db.benchmark_regels():
         url = r.get("webshop_url")
         profiel = db.get_winkelprofiel(url) or {}
+        lijstregel = db.get_benadering(url) or {}
         regels.append({
             "webshop_url": url,
             "genoemd": r.get("genoemd"),
             "vragen": r.get("vragen"),
             "score": r.get("score"),
-            "email": profiel.get("contact_email"),
-            "gemaild_op": profiel.get("onderzoeksmail_op"),
+            "email": profiel.get("contact_email") or lijstregel.get("email"),
+            # Beide plekken, want de automatische ronde en de knop met de hand
+            # schrijven allebei. Zie je hier een lege kolom terwijl er al post
+            # uit is, dan druk je nog een keer en krijgt iemand twee mails.
+            "gemaild_op": profiel.get("onderzoeksmail_op") or lijstregel.get("gemaild_op"),
+            "afgemeld": bool(profiel.get("afgemeld_op") or lijstregel.get("afgemeld")),
             "token": profiel.get("benchmark_token"),
         })
 
@@ -2926,6 +2967,13 @@ def shopify_callback():
         return render_template(
             "fout.html", titel="Installeren is half gelukt",
             bericht="Verwijder de app en installeer hem opnieuw, of mail hallo@krillo.nl."), 500
+
+    # De taal en het land van de winkel vastleggen. Vergeet je dit, dan valt
+    # alles terug op Nederlands en krijgt een winkel in Texas dertig Nederlandse
+    # koopvragen over Nederlandse webshops. Dat is geen schoonheidsfoutje: dat
+    # is een meting over de verkeerde markt, zonder enige foutmelding.
+    if gegevens.get("taal") or gegevens.get("land"):
+        db.zet_markt(webshop_url, gegevens.get("taal"), gegevens.get("land"))
 
     # De verplichte webhooks. Op de achtergrond, want de winkelier hoeft daar
     # niet op te wachten, maar wel meteen: zonder deze webhooks komt de app de
