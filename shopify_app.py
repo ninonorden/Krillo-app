@@ -48,6 +48,13 @@ import requests
 # write_content omdat wij het werk zelf doen: beschrijvingen bij foto's,
 # productteksten waar ze ontbreken, en een pagina met veelgestelde vragen.
 #
+# write_files is erbij gekomen en dat is niet vrijwillig: de beschrijving bij
+# een foto zit sinds het nieuwe mediamodel niet meer bij het product maar bij
+# het bestand. De mutatie die dat wijzigt (fileUpdate) eist write_files. De
+# oude manier (productUpdateMedia) kon het met write_products, maar die is
+# verouderd, en een nieuwe app indienen met een verouderde mutatie is vragen om
+# een afkeuring.
+#
 # Wat wij bewust NIET vragen: klantgegevens, bestellingen, en de kassa. Daar
 # heeft dit niets mee te maken, en elke extra rechtenvraag is een reden voor een
 # winkelier om af te haken en een vraag bij de beoordeling van Shopify.
@@ -55,7 +62,7 @@ import requests
 # LET OP bij het bijwerken: deze regel moet gelijk staan aan de rechten in je
 # app-instellingen bij Shopify (shopify.app.toml en het partnerscherm). Staan ze
 # niet gelijk, dan krijg je bij het schrijven een 403 die nergens op lijkt.
-SCOPES = "read_products,write_products,read_content,write_content"
+SCOPES = "read_products,write_products,read_content,write_content,write_files"
 
 # De versie van de Shopify-API waar wij mee praten.
 #

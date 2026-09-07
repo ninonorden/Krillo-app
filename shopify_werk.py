@@ -51,31 +51,216 @@ VOORSTELLEN_PER_KEER = 12
 
 FAQ_HANDLE = "veelgestelde-vragen-krillo"
 
+# Hoe lang wij wachten als Shopify zegt dat het te druk is, en hoe vaak wij het
+# daarna nog proberen. GraphQL heeft geen losse verzoeken per seconde maar een
+# emmer met punten: is die leeg, dan komt er een fout THROTTLED terug in plaats
+# van een foutcode 429. Even wachten en het nog eens proberen is dan genoeg,
+# want de emmer loopt vanzelf weer vol.
+WACHT_BIJ_DRUKTE = 2
+POGINGEN_BIJ_DRUKTE = 3
+
+# Hoeveel foto's wij per product bekijken. Meer dan dit heeft bijna geen enkele
+# winkel, en elk stuk dat je opvraagt kost punten uit diezelfde emmer.
+FOTOS_PER_PRODUCT = 50
+
 
 # ---------------------------------------------------------------- de winkel in
 
-def _api(winkel, sleutel, methode, pad, gegevens=None, params=None):
+def _graphql(winkel, sleutel, vraag, variabelen=None):
     """Eén plek waar wij met de winkel praten, zodat fouten er ook maar op één
-    plek uit kunnen komen."""
+    plek uit kunnen komen.
+
+    Alles gaat sinds april 2025 via de GraphQL-ingang. Shopify neemt geen
+    nieuwe apps meer aan die de oude REST-ingang gebruiken, dus dit is geen
+    smaakkwestie. Er is één adres (graphql.json) en één manier van vragen.
+
+    Let op het verschil tussen twee soorten fouten. Een kapotte vraag of een
+    lege emmer komt terug in "errors" bovenin, met een gewone code 200 ervoor.
+    Alleen daarop kijken naar de HTTP-code zou dus betekenen dat wij een
+    mislukking voor een succes aanzien."""
     winkel = shopify_app._schoon(winkel)
     if not shopify_app.geldige_winkel(winkel) or not sleutel:
         return {"gelukt": False, "fout": "Geen geldige winkel of sleutel."}
-    url = f"https://{winkel}/admin/api/{shopify_app.API_VERSIE}/{pad}"
-    try:
-        antwoord = requests.request(
-            methode, url, headers=shopify_app._kop(sleutel),
-            json=gegevens, params=params, timeout=25)
+    url = f"https://{winkel}/admin/api/{shopify_app.API_VERSIE}/graphql.json"
+    laatste = "Onbekende fout."
+    for poging in range(POGINGEN_BIJ_DRUKTE):
+        try:
+            antwoord = requests.post(
+                url, headers=shopify_app._kop(sleutel),
+                json={"query": vraag, "variables": variabelen or {}}, timeout=25)
+        except Exception as e:
+            return {"gelukt": False, "fout": f"{type(e).__name__}: {e}"[:250]}
         if antwoord.status_code == 429:
-            time.sleep(2)
-            antwoord = requests.request(
-                methode, url, headers=shopify_app._kop(sleutel),
-                json=gegevens, params=params, timeout=25)
+            laatste = "Shopify gaf 429: te veel verzoeken."
+            time.sleep(WACHT_BIJ_DRUKTE)
+            continue
         if antwoord.status_code >= 300:
             return {"gelukt": False,
                     "fout": f"Shopify gaf {antwoord.status_code}: {antwoord.text[:200]}"}
-        return {"gelukt": True, "gegevens": antwoord.json() if antwoord.text else {}}
-    except Exception as e:
-        return {"gelukt": False, "fout": f"{type(e).__name__}: {e}"[:250]}
+        try:
+            gegevens = antwoord.json() or {}
+        except Exception:
+            return {"gelukt": False, "fout": "Shopify gaf geen leesbaar antwoord."}
+        fouten = gegevens.get("errors") or []
+        if fouten:
+            if _is_te_druk(fouten) and poging < POGINGEN_BIJ_DRUKTE - 1:
+                time.sleep(WACHT_BIJ_DRUKTE)
+                laatste = "Shopify had het te druk."
+                continue
+            return {"gelukt": False, "fout": _foutregel(fouten)}
+        return {"gelukt": True, "gegevens": gegevens.get("data") or {}}
+    return {"gelukt": False, "fout": laatste}
+
+
+def _is_te_druk(fouten):
+    """Zegt Shopify hier dat de emmer leeg is?
+
+    De code staat bij elke fout onder "extensions". Wij kijken ook naar de
+    tekst zelf, want bij sommige antwoorden komt alleen "Throttled" mee."""
+    for fout in fouten or []:
+        code = ((fout or {}).get("extensions") or {}).get("code") or ""
+        if str(code).upper() == "THROTTLED":
+            return True
+        if "throttl" in str((fout or {}).get("message") or "").lower():
+            return True
+    return False
+
+
+def _foutregel(fouten):
+    """Van de foutenlijst één leesbare regel maken voor op het scherm."""
+    regels = [str((f or {}).get("message") or f) for f in (fouten or [])]
+    return ("Shopify: " + "; ".join(regels))[:300] if regels else "Shopify gaf een fout."
+
+
+def _muteer(winkel, sleutel, vraag, variabelen, naam):
+    """Een wijziging versturen en het antwoord echt nakijken.
+
+    Dit is de valkuil van GraphQL: een mutatie die niets doet geeft nog steeds
+    een keurige code 200 terug. Wat er mis ging staat in "userErrors" binnenin.
+    Wie daar niet naar kijkt, meldt aan de eigenaar dat het gelukt is terwijl
+    er niets veranderd is. Daarom komt hier hetzelfde soort antwoord uit als
+    bij een echte fout: {"gelukt": False, "fout": ...}."""
+    uit = _graphql(winkel, sleutel, vraag, variabelen)
+    if not uit["gelukt"]:
+        return uit
+    stuk = (uit.get("gegevens") or {}).get(naam) or {}
+    problemen = stuk.get("userErrors") or []
+    if problemen:
+        regels = []
+        for p in problemen:
+            veld = ".".join(str(x) for x in (p.get("field") or []) if x)
+            bericht = str(p.get("message") or "").strip() or "onbekende fout"
+            regels.append(f"{veld}: {bericht}" if veld else bericht)
+        return {"gelukt": False, "fout": ("Shopify: " + "; ".join(regels))[:300]}
+    return {"gelukt": True, "gegevens": stuk}
+
+
+# --------------------------------------------------------------- nummers en gid
+
+def _nummer(gid):
+    """Uit "gid://shopify/Product/123" halen wij 123.
+
+    Wij hebben dit nodig omdat de kenmerken van voorstellen
+    (shopify:alt:1:11 en shopify:tekst:1) al zo in de database staan bij
+    wijzigingen die eerder gemaakt zijn. Zouden wij daar nu een heel gid in
+    zetten, dan is een oude wijziging niet meer terug te zetten. De vorm van
+    het kenmerk blijft dus zoals hij was, en het lange gid maken wij weer aan
+    op het moment dat wij hem nodig hebben."""
+    tekst = str(gid if gid is not None else "").strip()
+    if "/" in tekst:
+        tekst = tekst.rstrip("/").split("/")[-1]
+    tekst = tekst.split("?")[0]
+    return int(tekst) if tekst.isdigit() else tekst
+
+
+def _gid(soort, nummer):
+    """Van 123 weer "gid://shopify/Product/123" maken.
+
+    Geven wij er al een gid in, dan laten wij hem met rust. Zo kan deze functie
+    zowel over een nummer uit een kenmerk als over iets dat rechtstreeks uit
+    Shopify komt heen."""
+    tekst = str(nummer if nummer is not None else "").strip()
+    if tekst.startswith("gid://"):
+        return tekst
+    return f"gid://shopify/{soort}/{_nummer(tekst)}"
+
+
+# ------------------------------------------------------------------ ophalen
+
+VRAAG_PRODUCTEN = """
+query Producten($aantal: Int!, $vanaf: String, $fotos: Int!) {
+  products(first: $aantal, after: $vanaf) {
+    nodes {
+      id
+      title
+      handle
+      descriptionHtml
+      productType
+      vendor
+      tags
+      media(first: $fotos) {
+        nodes {
+          id
+          alt
+          ... on MediaImage { image { url } }
+        }
+      }
+      variants(first: 1) { nodes { price } }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"""
+
+VRAAG_PAGINAS = """
+query Paginas($aantal: Int!, $vanaf: String) {
+  pages(first: $aantal, after: $vanaf) {
+    nodes { id title handle body }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"""
+
+
+def _product_naar_dict(knoop):
+    """Een product uit GraphQL in dezelfde vorm gieten als voorheen.
+
+    Waarom wij dat doen: de rest van dit bestand, en het scherm dat erop
+    volgt, werkt met body_html, product_type en images. Alleen het praten met
+    de winkel is veranderd, niet wat wij ermee doen. Door de vorm hier één
+    keer gelijk te trekken hoeft er verderop niets aangepast te worden, en dat
+    scheelt een hoop plekken waar iets stuk kan gaan.
+
+    Labels komen bij GraphQL als lijst terug en bij de oude ingang als één
+    regel met komma's. Wij maken er weer een regel van, want die gaat zo naar
+    het model toe."""
+    fotos = []
+    for media in ((knoop.get("media") or {}).get("nodes") or []):
+        # Een product kan ook een filmpje of een 3D-model bevatten. Daar hoort
+        # geen fotobeschrijving bij, dus die laten wij liggen.
+        if "MediaImage" not in str(media.get("id") or ""):
+            continue
+        fotos.append({
+            "id": _nummer(media.get("id")),
+            "alt": media.get("alt") or "",
+            "src": ((media.get("image") or {}).get("url")) or "",
+        })
+    prijzen = [{"price": v.get("price")}
+               for v in ((knoop.get("variants") or {}).get("nodes") or [])]
+    labels = knoop.get("tags")
+    if isinstance(labels, list):
+        labels = ", ".join(str(x) for x in labels)
+    return {
+        "id": _nummer(knoop.get("id")),
+        "title": knoop.get("title") or "",
+        "handle": knoop.get("handle") or "",
+        "body_html": knoop.get("descriptionHtml") or "",
+        "product_type": knoop.get("productType") or "",
+        "vendor": knoop.get("vendor") or "",
+        "tags": labels or "",
+        "images": fotos,
+        "variants": prijzen or [{}],
+    }
 
 
 def haal_producten(winkel, sleutel, maximaal=PRODUCTEN_PER_KEER):
@@ -85,33 +270,56 @@ def haal_producten(winkel, sleutel, maximaal=PRODUCTEN_PER_KEER):
     alleen voorstellen voor de eerste veertig, drukte op de knop, drukte nog
     eens, en kreeg weer diezelfde veertig. De producten daarna werden nooit
     bekeken, terwijl op het scherm staat dat wij de ontbrekende teksten
-    invullen. Dan denkt iemand dat hij klaar is terwijl de helft leeg staat."""
-    velden = "id,title,handle,body_html,product_type,vendor,tags,images,variants"
-    alles, sinds = [], None
+    invullen. Dan denkt iemand dat hij klaar is terwijl de helft leeg staat.
+
+    Bladeren gaat bij GraphQL met een merkteken (endCursor) in plaats van met
+    het laatste nummer. Dat is geen verschil in gedrag, alleen in de manier
+    waarop je om het volgende stuk vraagt."""
+    alles, vanaf = [], None
     while len(alles) < maximaal:
-        params = {"limit": min(250, maximaal - len(alles)), "fields": velden}
-        if sinds:
-            params["since_id"] = sinds
-        uit = _api(winkel, sleutel, "GET", "products.json", params=params)
+        aantal = min(250, maximaal - len(alles))
+        uit = _graphql(winkel, sleutel, VRAAG_PRODUCTEN,
+                       {"aantal": aantal, "vanaf": vanaf,
+                        "fotos": FOTOS_PER_PRODUCT})
         if not uit["gelukt"]:
             print(f"Producten ophalen mislukt voor {winkel}: {uit['fout']}")
             break
-        stuk = (uit["gegevens"] or {}).get("products") or []
+        blok = ((uit.get("gegevens") or {}).get("products") or {})
+        stuk = blok.get("nodes") or []
         if not stuk:
             break
-        alles.extend(stuk)
-        sinds = stuk[-1].get("id")
-        if not sinds or len(stuk) < params["limit"]:
+        alles.extend(_product_naar_dict(p) for p in stuk)
+        info = blok.get("pageInfo") or {}
+        vanaf = info.get("endCursor")
+        if not info.get("hasNextPage") or not vanaf:
             break
     return alles[:maximaal]
 
 
 def haal_paginas(winkel, sleutel):
-    uit = _api(winkel, sleutel, "GET", "pages.json",
-               params={"limit": 250, "fields": "id,title,handle,body_html"})
-    if not uit["gelukt"]:
-        return []
-    return (uit["gegevens"] or {}).get("pages") or []
+    """De pagina's van de winkel, in dezelfde vorm als voorheen.
+
+    Het veld heet bij GraphQL "body" en bij de oude ingang "body_html". Wij
+    houden body_html aan, want daar rekent de rest van de app op."""
+    alles, vanaf = [], None
+    while len(alles) < 250:
+        uit = _graphql(winkel, sleutel, VRAAG_PAGINAS,
+                       {"aantal": min(250, 250 - len(alles)), "vanaf": vanaf})
+        if not uit["gelukt"]:
+            return alles
+        blok = ((uit.get("gegevens") or {}).get("pages") or {})
+        stuk = blok.get("nodes") or []
+        if not stuk:
+            break
+        for pg in stuk:
+            alles.append({"id": _nummer(pg.get("id")), "title": pg.get("title") or "",
+                          "handle": pg.get("handle") or "",
+                          "body_html": pg.get("body") or ""})
+        info = blok.get("pageInfo") or {}
+        vanaf = info.get("endCursor")
+        if not info.get("hasNextPage") or not vanaf:
+            break
+    return alles
 
 
 # ------------------------------------------------------------ wat er mis is
@@ -440,6 +648,80 @@ def maak_voorstellen(winkel, sleutel, markt=None):
 
 # ---------------------------------------------------------------- toepassen
 
+VRAAG_FOTO = """
+query Foto($id: ID!) {
+  node(id: $id) { ... on MediaImage { id alt } }
+}
+"""
+
+VRAAG_PRODUCTTEKST = """
+query Producttekst($id: ID!) {
+  product(id: $id) { id descriptionHtml }
+}
+"""
+
+ZET_ALT = """
+mutation ZetAlt($bestanden: [FileUpdateInput!]!) {
+  fileUpdate(files: $bestanden) {
+    files { ... on MediaImage { id alt } }
+    userErrors { field message code }
+  }
+}
+"""
+
+ZET_TEKST = """
+mutation ZetTekst($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product { id }
+    userErrors { field message }
+  }
+}
+"""
+
+MAAK_PAGINA = """
+mutation MaakPagina($pagina: PageCreateInput!) {
+  pageCreate(page: $pagina) {
+    page { id title handle }
+    userErrors { field message code }
+  }
+}
+"""
+
+WEG_PAGINA = """
+mutation VerwijderPagina($id: ID!) {
+  pageDelete(id: $id) {
+    deletedPageId
+    userErrors { field message code }
+  }
+}
+"""
+
+
+def _zet_alt(winkel, sleutel, afbeelding_id, tekst):
+    """De beschrijving bij één foto zetten.
+
+    De oude manier hiervoor (productImageUpdate) bestaat niet meer. Een foto
+    is bij Shopify tegenwoordig een bestand, en de beschrijving hoort bij dat
+    bestand. Vandaar fileUpdate met het gid van de MediaImage."""
+    return _muteer(winkel, sleutel, ZET_ALT,
+                   {"bestanden": [{"id": _gid("MediaImage", afbeelding_id),
+                                   "alt": tekst or ""}]},
+                   "fileUpdate")
+
+
+def _zet_producttekst(winkel, sleutel, product_id, html_tekst):
+    """De beschrijving van één product zetten.
+
+    Het veld heet hier descriptionHtml. En let op de naam van het invoerveld:
+    dat is "product", niet "input". Dat laatste bestaat nog wel maar is
+    verouderd, en op verouderde velden willen wij niet bouwen als de reden van
+    deze hele verbouwing juist goedkeuring door Shopify is."""
+    return _muteer(winkel, sleutel, ZET_TEKST,
+                   {"product": {"id": _gid("Product", product_id),
+                                "descriptionHtml": html_tekst or ""}},
+                   "productUpdate")
+
+
 def _huidige_waarde(winkel, sleutel, voorstel):
     """Wat er NU staat, opgehaald op het moment van schrijven.
 
@@ -448,18 +730,25 @@ def _huidige_waarde(winkel, sleutel, voorstel):
     zijn tekst afblijven."""
     soort = voorstel.get("soort")
     if soort == "alt":
-        uit = _api(winkel, sleutel, "GET",
-                   f"products/{voorstel['product_id']}/images/"
-                   f"{voorstel['afbeelding_id']}.json")
+        uit = _graphql(winkel, sleutel, VRAAG_FOTO,
+                       {"id": _gid("MediaImage", voorstel["afbeelding_id"])})
         if not uit["gelukt"]:
             return None, uit["fout"]
-        return ((uit["gegevens"] or {}).get("image") or {}).get("alt") or "", None
+        knoop = (uit["gegevens"] or {}).get("node")
+        if knoop is None:
+            # De foto is er niet meer. Dan weten wij de oude waarde niet, en
+            # dus schrijven wij ook niet.
+            return None, "Deze foto bestaat niet meer in de winkel."
+        return knoop.get("alt") or "", None
     if soort == "tekst":
-        uit = _api(winkel, sleutel, "GET", f"products/{voorstel['product_id']}.json",
-                   params={"fields": "id,body_html"})
+        uit = _graphql(winkel, sleutel, VRAAG_PRODUCTTEKST,
+                       {"id": _gid("Product", voorstel["product_id"])})
         if not uit["gelukt"]:
             return None, uit["fout"]
-        return ((uit["gegevens"] or {}).get("product") or {}).get("body_html") or "", None
+        product = (uit["gegevens"] or {}).get("product")
+        if product is None:
+            return None, "Dit product bestaat niet meer in de winkel."
+        return product.get("descriptionHtml") or "", None
     if soort == "faq":
         return "", None
     return None, "Onbekend soort wijziging."
@@ -502,21 +791,19 @@ def pas_toe(winkel, sleutel, voorstel, klant_url):
                         "veranderd. Zo kan alles altijd terug."}
 
     if soort == "alt":
-        uit = _api(winkel, sleutel, "PUT",
-                   f"products/{voorstel['product_id']}/images/{voorstel['afbeelding_id']}.json",
-                   {"image": {"id": voorstel["afbeelding_id"], "alt": voorstel["nieuw"]}})
+        uit = _zet_alt(winkel, sleutel, voorstel["afbeelding_id"], voorstel["nieuw"])
     elif soort == "tekst":
-        uit = _api(winkel, sleutel, "PUT", f"products/{voorstel['product_id']}.json",
-                   {"product": {"id": voorstel["product_id"],
-                                "body_html": voorstel.get("nieuw_html") or voorstel["nieuw"]}})
+        uit = _zet_producttekst(winkel, sleutel, voorstel["product_id"],
+                                voorstel.get("nieuw_html") or voorstel["nieuw"])
     elif soort == "faq":
         titel = "Veelgestelde vragen"
-        uit = _api(winkel, sleutel, "POST", "pages.json",
-                   {"page": {"title": titel, "handle": FAQ_HANDLE,
-                             "body_html": voorstel.get("nieuw_html") or voorstel["nieuw"],
-                             "published": True}})
+        uit = _muteer(winkel, sleutel, MAAK_PAGINA,
+                      {"pagina": {"title": titel, "handle": FAQ_HANDLE,
+                                  "body": voorstel.get("nieuw_html") or voorstel["nieuw"],
+                                  "isPublished": True}},
+                      "pageCreate")
         if uit["gelukt"]:
-            nieuwe = ((uit["gegevens"] or {}).get("page") or {}).get("id")
+            nieuwe = _nummer(((uit["gegevens"] or {}).get("page") or {}).get("id"))
             db.bewaar_wijziging(
                 webshop_url=klant_url, taak_id=voorstel["id"], wat=voorstel.get("wat"),
                 waar=f"pagina {nieuwe}", oude_waarde="",
@@ -541,13 +828,13 @@ def zet_terug(winkel, sleutel, wijziging, klant_url=None):
         return {"gelukt": False, "fout": "Dit is geen wijziging in een Shopify-winkel."}
     delen = taak_id.split(":")
 
+    # Uit het kenmerk halen wij de nummers, en daar maken wij het gid weer van
+    # dat GraphQL nodig heeft. Het kenmerk zelf blijft dus precies zoals het in
+    # de database staat, ook bij wijzigingen van voor deze verbouwing.
     if delen[1] == "alt" and len(delen) == 4:
-        uit = _api(winkel, sleutel, "PUT",
-                   f"products/{delen[2]}/images/{delen[3]}.json",
-                   {"image": {"id": int(delen[3]), "alt": oud or ""}})
+        uit = _zet_alt(winkel, sleutel, delen[3], oud or "")
     elif delen[1] == "tekst" and len(delen) == 3:
-        uit = _api(winkel, sleutel, "PUT", f"products/{delen[2]}.json",
-                   {"product": {"id": int(delen[2]), "body_html": oud or ""}})
+        uit = _zet_producttekst(winkel, sleutel, delen[2], oud or "")
     elif delen[1] == "faq":
         pagina_id = None
         for pagina in haal_paginas(winkel, sleutel):
@@ -559,7 +846,8 @@ def zet_terug(winkel, sleutel, wijziging, klant_url=None):
             if klant_url:
                 db.verwijder_wijziging(klant_url, taak_id)
             return {"gelukt": True, "id": taak_id}
-        uit = _api(winkel, sleutel, "DELETE", f"pages/{pagina_id}.json")
+        uit = _muteer(winkel, sleutel, WEG_PAGINA,
+                      {"id": _gid("Page", pagina_id)}, "pageDelete")
     else:
         return {"gelukt": False, "fout": "Onbekend soort wijziging."}
 
