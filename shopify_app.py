@@ -55,7 +55,7 @@ import requests
 # LET OP bij het bijwerken: deze regel moet gelijk staan aan de rechten in je
 # app-instellingen bij Shopify (shopify.app.toml en het partnerscherm). Staan ze
 # niet gelijk, dan krijg je bij het schrijven een 403 die nergens op lijkt.
-SCOPES = "read_products,write_products,read_content,write_content,read_themes"
+SCOPES = "read_products,write_products,read_content,write_content"
 
 API_VERSIE = "2025-07"
 
@@ -63,13 +63,34 @@ API_VERSIE = "2025-07"
 # beveiliging in dit bestand.
 WINKEL_PATROON = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$")
 
-# De verplichte webhooks. app/uninstalled staat er bij omdat we anders van een
-# verwijderde app blijven denken dat hij nog geïnstalleerd is.
+# Webhooks die WIJ per winkel aanmelden via de API.
+#
+# Hier stonden eerder ook de drie privacy-webhooks bij. Dat kan niet: die
+# accepteert Shopify niet via deze API, want ze horen in de app-instellingen
+# (shopify.app.toml en het partnerscherm). Shopify antwoordde met 422, en de
+# code hieronder telde elke 422 als gelukt. Gevolg: nul meldingen in de logs,
+# terwijl er in werkelijkheid geen enkele privacy-webhook was aangemeld. Dat
+# is precies de eis waar de app op afgekeurd wordt.
 WEBHOOKS = [
+    ("app/uninstalled", "/shopify/webhooks/verwijderd"),
+]
+
+# De drie verplichte privacy-webhooks. Deze zetten WIJ niet aan via de API, ze
+# horen in shopify.app.toml. Ze staan hier alleen zodat de adressen op één plek
+# vastliggen en de routes in app.py ernaar kunnen verwijzen.
+#
+# In shopify.app.toml hoort dit te staan, met JOUW adres ervoor:
+#
+#   [webhooks]
+#   api_version = "2025-07"
+#     [webhooks.privacy_compliance]
+#     customer_deletion_url = "https://www.krillo.nl/shopify/webhooks/klant-wissen"
+#     customer_data_request_url = "https://www.krillo.nl/shopify/webhooks/klantgegevens"
+#     shop_deletion_url = "https://www.krillo.nl/shopify/webhooks/winkel-wissen"
+PRIVACY_WEBHOOKS = [
     ("customers/data_request", "/shopify/webhooks/klantgegevens"),
     ("customers/redact", "/shopify/webhooks/klant-wissen"),
     ("shop/redact", "/shopify/webhooks/winkel-wissen"),
-    ("app/uninstalled", "/shopify/webhooks/verwijderd"),
 ]
 
 # Openstaande installaties: kenmerk -> tijdstip. Alleen in het geheugen, want
@@ -435,9 +456,14 @@ def meld_webhooks_aan(winkel, sleutel, basis_url):
             )
             if antwoord.status_code < 300:
                 gelukt.append(onderwerp)
-            elif "already been taken" in antwoord.text or antwoord.status_code == 422:
+            elif "already been taken" in antwoord.text:
+                # Bestaat al. Dat is geen probleem: het doel is dat hij er is,
+                # niet dat wij hem net hebben aangemaakt.
                 gelukt.append(onderwerp)
             else:
+                # Elke andere 422 is WEL een mislukking. Hier stond eerder dat
+                # een 422 altijd goed was, en dat maakte deze hele functie
+                # nutteloos: hij kon geen enkele fout meer melden.
                 mislukt.append((onderwerp, f"{antwoord.status_code}: {antwoord.text[:150]}"))
         except Exception as e:
             mislukt.append((onderwerp, f"{type(e).__name__}: {e}"[:150]))

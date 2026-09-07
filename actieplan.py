@@ -48,6 +48,15 @@ import hashlib
 # Hoeveel acties een klant maximaal krijgt. Zie regel 1 hierboven.
 MAX_ACTIES = 3
 
+# TWEETALIG. Elke vaste tekst staat er twee keer in: de Nederlandse onder
+# "titel" en "hoe", de Engelse onder "titel_en" en "hoe_en". De sleutels van de
+# acties zelf (robots, https, faq, ...) blijven overal gelijk, want daar hangt
+# de bewaarde oplossing per taak aan. Zonder tegenhanger valt alles terug op
+# Nederlands, zodat een vergeten vertaling nooit een lege tekst oplevert.
+#
+# De Engelse routes noemen de Engelse menunamen van Shopify en WordPress. Een
+# Amerikaanse winkelier zoekt zich anders suf naar "Winkelinstellingen".
+
 # Wat je doet bij een harde blokkade. Per controlepunt uit de scan, in gewone
 # taal en met de route erbij voor de twee platformen die het vaakst voorkomen.
 BLOKKADE_ACTIES = {
@@ -61,6 +70,15 @@ BLOKKADE_ACTIES = {
             "Gereedschap. Haal de regels weg die GPTBot, ClaudeBot, PerplexityBot, "
             "OAI-SearchBot of Google-Extended blokkeren."
         ),
+        "titel_en": "Let AI crawlers read your site",
+        "hoe_en": (
+            "The robots.txt file on your site currently says AI crawlers are not welcome. "
+            "As long as that line is there, no AI assistant is allowed to read your pages, "
+            "so it cannot recommend you either. In Shopify you find this under Online Store, "
+            "then Themes, then Edit code, in the file robots.txt.liquid. In WordPress it is "
+            "usually in your SEO plugin under Tools. Remove the rules that block GPTBot, "
+            "ClaudeBot, PerplexityBot, OAI-SearchBot or Google-Extended."
+        ),
     },
     "https": {
         "titel": "Zet een beveiligde verbinding aan",
@@ -70,6 +88,13 @@ BLOKKADE_ACTIES = {
             "meeste hostingpartijen zet je dit met een knop aan en is het gratis. Vraag je "
             "hostingpartij om een SSL-certificaat als je het zelf niet kan vinden."
         ),
+        "titel_en": "Turn on a secure connection",
+        "hoe_en": (
+            "Your site still runs without https. Browsers warn visitors about that and AI "
+            "systems treat such a site as less trustworthy. In Shopify and at most hosting "
+            "companies this is one button and it is free. In Shopify you find it under "
+            "Settings, then Domains. Ask your host for an SSL certificate if you cannot find it."
+        ),
     },
     "leesbaarheid": {
         "titel": "Zorg dat je teksten direct in de pagina staan",
@@ -78,6 +103,13 @@ BLOKKADE_ACTIES = {
             "verschijnen pas nadat scripts zijn uitgevoerd, en een AI die je pagina ophaalt "
             "ziet dan een lege bladzijde. Vraag je websitebouwer om de belangrijkste teksten, "
             "productnamen en omschrijvingen gewoon in de pagina zelf te zetten."
+        ),
+        "titel_en": "Put your text in the page itself",
+        "hoe_en": (
+            "There is hardly any text on your page that can be read right away. Your text only "
+            "appears after scripts have run, so an AI that fetches your page sees a blank sheet. "
+            "Ask whoever built your site to put the main text, product names and descriptions "
+            "in the page itself."
         ),
     },
 }
@@ -105,6 +137,13 @@ BELEMMERING_ACTIES = {
             "soort tekst dat AI-assistenten het vaakst bijna letterlijk overnemen, omdat het "
             "precies past bij hoe mensen vragen stellen."
         ),
+        "titel_en": "Put questions and answers on your site",
+        "hoe_en": (
+            "Write down the ten questions customers ask you most, with a short answer for each "
+            "one. Sizes, materials, delivery, returns, care. This is the kind of text AI "
+            "assistants copy almost word for word most often, because it matches the way people "
+            "ask questions."
+        ),
     },
     "productinfo": {
         "titel": "Zet machine-leesbare productgegevens op je pagina's",
@@ -114,6 +153,13 @@ BELEMMERING_ACTIES = {
             "moet een AI het uit je lopende tekst raden. Shopify-thema's hebben dit meestal "
             "ingebouwd maar staat het uit; in WordPress doet een SEO-plugin dit."
         ),
+        "titel_en": "Add machine readable product data to your pages",
+        "hoe_en": (
+            "Your product pages are missing the invisible data (schema.org) a computer needs to "
+            "pick up price, stock and reviews reliably. Without it an AI has to guess from your "
+            "running text. Most Shopify themes have this built in but switched off; in WordPress "
+            "an SEO plugin does it."
+        ),
     },
     "basis": {
         "titel": "Maak je paginatitel en omschrijving af",
@@ -122,6 +168,12 @@ BELEMMERING_ACTIES = {
             "het eerste wat een AI van je pagina ziet. Zet er in gewone woorden in wat je "
             "verkoopt en voor wie, zonder trucjes."
         ),
+        "titel_en": "Finish your page title and description",
+        "hoe_en": (
+            "The title and the short description of your page are incomplete. That is literally "
+            "the first thing an AI sees of your page. Say in plain words what you sell and who "
+            "you sell it to, without tricks."
+        ),
     },
     "koppen": {
         "titel": "Breng orde in je koppen",
@@ -129,6 +181,12 @@ BELEMMERING_ACTIES = {
             "Je pagina heeft geen duidelijke koppenstructuur. Eén hoofdkop bovenaan die zegt "
             "waar de pagina over gaat, daaronder tussenkopjes per onderwerp. Zo kan een AI "
             "bepalen wat de kern is en wat bijzaak."
+        ),
+        "titel_en": "Bring order to your headings",
+        "hoe_en": (
+            "Your page has no clear heading structure. One main heading at the top that says what "
+            "the page is about, and subheadings per topic below it. That lets an AI work out what "
+            "is the point and what is a side note."
         ),
     },
     "sitemap": {
@@ -139,6 +197,12 @@ BELEMMERING_ACTIES = {
             "Search Console en Bing Webmaster Tools. Bing telt hier extra, want ChatGPT leunt "
             "daarop bij het zoeken."
         ),
+        "titel_en": "Submit a sitemap",
+        "hoe_en": (
+            "We found no sitemap. That is the list of all your pages. Shopify and WordPress build "
+            "it for you; all you have to do is submit it to Google Search Console and Bing "
+            "Webmaster Tools. Bing counts extra here, because ChatGPT leans on it when it searches."
+        ),
     },
     "llms_txt": {
         "titel": "Zet een llms.txt op je site",
@@ -148,13 +212,25 @@ BELEMMERING_ACTIES = {
             "AI-assistenten hier veel mee doen, dus verwacht er niet te veel van. Het kost je "
             "tien minuten."
         ),
+        "titel_en": "Put an llms.txt on your site",
+        "hoe_en": (
+            "A small text file in which you explain in a few sentences what you sell and which "
+            "pages matter most. To be honest, there is no proof yet that AI assistants do much "
+            "with this, so do not expect too much from it. It costs you ten minutes."
+        ),
     },
     "taal": {
         "titel": "Leg de taal van je pagina vast",
         "hoe": (
-            "In de code van je pagina staat niet dat hij Nederlands is. Daardoor kan een "
-            "systeem twijfelen of je voor de Nederlandse markt bedoeld bent. Eén regel in je "
-            "thema lost dit op."
+            "In de code van je pagina staat niet in welke taal hij geschreven is. "
+            "Daardoor kan een systeem twijfelen voor welke markt je bedoeld bent. "
+            "Eén regel in je thema lost dit op."
+        ),
+        "titel_en": "Set the language of your page",
+        "hoe_en": (
+            "The code of your page does not say which language it is written in. "
+            "That can leave a system unsure which market you are meant for. "
+            "One line in your theme fixes this."
         ),
     },
     "voorbeeldweergave": {
@@ -164,12 +240,23 @@ BELEMMERING_ACTIES = {
             "geen omschrijving. Dat kost je kliks, en die kliks zijn precies wat mensen ergens "
             "over je laat schrijven."
         ),
+        "titel_en": "Fill in the details for the link preview",
+        "hoe_en": (
+            "When someone shares your link in WhatsApp or on social media, there is no image and "
+            "no description. That costs you clicks, and those clicks are exactly what gets people "
+            "writing about you somewhere."
+        ),
     },
     "alt_tekst": {
         "titel": "Beschrijf je afbeeldingen",
         "hoe": (
             "Een deel van je afbeeldingen heeft geen beschrijving. Een AI ziet een plaatje "
             "niet, alleen de tekst eromheen. Beschrijf in een paar woorden wat erop staat."
+        ),
+        "titel_en": "Describe your images",
+        "hoe_en": (
+            "Some of your images have no description. An AI does not see a picture, only the text "
+            "around it. Describe in a few words what is in it."
         ),
     },
     "snelheid": {
@@ -178,20 +265,54 @@ BELEMMERING_ACTIES = {
             "Je pagina reageert traag. Dat kost je bezoekers, en systemen die je pagina "
             "ophalen geven soms eerder op. Grote afbeeldingen zijn meestal de oorzaak."
         ),
+        "titel_en": "Make your site faster",
+        "hoe_en": (
+            "Your page is slow to respond. That costs you visitors, and systems that fetch your "
+            "page sometimes give up sooner. Large images are usually the cause."
+        ),
     },
 }
 
 
-def _actie(taak_id, soort, titel, waarom, hoe, links=None):
+def _uit(sjabloon, sleutel, taal):
+    """De tekst in de gevraagde taal, met Nederlands als vangnet.
+
+    Ontbreekt de Engelse tegenhanger, dan komt de Nederlandse eruit. Een halve
+    zin of een lege tekst op het scherm van een klant is erger dan een zin in
+    de verkeerde taal."""
+    if taal == "en":
+        return sjabloon.get(sleutel + "_en") or sjabloon[sleutel]
+    return sjabloon[sleutel]
+
+
+# Het merkje dat bij een actie op het scherm komt. "soort" blijft altijd
+# "feit" of "vermoeden", want daar rekent de rest van Krillo mee en daar hangen
+# de opmaakregels aan. "merkje" is puur het woord dat de klant leest.
+MERKJES = {
+    "nl": {"feit": "feit", "vermoeden": "vermoeden"},
+    "en": {"feit": "measured", "vermoeden": "our reading"},
+}
+
+
+def _actie(taak_id, soort, titel, waarom, hoe, links=None, taal="nl"):
     """Elke actie heeft een vast kenmerk (taak_id), zodat de kant-en-klare
     oplossing die erbij hoort eenmalig geschreven en daarna bewaard kan worden.
     Zonder zo'n kenmerk zou dezelfde taak elke week een nieuwe tekst krijgen."""
-    return {"id": taak_id, "soort": soort, "titel": titel, "waarom": waarom,
+    return {"id": taak_id, "soort": soort,
+            "merkje": MERKJES.get(taal, MERKJES["nl"]).get(soort, soort),
+            "titel": titel, "waarom": waarom,
             "hoe": hoe, "links": links or [], "oplossing": None, "waar": None}
 
 
-def _blokkade_acties(verklaring):
+def _blokkade_acties(verklaring, taal="nl"):
     """Stap 1: wat AI aantoonbaar tegenhoudt. Altijd bovenaan."""
+    if taal == "en":
+        waarom = ("This demonstrably stops AI. As long as it is there the rest has little "
+                  "point, because an AI assistant cannot read your site and so cannot "
+                  "recommend it either.")
+    else:
+        waarom = ("Dit houdt AI aantoonbaar tegen. Zolang dit er staat heeft de rest weinig zin, "
+                  "want dan kan een AI-assistent je site niet lezen en dus ook niet aanbevelen.")
     acties = []
     for b in (verklaring or {}).get("blokkades") or []:
         sjabloon = BLOKKADE_ACTIES.get(b.get("id"))
@@ -200,15 +321,15 @@ def _blokkade_acties(verklaring):
         acties.append(_actie(
             b.get("id"),
             "feit",
-            sjabloon["titel"],
-            "Dit houdt AI aantoonbaar tegen. Zolang dit er staat heeft de rest weinig zin, "
-            "want dan kan een AI-assistent je site niet lezen en dus ook niet aanbevelen.",
-            sjabloon["hoe"],
+            _uit(sjabloon, "titel", taal),
+            waarom,
+            _uit(sjabloon, "hoe", taal),
+            taal=taal,
         ))
     return acties
 
 
-def _onjuistheid_acties(controle, winkelnaam):
+def _onjuistheid_acties(controle, winkelnaam, taal="nl"):
     """Stap 2: AI vertelt iets over je winkel dat niet klopt.
 
     Dit is de meest onderschatte actie in de hele lijst. Een winkel die weinig
@@ -219,12 +340,17 @@ def _onjuistheid_acties(controle, winkelnaam):
     if not fouten:
         return []
 
-    naam = winkelnaam or "je winkel"
+    naam = winkelnaam or ("your store" if taal == "en" else "je winkel")
     voorbeelden = []
     for f in fouten[:3]:
         zegt = (f.get("uitspraak") or "").strip()
         site = (f.get("watzegtdesite") or "").strip()
-        voorbeelden.append(f'AI zegt: "{zegt}"' + (f' Op je site staat: "{site}"' if site else ""))
+        if taal == "en":
+            voorbeelden.append(f'AI says: "{zegt}"'
+                               + (f' Your site says: "{site}"' if site else ""))
+        else:
+            voorbeelden.append(f'AI zegt: "{zegt}"'
+                               + (f' Op je site staat: "{site}"' if site else ""))
 
     aantal = len(fouten)
     # Het kenmerk hangt aan de uitspraken zelf. Verandert er wat AI fout zegt,
@@ -235,22 +361,32 @@ def _onjuistheid_acties(controle, winkelnaam):
         "|".join(sorted((f.get("uitspraak") or "") for f in fouten)).encode("utf-8")
     ).hexdigest()[:10]
 
-    return [_actie(
-        kenmerk,
-        "feit",
-        "Zet recht wat AI verkeerd over je vertelt",
-        (f"We vonden {aantal} {'uitspraak' if aantal == 1 else 'uitspraken'} over {naam} die "
-         f"niet {'klopt' if aantal == 1 else 'kloppen'} met wat er op je site staat. "
-         f"Dit weegt zwaarder dan het lijkt: iemand die dit leest en langskomt, vindt iets "
-         f"anders dan hij verwachtte. Dat is een klant die al bijna besloten had."),
-        ("Zet het juiste antwoord duidelijk en in gewone zinnen op je eigen site, het liefst "
-         "op een vraag-en-antwoordpagina. AI-modellen halen hun beeld van je winkel deels bij "
-         "je eigen pagina's op, dus daar begint de correctie. Wat er nu misgaat:\n\n"
-         + "\n".join(f"- {v}" for v in voorbeelden)),
-    )]
+    if taal == "en":
+        titel = "Put right what AI gets wrong about you"
+        waarom = (f"We found {aantal} {'statement' if aantal == 1 else 'statements'} about {naam} "
+                  f"that {'does' if aantal == 1 else 'do'} not match what your site says. "
+                  f"This weighs more than it looks: someone who reads this and comes by finds "
+                  f"something other than expected. That is a customer who had almost decided.")
+        hoe = ("Put the right answer clearly and in plain sentences on your own site, ideally on "
+               "a questions and answers page. AI models build part of their picture of your store "
+               "from your own pages, so that is where the correction starts. What is going wrong "
+               "now:\n\n"
+               + "\n".join(f"- {v}" for v in voorbeelden))
+    else:
+        titel = "Zet recht wat AI verkeerd over je vertelt"
+        waarom = (f"We vonden {aantal} {'uitspraak' if aantal == 1 else 'uitspraken'} over {naam} die "
+                  f"niet {'klopt' if aantal == 1 else 'kloppen'} met wat er op je site staat. "
+                  f"Dit weegt zwaarder dan het lijkt: iemand die dit leest en langskomt, vindt iets "
+                  f"anders dan hij verwachtte. Dat is een klant die al bijna besloten had.")
+        hoe = ("Zet het juiste antwoord duidelijk en in gewone zinnen op je eigen site, het liefst "
+               "op een vraag-en-antwoordpagina. AI-modellen halen hun beeld van je winkel deels bij "
+               "je eigen pagina's op, dus daar begint de correctie. Wat er nu misgaat:\n\n"
+               + "\n".join(f"- {v}" for v in voorbeelden))
+
+    return [_actie(kenmerk, "feit", titel, waarom, hoe, taal=taal)]
 
 
-def _bronnen_acties(bronnen, winkelnaam):
+def _bronnen_acties(bronnen, winkelnaam, taal="nl"):
     """Stap 3: de externe plekken waar je concurrent staat en jij niet.
 
     De grootste hefboom, want het meeste van wat AI over een winkel zegt komt
@@ -259,42 +395,74 @@ def _bronnen_acties(bronnen, winkelnaam):
     if not gemist:
         return []
 
-    naam = winkelnaam or "je winkel"
+    naam = winkelnaam or ("your store" if taal == "en" else "je winkel")
     top = gemist[:4]
     namen = sorted({n for g in top for n in (g.get("concurrenten") or [])})
-    wie = ", ".join(namen[:4]) if namen else "winkels die AI wel noemt"
+    if namen:
+        wie = ", ".join(namen[:4])
+    else:
+        wie = "stores AI does mention" if taal == "en" else "winkels die AI wel noemt"
 
     # Tel de plekken die we ook ECHT laten zien. Dit stond op het totaal uit
     # de bronanalyse, dus bij dertig gemiste plekken las de klant "zorg dat je
     # op deze 30 plekken komt te staan" met vier links eronder.
     aantal = len(top)
-    plekken = "plek" if aantal == 1 else "plekken"
+    if taal == "en":
+        plekken = "place" if aantal == 1 else "places"
+        titel = f"Get {naam} listed on {'this' if aantal == 1 else 'these'} {aantal} {plekken}"
+        waarom = (f"We put your shopping questions into an ordinary search engine and went "
+                  f"through the pages that came back. On {'this' if aantal == 1 else 'these'} "
+                  f"{plekken} {wie} are listed and {naam} is not. This is the biggest lever you "
+                  f"have: most of what AI says about a store does not come from that store "
+                  f"itself, but from what is written about it elsewhere. And these pages already "
+                  f"exist, you do not have to make them.")
+        hoe = ("Open the pages below and look at how the stores mentioned got there. Usually it "
+               "is an editor who put a list together, or a conversation where someone gave a tip. "
+               "Look on the page for contact, editorial or tips, and send a short message: who "
+               "you are, what you sell, and what your store has that the listed stores do not. "
+               "That last part is the only thing that counts, because without a reason to add you "
+               "nothing happens. On a forum or a question thread you can answer yourself, but be "
+               "open about the fact that it is your own store.")
+    else:
+        plekken = "plek" if aantal == 1 else "plekken"
+        titel = f"Zorg dat {naam} op deze {aantal} {plekken} komt te staan"
+        waarom = (f"We hebben jouw koopvragen in een gewone zoekmachine gezet en de pagina's nagelopen "
+                  f"die daaruit kwamen. Op deze {plekken} staan {wie} wel, en {naam} niet. Dit is de "
+                  f"grootste hefboom die je hebt: het meeste van wat AI over een winkel zegt komt niet "
+                  f"van die winkel zelf, maar van wat er elders over geschreven staat. En deze pagina's "
+                  f"bestaan al, je hoeft ze niet te maken.")
+        hoe = ("Open de pagina's hieronder en kijk hoe de genoemde winkels er terechtgekomen zijn. "
+               "Meestal is dat een redactie die een lijstje samenstelde, of een gesprek waar iemand "
+               "een tip gaf. Zoek op de pagina naar contact, redactie of tips, en stuur een kort "
+               "bericht: wie je bent, wat je verkoopt, en wat jouw winkel heeft dat de genoemde "
+               "winkels niet hebben. Dat laatste is het enige dat telt, want zonder reden om je toe "
+               "te voegen gebeurt er niets. Bij een forum of een vraagdraadje kan je zelf antwoorden, "
+               "maar wees dan open over het feit dat het je eigen winkel is.")
 
     return [_actie(
         "bronnen",
         "feit",
-        f"Zorg dat {naam} op deze {aantal} {plekken} komt te staan",
-        (f"We hebben jouw koopvragen in een gewone zoekmachine gezet en de pagina's nagelopen "
-         f"die daaruit kwamen. Op deze {plekken} staan {wie} wel, en {naam} niet. Dit is de "
-         f"grootste hefboom die je hebt: het meeste van wat AI over een winkel zegt komt niet "
-         f"van die winkel zelf, maar van wat er elders over geschreven staat. En deze pagina's "
-         f"bestaan al, je hoeft ze niet te maken."),
-        ("Open de pagina's hieronder en kijk hoe de genoemde winkels er terechtgekomen zijn. "
-         "Meestal is dat een redactie die een lijstje samenstelde, of een gesprek waar iemand "
-         "een tip gaf. Zoek op de pagina naar contact, redactie of tips, en stuur een kort "
-         "bericht: wie je bent, wat je verkoopt, en wat jouw winkel heeft dat de genoemde "
-         "winkels niet hebben. Dat laatste is het enige dat telt, want zonder reden om je toe "
-         "te voegen gebeurt er niets. Bij een forum of een vraagdraadje kan je zelf antwoorden, "
-         "maar wees dan open over het feit dat het je eigen winkel is."),
+        titel,
+        waarom,
+        hoe,
         links=[{"url": g["url"], "titel": g.get("titel") or g.get("domein"),
                 "domein": g.get("domein")} for g in top],
+        taal=taal,
     )]
 
 
-def _belemmering_acties(verklaring):
+def _belemmering_acties(verklaring, taal="nl"):
     """Stap 4: de leesbaarheid van je site. Nuttig, maar het blijft een
     vermoeden en het gaat over het kleinste deel van het verhaal."""
     aanwezig = {b.get("id") for b in (verklaring or {}).get("belemmeringen") or []}
+    if taal == "en":
+        waarom = ("This makes your site easier for AI to read. Whether it gets you mentioned more "
+                  "often we do not know, so we do not claim it. It is cheap and it is in your own "
+                  "hands.")
+    else:
+        waarom = ("Dit maakt je site beter leesbaar voor AI. Of je hierdoor vaker genoemd wordt "
+                  "weten we niet, en dat beweren we dus ook niet. Het is wel goedkoop en je hebt "
+                  "het zelf in de hand.")
     acties = []
     for id_ in BELEMMERING_VOLGORDE:
         if id_ not in aanwezig:
@@ -305,35 +473,79 @@ def _belemmering_acties(verklaring):
         acties.append(_actie(
             id_,
             "vermoeden",
-            sjabloon["titel"],
-            "Dit maakt je site beter leesbaar voor AI. Of je hierdoor vaker genoemd wordt "
-            "weten we niet, en dat beweren we dus ook niet. Het is wel goedkoop en je hebt "
-            "het zelf in de hand.",
-            sjabloon["hoe"],
+            _uit(sjabloon, "titel", taal),
+            waarom,
+            _uit(sjabloon, "hoe", taal),
+            taal=taal,
         ))
     return acties
 
 
+def _plan_en(gekozen, rest, genoemd, telbaar, naam, bronnen):
+    """De Engelse tegenhanger van de slotzinnen in maak_actieplan.
+
+    Apart gezet zodat de Nederlandse tekst er woord voor woord bij blijft staan
+    zoals hij was. De keuze en de volgorde zijn dan al gemaakt: hier komen
+    alleen nog de zinnen omheen."""
+    if not gekozen:
+        # Zelfde voorbehoud als in het Nederlands: niet beweren dat we plekken
+        # nagekeken hebben als de bronanalyse niets opgeleverd heeft.
+        bronnen_gedaan = bool(bronnen and bronnen.get("paginas"))
+        if bronnen_gedaan:
+            kop = (f"{naam} is mentioned in {genoemd} of the {telbaar} questions, and right now we "
+                   f"find nothing to fix. Your site is in order and you are listed on the places "
+                   f"we checked. Keep it that way and watch what your competitors do.")
+        else:
+            kop = (f"{naam} is mentioned in {genoemd} of the {telbaar} questions. There are no open "
+                   f"points on your site. We could not check any outside pages this round, so we "
+                   f"cannot say anything about the places beyond your own site right now. Back "
+                   f"next week.")
+    elif genoemd == 0:
+        kop = (f"{naam} was not mentioned in a single one of the {telbaar} questions this round. "
+               f"Below is what you can do about it, most important first.")
+    else:
+        kop = (f"{naam} is mentioned in {genoemd} of the {telbaar} questions. Below is what you can "
+               f"do this week to improve that, most important first.")
+
+    return {
+        "acties": gekozen,
+        "kop": kop,
+        "rest": rest,
+        "toelichting": (
+            "We deliberately keep it to three at most. A list of twelve points is the same as no "
+            "list, because nobody starts on it. What is not here is not unimportant, it simply "
+            "comes up next time."
+            + (f" There {'is' if rest == 1 else 'are'} {rest} waiting." if rest > 0 else "")
+        ),
+    }
+
+
 def maak_actieplan(verklaring=None, klantbeeld=None, bronnen=None, controle=None,
-                   winkelnaam=None, maximum=None):
+                   winkelnaam=None, maximum=None, taal="nl"):
     """Zet alles wat we van een winkel weten om in hoogstens drie acties.
 
     Krijgt de uitkomsten van de andere onderdelen en kiest daaruit. Rekent
     zelf niets uit en vraagt niets aan een AI: het is puur een volgorde. Dat is
     met opzet, want dezelfde meting hoort altijd hetzelfde advies te geven.
 
+    taal is "nl" of "en". Alles wat niet "en" is wordt Nederlands, want dat is
+    wat Krillo altijd al deed en wat voor alle bestaande klanten klopt. De
+    volgorde, de kenmerken en het maximum zijn in beide talen precies gelijk:
+    alleen de woorden veranderen.
+
     Geeft None terug als er nog niet gemeten is. Dan is er niets te adviseren
     en dat is beter dan iets verzinnen."""
     maximum = maximum or MAX_ACTIES
+    taal = "en" if taal == "en" else "nl"
 
     if not klantbeeld or not klantbeeld.get("telbaar"):
         return None
 
     alles = (
-        _blokkade_acties(verklaring)
-        + _onjuistheid_acties(controle, winkelnaam)
-        + _bronnen_acties(bronnen, winkelnaam)
-        + _belemmering_acties(verklaring)
+        _blokkade_acties(verklaring, taal)
+        + _onjuistheid_acties(controle, winkelnaam, taal)
+        + _bronnen_acties(bronnen, winkelnaam, taal)
+        + _belemmering_acties(verklaring, taal)
     )
 
     gekozen = alles[:maximum]
@@ -341,7 +553,10 @@ def maak_actieplan(verklaring=None, klantbeeld=None, bronnen=None, controle=None
 
     genoemd = klantbeeld.get("genoemd") or 0
     telbaar = klantbeeld.get("telbaar") or 0
-    naam = winkelnaam or "Je winkel"
+    naam = winkelnaam or ("Your store" if taal == "en" else "Je winkel")
+
+    if taal == "en":
+        return _plan_en(gekozen, rest, genoemd, telbaar, naam, bronnen)
 
     if not gekozen:
         # BELANGRIJK: niet beweren dat we plekken nagekeken hebben als de

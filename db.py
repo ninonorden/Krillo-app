@@ -12,6 +12,7 @@ uit Neon).
 import os
 import json
 import uuid
+import secrets
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 
@@ -96,6 +97,11 @@ def init_db():
                         verwijderd_op TIMESTAMPTZ
                     );
                 """)
+                # Of deze winkel al eens een gratis proefperiode gehad heeft.
+                # Zonder dit kan iemand opzeggen en meteen opnieuw starten, en
+                # zo eindeloos zeven gratis dagen blijven krijgen.
+                cur.execute("ALTER TABLE shopify_winkels "
+                            "ADD COLUMN IF NOT EXISTS proef_gehad_op TIMESTAMPTZ;")
                 # Wat wij in de winkel van een klant veranderd hebben, met de
                 # oude tekst erbij. Dit is geen logboek voor onszelf maar het
                 # product: we beloven dat de klant alles kan terugzetten, en
@@ -232,6 +238,13 @@ def init_db():
                 # over afmeldingen.
                 cur.execute("ALTER TABLE winkelprofielen "
                             "ADD COLUMN IF NOT EXISTS afgemeld_op TIMESTAMPTZ;")
+                # De merknaam zoals de winkel zichzelf noemt. Werd hiervoor
+                # geraden door de omschrijving op " is " te splitsen. Dat gaf
+                # bij "Deze webshop is gespecialiseerd in servies" de naam
+                # "Deze webshop", en met die naam telde elke pagina waar die
+                # twee woorden toevallig staan als vermelding.
+                cur.execute("ALTER TABLE winkelprofielen "
+                            "ADD COLUMN IF NOT EXISTS winkelnaam TEXT;")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS winkelprofielen_bmtoken "
                             "ON winkelprofielen (benchmark_token) "
                             "WHERE benchmark_token IS NOT NULL;")
@@ -368,6 +381,14 @@ def init_db():
                 """)
                 cur.execute("ALTER TABLE zichtbaarheidstests ADD COLUMN IF NOT EXISTS hergebruikt BOOLEAN DEFAULT false;")
                 cur.execute("ALTER TABLE zichtbaarheidstests ADD COLUMN IF NOT EXISTS soort TEXT DEFAULT 'volledig';")
+                # Een niet te raden kenmerk per test. Het rijnummer telde
+                # gewoon op: wie zelf een test deed en nummer 812 kreeg, kon
+                # 1 tot en met 811 opvragen en zag van elke andere bezoeker de
+                # winkel en de volledige uitslag.
+                cur.execute("ALTER TABLE zichtbaarheidstests "
+                            "ADD COLUMN IF NOT EXISTS kenmerk TEXT;")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS zichtbaarheid_kenmerk "
+                            "ON zichtbaarheidstests (kenmerk) WHERE kenmerk IS NOT NULL;")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_zichtbaarheid_url ON zichtbaarheidstests (webshop_url, aangevraagd_op);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_zichtbaarheid_dag ON zichtbaarheidstests (aangevraagd_op);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_controles_meting ON uitspraakcontroles (webshop_url, meting_id);")
@@ -398,6 +419,32 @@ def init_db():
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_kosten_webshop ON kostengebeurtenissen (webshop_url, moment);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_kosten_scan ON kostengebeurtenissen (scan_id);")
                 cur.execute("ALTER TABLE rapporten ADD COLUMN IF NOT EXISTS klant_token TEXT;")
+    finally:
+        conn.close()
+
+
+def ontclaim_payment(payment_id):
+    """Maakt de claim op een betaling ongedaan, zodat hij opnieuw geprobeerd wordt.
+
+    Dit hoort bij het geval waarin er wel betaald is maar de levering mislukte,
+    bijvoorbeeld omdat de webshop onze scanner blokkeerde. Zonder dit blijft de
+    claim staan, stopt elke herhaling van Mollie er meteen op, en heeft de klant
+    betaald zonder ooit iets te krijgen. Mollie probeert het uit zichzelf nog
+    een paar keer, en dan is er nog een kans."""
+    if not payment_id:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM verwerkte_betalingen WHERE payment_id = %s",
+                            (payment_id,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Claim op {payment_id} terugdraaien mislukt: {e}")
+        return False
     finally:
         conn.close()
 
@@ -544,7 +591,7 @@ def kostenoverzicht(dagen=30):
         conn.close()
 
 
-def bewaar_koopvragen(webshop_url, omschrijving, vragen, vervang=False):
+def bewaar_koopvragen(webshop_url, omschrijving, vragen, vervang=False, winkelnaam=None):
     """Bewaart de gegenereerde koopvragen.
 
     vervang=True zet eerst alle bestaande vragen van deze webshop op inactief en
@@ -561,11 +608,14 @@ def bewaar_koopvragen(webshop_url, omschrijving, vragen, vervang=False):
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO winkelprofielen (webshop_url, omschrijving)
-                       VALUES (%s, %s)
+                    """INSERT INTO winkelprofielen (webshop_url, omschrijving, winkelnaam)
+                       VALUES (%s, %s, %s)
                        ON CONFLICT (webshop_url) DO UPDATE
-                       SET omschrijving = EXCLUDED.omschrijving, bijgewerkt_op = now()""",
-                    (webshop_url, omschrijving),
+                       SET omschrijving = EXCLUDED.omschrijving,
+                           winkelnaam = coalesce(EXCLUDED.winkelnaam,
+                                                 winkelprofielen.winkelnaam),
+                           bijgewerkt_op = now()""",
+                    (webshop_url, omschrijving, (winkelnaam or None)),
                 )
                 if vervang:
                     cur.execute(
@@ -849,6 +899,25 @@ def bewaar_shopify_winkel(winkel, toegangssleutel, rechten=None, webshop_url=Non
         conn.close()
 
 
+def markeer_proef_gehad(winkel):
+    """Legt vast dat deze winkel zijn gratis proefperiode gehad heeft."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE shopify_winkels
+                                  SET proef_gehad_op = coalesce(proef_gehad_op, now())
+                                WHERE winkel = %s""", (winkel,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Proefperiode vastleggen mislukt voor {winkel}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
 def get_shopify_winkel(winkel):
     """Eén geïnstalleerde winkel, of None."""
     conn = _get_connection()
@@ -936,6 +1005,13 @@ def wis_shopify_winkel(winkel):
                                   "bronvindplaatsen", "winkelprofielen", "klanten",
                                   "rapporten", "gratis_scans", "zichtbaarheidstests",
                                   "beoordelingen", "uitspraakcontroles", "koopvragen",
+                                  # De benaderlijst hoort hier ook bij. Daar staat
+                                  # het gevonden contactadres van de winkel in,
+                                  # waar wij dat vandaan haalden en onze notities.
+                                  # Bij een winkel die eerst benaderd is en later
+                                  # de app installeerde, bleef dat na een
+                                  # wisverzoek allemaal gewoon staan.
+                                  "benadering",
                                   "ai_antwoorden"):
                         # Elk wissen in een eigen tussenstap. Een tabel die niet
                         # bestaat of geen webshop_url heeft laat anders de hele
@@ -1186,18 +1262,32 @@ def maak_factuur(payment_id, email, bedrijfsnaam, omschrijving, bedrag, bron=Non
 def get_or_create_klant(webshop_url, email):
     """Geeft het vaste token van deze klant terug, en maakt het aan als het nog
     niet bestaat. Zo houdt een monitoring-klant altijd dezelfde pagina, ook na
-    tien wekelijkse scans."""
+    tien wekelijkse scans.
+
+    LET OP, dit is een beveiligingscontrole en geen formaliteit: hoort er bij
+    deze webshop al een klant met een ANDER e-mailadres, dan geven wij het
+    bestaande token NIET terug. Zonder die controle kon iemand de URL van een
+    bestaande klant invullen bij een bestelling, kreeg hij diens token in zijn
+    eigen mailbox, en zag hij alle rapporten van die klant. Hij kon er zelfs
+    diens abonnement mee opzeggen."""
     conn = _get_connection()
     if conn is None:
         return None
     try:
         with conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT klant_token FROM klanten WHERE webshop_url = %s", (webshop_url,))
+                cur.execute("SELECT klant_token, email FROM klanten WHERE webshop_url = %s",
+                            (webshop_url,))
                 bestaand = cur.fetchone()
                 if bestaand:
+                    oud_adres = (bestaand.get("email") or "").strip().lower()
+                    nieuw_adres = (email or "").strip().lower()
+                    if oud_adres and nieuw_adres and oud_adres != nieuw_adres:
+                        print(f"LET OP: {nieuw_adres} vroeg de pagina van {webshop_url} op, "
+                              f"maar die hoort bij {oud_adres}. Geweigerd.")
+                        return None
                     return bestaand["klant_token"]
-                token = uuid.uuid4().hex[:16]
+                token = secrets.token_urlsafe(24)
                 cur.execute(
                     "INSERT INTO klanten (klant_token, webshop_url, email) VALUES (%s, %s, %s)",
                     (token, webshop_url, email),
@@ -1297,7 +1387,7 @@ def save_report(report_type, webshop_url, email, score, checks, fixes=None, paym
     conn = _get_connection()
     if conn is None:
         return None
-    token = uuid.uuid4().hex[:12]
+    token = secrets.token_urlsafe(24)
     try:
         with conn:
             with conn.cursor() as cur:
@@ -1995,7 +2085,10 @@ def get_demo_webshops():
 
 def start_zichtbaarheidstest(webshop_url, email, nieuwsbrief=False, herkomst=None,
                              hergebruikt=False, soort='volledig'):
-    """Legt een aanvraag vast en geeft het id terug.
+    """Legt een aanvraag vast en geeft {"id": ..., "kenmerk": ...} terug.
+
+    Het kenmerk is wat naar de browser gaat, het id blijft binnen. Zo kan
+    niemand met een opgeteld nummer de uitslag van een ander opvragen.
 
     Het akkoordmoment wordt hier gezet en niet later, want dat is het bewijs
     dat iemand er zelf om gevraagd heeft. Zonder dat moment kan je bij een
@@ -2009,12 +2102,15 @@ def start_zichtbaarheidstest(webshop_url, email, nieuwsbrief=False, herkomst=Non
                 cur.execute(
                     """INSERT INTO zichtbaarheidstests
                        (webshop_url, email, nieuwsbrief_akkoord, akkoord_op, herkomst,
-                        status, hergebruikt, soort)
-                       VALUES (%s, %s, %s, now(), %s, %s, %s, %s) RETURNING id""",
+                        status, hergebruikt, soort, kenmerk)
+                       VALUES (%s, %s, %s, now(), %s, %s, %s, %s, %s)
+                       RETURNING id, kenmerk""",
                     (webshop_url, email, bool(nieuwsbrief), (herkomst or None),
-                     'klaar' if hergebruikt else 'wachtrij', bool(hergebruikt), soort),
+                     'klaar' if hergebruikt else 'wachtrij', bool(hergebruikt), soort,
+                     secrets.token_urlsafe(18)),
                 )
-                return cur.fetchone()[0]
+                rij = cur.fetchone()
+                return {"id": rij[0], "kenmerk": rij[1]}
     except Exception as e:
         print(f"Zichtbaarheidstest vastleggen mislukt: {e}")
         return None
@@ -2046,6 +2142,27 @@ def zet_zichtbaarheidstest(test_id, status, resultaat=None, meting_id=None, fout
     except Exception as e:
         print(f"Zichtbaarheidstest bijwerken mislukt: {e}")
         return False
+    finally:
+        conn.close()
+
+
+def get_zichtbaarheidstest_op_kenmerk(kenmerk):
+    """Een test op zijn niet te raden kenmerk. Dit is wat de pagina gebruikt."""
+    if not kenmerk or len(kenmerk) < 12:
+        return None
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM zichtbaarheidstests WHERE kenmerk = %s",
+                            (kenmerk,))
+                rij = cur.fetchone()
+                return dict(rij) if rij else None
+    except Exception as e:
+        print(f"Zichtbaarheidstest ophalen mislukt: {e}")
+        return None
     finally:
         conn.close()
 

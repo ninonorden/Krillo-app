@@ -12,10 +12,12 @@ Starten:
 Ga daarna naar http://127.0.0.1:5000 in je browser.
 """
 
+import hmac
 import json
 import os
 import re
 import threading
+import time
 from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify, render_template, redirect, Response
 import scan_engine
@@ -293,6 +295,18 @@ def _herkomst():
     return domein[:60]
 
 
+def _sleutel_klopt(gegeven, verwacht):
+    """Vergelijkt een sleutel zonder dat de duur iets verraadt.
+
+    Met == stopt de vergelijking bij het eerste verschillende teken, en dan
+    kan iemand aan de reactietijd zien hoeveel tekens hij goed had. Dat is
+    theoretisch over het internet, maar het kost een regel om het goed te doen
+    en shopify_app.py doet het elders al zo."""
+    if not gegeven or not verwacht:
+        return False
+    return hmac.compare_digest(str(gegeven), str(verwacht))
+
+
 def _schoon_bron(waarde):
     """Maakt een bronlabel schoon voordat het de database of Mollie in gaat.
 
@@ -400,13 +414,13 @@ def api_voorproef():
 
     # Zonder e-mailadres, dus met een vaste plaatsaanduiding. Dat is geen
     # persoonsgegeven en er gaat nooit mail heen.
-    test_id = db.start_zichtbaarheidstest(url, "voorproef@krillo.nl", False, _herkomst(),
-                                          soort="voorproef")
-    if not test_id:
+    aanvraag = db.start_zichtbaarheidstest(url, "voorproef@krillo.nl", False, _herkomst(),
+                                           soort="voorproef")
+    if not aanvraag:
         return jsonify({"status": "uit"}), 200
 
-    threading.Thread(target=_draai_voorproef, args=(test_id, url), daemon=True).start()
-    return jsonify({"test_id": test_id, "status": "bezig"})
+    threading.Thread(target=_draai_voorproef, args=(aanvraag["id"], url), daemon=True).start()
+    return jsonify({"kenmerk": aanvraag["kenmerk"], "status": "bezig"})
 
 
 @app.route("/api/zichtbaarheidstest", methods=["POST"])
@@ -444,9 +458,10 @@ def api_zichtbaarheidstest():
         # mee in de dagteller, dan zou een uitslag die tien keer gedeeld wordt
         # de gratis test voor iedereen dichtzetten zonder dat er een cent
         # uitgegeven is.
-        test_id = db.start_zichtbaarheidstest(url, email, nieuwsbrief, herkomst, hergebruikt=True)
-        if test_id:
-            db.zet_zichtbaarheidstest(test_id, "klaar", resultaat=eerder["resultaat"])
+        aanvraag = db.start_zichtbaarheidstest(url, email, nieuwsbrief, herkomst,
+                                               hergebruikt=True)
+        if aanvraag:
+            db.zet_zichtbaarheidstest(aanvraag["id"], "klaar", resultaat=eerder["resultaat"])
         # base_url en de zin hier bepalen en niet in de thread. In de thread is
         # er geen verzoek meer, en get_base_url() leest het verzoek. Deed je
         # dat daar, dan liep de mail elke keer stuk zonder dat iemand het merkt:
@@ -457,29 +472,32 @@ def api_zichtbaarheidstest():
         threading.Thread(
             target=lambda: emailing.send_zichtbaarheidstest(email, url, resultaat, zin, basis),
             daemon=True).start()
-        return jsonify({"test_id": test_id, "status": "klaar",
+        return jsonify({"kenmerk": (aanvraag or {}).get("kenmerk"), "status": "klaar",
                         "resultaat": resultaat, "zin": zin})
 
     mag, reden = zichtbaarheid.mag_starten()
     if not mag:
         return jsonify({"error": reden}), 429
 
-    test_id = db.start_zichtbaarheidstest(url, email, nieuwsbrief, herkomst)
-    if not test_id:
+    aanvraag = db.start_zichtbaarheidstest(url, email, nieuwsbrief, herkomst)
+    if not aanvraag:
         return jsonify({"error": "Het lukte even niet. Probeer het zo nog eens."}), 500
 
     threading.Thread(target=_draai_zichtbaarheidstest,
-                     args=(test_id, url, email, get_base_url()), daemon=True).start()
-    return jsonify({"test_id": test_id, "status": "wachtrij"})
+                     args=(aanvraag["id"], url, email, get_base_url()), daemon=True).start()
+    return jsonify({"kenmerk": aanvraag["kenmerk"], "status": "wachtrij"})
 
 
-@app.route("/api/zichtbaarheidstest/<int:test_id>")
-def api_zichtbaarheidstest_status(test_id):
+@app.route("/api/zichtbaarheidstest/<kenmerk>")
+def api_zichtbaarheidstest_status(kenmerk):
     """De pagina vraagt hier om de tien seconden of de uitslag er al is.
 
-    Geeft bewust geen e-mailadres terug. Wie het nummer van een test raadt,
-    hoort niet te zien wie hem aangevraagd heeft."""
-    test = db.get_zichtbaarheidstest(test_id)
+    Op kenmerk en niet op rijnummer. Met een rijnummer kon iemand die zelf een
+    test deed simpelweg naar beneden tellen en van elke andere bezoeker de
+    winkel en de volledige uitslag opvragen.
+
+    Geeft ook geen e-mailadres terug, ook niet met het juiste kenmerk."""
+    test = db.get_zichtbaarheidstest_op_kenmerk(kenmerk)
     if not test:
         return jsonify({"error": "Onbekende test."}), 404
 
@@ -598,6 +616,63 @@ def checkout_monitoring():
     return jsonify(result)
 
 
+def _meld_aan_beheer(kop, bericht):
+    """Stuurt een waarschuwing naar het eigen adres.
+
+    Alleen voor dingen die stil misgaan en die je moet weten voordat een klant
+    het merkt. Zet BEHEER_EMAIL in Render; staat hij er niet, dan blijft het bij
+    de logs."""
+    print(f"BEHEERMELDING: {kop} | {bericht}")
+    adres = (os.environ.get("BEHEER_EMAIL") or os.environ.get("SMTP_REPLY_TO") or "").strip()
+    if not adres:
+        return False
+    try:
+        return emailing.send_email(
+            adres, f"Krillo: {kop}",
+            f"<p style='font-family:Arial,sans-serif;font-size:15px;'>{bericht}</p>")
+    except Exception as e:
+        print(f"Beheermelding versturen mislukt: {e}")
+        return False
+
+
+def _scan_met_herkansing(webshop_url, pogingen=3):
+    """Scant, en probeert het nog twee keer als het misgaat.
+
+    De meeste mislukkingen zijn tijdelijk: een trage server, een robotcheck die
+    even aanslaat. Meteen opgeven betekent dat iemand die net betaald heeft
+    niets krijgt vanwege een hapering van vijf seconden."""
+    laatste = {"error": "onbekend"}
+    for poging in range(max(1, pogingen)):
+        if poging:
+            time.sleep(4 * poging)
+        try:
+            laatste = run_scan(webshop_url)
+        except Exception as e:
+            laatste = {"error": f"{type(e).__name__}: {e}"[:200]}
+        if "error" not in laatste:
+            if poging:
+                print(f"Scan van {webshop_url} lukte bij poging {poging + 1}.")
+            return laatste
+        print(f"Scan van {webshop_url} mislukt (poging {poging + 1}): {laatste['error']}")
+    return laatste
+
+
+def _levering_mislukt(payment_id, webshop_url, email, soort, reden):
+    """Er is betaald maar wij konden niet leveren.
+
+    Twee dingen gebeuren hier, en allebei zijn ze nodig. De claim gaat terug,
+    zodat een volgende melding van Mollie het opnieuw probeert. En er gaat een
+    bericht naar het eigen adres, want anders staat het alleen in de logs van
+    Render en kijkt niemand daar."""
+    db.ontclaim_payment(payment_id)
+    _meld_aan_beheer(
+        "Betaald maar niet geleverd",
+        f"Betaling {payment_id} voor {webshop_url} ({soort}, {email}) is binnen, maar "
+        f"de scan lukte niet: {reden}. De betaling staat weer open, dus een volgende "
+        f"melding van Mollie probeert het opnieuw. Lukt dat ook niet, doe het dan met "
+        f"de hand of geef het geld terug.")
+
+
 def _verwerk_betaling(payment_id, base_url):
     """Doet het echte werk na een geslaagde betaling: scannen, AI-tekst maken,
     rapport opslaan en e-mail versturen. Draait op de achtergrond zodat Mollie
@@ -667,12 +742,29 @@ def _verwerk_betaling(payment_id, base_url):
             if not db.start_uitvoering(payment_id, webshop_url, email, platform):
                 print(f"LET OP: uitvoering voor {webshop_url} staat NIET op de werklijst.")
             klant_token = db.get_or_create_klant(webshop_url, email)
+            if not klant_token:
+                # Deze webshop hoort al bij een ander e-mailadres. Wij geven die
+                # pagina niet aan iemand anders, ook niet als hij net betaald
+                # heeft. Dat kan een tikfout zijn of iemand die de URL van een
+                # bekende winkel invulde; beide moeten met de hand bekeken.
+                _meld_aan_beheer(
+                    "Bestelling op een webshop van een andere klant",
+                    f"{email} bestelde een uitvoering voor {webshop_url}, maar die "
+                    f"webshop hoort al bij een ander adres. De klantpagina is NIET "
+                    f"gedeeld. Kijk of dit klopt en handel het met de hand af.")
             monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
             emailing.send_uitvoering_welkom(email, webshop_url, platform, monitoring_url)
 
         elif payment_type == "audit" and webshop_url and email:
-            scan_result = run_scan(webshop_url)
-            if "error" not in scan_result:
+            scan_result = _scan_met_herkansing(webshop_url)
+            if "error" in scan_result:
+                # Betaald, maar wij kunnen niet leveren. De claim gaat terug, zodat
+                # een volgende melding van Mollie het opnieuw probeert. Zou de claim
+                # blijven staan, dan is het geld binnen, komt er nooit een rapport,
+                # en merkt niemand het.
+                _levering_mislukt(payment_id, webshop_url, email, "audit",
+                                  scan_result.get("error"))
+            else:
                 # Op welk winkelplatform deze shop draait. Werd tot nu toe
                 # alleen bij demo's opgeslagen, waardoor we het van betalende
                 # klanten juist niet wisten. Zonder dit schrijft de tekst bij
@@ -691,12 +783,33 @@ def _verwerk_betaling(payment_id, base_url):
         elif payment_type == "monitoring_first_payment":
             customer_id = metadata.get("customer_id")
             if customer_id:
-                payments.create_subscription(customer_id)
+                # Het antwoord WEL nakijken. Ging dit mis, dan heeft de klant de
+                # eerste maand betaald maar wordt er daarna nooit meer
+                # geincasseerd, en valt hij stilletjes uit de dienst.
+                uitkomst = payments.create_subscription(customer_id) or {}
+                if uitkomst.get("error"):
+                    print(f"LET OP: doorlopend abonnement NIET aangemaakt voor "
+                          f"{webshop_url} ({customer_id}): {uitkomst['error']}")
+                    _meld_aan_beheer(
+                        "Abonnement niet aangemaakt",
+                        f"{webshop_url} heeft de eerste maand betaald, maar het "
+                        f"doorlopende abonnement is niet aangemaakt bij Mollie. "
+                        f"Reden: {uitkomst['error']}. Maak het met de hand aan, "
+                        f"anders wordt er nooit meer geincasseerd.")
             if webshop_url and email:
-                scan_result = run_scan(webshop_url)
-                if "error" not in scan_result:
+                scan_result = _scan_met_herkansing(webshop_url)
+                if "error" in scan_result:
+                    _levering_mislukt(payment_id, webshop_url, email, "monitoring",
+                                      scan_result.get("error"))
+                else:
                     db.zet_platform(webshop_url, scan_result.get("platform"))
                     klant_token = db.get_or_create_klant(webshop_url, email)
+                    if not klant_token:
+                        _meld_aan_beheer(
+                            "Aanmelding op een webshop van een andere klant",
+                            f"{email} meldde zich aan voor monitoring op {webshop_url}, "
+                            f"maar die webshop hoort al bij een ander adres. De "
+                            f"klantpagina is NIET gedeeld. Handel dit met de hand af.")
                     db.save_report("monitoring", webshop_url, email, scan_result.get("score", 0),
                                     scan_result.get("checks", []), None, payment_id, klant_token)
                     monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
@@ -761,11 +874,25 @@ def _is_aan_de_beurt(webshop_url, vandaag, alles=False):
     storing betekenen dat iemand een week overslaat zonder dat het opvalt."""
     if alles:
         return True
-    if meetdag(webshop_url) == vandaag.weekday():
-        return True
 
     vorige = db.get_previous_score(webshop_url)
     laatste = (vorige or {}).get("aangemaakt_op")
+
+    # Vandaag al gemeten? Dan niet nog een keer. Vuurt de cron door een storing
+    # twee keer, of opent iemand de link met de sleutel nog eens om te kijken of
+    # hij werkt, dan kreeg elke klant twee keer dezelfde weekmail, kwamen er
+    # twee rapporten in zijn verloop, en draaiden de AI-metingen dubbel. Die
+    # kosten dus ook dubbel.
+    if laatste is not None:
+        try:
+            if laatste.date() == vandaag.date():
+                return False
+        except (AttributeError, TypeError):
+            pass
+
+    if meetdag(webshop_url) == vandaag.weekday():
+        return True
+
     if laatste is None:
         return True
     try:
@@ -879,13 +1006,31 @@ def weekly_scans():
 
     Antwoordt meteen, het werk gebeurt op de achtergrond."""
     cron_key = os.environ.get("CRON_KEY")
-    if not cron_key or request.args.get("key") != cron_key:
+    if not cron_key or not _sleutel_klopt(request.args.get("key"), cron_key):
         return "", 404
 
     alles = request.args.get("alles") == "ja"
     base_url = get_base_url()
     threading.Thread(target=_draai_wekelijkse_scans, args=(base_url, alles), daemon=True).start()
     return "ok", 200
+
+
+@app.after_request
+def _shopify_inbed_kop(antwoord):
+    """Een ingebedde app moet per verzoek zeggen wie hem in een venster mag zetten.
+
+    Shopify eist dit voor de App Store, en het is tegelijk de enige bescherming
+    tegen een willekeurige andere site die ons app-scherm in een onzichtbaar
+    venster zet en de winkelier daarin laat klikken."""
+    if not request.path.startswith("/shopify"):
+        return antwoord
+    winkel = shopify_app._schoon(request.args.get("shop") or "")
+    if shopify_app.geldige_winkel(winkel):
+        toegestaan = f"https://{winkel} https://admin.shopify.com"
+    else:
+        toegestaan = "https://admin.shopify.com https://*.myshopify.com"
+    antwoord.headers["Content-Security-Policy"] = f"frame-ancestors {toegestaan};"
+    return antwoord
 
 
 def _benadering_ronde():
@@ -975,7 +1120,7 @@ def cron_benadering():
 
     Antwoordt meteen, het werk gebeurt op de achtergrond."""
     cron_key = os.environ.get("CRON_KEY")
-    if not cron_key or request.args.get("key") != cron_key:
+    if not cron_key or not _sleutel_klopt(request.args.get("key"), cron_key):
         return "", 404
     threading.Thread(target=_benadering_ronde, daemon=True).start()
     return "ok", 200
@@ -1017,7 +1162,7 @@ def admin_benadering():
     """De machinekamer van de benadering: de lijst erin, de rem instellen, en
     zien wat er gebeurd is."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "Niet gevonden.", 404
 
     melding = None
@@ -1193,7 +1338,8 @@ def _genereer_koopvragen_achtergrond(webshop_url, vervang=False):
             print(f"Koopvragen genereren mislukt voor {webshop_url}")
             return
         nieuw = db.bewaar_koopvragen(webshop_url, resultaat["omschrijving"],
-                                     resultaat["vragen"], vervang=vervang)
+                                     resultaat["vragen"], vervang=vervang,
+                                     winkelnaam=resultaat.get("naam"))
         print(f"Koopvragen klaar voor {webshop_url}: {len(resultaat['vragen'])} vragen, {nieuw} nieuw opgeslagen.")
         _vul_koopvragen_aan(webshop_url)
     except Exception as e:
@@ -1214,8 +1360,10 @@ def _vul_koopvragen_aan(webshop_url):
         profiel = db.get_winkelprofiel(webshop_url)
         omschrijving = profiel.get("omschrijving") if profiel else ""
         alles = db.get_koopvragen(webshop_url, alleen_actief=False)
+        m = _markt_van(webshop_url)
         extra = koopvragen.vul_vragen_aan(
-            webshop_url, omschrijving, tekort, [v["vraag"] for v in alles]
+            webshop_url, omschrijving, tekort, [v["vraag"] for v in alles],
+            taal=m["taal"], landnaam=m["land"]
         )
         if extra:
             db.bewaar_koopvragen(webshop_url, omschrijving, extra, vervang=False)
@@ -1229,7 +1377,7 @@ def admin_koopvragen():
     """Nog niet zichtbaar voor klanten. Hiermee kan je per webshop de
     koopvragen laten genereren, beoordelen en ontdubbelen."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "", 404
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
@@ -1326,7 +1474,7 @@ def admin_metingen():
     koopvragen van een webshop. Nog niet zichtbaar voor klanten: het
     beoordelen van die antwoorden is stap 4."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "", 404
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
@@ -1562,9 +1710,14 @@ def _maak_taakoplossingen(webshop_url, plan, melden=None):
                 melden(f"oplossing schrijven: {actie['titel'][:40]}")
             except Exception:
                 pass
+        # In de taal van de winkel. De tekst die hieruit komt plakt de eigenaar
+        # letterlijk op zijn eigen website, dus een Nederlandse zin op een
+        # Amerikaanse winkel is niet onhandig maar onbruikbaar.
+        m = _markt_van(webshop_url)
         uitkomst = ai_content.genereer_taakoplossing(
             webshop_url, taak_id, actie["titel"], actie["hoe"],
-            platform=platform) or {}
+            platform=platform,
+            taal="nl" if m["is_nederlands"] else "en") or {}
         if uitkomst.get("gelukt"):
             db.bewaar_taakoplossing(webshop_url, taak_id, uitkomst["titel"],
                                     uitkomst["oplossing"], uitkomst["waar"])
@@ -1700,10 +1853,19 @@ def _controleer_uitspraken(webshop_url, meting_id=None, winkelnaam=None):
 
 
 def _winkelnaam(webshop_url):
-    """De naam zoals de winkel zichzelf noemt, uit het winkelprofiel."""
-    profiel = db.get_winkelprofiel(webshop_url)
-    omschrijving = (profiel or {}).get("omschrijving") or ""
-    return omschrijving.split(" is ")[0].strip() if " is " in omschrijving else None
+    """De naam zoals de winkel zichzelf noemt.
+
+    Eerst het veld waar het model de naam apart in zet. Staat dat er niet
+    (oudere winkels), dan de oude manier: de omschrijving splitsen op " is ".
+    Beide gaan langs dezelfde controle."""
+    profiel = db.get_winkelprofiel(webshop_url) or {}
+    uit_veld = scan_engine.bruikbare_winkelnaam(profiel.get("winkelnaam"))
+    if uit_veld:
+        return uit_veld
+    omschrijving = profiel.get("omschrijving") or ""
+    if " is " in omschrijving:
+        return scan_engine.bruikbare_winkelnaam(omschrijving.split(" is ")[0])
+    return None
 
 
 def _klantgegevens(webshop_url):
@@ -1716,13 +1878,20 @@ def _klantgegevens(webshop_url):
     beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url)]
     twee_rondes = [dict(b) for b in db.get_beoordelingen_rondes(webshop_url, rondes=2)]
     vermeldingen = beoordeling.klantbeeld(webshop_url, beoordelingen) if beoordelingen else None
-    controles = [dict(c) for c in db.get_uitspraakcontroles(webshop_url)]
     winkelnaam = _winkelnaam(webshop_url)
-    # De vindplaatsen van precies de ronde die hierboven getoond wordt. Zonder
-    # dat zou je de bronnen van vorige week naast de cijfers van deze week
+    # Alles op deze pagina komt uit DEZELFDE ronde. Zonder dat zou je de
+    # bronnen en de controles van vorige week naast de cijfers van deze week
     # kunnen zetten, en dan klopt het verhaal niet meer. Liever niets tonen dan
     # iets dat bij een andere meting hoort.
+    #
+    # Voor de uitspraakcontrole stond hier eerder geen ronde. Die pakte dan de
+    # nieuwste ronde waarvoor toevallig controles bestonden. Mislukte de
+    # controle deze week, dan zag de klant de cijfers van deze week met daaronder
+    # de fouten van vorige week, en die kwamen als FEIT bovenaan zijn takenlijst,
+    # citaat en al, terwijl AI dat deze week misschien niet meer zegt.
     ronde = db.laatste_beoordeelde_meting_id(webshop_url)
+    controles = ([dict(c) for c in db.get_uitspraakcontroles(webshop_url, ronde)]
+                 if ronde else [])
     vindplaatsen = ([dict(v) for v in db.get_bronvindplaatsen(webshop_url, ronde)]
                     if ronde else [])
     controle_samenvatting = controle.vat_samen(controles) if controles else None
@@ -1733,12 +1902,19 @@ def _klantgegevens(webshop_url):
     # zodat de klantpagina en de voorbeeldweergave nooit een ander plan kunnen
     # tonen dan elkaar.
     checks = (db.get_rapporten_voor_webshop(webshop_url) or [{}])[0].get("checks") or []
+    #
+    # De taal van het advies volgt de markt van de winkel. Een Amerikaanse
+    # winkel kreeg tot nu toe een Engels scherm met Nederlands advies eronder.
+    # Weten we de markt niet, dan geeft _markt_van Nederlands terug, dus voor
+    # bestaande klanten verandert er niets.
+    m = _markt_van(webshop_url)
     plan = actieplan.maak_actieplan(
         verklaring=verklaring.maak_verklaring(checks, vermeldingen),
         klantbeeld=vermeldingen,
         bronnen=bronnen_samenvatting,
         controle=controle_samenvatting,
         winkelnaam=winkelnaam,
+        taal="nl" if m["is_nederlands"] else "en",
     )
 
     # De bewaarde oplossingen aan de taken hangen. Alleen lezen, nooit
@@ -1929,7 +2105,7 @@ def admin_onderzoeksmail():
     tussen een onderzoek en spam, en het is ook de snelste manier om je
     mailadres bij Brevo op een zwarte lijst te krijgen."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "Niet gevonden.", 404
 
     melding = None
@@ -2055,7 +2231,7 @@ def admin_benchmark():
     winkels staan eronder zodat je kan controleren of een uitschieter klopt,
     maar wat je naar buiten brengt zijn alleen de aantallen."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "", 404
 
     regels = db.benchmark_regels()
@@ -2080,7 +2256,7 @@ def admin_voorbeeld():
     pas ontstaat bij een betaald abonnement. Zonder deze route kan je niet
     controleren hoe een klant zijn eigen pagina ziet."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "", 404
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
@@ -2142,7 +2318,7 @@ def admin_beoordelingen():
     winkels genoemd worden, of onze winkel erbij staat, en of dat een
     vermelding of een echte aanbeveling was."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "", 404
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
@@ -2160,7 +2336,7 @@ def admin_beoordelingen():
         # Dille & Kamille en niet dille-kamille.nl.
         profiel = db.get_winkelprofiel(webshop_url)
         omschrijving = (profiel or {}).get("omschrijving") or ""
-        winkelnaam = omschrijving.split(" is ")[0].strip() if " is " in omschrijving else None
+        winkelnaam = _winkelnaam(webshop_url)
         start = False
         with _metingen_slot:
             if webshop_url not in _beoordelen_bezig:
@@ -2223,7 +2399,7 @@ def admin_oplossingen():
     Met &opnieuw=ja gooit hij de bewaarde teksten eerst weg, zodat je een
     nieuwe versie kan laten schrijven na een aanpassing aan de opdracht."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "", 404
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
@@ -2284,7 +2460,7 @@ def admin_bronnen():
     dat eerst opgelost worden. Een verkeerde vindplaats is erger dan geen
     vindplaats, want de klant gaat erop af."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "", 404
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
@@ -2375,7 +2551,7 @@ def admin_modellen():
     deze sleutel wel mag gebruiken. Mislukken alle metingen bij een aanbieder,
     dan is een verkeerde modelnaam veruit de meest voorkomende oorzaak."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "", 404
 
     resultaten = []
@@ -2402,7 +2578,7 @@ def admin_bezoekers():
     Zonder dit lanceer je blind: komt er niemand, of komen ze wel en haken ze
     af? Dat zijn twee verschillende problemen."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "", 404
 
     dagen = int(request.args.get("dagen", 30))
@@ -2430,7 +2606,7 @@ def admin_bezoekers():
 @app.route("/admin/kosten")
 def admin_kosten():
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "", 404
 
     dagen = int(request.args.get("dagen", 30))
@@ -2459,7 +2635,7 @@ def admin_kosten():
 @app.route("/admin/bestellingen")
 def admin_bestellingen():
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "Niet gevonden.", 404
 
     orders = payments.list_recent_orders()
@@ -2474,7 +2650,7 @@ def admin_uitvoeringen():
     hier staat wie betaald heeft en nog zit te wachten. Een klant die betaalt en
     daarna niets hoort is erger dan een klant die nooit betaalt."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "Niet gevonden.", 404
 
     melding = None
@@ -2866,7 +3042,7 @@ def shopify_api_abonnement():
         "abonnement": stand["abonnement"],
         "prijs": shopify_billing.PLAN_PRIJS,
         "valuta": shopify_billing.PLAN_VALUTA,
-        "proefdagen": shopify_billing.PROEFDAGEN,
+        "proefdagen": 0 if rij.get("proef_gehad_op") else shopify_billing.PROEFDAGEN,
         "test": shopify_billing.testmodus(),
     })
 
@@ -2890,11 +3066,34 @@ def shopify_api_abonneren():
         return jsonify({"error": "Je hebt al een lopend abonnement.",
                         "actief": True}), 409
 
-    terug = f"{get_base_url()}/shopify?shop={winkel}"
-    uit = shopify_billing.start_abonnement(winkel, rij["toegangssleutel"], terug)
+    # Terug naar het INGEBEDDE app-scherm in het beheerscherm van Shopify, niet
+    # naar onze eigen /shopify. Die laatste ziet geen kaartje en stuurt de
+    # winkelier door naar een nieuw toestemmingsscherm. Iemand die net akkoord
+    # is gegaan met 39 dollar en dan opnieuw om toestemming gevraagd wordt, is
+    # precies degene die afhaakt.
+    winkelnaam_kort = winkel.replace(".myshopify.com", "")
+    handvat = (os.environ.get("SHOPIFY_APP_HANDLE") or "").strip()
+    if handvat:
+        terug = f"https://admin.shopify.com/store/{winkelnaam_kort}/apps/{handvat}"
+    else:
+        # Zonder SHOPIFY_APP_HANDLE weten we het adres van de app in het
+        # beheerscherm niet. Dan maar de appslijst: dat is nog altijd beter dan
+        # een toestemmingsscherm.
+        print("LET OP: SHOPIFY_APP_HANDLE staat niet ingesteld, terugkeer na "
+              "betalen gaat naar de appslijst in plaats van naar de app zelf.")
+        terug = f"https://admin.shopify.com/store/{winkelnaam_kort}/apps"
+    # De gratis proefperiode krijg je een keer. Opzeggen en meteen weer starten
+    # gaf anders telkens zeven nieuwe gratis dagen, en dat kan eindeloos.
+    al_gehad = bool(rij.get("proef_gehad_op"))
+    proefdagen = 0 if al_gehad else None
+    uit = shopify_billing.start_abonnement(winkel, rij["toegangssleutel"], terug,
+                                           proefdagen=proefdagen)
     if not uit["gelukt"]:
         return jsonify({"error": uit["fout"]}), 502
-    return jsonify({"link": uit["link"], "test": uit["test"]})
+    if not al_gehad:
+        db.markeer_proef_gehad(winkel)
+    return jsonify({"link": uit["link"], "test": uit["test"],
+                    "proefdagen": 0 if al_gehad else shopify_billing.PROEFDAGEN})
 
 
 @app.route("/shopify/api/opzeggen", methods=["POST"])
@@ -2905,6 +3104,13 @@ def shopify_api_opzeggen():
         return jsonify({"error": "Niet toegestaan."}), 401
     stand = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])
     if not stand["actief"]:
+        if stand.get("fout"):
+            # Wij WETEN het niet, en dat is iets anders dan "er loopt niets".
+            # Zou je hier gewoon "er loopt geen abonnement" zeggen, dan denkt
+            # iemand dat hij opgezegd heeft terwijl er over vier dagen 39 dollar
+            # afgeschreven wordt. Op de prijskaart staat "cancel any time".
+            return jsonify({"error": "We konden je abonnement nu niet bij Shopify "
+                                     "opvragen. Probeer het zo nog eens."}), 503
         return jsonify({"error": "Er loopt geen abonnement."}), 400
     uit = shopify_billing.zeg_op(winkel, rij["toegangssleutel"],
                                  (stand["abonnement"] or {}).get("id"))
@@ -3079,7 +3285,7 @@ def shopify_verwijderd():
 def admin_shopify():
     """Welke winkels de app geïnstalleerd hebben. Voor jou, niet voor klanten."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "Niet gevonden.", 404
     return render_template(
         "admin_shopify.html",
@@ -3104,7 +3310,7 @@ def admin_werkbriefje():
     terugzetten, en die belofte is alleen waar als het ergens staat. Plak hem
     dus in voordat je iets vervangt, niet erna, want dan is hij weg."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "Niet gevonden.", 404
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
@@ -3157,7 +3363,7 @@ def admin_oplevering():
     Bewust een aparte stap en niet automatisch bij "opgeleverd": jij hoort dit
     eerst zelf te lezen voordat het naar een betalende klant gaat."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or request.args.get("key") != admin_key:
+    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
         return "Niet gevonden.", 404
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())

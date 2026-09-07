@@ -145,6 +145,8 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=5):
     leeg = {"adres": None, "algemeen": False, "vandaan": None, "alles": [], "reden": None}
     if not winkeldomein:
         return dict(leeg, reden="Geen geldig webadres.")
+    if scan_engine.is_intern_adres(url):
+        return dict(leeg, reden="Dat is geen openbaar webadres.")
 
     alles, bekeken = [], 0
     for pad in [""] + PADEN:

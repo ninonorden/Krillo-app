@@ -120,6 +120,11 @@ Belangrijke regels:
   winkel, en in die taal worden ze straks aan ChatGPT gesteld. Schrijf ze
   zoals een gewoon mens ze typt, dus als hele vraag en niet als rijtje
   zoekwoorden.
+- Bij "naam_van_deze_winkel" zet je uitsluitend de merknaam, precies zoals hij
+  op de site staat. Dus "Dille & Kamille", en niet "deze webshop" of "de winkel".
+  Weet je de naam niet zeker, laat het veld dan leeg. Een verkeerde naam is
+  erger dan geen naam: wij zoeken er later mee in AI-antwoorden, en met "deze
+  webshop" als naam vinden we overal treffers die er niet zijn.
 - Noem de naam van deze webshop NIET in de vragen. We willen meten of de shop
   uit zichzelf genoemd wordt, niet of AI de naam kan herhalen.
 - Maak de vragen niet te breed. "Wat is een goede webshop" zegt niets. Maak ze
@@ -138,6 +143,7 @@ Belangrijke regels:
 Antwoord ALLEEN met geldige JSON, in dit formaat, niets ervoor of erna:
 
 {{
+  "naam_van_deze_winkel": "alleen de merknaam, zoals hij op de site staat",
   "wat_verkoopt_deze_winkel": "een of twee zinnen",
   "vragen": [
     {{"vraag": "de vraag zoals iemand hem stelt", "intentie": "algemeen"}}
@@ -173,6 +179,7 @@ Antwoord ALLEEN met geldige JSON, in dit formaat, niets ervoor of erna:
             if v.get("vraag") and v.get("intentie", "algemeen") in geldige_intenties
         ]
         return {
+            "naam": (data.get("naam_van_deze_winkel") or "").strip(),
             "omschrijving": data.get("wat_verkoopt_deze_winkel", ""),
             "vragen": opgeschoond,
         }
@@ -302,7 +309,8 @@ def tel_tekort(actieve_vragen, doel_per_intentie=None):
     return {naam: doel - aantal for naam, aantal in aanwezig.items() if aantal < doel}
 
 
-def vul_vragen_aan(webshop_url, omschrijving, tekort, al_bedacht):
+def vul_vragen_aan(webshop_url, omschrijving, tekort, al_bedacht,
+                   taal="Nederlands", landnaam="Nederlandse"):
     """Bedenkt alleen de vragen die nog missen, voor de intenties die te dun
     zijn. Gebruikt de omschrijving die we al van deze winkel hebben, dus de
     website hoeft niet opnieuw gescand te worden.
@@ -313,7 +321,13 @@ def vul_vragen_aan(webshop_url, omschrijving, tekort, al_bedacht):
     if client is None or not tekort:
         return []
 
-    intentie_uitleg = dict(INTENTIES)
+    # Met het land van DEZE winkel erin. Stond hier eerder dict(INTENTIES), en
+    # dat is de vaste Nederlandse lijst. Een Duitse winkel die drie vragen te
+    # weinig had kreeg dus de opdracht "iemand zoekt een betrouwbare Nederlandse
+    # webshop", terwijl er twee regels lager staat dat hij in dezelfde taal moet
+    # schrijven als de rest. Daar komen Duitse vragen over Nederlandse webshops
+    # uit.
+    intentie_uitleg = dict(intenties(landnaam))
     gevraagd = "\n".join(
         f"- {naam}: {aantal} vragen. {intentie_uitleg.get(naam, '')}"
         for naam, aantal in tekort.items()
@@ -334,7 +348,7 @@ inhoudelijk op lijkt:
 {bestaande}
 
 Belangrijke regels:
-- Schrijf ze in dezelfde taal als de vragen die er al zijn.
+- Schrijf ze in het {taal}, dezelfde taal als de vragen die er al zijn.
 - Noem de naam van deze webshop NIET in de vragen.
 - Elke vraag moet om een aanbeveling vragen: een winkel, een merk of een
   product. Geen vragen waar alleen algemene uitleg uit komt.

@@ -1268,7 +1268,7 @@
     .then(function(res){ return res.json(); })
     .then(function(d){
       if(d.status === 'klaar' && d.resultaat){ ztResultaat(d.resultaat, d.zin, true); return; }
-      if(d.status === 'bezig' && d.test_id){ ztVolgen(d.test_id, true); return; }
+      if(d.status === 'bezig' && d.kenmerk){ ztVolgen(d.kenmerk, true); return; }
       toonZichtbaarheidVraag(url);
     })
     .catch(function(){ toonZichtbaarheidVraag(url); });
@@ -1339,7 +1339,7 @@
         ztResultaat(r.data.resultaat, r.data.zin, false);
         return;
       }
-      ztVolgen(r.data.test_id, false);
+      ztVolgen(r.data.kenmerk, false);
     })
     .catch(function(){ toonZichtbaarheidVraag(ztUrl); ztFout('Het lukte even niet. Probeer het zo nog eens.'); });
   }
@@ -1356,7 +1356,7 @@
       '</div>';
   }
 
-  function ztVolgen(testId, voorproef){
+  function ztVolgen(kenmerk, voorproef){
     if(!testId){ return; }
     var pogingen = 0;
     if(ztTimer) clearInterval(ztTimer);
@@ -1369,7 +1369,7 @@
         ztBezig('Het duurt langer dan verwacht. We mailen je de uitslag zodra hij er is.');
         return;
       }
-      fetch('/api/zichtbaarheidstest/' + testId)
+      fetch('/api/zichtbaarheidstest/' + encodeURIComponent(kenmerk))
         .then(function(res){ return res.json(); })
         .then(function(d){
           if(d.status === 'klaar' && d.resultaat){
@@ -1391,6 +1391,16 @@
     }, 10000);
   }
 
+  // Alles wat uit een AI-antwoord komt moet hier langs voordat het in de
+  // pagina gezet wordt. Die tekst leunt op wat er op een vreemde website staat,
+  // dus het is invoer van buiten. Zonder dit kan een geprepareerde winkel
+  // ervoor zorgen dat er HTML in de uitslagpagina van een bezoeker belandt.
+  function veilig(waarde){
+    var d = document.createElement('div');
+    d.textContent = (waarde === null || waarde === undefined) ? '' : String(waarde);
+    return d.innerHTML;
+  }
+
   function ztResultaat(r, zin, voorproef){
     var blok = ztBlok();
     if(!blok) return;
@@ -1400,7 +1410,7 @@
 
     var html = '<div class="zt zt-uitslag">';
     html += '<div class="zt-kop">Dit zei AI over je winkel</div>';
-    html += '<div class="zt-zin">' + (zin || '') + '</div>';
+    html += '<div class="zt-zin">' + veilig(zin || '') + '</div>';
 
     html += '<div class="zt-cijfers">';
     html += '<div class="zt-cijfer"><div class="n">' + genoemd + '</div><div class="l">van de ' + telbaar + ' vragen genoemd</div></div>';
@@ -1415,8 +1425,8 @@
         var kleur = rg.genoemd ? 'ok' : 'probleem';
         html += '<div class="scan-check">';
         html += '<span class="tag ' + kleur + '">' + label + '</span>';
-        html += '<div class="scan-check-body"><strong>' + rg.vraag + '</strong>';
-        if(rg.bewijs){ html += '<span class="zt-citaat">"' + rg.bewijs + '"</span>'; }
+        html += '<div class="scan-check-body"><strong>' + veilig(rg.vraag) + '</strong>';
+        if(rg.bewijs){ html += '<span class="zt-citaat">"' + veilig(rg.bewijs) + '"</span>'; }
         html += '</div></div>';
       });
     }
@@ -1426,7 +1436,7 @@
       html += '<div class="scan-categorie-label">Wie er wel genoemd werd</div>';
       html += '<div class="zt-lijst">';
       anderen.forEach(function(c){
-        html += '<div class="zt-rij"><span>' + c.naam + '</span><span class="zt-aantal">' + c.genoemd + 'x</span></div>';
+        html += '<div class="zt-rij"><span>' + veilig(c.naam) + '</span><span class="zt-aantal">' + veilig(c.genoemd) + 'x</span></div>';
       });
       html += '</div>';
     }

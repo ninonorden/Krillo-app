@@ -26,6 +26,7 @@ import kosten
 import koopvragen
 import metingen
 import beoordeling
+import markt
 import scan_engine
 
 # Vijf vragen, niet dertig. Genoeg om het te laten zien, weinig genoeg om
@@ -109,9 +110,18 @@ def draai(test_id, webshop_url, aantal_vragen=None, max_aanbieders=None):
             # de homepagina. Dat kost geen AI-geld, alleen wat tijd.
             scan = scan_engine.run_scan(webshop_url)
             extra = scan.get("gevonden_paginas") if "error" not in scan else None
-            gemaakt = koopvragen.genereer_koopvragen(webshop_url, extra)
+            # Met de taal en het land van DEZE winkel. Stond hier eerder
+            # zonder, en dan viel het terug op Nederlands. Een winkel uit Texas
+            # kreeg dan Nederlandse vragen over Nederlandse webshops. Erger nog:
+            # die vragen bleven staan, dus werd hij daarna elke week met de
+            # verkeerde taal gemeten zonder dat iemand het merkte.
+            profiel = db.get_winkelprofiel(webshop_url) or {}
+            m = markt.bepaal(profiel.get("taal"), profiel.get("land"))
+            gemaakt = koopvragen.genereer_koopvragen(
+                webshop_url, extra, taal=m["taal"], landnaam=m["land"])
             if gemaakt:
-                db.bewaar_koopvragen(webshop_url, gemaakt["omschrijving"], gemaakt["vragen"])
+                db.bewaar_koopvragen(webshop_url, gemaakt["omschrijving"],
+                                     gemaakt["vragen"], winkelnaam=gemaakt.get("naam"))
             vragen = db.get_koopvragen(webshop_url, alleen_actief=True)
 
         if not vragen:
@@ -130,6 +140,21 @@ def draai(test_id, webshop_url, aantal_vragen=None, max_aanbieders=None):
         if not meting_id or not samenvatting.get("gelukt"):
             reden = (samenvatting or {}).get("reden") or "Geen enkel AI-model gaf antwoord."
             db.zet_zichtbaarheidstest(test_id, "mislukt", foutsoort=reden)
+            return None
+
+        # Minstens de helft van de vragen moet gelukt zijn. Hier stond alleen
+        # "gelukt > 0", en dan gold een test waarbij vier van de vijf vragen
+        # mislukten gewoon als geslaagd. De bezoeker las dan "je werd bij 0 van
+        # de 1 vragen genoemd", terwijl er op de pagina staat dat het er vijf
+        # zijn. Zo'n uitslag wordt ook nog dertig dagen hergebruikt en
+        # doorgestuurd, dus een halve meting blijft een maand rondzingen.
+        bedoeld = aantal_vragen or GRATIS_VRAGEN
+        gelukt = (samenvatting or {}).get("gelukt") or 0
+        if gelukt * 2 < bedoeld:
+            db.zet_zichtbaarheidstest(
+                test_id, "mislukt",
+                foutsoort=(f"Maar {gelukt} van de {bedoeld} vragen kwamen door. "
+                           f"Te weinig voor een eerlijke uitslag."))
             return None
 
         db.zet_zichtbaarheidstest(test_id, "antwoorden lezen", meting_id=meting_id)
@@ -183,11 +208,17 @@ def _inkorten(beeld):
 
 def _winkelnaam(webshop_url):
     """De naam zoals hij in AI-antwoorden staat, niet het domein. In een
-    antwoord staat Dille & Kamille en niet dille-kamille.nl."""
-    profiel = db.get_winkelprofiel(webshop_url)
-    omschrijving = (profiel or {}).get("omschrijving") or ""
+    antwoord staat Dille & Kamille en niet dille-kamille.nl.
+
+    Gaat langs dezelfde controle als bij een klant, want een naam als "deze
+    webshop" levert overal treffers op die er niet zijn."""
+    profiel = db.get_winkelprofiel(webshop_url) or {}
+    uit_veld = scan_engine.bruikbare_winkelnaam(profiel.get("winkelnaam"))
+    if uit_veld:
+        return uit_veld
+    omschrijving = profiel.get("omschrijving") or ""
     if " is " in omschrijving:
-        return omschrijving.split(" is ")[0].strip()
+        return scan_engine.bruikbare_winkelnaam(omschrijving.split(" is ")[0])
     return None
 
 

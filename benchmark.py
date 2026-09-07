@@ -107,7 +107,11 @@ def kernzinnen(cijfers, per_platform_cijfers=None):
     if cijfers["nooit_genoemd"]:
         aantal = cijfers["nooit_genoemd"]
         zinnen.append(
-            f"Van de {n} geteste Nederlandse webshops {werd(aantal)} er {aantal} bij "
+            # Bewust niet "Nederlandse webshops". In de lijst zitten ook
+            # Belgische winkels, en deze zin is bedoeld om letterlijk naar de
+            # pers te kunnen. Een claim die niet klopt met je eigen gegevens is
+            # precies waar je op afgerekend wordt.
+            f"Van de {n} geteste webshops {werd(aantal)} er {aantal} bij "
             f"geen enkele koopvraag genoemd door ChatGPT of Gemini."
         )
     if cijfers["blokkeren_robots"]:

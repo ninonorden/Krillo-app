@@ -138,11 +138,12 @@
     {% if actieplan and actieplan.acties %}
     <h2>What to do about it</h2>
     <p class="onder">At most three things, in the order that matters most. Anything marked
-      <em>feit</em> is something we measured. Anything marked <em>vermoeden</em> is our best
-      reading of it, and we say so rather than pretending to be sure.</p>
+      <em>measured</em> is something we actually measured. Anything marked
+      <em>our reading</em> is our best interpretation of it, and we say so rather than
+      pretending to be sure.</p>
     {% for a in actieplan.acties %}
     <div class="taak">
-      <div class="taak-titel">{{ a.titel }}<span class="merkje {{ a.soort }}">{{ a.soort }}</span></div>
+      <div class="taak-titel">{{ a.titel }}<span class="merkje {{ a.soort }}">{{ a.merkje or a.soort }}</span></div>
       {% if a.oplossing %}
       <div class="label" style="margin-top:14px;">Copy this as it is</div>
       <div class="plak"><button type="button" class="kopieer" data-doel="p{{ loop.index }}">Copy</button><span id="p{{ loop.index }}">{{ a.oplossing }}</span></div>
@@ -621,9 +622,19 @@
             betaaldLabel.style.display = 'none';
             abonneerKnop.style.display = 'inline-block';
             opzegKnop.style.display = 'none';
-            abonnementUitleg.textContent = 'Free for the first ' + d.proefdagen
-              + ' days, then $' + d.prijs + ' a month on your Shopify invoice. '
-              + 'Cancel any time from this page.';
+            if (d.proefdagen > 0){
+              abonneerKnop.textContent = 'Start ' + d.proefdagen + ' day free trial';
+              abonnementUitleg.textContent = 'Free for the first ' + d.proefdagen
+                + ' days, then $' + d.prijs + ' a month on your Shopify invoice. '
+                + 'Cancel any time from this page.';
+            } else {
+              // De proefperiode is al eens gebruikt. Dan moet de knop dat ook
+              // zeggen, anders belooft hij iets wat hij niet levert.
+              abonneerKnop.textContent = 'Subscribe for $' + d.prijs + ' a month';
+              abonnementUitleg.textContent = '$' + d.prijs
+                + ' a month on your Shopify invoice. You have already used the free '
+                + 'trial for this store. Cancel any time from this page.';
+            }
           }
         })
         .catch(function(){ /* geen ramp, dan blijft het blok zoals het staat */ });
@@ -643,7 +654,7 @@
         .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
         .then(function(res){
           abonneerKnop.disabled = false;
-          abonneerKnop.textContent = 'Start 7 day free trial';
+          haalAbonnement();
           if (!res.ok) { abonnementFoutTonen(res.data.error || 'We could not start the subscription.'); haalAbonnement(); return; }
           // Naar het BOVENSTE venster. Shopify weigert zijn betaalpagina in
           // het venstertje waar onze app in draait, en dan ziet de winkelier
@@ -653,7 +664,7 @@
         })
         .catch(function(){
           abonneerKnop.disabled = false;
-          abonneerKnop.textContent = 'Start 7 day free trial';
+          haalAbonnement();
           abonnementFoutTonen('Something went wrong. Please try again.');
         });
       });

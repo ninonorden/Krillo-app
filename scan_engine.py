@@ -82,6 +82,83 @@ def normalize_url(url):
     return f"{schema.lower()}://{host.lower()}{schuin}{pad}"
 
 
+# Adressen die nooit een webshop zijn maar wel op onze eigen server uitkomen.
+# Zonder deze controle kan een bezoeker in het vakje "jouw webshop" gewoon
+# http://127.0.0.1:5000/admin/... intypen, en dan haalt onze server dat op vanaf
+# de binnenkant van het netwerk en vertelt in het antwoord of het lukte.
+_INTERNE_NAMEN = ("localhost", "localhost.localdomain", "ip6-localhost",
+                  "metadata.google.internal", "metadata", "instance-data")
+
+
+def is_intern_adres(url):
+    """Of dit adres naar onze eigen machine of het interne netwerk wijst.
+
+    Kijkt naar de naam en, als die een IP-adres is, naar het bereik. Een naam
+    die pas bij het opzoeken op een intern adres uitkomt vangen wij hier niet;
+    dat is een aparte, veel zeldzamere truc, en de webshops die wij scannen
+    hebben allemaal een gewoon openbaar adres."""
+    import ipaddress
+    from urllib.parse import urlparse
+
+    try:
+        ontleed = urlparse(url if "://" in (url or "") else "https://" + (url or ""))
+    except Exception:
+        return True
+    if ontleed.scheme not in ("http", "https"):
+        return True
+    gastheer = (ontleed.hostname or "").strip().lower().rstrip(".")
+    if not gastheer:
+        return True
+    if gastheer in _INTERNE_NAMEN or gastheer.endswith(".local") or gastheer.endswith(".internal"):
+        return True
+    try:
+        adres = ipaddress.ip_address(gastheer)
+    except ValueError:
+        # Een gewone domeinnaam. Die moet minstens een punt hebben, anders is
+        # het een machinenaam op het eigen netwerk.
+        return "." not in gastheer
+    return not adres.is_global
+
+
+# Namen die geen naam zijn. Kwamen eruit toen de naam nog geraden werd door de
+# omschrijving op " is " te splitsen. Met "deze webshop" als naam telt elke
+# pagina waar die twee woorden toevallig staan als vermelding, en dan lees je
+# als klant dat je al genoemd wordt op plekken waar je niet staat.
+_GEEN_NAAM = {
+    "deze webshop", "deze winkel", "de webshop", "de winkel", "dit bedrijf",
+    "de shop", "deze shop", "de site", "deze site", "onze webshop", "webshop",
+    "winkel", "shop", "de webwinkel", "deze webwinkel", "webwinkel", "het bedrijf",
+    "de onderneming", "deze onderneming", "de organisatie",
+}
+
+
+def bruikbare_winkelnaam(naam):
+    """Of wij met deze naam mogen zoeken. Bij twijfel: nee.
+
+    Geen naam is niet erg: dan zoeken wij alleen op de domeinkern. Een fout
+    naam is wel erg, want die levert treffers op die er niet zijn, en die
+    komen als FEIT in het actieplan van een klant terecht."""
+    naam = (naam or "").strip().strip('"\'')
+    if len(naam) < 3 or len(naam) > 60:
+        return None
+    kaal = naam.lower().strip(" .,")
+    if kaal in _GEEN_NAAM:
+        return None
+    # Een soortnaam in plaats van een naam. Let op: het lidwoord alleen zegt
+    # niets. "Het Kaashuis" en "De Bijenkorf" zijn echte namen. Het gaat om het
+    # woord DAARNA: is dat gewoon "webshop" of "winkel", dan is het geen naam
+    # maar een omschrijving.
+    woorden = kaal.split()
+    if woorden[0] in ("de", "het", "een", "deze", "dit", "onze", "ons") and len(woorden) > 1:
+        woorden = woorden[1:]
+    if woorden[0] in ("webshop", "webwinkel", "winkel", "shop", "site", "website",
+                      "bedrijf", "onderneming", "organisatie", "merk", "zaak"):
+        return None
+    if not any(teken.isalnum() for teken in naam):
+        return None
+    return naam
+
+
 def domeinkern(url):
     """Het herkenbare deel van een webadres, zonder schema, www, punten of
     streepjes. https://www.dille-kamille.nl/servies wordt dillekamille.
@@ -114,7 +191,11 @@ def is_eigen_winkel(webshop_url, naam):
     voordat we vergelijken, precies zoals bronnen.py dat ook doet."""
     import re as _re
     kern = domeinkern(webshop_url)
-    if not kern or len(kern) < 4:
+    # Drie tekens mag nu wel. Vroeger stond hier vier, omdat een korte kern met
+    # de oude "zit-erin"-vergelijking overal toevallige treffers gaf. Nu moet
+    # een korte kern exact gelijk zijn, dus dat risico is weg, en winkels als
+    # bol.com herkennen eindelijk hun eigen naam.
+    if not kern or len(kern) < 3:
         return False
 
     laag = (naam or "").lower().replace("&", " en ")
@@ -126,9 +207,32 @@ def is_eigen_winkel(webshop_url, naam):
     # die meestal weg (dille-kamille), een geschreven naam niet altijd.
     met = "".join(delen)
     zonder = "".join(d for d in delen if d not in ("en", "and", "de", "het"))
-    for plat in (met, zonder):
-        if plat and (kern == plat or kern in plat or plat in kern):
+    # En zonder de landcode achteraan. In een AI-antwoord staat vaak "Bol.com"
+    # of "Tuin.nl", en het domein zelf is dan bol of tuin. Zonder deze variant
+    # herkent een winkel zijn eigen naam niet.
+    _TLDS = ("nl", "be", "com", "eu", "de", "fr", "net", "org", "shop", "store",
+             "online", "co", "uk", "biz", "info")
+    kaal_delen = delen[:-1] if len(delen) > 1 and delen[-1] in _TLDS else delen
+    zonder_tld = "".join(kaal_delen)
+
+    for plat in (met, zonder, zonder_tld):
+        if not plat:
+            continue
+        if kern == plat:
             return True
+        # Hier stond eerder "kern in plat or plat in kern", en dat is te ruim.
+        # De klant tuin.nl heeft kern "tuin", en die zit in "tuincentrumovervecht".
+        # Daardoor werd zijn grootste concurrent als hemzelf aangezien: die viel
+        # uit de bronanalyse, uit de stijgers en dalers, en stond in de tabel
+        # aangevinkt als "jij". De klant zag zijn belangrijkste concurrent dus
+        # niet.
+        #
+        # Een korte kern mag daarom alleen exact matchen. Een lange kern mag nog
+        # wel een stuk schelen, want daar zijn de toevalstreffers verwaarloosbaar
+        # en vangt dit gevallen als winkel.nl tegenover "Winkel BV".
+        if len(kern) >= 8 and len(plat) >= 8:
+            if kern in plat or plat in kern:
+                return True
     return False
 
 
@@ -665,6 +769,9 @@ def run_scan(url):
     parsed = urlparse(url)
     if not parsed.netloc:
         return {"error": "Dat is geen geldige URL."}
+    # Hier en niet alleen bij de routes, zodat er geen enkele weg overblijft.
+    if is_intern_adres(url):
+        return {"error": "Dat is geen openbare webshop. Vul het gewone webadres in."}
 
     resp, elapsed = fetch(url, measure_time=True)
     html = resp.text if resp is not None else None

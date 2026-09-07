@@ -398,8 +398,16 @@ def klantbeeld(webshop_url, beoordelingen):
             continue
         for w in (b.get("winkels") or []):
             naam = (w.get("naam") or "").strip()
-            if naam:
-                winkels_per_vraag.setdefault(naam, set()).add(vraag)
+            if not naam:
+                continue
+            # Op kleine letters koppelen, net als hieronder bij aanbevolen.
+            # Zonder dat worden "fonQ" en "FonQ" twee losse regels, elk met
+            # een keer genoemd, in plaats van een regel met een keer. De
+            # aanbeveling hangt dan aan maar een van de twee, de sortering
+            # klopt niet meer, en de bronanalyse zoekt twee keer naar dezelfde
+            # winkel.
+            winkels_per_vraag.setdefault(bekende_namen.get(naam.lower(), naam),
+                                         set()).add(vraag)
         for naam in (b.get("aanbevolen_winkels") or []):
             naam = (naam or "").strip()
             # Op kleine letters koppelen aan de naam zoals we hem tellen.

@@ -40,9 +40,10 @@ MODEL = "claude-sonnet-4-6"
 # mee: geen materiaal, geen maat, geen gebruik.
 TEKST_ONDERGRENS = 180
 
-# Hoeveel producten wij per keer bekijken. Meer kan, maar dan wordt de opdracht
-# aan het model zo lang dat hij duurder wordt dan hij oplevert.
-PRODUCTEN_PER_KEER = 40
+# Hoeveel producten wij hoogstens nakijken. Ruim genoeg voor bijna elke kleine
+# winkel. Bij meer dan dit zeggen wij op het scherm hoeveel er nog wachten, in
+# plaats van te doen alsof we klaar zijn.
+PRODUCTEN_PER_KEER = 1000
 
 # Hoeveel voorstellen wij maximaal in één keer laten maken. De eigenaar moet ze
 # stuk voor stuk kunnen nakijken; een lijst van honderd kijkt niemand na.
@@ -78,13 +79,31 @@ def _api(winkel, sleutel, methode, pad, gegevens=None, params=None):
 
 
 def haal_producten(winkel, sleutel, maximaal=PRODUCTEN_PER_KEER):
+    """Alle producten, in stukken van 250.
+
+    Haalde hiervoor één pagina op. Een winkel met zeventig producten kreeg dus
+    alleen voorstellen voor de eerste veertig, drukte op de knop, drukte nog
+    eens, en kreeg weer diezelfde veertig. De producten daarna werden nooit
+    bekeken, terwijl op het scherm staat dat wij de ontbrekende teksten
+    invullen. Dan denkt iemand dat hij klaar is terwijl de helft leeg staat."""
     velden = "id,title,handle,body_html,product_type,vendor,tags,images,variants"
-    uit = _api(winkel, sleutel, "GET", "products.json",
-               params={"limit": min(int(maximaal or 1), 250), "fields": velden})
-    if not uit["gelukt"]:
-        print(f"Producten ophalen mislukt voor {winkel}: {uit['fout']}")
-        return []
-    return (uit["gegevens"] or {}).get("products") or []
+    alles, sinds = [], None
+    while len(alles) < maximaal:
+        params = {"limit": min(250, maximaal - len(alles)), "fields": velden}
+        if sinds:
+            params["since_id"] = sinds
+        uit = _api(winkel, sleutel, "GET", "products.json", params=params)
+        if not uit["gelukt"]:
+            print(f"Producten ophalen mislukt voor {winkel}: {uit['fout']}")
+            break
+        stuk = (uit["gegevens"] or {}).get("products") or []
+        if not stuk:
+            break
+        alles.extend(stuk)
+        sinds = stuk[-1].get("id")
+        if not sinds or len(stuk) < params["limit"]:
+            break
+    return alles[:maximaal]
 
 
 def haal_paginas(winkel, sleutel):
@@ -399,11 +418,22 @@ def maak_voorstellen(winkel, sleutel, markt=None):
         alles.extend(stuk.get("voorstellen") or [])
         if not stuk.get("gelukt") and stuk.get("fout"):
             fouten.append(stuk["fout"])
+    # Hoeveel er nu nog blijven liggen. Wij maken per keer een behapbaar aantal
+    # voorstellen, want honderd voorstellen kijkt niemand na. Maar dan moet er
+    # wel staan hoeveel er nog wachten, anders denkt de eigenaar dat hij klaar
+    # is terwijl er nog zestig producten zonder tekst staan.
+    gemaakt_per_soort = {}
+    for stuk in alles:
+        gemaakt_per_soort[stuk["soort"]] = gemaakt_per_soort.get(stuk["soort"], 0) + 1
+    rest = (max(0, len(gebreken["zonder_alt"]) - gemaakt_per_soort.get("alt", 0))
+            + max(0, len(gebreken["dunne_tekst"]) - gemaakt_per_soort.get("tekst", 0)))
+
     return {"gebreken": {k: v for k, v in gebreken.items() if k != "voorbeeldproducten"},
             "aantallen": {"zonder_alt": len(gebreken["zonder_alt"]),
                           "dunne_tekst": len(gebreken["dunne_tekst"]),
                           "faq_ontbreekt": not gebreken["heeft_faq"],
-                          "producten_bekeken": gebreken["producten_bekeken"]},
+                          "producten_bekeken": gebreken["producten_bekeken"],
+                          "nog_te_gaan": rest},
             "voorstellen": alles,
             "fouten": fouten}
 

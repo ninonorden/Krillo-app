@@ -459,50 +459,104 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
     else:
         streek = "Nederlandse en Belgische webshops"
 
-    if genoemd is not None and telbaar:
-        kern = (f"Bij <strong>{genoemd} van de {telbaar}</strong> vragen kwam "
-                f"{winkel} in het antwoord voor.")
-    else:
-        kern = f"We hebben {winkel} meegenomen in de meting."
-
-    vergelijking = ""
+    vergelijking_regel = ""
     if nooit_genoemd is not None and gemeten:
-        vergelijking = (f"<p>Ter vergelijking: van de {gemeten} winkels die we maten "
-                        f"werden er {nooit_genoemd} bij geen enkele vraag genoemd.</p>")
+        vergelijking_regel = (f" &middot; van de {gemeten} gemeten winkels werden er "
+                              f"{nooit_genoemd} bij geen enkele vraag genoemd")
 
     naam = (os.environ.get("AFZENDER_NAAM") or "").strip()
-    ondertekening = f"<p>Groet,<br>{naam}</p>" if naam else ""
+    ondertekening = (f'<p style="font-size:14.5px; color:#12142B; margin:22px 0 0;">'
+                     f'Met vriendelijke groet,<br>{naam}</p>') if naam else ""
 
     if afmeld_url:
         afmelden = (f'Wil je hier niets meer over horen, dan kan dat met '
-                    f'<a href="{afmeld_url}" style="color:#3B3D57;">deze link</a>. '
-                    f'We halen je uitkomst dan weg.')
+                    f'<a href="{afmeld_url}" style="color:#6B6D85;">deze link</a>. '
+                    f'We halen je uitkomst dan weg en je krijgt geen post meer.')
     else:
         afmelden = ("Wil je hier niets meer over horen, antwoord dan op deze mail "
                     "en het is dezelfde dag weg.")
 
     g = BEDRIJFSGEGEVENS
+    afzender = os.environ.get("SMTP_FROM_EMAIL", "hallo@krillo.nl")
+
+    # Het cijfer in een eigen kader. Dat is het enige opvallende element in deze
+    # mail, en dat is met opzet: wat opvalt moet zijn eigen uitkomst zijn, niet
+    # onze knop. Een mail die eruitziet als een rapport wordt anders gelezen dan
+    # een mail die eruitziet als een aanbieding.
+    if genoemd is not None and telbaar:
+        kader = f"""
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+             style="border:1px solid #E4E2DA; border-radius:10px; margin:22px 0;">
+        <tr><td style="padding:20px 22px;">
+          <div style="font-size:12px; color:#3B3D57; letter-spacing:.04em;
+                      text-transform:uppercase; margin-bottom:6px;">Jouw uitkomst</div>
+          <div style="font-size:26px; font-weight:700; color:#12142B; line-height:1.25;">
+            Genoemd bij {genoemd} van de {telbaar} vragen</div>
+          <div style="font-size:13.5px; color:#3B3D57; margin-top:6px;">
+            {winkel}{vergelijking_regel}</div>
+        </td></tr>
+      </table>"""
+    else:
+        kader = f"""
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+             style="border:1px solid #E4E2DA; border-radius:10px; margin:22px 0;">
+        <tr><td style="padding:20px 22px; font-size:15px; color:#12142B;">
+          We hebben {winkel} meegenomen in de meting.</td></tr>
+      </table>"""
+
+    # De knop is donkergrijs en niet felrood, en er staat onder waar hij heen
+    # gaat. Dat laatste is het hele punt: bij een ongevraagde mail wil je zien
+    # dat de link naar hetzelfde domein gaat als de afzender voordat je klikt.
+    zichtbaar = _kaal_adres(uitkomst_url)
+
     html = f"""
-    <div style="font-family: -apple-system, Arial, sans-serif; max-width: 540px;
-                color: #12142B; font-size: 15px; line-height: 1.6;">
-      <p>Hoi,</p>
-      <p>We onderzoeken welke {streek} door ChatGPT en Gemini genoemd worden als
-        iemand vraagt waar hij iets moet kopen. {winkel} zat in die meting.</p>
-      <p>{kern}</p>
-      {vergelijking}
-      <p>Op je eigen pagina staat bij welke vragen dat was, welke winkels er bij
-        diezelfde vragen wel uitkwamen, en wat er aan jouw kant opvalt. Je hoeft
-        nergens voor in te loggen:</p>
-      <p><a href="{uitkomst_url}" style="color:#D42E22;">{uitkomst_url}</a></p>
-      {ondertekening}
-      <p style="font-size:13px; color:#3B3D57; margin-top:26px; border-top:1px solid #E4E2DA;
-                padding-top:14px;">
-        Je krijgt deze mail omdat je winkel in ons onderzoek zit. We hebben alleen
-        openbare informatie van je website gebruikt en niets aan je site veranderd.
-        {afmelden}<br><br>
-        {g['naam']}, {g['adres']}, {g['plaats']}. KVK {g['kvk']}. Antwoorden op deze
-        mail komen bij ons aan.
-      </p>
+    <div style="background:#F6F5F1; padding:28px 16px; font-family:-apple-system,
+                'Segoe UI', Arial, sans-serif;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+             style="max-width:560px; margin:0 auto;">
+        <tr><td style="background:#FFFFFF; border:1px solid #E4E2DA; border-radius:14px;
+                       padding:32px 30px;">
+
+          <div style="font-size:15px; font-weight:700; color:#12142B; letter-spacing:.01em;">
+            Krillo</div>
+          <div style="font-size:12px; color:#6B6D85; margin-top:2px;">
+            Onderzoek naar AI-antwoorden over webshops</div>
+
+          <div style="height:1px; background:#E4E2DA; margin:20px 0 22px;"></div>
+
+          <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">
+            We onderzoeken welke {streek} door ChatGPT en Gemini genoemd worden
+            wanneer iemand vraagt waar hij iets kan kopen. {winkel} zat in die meting.</p>
+
+          {kader}
+
+          <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 6px;">
+            Op je eigen pagina staat bij welke vragen dat was, welke winkels er bij
+            diezelfde vragen wel uitkwamen, en wat daarvan aan jouw kant de oorzaak is.
+            Je hoeft nergens voor in te loggen en er wordt niets gevraagd.</p>
+
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
+            <tr><td style="background:#12142B; border-radius:8px;">
+              <a href="{uitkomst_url}" style="display:inline-block; padding:13px 26px;
+                 color:#FFFFFF; text-decoration:none; font-size:14.5px; font-weight:600;">
+                Bekijk je uitkomst</a>
+            </td></tr>
+          </table>
+          <p style="font-size:12.5px; color:#6B6D85; margin:0 0 4px;">
+            De link gaat naar {zichtbaar}</p>
+          {ondertekening}
+
+          <div style="height:1px; background:#E4E2DA; margin:26px 0 16px;"></div>
+
+          <p style="font-size:12.5px; color:#6B6D85; line-height:1.7; margin:0;">
+            Je krijgt deze mail omdat je winkel in ons onderzoek zit. We hebben alleen
+            openbare informatie van je website gebruikt en niets aan je site veranderd.
+            {afmelden}<br><br>
+            {g['naam']} &middot; {g['adres']}, {g['plaats']} &middot; KVK {g['kvk']}<br>
+            Antwoorden op deze mail komen bij ons aan op {afzender}.</p>
+
+        </td></tr>
+      </table>
     </div>
     """
     koppen = {"List-Unsubscribe": f"<{afmeld_url}>",

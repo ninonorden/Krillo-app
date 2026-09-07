@@ -35,6 +35,27 @@ Schrijfregels, altijd aanhouden:
   marketeer die de vaktermen al kent.
 """
 
+# Dezelfde regels, maar dan voor een winkel die geen Nederlands leest. De tekst
+# die hieruit komt plakt de eigenaar LETTERLIJK op zijn eigen website. Komt die
+# er in de verkeerde taal uit, dan is het niet een beetje onhandig maar
+# onbruikbaar, en zet hij per ongeluk Nederlandse zinnen op een Amerikaanse
+# winkel.
+HUISSTIJL_INSTRUCTIES_EN = """
+You are writing for Krillo, a tool that helps online stores get found and
+recommended by AI assistants like ChatGPT and Gemini.
+
+Writing rules, always:
+- Write in English, in plain everyday words. No jargon: no "dashboard",
+  "schema markup", "crawler" or "AI models" without explaining them.
+- Never use em dashes.
+- Short, direct sentences. No marketing language.
+- You are writing for a shop owner who has no marketing agency, not for a
+  marketer who already knows the terms.
+
+IMPORTANT: the text you write goes straight onto this shop's own website, so it
+must be in English throughout. Not one Dutch word.
+"""
+
 
 def _get_page_context(webshop_url, extra_page_urls=None):
     """Haalt de daadwerkelijke pagina('s) op en trekt er bruikbare context uit
@@ -111,7 +132,7 @@ def _zonder_markdown(tekst):
 
 
 def genereer_taakoplossing(webshop_url, taak_id, taak_titel, wat_moet_er_gebeuren,
-                           extra_page_urls=None, platform=None):
+                           extra_page_urls=None, platform=None, taal="nl"):
     """Schrijft voor ÉÉN taak uit het actieplan de kant-en-klare oplossing.
 
     Dit is het verschil tussen een scan en een oplossing. "Zet vragen en
@@ -159,7 +180,8 @@ def genereer_taakoplossing(webshop_url, taak_id, taak_titel, wat_moet_er_gebeure
             "herkent. Verzin geen menunamen die je niet zeker weet."
         )
 
-    prompt = f"""{HUISSTIJL_INSTRUCTIES}
+    huisstijl = HUISSTIJL_INSTRUCTIES_EN if taal == "en" else HUISSTIJL_INSTRUCTIES
+    prompt = f"""{huisstijl}
 
 Dit is de daadwerkelijke inhoud van de webshop {webshop_url}. Gebruik dit zodat
 je oplossing echt over DEZE winkel gaat, met zijn producten en zijn toon, en

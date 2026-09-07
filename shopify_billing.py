@@ -123,8 +123,13 @@ mutation maakAbonnement($naam: String!, $terugUrl: URL!, $test: Boolean!,
 """
 
 
-def start_abonnement(winkel, sleutel, terug_url):
+def start_abonnement(winkel, sleutel, terug_url, proefdagen=None):
     """Vraagt Shopify om een abonnement. Geeft de bevestigingslink terug.
+
+    De proefperiode kan je op nul zetten. Dat is nodig omdat een winkel die
+    al eens een proef gehad heeft er geen tweede hoort te krijgen: opzeggen en
+    meteen weer starten zou anders telkens zeven nieuwe gratis dagen geven, en
+    dat kan eindeloos.
 
     Er is op dit moment nog niets afgesloten en er is nog niets betaald. Dat
     gebeurt pas als de winkelier op die pagina akkoord geeft. Zeg dat dus ook zo
@@ -136,7 +141,7 @@ def start_abonnement(winkel, sleutel, terug_url):
         "naam": PLAN_NAAM,
         "terugUrl": terug_url,
         "test": testmodus(),
-        "proefdagen": PROEFDAGEN,
+        "proefdagen": PROEFDAGEN if proefdagen is None else max(0, int(proefdagen)),
         "bedrag": PLAN_PRIJS,
         "valuta": PLAN_VALUTA,
     })
