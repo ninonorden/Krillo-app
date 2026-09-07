@@ -903,7 +903,10 @@ def _benadering_ronde():
     try:
         al_gemeten = {w["webshop_url"] for w in db.get_demo_webshops()
                       if (w.get("vragen") or 0) > 0}
-        klaar_te_meten = benadering.te_meten(al_gemeten=al_gemeten)
+        ruimte = kosten.ruimte_voor_benadering()
+        klaar_te_meten = benadering.te_meten(al_gemeten=al_gemeten) if ruimte["mag"] else []
+        if not ruimte["mag"]:
+            print(f"Benadering, geen metingen deze ronde: {ruimte['reden']}")
         if klaar_te_meten:
             _demo_inplannen(klaar_te_meten, benchmark_stand=True)
             print(f"Benadering, in de meetrij gezet: {len(klaar_te_meten)}")

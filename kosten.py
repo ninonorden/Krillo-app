@@ -227,6 +227,32 @@ def _met_onbekend(regel):
     return kosten + onbekend * SCHATTING_ONBEKENDE_AANROEP_EURO
 
 
+# Hoeveel van de dagelijkse ruimte de eigen benadering hoogstens mag opmaken.
+# De rest blijft over voor betalende klanten. Zonder deze grens kan een ronde
+# van tweehonderd winkels de dagpot leegtrekken, en dan krijgt een klant die
+# net 79 euro betaald heeft te horen dat de kostenrem dicht staat. Dat is de
+# verkeerde volgorde.
+DEEL_VOOR_BENADERING = float(os.environ.get("DEEL_VOOR_BENADERING", "0.5"))
+
+
+def ruimte_voor_benadering():
+    """Of de eigen benadering vandaag nog metingen mag doen.
+
+    Aparte, lagere grens dan die voor klanten. Klanten gaan voor."""
+    grens = GRENS_TOTAAL_DAG_EURO * max(0.0, min(1.0, DEEL_VOOR_BENADERING))
+    try:
+        totaal = _met_onbekend(db.kosten_vandaag())
+    except Exception as e:
+        print(f"Kosten van vandaag ophalen mislukt: {e}")
+        return {"mag": True, "reden": None, "besteed": None, "grens": grens}
+    if totaal >= grens:
+        return {"mag": False, "besteed": totaal, "grens": grens,
+                "reden": (f"Er is vandaag al {totaal:.2f} euro aan metingen uitgegeven, "
+                          f"de grens voor de eigen benadering is {grens:.2f} euro. "
+                          f"De rest van de dagpot houden we vrij voor klanten.")}
+    return {"mag": True, "reden": None, "besteed": totaal, "grens": grens}
+
+
 def mag_doorgaan(webshop_url=None, scan_id=None):
     """Wordt aangeroepen VOORDAT een dure aanroep start. Geeft terug of het
     mag, en zo niet waarom. Dit is de rem die voorkomt dat een vastgelopen

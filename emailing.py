@@ -404,78 +404,110 @@ def send_oplevering(to_email, webshop_url, wijzigingen, monitoring_url=None):
     return send_email(to_email, f"Klaar: wat we aangepast hebben aan {webshop_url}", html)
 
 
+def _kaal_adres(webshop_url):
+    """voorbeeldwinkel.nl in plaats van https://www.voorbeeldwinkel.nl/
+
+    Klein, maar dit is precies het soort detail waaraan iemand ziet dat een
+    mail uit een machine komt. Een mens typt geen https:// in een zin."""
+    adres = (webshop_url or "").strip()
+    for weg in ("https://", "http://"):
+        if adres.startswith(weg):
+            adres = adres[len(weg):]
+    if adres.startswith("www."):
+        adres = adres[4:]
+    return adres.rstrip("/")
+
+
 def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
                         telbaar=None, nooit_genoemd=None, gemeten=None,
                         afmeld_url=None, land=None):
     """De mail aan een webshop die we in het onderzoek gemeten hebben.
 
-    Dit is geen verkoopmail en zo hoort hij ook niet te lezen. Er staat één
+    Dit is geen verkoopmail en zo hoort hij ook niet te lezen. Er staat een
     uitkomst in die over hem gaat, waar hij hem kan bekijken, en hoe hij eraf
     komt. Het aanbod staat op de pagina, niet in de mail.
 
-    Waarom dat verschil ertoe doet: iemand die niet om deze mail gevraagd heeft
-    leest de eerste twee zinnen en beslist dan of het spam is. Begin je met wat
-    je verkoopt, dan is het spam. Begin je met zijn eigen cijfer, dan niet.
+    Waarom deze mail er zo kaal uitziet, en dat is met opzet:
+
+    Iemand die niet om post gevraagd heeft beslist in twee seconden of het
+    oplichterij is. Alles wat op reclame lijkt telt daarin mee. Een grote
+    gekleurde knop, een logo, opmaak in drie kleuren: dat doet een bedrijf dat
+    iets wil verkopen, niet iemand die je iets laat weten. Daarom staat hier
+    een gewone tekstlink en geen knop, en is er geen opmaak die je bij een
+    mailtje van een mens ook niet zou zien.
+
+    De afzender is het tweede punt. Een naam onderaan scheelt meer dan alle
+    opmaak bij elkaar: een mail van een persoon is te beantwoorden, een mail
+    van "wij" niet. Zet AFZENDER_NAAM in Render om die naam eronder te krijgen.
+    Staat hij er niet, dan gaat de mail gewoon uit zonder, maar hij leest dan
+    afstandelijker.
 
     De afmeldlink is niet optioneel. Hij moet in elke mail staan die naar
-    iemand gaat die er niet om vroeg, hij moet werken in één klik, en hij is
+    iemand gaat die er niet om vroeg, hij moet werken in een klik, en hij is
     het verschil tussen een afmelding en een spamklacht. Een spamklacht kost je
-    je domein, een afmelding kost je één adres."""
+    je domein, een afmelding kost je een adres."""
     if not to_email or not uitkomst_url:
         print("Onderzoeksmail niet verstuurd: adres of link ontbreekt.")
         return False
 
+    winkel = _kaal_adres(webshop_url)
+
     # Een Belgische winkel is geen Nederlandse webshop. Dat klinkt klein, maar
-    # het is de eerste zin van de mail en het is meteen duidelijk dat hij uit
-    # een machine komt als het niet klopt.
-    if (land or "").strip().lower() in ("be", "belgie", "belgië", "belgium"):
+    # het is de eerste zin en het valt meteen op als het niet klopt.
+    if (land or "").strip().lower() in ("be", "belgie", "belgi\u00eb", "belgium"):
         streek = "Belgische en Nederlandse webshops"
     else:
         streek = "Nederlandse en Belgische webshops"
 
     if genoemd is not None and telbaar:
-        kern = (f"Bij <strong>{genoemd} van de {telbaar}</strong> koopvragen kwam "
-                f"{webshop_url} in het antwoord voor.")
+        kern = (f"Bij <strong>{genoemd} van de {telbaar}</strong> vragen kwam "
+                f"{winkel} in het antwoord voor.")
     else:
-        kern = f"We hebben {webshop_url} meegenomen in de meting."
+        kern = f"We hebben {winkel} meegenomen in de meting."
 
     vergelijking = ""
     if nooit_genoemd is not None and gemeten:
-        vergelijking = (f"<p style=\"font-size:14.5px;\">Ter vergelijking: van de "
-                        f"{gemeten} winkels die we maten werden er {nooit_genoemd} bij "
-                        f"geen enkele vraag genoemd.</p>")
+        vergelijking = (f"<p>Ter vergelijking: van de {gemeten} winkels die we maten "
+                        f"werden er {nooit_genoemd} bij geen enkele vraag genoemd.</p>")
+
+    naam = (os.environ.get("AFZENDER_NAAM") or "").strip()
+    ondertekening = f"<p>Groet,<br>{naam}</p>" if naam else ""
 
     if afmeld_url:
-        afmelden = (f'<a href="{afmeld_url}" style="color:#3B3D57;">Klik hier</a> als je '
-                    f'niets meer van ons wilt horen, dan halen we je uitkomst weg en '
-                    f'krijg je geen post meer.')
+        afmelden = (f'Wil je hier niets meer over horen, dan kan dat met '
+                    f'<a href="{afmeld_url}" style="color:#3B3D57;">deze link</a>. '
+                    f'We halen je uitkomst dan weg.')
     else:
-        afmelden = ("Wil je dat we je uitkomst weghalen, antwoord dan op deze mail en "
-                    "het is dezelfde dag weg.")
+        afmelden = ("Wil je hier niets meer over horen, antwoord dan op deze mail "
+                    "en het is dezelfde dag weg.")
 
-    body = f"""
-    <p style="font-size:14.5px;">We onderzoeken welke {streek} door
-      ChatGPT en Gemini genoemd worden als iemand vraagt waar hij iets moet kopen.
-      Jouw winkel zat in die meting.</p>
-    <p style="font-size:15px;">{kern}</p>
-    {vergelijking}
-    <p style="font-size:14.5px;">Op de pagina hieronder staat je eigen uitkomst: bij
-      hoeveel vragen je genoemd werd, welke winkels er bij diezelfde vragen wel uitkwamen,
-      en wat er aan jouw kant opvalt. Geen account nodig.</p>
-    {_score_button(uitkomst_url, "Bekijk je uitkomst")}
-    <p style="font-size:13px; color:#3B3D57; margin-top:26px;">
-      Je krijgt deze mail omdat je winkel in ons onderzoek zit. We hebben alleen
-      openbare informatie gebruikt en niets aan je site veranderd. {afmelden}</p>
+    g = BEDRIJFSGEGEVENS
+    html = f"""
+    <div style="font-family: -apple-system, Arial, sans-serif; max-width: 540px;
+                color: #12142B; font-size: 15px; line-height: 1.6;">
+      <p>Hoi,</p>
+      <p>We onderzoeken welke {streek} door ChatGPT en Gemini genoemd worden als
+        iemand vraagt waar hij iets moet kopen. {winkel} zat in die meting.</p>
+      <p>{kern}</p>
+      {vergelijking}
+      <p>Op je eigen pagina staat bij welke vragen dat was, welke winkels er bij
+        diezelfde vragen wel uitkwamen, en wat er aan jouw kant opvalt. Je hoeft
+        nergens voor in te loggen:</p>
+      <p><a href="{uitkomst_url}" style="color:#D42E22;">{uitkomst_url}</a></p>
+      {ondertekening}
+      <p style="font-size:13px; color:#3B3D57; margin-top:26px; border-top:1px solid #E4E2DA;
+                padding-top:14px;">
+        Je krijgt deze mail omdat je winkel in ons onderzoek zit. We hebben alleen
+        openbare informatie van je website gebruikt en niets aan je site veranderd.
+        {afmelden}<br><br>
+        {g['naam']}, {g['adres']}, {g['plaats']}. KVK {g['kvk']}. Antwoorden op deze
+        mail komen bij ons aan.
+      </p>
+    </div>
     """
-    html = _base_html(
-        "Je webshop zat in ons onderzoek naar AI-antwoorden",
-        f"Wat ChatGPT en Gemini wel en niet over {webshop_url} zeggen.", body)
-    # De afmeldkop erbij. Gmail en Outlook zetten daar hun eigen knop
-    # "Afmelden" mee bovenaan de mail, en dat is precies waar je hem hebben
-    # wilt: mensen die daar op drukken drukken niet op spam.
     koppen = {"List-Unsubscribe": f"<{afmeld_url}>",
               "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"} if afmeld_url else None
-    return send_email(to_email, f"{webshop_url} in ons onderzoek naar AI-antwoorden",
+    return send_email(to_email, f"{winkel} in ons onderzoek naar AI-antwoorden",
                       html, koppen=koppen)
 
 
