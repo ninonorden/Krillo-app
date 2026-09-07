@@ -44,11 +44,18 @@ import requests
 # Welke rechten we vragen. Bewust zo min mogelijk: elke extra rechtenvraag is
 # een reden voor een winkelier om af te haken, en een vraag bij de beoordeling.
 #
-# read_products en read_content hebben we nodig om te lezen wat er staat.
-# write_products en write_content komen er pas bij in de stap waarin we ook
-# echt aanpassen. Nu nog niet: vraag geen schrijfrechten voor iets wat je nog
-# niet doet.
-SCOPES = "read_products,read_content,read_themes"
+# read_products en read_content om te lezen wat er staat. write_products en
+# write_content omdat wij het werk zelf doen: beschrijvingen bij foto's,
+# productteksten waar ze ontbreken, en een pagina met veelgestelde vragen.
+#
+# Wat wij bewust NIET vragen: klantgegevens, bestellingen, en de kassa. Daar
+# heeft dit niets mee te maken, en elke extra rechtenvraag is een reden voor een
+# winkelier om af te haken en een vraag bij de beoordeling van Shopify.
+#
+# LET OP bij het bijwerken: deze regel moet gelijk staan aan de rechten in je
+# app-instellingen bij Shopify (shopify.app.toml en het partnerscherm). Staan ze
+# niet gelijk, dan krijg je bij het schrijven een 403 die nergens op lijkt.
+SCOPES = "read_products,write_products,read_content,write_content,read_themes"
 
 API_VERSIE = "2025-07"
 

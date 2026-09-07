@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Benadering bij Krillo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral-dim:#FFE3E0; --teal:#1FB6A4; --teal-dim:#DFF5F1;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:1100px; margin:0 auto; padding:40px 24px 90px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:18px; margin:30px 0 10px;}
+  .sub{color:var(--ink-soft); font-size:14px; margin-bottom:20px; font-family:var(--mono);}
+  a{color:#D42E22;}
+  .melding{background:var(--teal-dim); color:#085041; padding:10px 14px; border-radius:8px;
+           font-size:13.5px; margin-bottom:18px;}
+  .kaart{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+         padding:18px 20px; margin-bottom:16px;}
+  .uitleg{font-size:13.5px; color:var(--ink-soft); line-height:1.7;}
+  .uitleg b{color:var(--ink);}
+  .rem{border-left:4px solid var(--teal);}
+  .rem.uit{border-left-color:#D42E22;}
+  .tellers{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px;}
+  .teller{background:var(--paper-raised); border:1px solid var(--line); border-radius:10px;
+          padding:10px 14px; min-width:110px;}
+  .teller .getal{font-family:var(--disp); font-size:22px; font-weight:700;}
+  .teller .naam{font-family:var(--mono); font-size:11px; color:var(--ink-soft);}
+  textarea{width:100%; min-height:130px; font-family:var(--mono); font-size:12.5px;
+    padding:10px; border:1px solid var(--line); border-radius:8px; line-height:1.5;}
+  input[type=number]{width:80px; font-family:var(--body); font-size:13.5px;
+    padding:6px 8px; border:1px solid var(--line); border-radius:8px;}
+  button{font-family:var(--body); font-size:13.5px; font-weight:600; padding:8px 16px;
+    border:none; border-radius:8px; background:var(--ink); color:#fff; cursor:pointer;
+    margin-top:10px;}
+  button.licht{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  label{font-size:13.5px; display:inline-flex; align-items:center; gap:6px; margin-right:18px;}
+  table{width:100%; border-collapse:collapse; font-size:13px; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+     text-transform:uppercase; padding:9px 10px; border-bottom:1px solid var(--line);}
+  td{padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .stand{font-family:var(--mono); font-size:11px; padding:2px 7px; border-radius:20px;
+         background:var(--paper); border:1px solid var(--line); white-space:nowrap;}
+  .stand.gemaild, .stand.klant{background:var(--teal-dim); border-color:var(--teal);}
+  .stand.geen_adres, .stand.afgevallen{background:var(--coral-dim); border-color:#F3B7B2;}
+  .klein{font-family:var(--mono); font-size:11px; color:var(--ink-soft);}
+  .leeg{padding:40px; text-align:center; color:var(--ink-soft); background:var(--paper-raised);
+        border-radius:12px; border:1px solid var(--line);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Benadering</h1>
+  <div class="sub">{{ tellingen.totaal }} winkels op de lijst, {{ tellingen.vandaag_gemaild }} gemaild vandaag</div>
+
+  {% if melding %}<div class="melding">{{ melding }}</div>{% endif %}
+
+  <div class="tellers">
+    {% for naam in standen %}
+      <div class="teller">
+        <div class="getal">{{ tellingen.per_stand.get(naam, 0) }}</div>
+        <div class="naam">{{ naam.replace('_', ' ') }}</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="kaart rem {% if not instellingen.aan %}uit{% endif %}">
+    <div class="uitleg">
+      <b>Staat er nu {% if instellingen.aan %}aan{% else %}uit{% endif %}.</b>
+      {% if mag_nu %}
+        Er mogen op dit moment nog <b>{{ mag_nu }}</b> mails deze ronde uit.
+      {% else %}
+        Er gaat op dit moment geen post uit: {{ reden }}
+      {% endif %}
+    </div>
+  </div>
+
+  <h2>1. Winkels toevoegen</h2>
+  <div class="kaart">
+    <div class="uitleg" style="margin-bottom:10px;">
+      Eén winkel per regel. Alleen het webadres is verplicht. Wil je meer meegeven,
+      zet het er dan achter met een puntkomma ertussen, in deze volgorde:<br>
+      <span class="klein">webadres ; naam ; land ; branche</span><br><br>
+      Een winkel die er al op staat blijft staan zoals hij staat. Je kunt de lijst dus
+      gerust twee keer plakken zonder dat iemand twee keer post krijgt.
+    </div>
+    <form method="post" action="/admin/benadering?key={{ sleutel }}">
+      <input type="hidden" name="actie" value="lijst">
+      <textarea name="lijst" placeholder="voorbeeldwinkel.nl ; Voorbeeld ; NL ; wonen en interieur"></textarea>
+      <button type="submit">Toevoegen aan de lijst</button>
+    </form>
+  </div>
+
+  <h2>2. De rem instellen</h2>
+  <div class="kaart">
+    <div class="uitleg" style="margin-bottom:12px;">
+      <b>Ga hier niet te snel mee omhoog.</b> Krillo.nl heeft nog bijna geen post
+      verstuurd. Gmail en Outlook kijken naar hoeveel je stuurt en hoe snel dat oploopt.
+      Van vijftien naar honderd per dag in een week is de snelste manier om in de spammap
+      te belanden, en daar kom je niet zomaar meer uit. Ook je gewone post aan klanten
+      niet.<br><br>
+      Verstandig schema: eerste week 15 per dag, tweede week 25, derde week 40. Zie je
+      bounces of afmeldingen oplopen, ga dan terug in plaats van vooruit.<br><br>
+      Er gaat sowieso alleen post uit tussen 8:00 en 20:00.
+    </div>
+    <form method="post" action="/admin/benadering?key={{ sleutel }}">
+      <input type="hidden" name="actie" value="instellingen">
+      <label><input type="radio" name="aan" value="ja" {% if instellingen.aan %}checked{% endif %}> Aan</label>
+      <label><input type="radio" name="aan" value="nee" {% if not instellingen.aan %}checked{% endif %}> Uit</label>
+      <br><br>
+      <label>Mails per dag
+        <input type="number" name="mail_per_dag" min="0" max="200" value="{{ instellingen.per_dag }}"></label>
+      <label>Per ronde
+        <input type="number" name="mail_per_ronde" min="0" max="50" value="{{ instellingen.per_ronde }}"></label>
+      <label>Adressen zoeken per ronde
+        <input type="number" name="adressen_per_ronde" min="0" max="100" value="{{ instellingen.adressen_per_ronde }}"></label>
+      <label>Metingen per ronde
+        <input type="number" name="metingen_per_ronde" min="0" max="50" value="{{ instellingen.metingen_per_ronde }}"></label>
+      <br>
+      <button type="submit">Bewaren</button>
+    </form>
+  </div>
+
+  <h2>3. Nu een ronde draaien</h2>
+  <div class="kaart">
+    <div class="uitleg" style="margin-bottom:10px;">
+      Normaal doet de server dit zelf elk uur. Deze knop is om te kijken of het werkt,
+      of om niet te hoeven wachten. Hij houdt zich aan dezelfde rem.
+    </div>
+    <form method="post" action="/admin/benadering?key={{ sleutel }}">
+      <input type="hidden" name="actie" value="ronde">
+      <button type="submit" class="licht">Draai nu een ronde</button>
+    </form>
+  </div>
+
+  <h2>De lijst</h2>
+  {% if regels %}
+    <table>
+      <tr><th>Winkel</th><th>Land</th><th>Stand</th><th>Adres</th><th>Gemaild</th><th>Opmerking</th><th></th></tr>
+      {% for r in regels %}
+        <tr>
+          <td><a href="{{ r.webshop_url }}" target="_blank" rel="noopener">{{ r.webshop_url.replace('https://', '') }}</a></td>
+          <td class="klein">{{ r.land or '' }}</td>
+          <td><span class="stand {{ r.stand }}">{{ r.stand.replace('_', ' ') }}</span></td>
+          <td class="klein">{{ r.email or '' }}</td>
+          <td class="klein">{{ r.gemaild_op.strftime('%d-%m %H:%M') if r.gemaild_op else '' }}</td>
+          <td class="klein">{{ (r.notitie or '')[:90] }}</td>
+          <td>
+            <form method="post" action="/admin/benadering?key={{ sleutel }}" style="margin:0;">
+              <input type="hidden" name="actie" value="stand">
+              <input type="hidden" name="url" value="{{ r.webshop_url }}">
+              <select name="stand" onchange="this.form.submit()" style="font-size:12px; padding:3px;">
+                {% for s in standen %}
+                  <option value="{{ s }}" {% if s == r.stand %}selected{% endif %}>{{ s.replace('_', ' ') }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <div class="leeg">Nog geen winkels op de lijst. Plak ze hierboven erin.</div>
+  {% endif %}
+</div>
+</body>
+</html>

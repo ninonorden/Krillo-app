@@ -25,10 +25,13 @@ def _get_api_key():
     return os.environ.get("BREVO_API_KEY")
 
 
-def send_email(to_email, subject, html_body):
+def send_email(to_email, subject, html_body, koppen=None):
     """Verstuurt een e-mail via de Brevo API. Geeft True/False terug, faalt
     nooit hard (een mislukte e-mail mag de rest van de afhandeling niet
-    blokkeren)."""
+    blokkeren).
+
+    Met 'koppen' kan je extra mailkoppen meegeven, bijvoorbeeld de afmeldkop
+    waar Gmail en Outlook hun eigen knop 'Afmelden' van maken."""
     api_key = _get_api_key()
     if not api_key:
         print("E-mail niet verstuurd: BREVO_API_KEY ontbreekt nog.")
@@ -55,6 +58,8 @@ def send_email(to_email, subject, html_body):
     }
     if reply_to:
         inhoud["replyTo"] = {"name": "Krillo", "email": reply_to}
+    if koppen:
+        inhoud["headers"] = {str(k): str(v) for k, v in koppen.items() if v}
 
     try:
         response = requests.post(
@@ -400,7 +405,8 @@ def send_oplevering(to_email, webshop_url, wijzigingen, monitoring_url=None):
 
 
 def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
-                        telbaar=None, nooit_genoemd=None, gemeten=None):
+                        telbaar=None, nooit_genoemd=None, gemeten=None,
+                        afmeld_url=None, land=None):
     """De mail aan een webshop die we in het onderzoek gemeten hebben.
 
     Dit is geen verkoopmail en zo hoort hij ook niet te lezen. Er staat één
@@ -409,10 +415,23 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
 
     Waarom dat verschil ertoe doet: iemand die niet om deze mail gevraagd heeft
     leest de eerste twee zinnen en beslist dan of het spam is. Begin je met wat
-    je verkoopt, dan is het spam. Begin je met zijn eigen cijfer, dan niet."""
+    je verkoopt, dan is het spam. Begin je met zijn eigen cijfer, dan niet.
+
+    De afmeldlink is niet optioneel. Hij moet in elke mail staan die naar
+    iemand gaat die er niet om vroeg, hij moet werken in één klik, en hij is
+    het verschil tussen een afmelding en een spamklacht. Een spamklacht kost je
+    je domein, een afmelding kost je één adres."""
     if not to_email or not uitkomst_url:
         print("Onderzoeksmail niet verstuurd: adres of link ontbreekt.")
         return False
+
+    # Een Belgische winkel is geen Nederlandse webshop. Dat klinkt klein, maar
+    # het is de eerste zin van de mail en het is meteen duidelijk dat hij uit
+    # een machine komt als het niet klopt.
+    if (land or "").strip().lower() in ("be", "belgie", "belgië", "belgium"):
+        streek = "Belgische en Nederlandse webshops"
+    else:
+        streek = "Nederlandse en Belgische webshops"
 
     if genoemd is not None and telbaar:
         kern = (f"Bij <strong>{genoemd} van de {telbaar}</strong> koopvragen kwam "
@@ -426,8 +445,16 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
                         f"{gemeten} winkels die we maten werden er {nooit_genoemd} bij "
                         f"geen enkele vraag genoemd.</p>")
 
+    if afmeld_url:
+        afmelden = (f'<a href="{afmeld_url}" style="color:#3B3D57;">Klik hier</a> als je '
+                    f'niets meer van ons wilt horen, dan halen we je uitkomst weg en '
+                    f'krijg je geen post meer.')
+    else:
+        afmelden = ("Wil je dat we je uitkomst weghalen, antwoord dan op deze mail en "
+                    "het is dezelfde dag weg.")
+
     body = f"""
-    <p style="font-size:14.5px;">We onderzoeken welke Nederlandse webshops door
+    <p style="font-size:14.5px;">We onderzoeken welke {streek} door
       ChatGPT en Gemini genoemd worden als iemand vraagt waar hij iets moet kopen.
       Jouw winkel zat in die meting.</p>
     <p style="font-size:15px;">{kern}</p>
@@ -438,13 +465,18 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
     {_score_button(uitkomst_url, "Bekijk je uitkomst")}
     <p style="font-size:13px; color:#3B3D57; margin-top:26px;">
       Je krijgt deze mail omdat je winkel in ons onderzoek zit. We hebben alleen
-      openbare informatie gebruikt en niets aan je site veranderd. Wil je dat we je
-      uitkomst weghalen, antwoord dan op deze mail en het is dezelfde dag weg.</p>
+      openbare informatie gebruikt en niets aan je site veranderd. {afmelden}</p>
     """
     html = _base_html(
         "Je webshop zat in ons onderzoek naar AI-antwoorden",
         f"Wat ChatGPT en Gemini wel en niet over {webshop_url} zeggen.", body)
-    return send_email(to_email, f"{webshop_url} in ons onderzoek naar AI-antwoorden", html)
+    # De afmeldkop erbij. Gmail en Outlook zetten daar hun eigen knop
+    # "Afmelden" mee bovenaan de mail, en dat is precies waar je hem hebben
+    # wilt: mensen die daar op drukken drukken niet op spam.
+    koppen = {"List-Unsubscribe": f"<{afmeld_url}>",
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"} if afmeld_url else None
+    return send_email(to_email, f"{webshop_url} in ons onderzoek naar AI-antwoorden",
+                      html, koppen=koppen)
 
 
 def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None):

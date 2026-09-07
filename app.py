@@ -38,6 +38,8 @@ import zichtbaarheid
 import benchmark
 import markt
 import shopify_app
+import shopify_werk
+import benadering
 
 app = Flask(__name__)
 db.init_db()
@@ -830,6 +832,160 @@ def weekly_scans():
     base_url = get_base_url()
     threading.Thread(target=_draai_wekelijkse_scans, args=(base_url, alles), daemon=True).start()
     return "ok", 200
+
+
+def _benadering_ronde():
+    """Eén rondje van de automatische benadering. Draait op de achtergrond.
+
+    De volgorde is met opzet zo: eerst adressen zoeken (kost niets), dan meten
+    (kost geld bij de modellen), dan pas mailen. Zo staat er altijd een voorraad
+    gemeten winkels klaar en hoeft de post nooit te wachten op een meting."""
+    try:
+        gevonden = benadering.zoek_adressen()
+        print(f"Benadering, adressen: {gevonden}")
+    except Exception as e:
+        print(f"Benadering, adressen zoeken mislukt: {e}")
+
+    try:
+        al_gemeten = {w["webshop_url"] for w in db.get_demo_webshops()
+                      if (w.get("vragen") or 0) > 0}
+        klaar_te_meten = benadering.te_meten(al_gemeten=al_gemeten)
+        if klaar_te_meten:
+            _demo_inplannen(klaar_te_meten, benchmark_stand=True)
+            print(f"Benadering, in de meetrij gezet: {len(klaar_te_meten)}")
+        # Winkels waarvan de meting inmiddels klaar is doorzetten naar 'gemeten'.
+        for winkel in db.get_benaderingen(stand="adres"):
+            if winkel["webshop_url"] in al_gemeten:
+                db.zet_benadering(winkel["webshop_url"], stand="gemeten")
+    except Exception as e:
+        print(f"Benadering, meten mislukt: {e}")
+
+    try:
+        mag, reden = benadering.hoeveel_mag_er_nu()
+        if not mag:
+            print(f"Benadering, geen post deze ronde: {reden}")
+            return
+        for winkel in benadering.te_mailen(mag):
+            gelukt, fout = _stuur_onderzoeksmail(winkel["webshop_url"], winkel["email"],
+                                                 winkel.get("land"))
+            benadering.markeer_gemaild(winkel["webshop_url"], gelukt, fout)
+            print(f"Benadering, mail naar {winkel['webshop_url']}: "
+                  f"{'gelukt' if gelukt else fout}")
+    except Exception as e:
+        print(f"Benadering, mailen mislukt: {e}")
+
+
+def _stuur_onderzoeksmail(webshop_url, email, land=None):
+    """Stuurt één winkel zijn eigen uitkomst. Geeft (gelukt, reden) terug.
+
+    Eén plek voor zowel de knop met de hand als de automatische ronde, zodat er
+    nooit twee versies van deze mail ontstaan."""
+    if not email or not _EMAIL_VORM.match(email or ""):
+        return False, "Geen geldig mailadres."
+    token = db.get_benchmark_token(webshop_url)
+    if not token:
+        return False, "Er kon geen link naar de uitkomst gemaakt worden."
+    try:
+        gegevens = _klantgegevens(webshop_url)
+        v = gegevens.get("vermeldingen") or {}
+        if not v.get("telbaar"):
+            return False, "Deze winkel is nog niet gemeten."
+        c = benchmark.tel_op(db.benchmark_regels())
+        basis = get_base_url()
+        gelukt = emailing.send_onderzoeksmail(
+            email, webshop_url, f"{basis}/uitkomst/{token}",
+            genoemd=v.get("genoemd"), telbaar=v.get("telbaar"),
+            nooit_genoemd=c.get("nooit_genoemd"), gemeten=c.get("gemeten"),
+            afmeld_url=f"{basis}/afmelden/{token}", land=land)
+        return bool(gelukt), None if gelukt else "Verzenden mislukt, kijk in de logs."
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"[:200]
+
+
+@app.route("/api/cron/benadering", methods=["GET", "POST"])
+def cron_benadering():
+    """Elk uur aanroepen vanuit Render. Doet per keer een klein stukje.
+
+    Antwoordt meteen, het werk gebeurt op de achtergrond."""
+    cron_key = os.environ.get("CRON_KEY")
+    if not cron_key or request.args.get("key") != cron_key:
+        return "", 404
+    threading.Thread(target=_benadering_ronde, daemon=True).start()
+    return "ok", 200
+
+
+@app.route("/afmelden/<token>", methods=["GET", "POST"])
+def afmelden(token):
+    """De afmeldlink uit de mail. Eén klik, geen vragen, geen formulier.
+
+    Elke mail die je stuurt aan iemand die er niet om vroeg moet dit hebben, en
+    hij moet echt werken. Een afmeldlink die om een bevestiging vraagt is de
+    reden dat mensen op 'spam' drukken in plaats van op de link.
+
+    Ook op POST, want de knop 'Afmelden' die Gmail zelf bovenaan de mail zet
+    stuurt een POST en geen GET. Zonder dat doet die knop niets."""
+    webshop_url = db.winkel_bij_benchmark_token(token)
+    if not webshop_url:
+        if request.method == "POST":
+            return "", 404
+        return render_template("afgemeld.html", gelukt=False), 404
+    db.meld_benadering_af(webshop_url)
+    if request.method == "POST":
+        return "", 200
+    return render_template("afgemeld.html", gelukt=True, winkel=webshop_url)
+
+
+@app.route("/admin/benadering", methods=["GET", "POST"])
+def admin_benadering():
+    """De machinekamer van de benadering: de lijst erin, de rem instellen, en
+    zien wat er gebeurd is."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key or request.args.get("key") != admin_key:
+        return "Niet gevonden.", 404
+
+    melding = None
+    if request.method == "POST":
+        actie = (request.form.get("actie") or "").strip()
+        if actie == "lijst":
+            uit = benadering.voeg_lijst_toe(request.form.get("lijst") or "")
+            melding = (f"{uit['nieuw']} nieuwe winkels toegevoegd, "
+                       f"{uit['al_bekend']} stonden er al op.")
+            if uit["fout"]:
+                melding += f" {len(uit['fout'])} regel(s) overgeslagen: {uit['fout'][:3]}"
+        elif actie == "instellingen":
+            db.zet_instelling("benadering_aan",
+                              "ja" if request.form.get("aan") == "ja" else "nee")
+            for veld in ("mail_per_dag", "mail_per_ronde", "adressen_per_ronde",
+                         "metingen_per_ronde"):
+                waarde = (request.form.get(veld) or "").strip()
+                if waarde.isdigit():
+                    db.zet_instelling(veld, int(waarde))
+            melding = "Instellingen bewaard."
+        elif actie == "ronde":
+            threading.Thread(target=_benadering_ronde, daemon=True).start()
+            melding = ("Een ronde is gestart. Ververs deze pagina over een minuut "
+                       "of twee, dan zie je het resultaat.")
+        elif actie == "stand":
+            url = (request.form.get("url") or "").strip()
+            nieuwe = (request.form.get("stand") or "").strip()
+            if db.zet_benadering(url, stand=nieuwe):
+                melding = f"{url} staat nu op {nieuwe}."
+            else:
+                melding = "Dat lukte niet."
+
+    inst = benadering.instellingen()
+    mag, reden = benadering.hoeveel_mag_er_nu()
+    return render_template(
+        "admin_benadering.html",
+        regels=db.get_benaderingen(alleen_niet_afgemeld=False),
+        tellingen=db.tel_benaderingen(),
+        instellingen=inst,
+        mag_nu=mag,
+        reden=reden,
+        standen=db.BENADER_STANDEN,
+        melding=melding,
+        sleutel=admin_key,
+    )
 
 
 @app.route("/monitoring/<klant_token>")
@@ -1714,26 +1870,20 @@ def admin_onderzoeksmail():
             if actie != "versturen":
                 melding = f"Adres bewaard bij {webshop_url}."
             else:
-                token = db.get_benchmark_token(webshop_url)
-                if not token:
-                    melding = "Er kon geen link gemaakt worden. Probeer het nog eens."
+                # Dezelfde functie als de automatische ronde gebruikt. Eén mail,
+                # één plek, geen twee versies die uit elkaar gaan lopen.
+                land = ((db.get_benadering(webshop_url) or {}).get("land"))
+                verstuurd, fout = _stuur_onderzoeksmail(webshop_url, email, land)
+                if verstuurd:
+                    db.markeer_onderzoeksmail(webshop_url)
+                    db.zet_benadering(webshop_url, stand="gemaild", gemaild=True)
+                    melding = f"Verstuurd naar {email}."
                 else:
-                    gegevens = _klantgegevens(webshop_url)
-                    v = gegevens.get("vermeldingen") or {}
-                    c = benchmark.tel_op(db.benchmark_regels())
-                    verstuurd = emailing.send_onderzoeksmail(
-                        email, webshop_url, f"{get_base_url()}/uitkomst/{token}",
-                        genoemd=v.get("genoemd"), telbaar=v.get("telbaar"),
-                        nooit_genoemd=c.get("nooit_genoemd"), gemeten=c.get("gemeten"))
-                    if verstuurd:
-                        db.markeer_onderzoeksmail(webshop_url)
-                        melding = f"Verstuurd naar {email}."
-                    else:
-                        # BEWUST niet als verstuurd markeren. Anders sla je hem
-                        # over bij de volgende ronde terwijl hij niets gehad
-                        # heeft.
-                        melding = ("De mail is NIET verstuurd. Kijk in de logs van "
-                                   "Render waarom, en probeer het opnieuw.")
+                    # BEWUST niet als verstuurd markeren. Anders sla je hem
+                    # over bij de volgende ronde terwijl hij niets gehad
+                    # heeft.
+                    melding = (f"De mail is NIET verstuurd. {fout or ''} "
+                               "Kijk zo nodig in de logs van Render.")
 
     regels = []
     for r in db.benchmark_regels():
@@ -2482,6 +2632,144 @@ def shopify_api_meten():
     threading.Thread(target=_shopify_meten,
                      args=(winkel, webshop_url, rij.get("email")), daemon=True).start()
     return jsonify({"stand": _shopify_status[winkel]})
+
+
+_shopify_voorstellen = {}
+_shopify_werk_status = {}
+
+
+def _shopify_voorstellen_maken(winkel, sleutel, webshop_url):
+    """Kijkt wat er ontbreekt en schrijft de teksten. Zet nog niets in de winkel."""
+    _shopify_werk_status[winkel] = {"tekst": "we kijken je winkel na", "klaar": False,
+                                    "mislukt": False}
+    try:
+        markt_gegevens = _markt_van(webshop_url)
+        uitkomst = shopify_werk.maak_voorstellen(winkel, sleutel, markt_gegevens)
+        _shopify_voorstellen[winkel] = {v["id"]: v for v in uitkomst["voorstellen"]}
+        _shopify_werk_status[winkel] = {
+            "tekst": "klaar", "klaar": True, "mislukt": False,
+            "aantallen": uitkomst["aantallen"],
+            "fouten": uitkomst["fouten"],
+            # Bewust zonder de HTML-versie: die hoeft het scherm niet te weten
+            # en het scheelt een hoop overbodig verkeer.
+            "voorstellen": [{k: v for k, v in stuk.items() if k != "nieuw_html"}
+                            for stuk in uitkomst["voorstellen"]],
+        }
+    except Exception as e:
+        print(f"Voorstellen maken mislukt voor {winkel}: {e}")
+        _shopify_werk_status[winkel] = {
+            "tekst": "Er ging iets mis bij het nakijken van je winkel.",
+            "klaar": True, "mislukt": True}
+
+
+@app.route("/shopify/api/voorstellen", methods=["POST"])
+def shopify_api_voorstellen():
+    """Maak voorstellen: wat wij zouden invullen, en wat er dan komt te staan.
+
+    Dit is met opzet een aparte stap van het toepassen. De eigenaar moet eerst
+    zien wat er in zijn winkel komt te staan. Het is zijn winkel."""
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij or not rij.get("toegangssleutel"):
+        return jsonify({"error": "Niet toegestaan."}), 401
+    bezig = _shopify_werk_status.get(winkel)
+    if bezig and not bezig.get("klaar"):
+        return jsonify({"stand": bezig})
+    threading.Thread(
+        target=_shopify_voorstellen_maken,
+        args=(winkel, rij["toegangssleutel"], rij.get("webshop_url")),
+        daemon=True).start()
+    return jsonify({"stand": {"tekst": "we kijken je winkel na", "klaar": False,
+                              "mislukt": False}})
+
+
+@app.route("/shopify/api/werkstand")
+def shopify_api_werkstand():
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij:
+        return jsonify({"error": "Niet toegestaan."}), 401
+    return jsonify({"stand": _shopify_werk_status.get(winkel)})
+
+
+@app.route("/shopify/api/toepassen", methods=["POST"])
+def shopify_api_toepassen():
+    """Zet de gekozen voorstellen echt in de winkel.
+
+    Alleen wat de eigenaar aangevinkt heeft, en alleen voorstellen die wij zelf
+    net gemaakt hebben. Wij nemen geen tekst aan die het scherm meestuurt: dan
+    zou iemand met een eigen verzoek elke tekst in zijn winkel kunnen laten
+    zetten via ons, en dat is precies het soort gat waar je later spijt van
+    krijgt."""
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij or not rij.get("toegangssleutel"):
+        return jsonify({"error": "Niet toegestaan."}), 401
+    webshop_url = rij.get("webshop_url")
+    if not webshop_url:
+        return jsonify({"error": "We weten het adres van je winkel nog niet."}), 400
+
+    gevraagd = (request.get_json(silent=True) or {}).get("ids") or []
+    bekend = _shopify_voorstellen.get(winkel) or {}
+    if not bekend:
+        return jsonify({"error": "De voorstellen zijn verlopen. Kijk je winkel "
+                                 "opnieuw na, dan maken we ze vers."}), 409
+
+    gedaan, mislukt, overgeslagen = [], [], []
+    for kenmerk in gevraagd[:50]:
+        voorstel = bekend.get(kenmerk)
+        if not voorstel:
+            continue
+        uit = shopify_werk.pas_toe(winkel, rij["toegangssleutel"], voorstel, webshop_url)
+        if uit.get("gelukt"):
+            gedaan.append({"id": kenmerk, "waar": voorstel.get("waar")})
+        elif uit.get("overgeslagen"):
+            overgeslagen.append({"id": kenmerk, "waar": voorstel.get("waar"),
+                                 "reden": uit.get("fout")})
+        else:
+            mislukt.append({"id": kenmerk, "waar": voorstel.get("waar"),
+                            "reden": uit.get("fout")})
+    return jsonify({"gedaan": gedaan, "overgeslagen": overgeslagen, "mislukt": mislukt})
+
+
+@app.route("/shopify/api/wijzigingen")
+def shopify_api_wijzigingen():
+    """Alles wat wij in deze winkel veranderd hebben, met de oude tekst erbij."""
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij:
+        return jsonify({"error": "Niet toegestaan."}), 401
+    regels = []
+    for w in db.get_wijzigingen(rij.get("webshop_url") or ""):
+        if not (w.get("taak_id") or "").startswith("shopify:"):
+            continue
+        regels.append({"id": w["taak_id"], "wat": w.get("wat"), "waar": w.get("waar"),
+                       "oud": (w.get("oude_waarde") or "")[:600],
+                       "nieuw": (w.get("nieuwe_waarde") or "")[:600],
+                       "op": w["gedaan_op"].isoformat() if w.get("gedaan_op") else None})
+    return jsonify({"wijzigingen": regels})
+
+
+@app.route("/shopify/api/terugzetten", methods=["POST"])
+def shopify_api_terugzetten():
+    """Eén wijziging ongedaan maken.
+
+    Dit is geen extraatje. Wij beloven dat alles terug kan, en een belofte die
+    alleen in de tekst staat en niet in een knop is geen belofte."""
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij or not rij.get("toegangssleutel"):
+        return jsonify({"error": "Niet toegestaan."}), 401
+    webshop_url = rij.get("webshop_url") or ""
+    kenmerk = (request.get_json(silent=True) or {}).get("id") or ""
+
+    wijziging = None
+    for w in db.get_wijzigingen(webshop_url):
+        if w.get("taak_id") == kenmerk:
+            wijziging = w
+    if not wijziging:
+        return jsonify({"error": "Die wijziging kennen we niet."}), 404
+
+    uit = shopify_werk.zet_terug(winkel, rij["toegangssleutel"], wijziging, webshop_url)
+    if not uit.get("gelukt"):
+        return jsonify({"error": uit.get("fout") or "Terugzetten mislukt."}), 502
+    db.verwijder_wijziging(webshop_url, kenmerk)
+    return jsonify({"ok": True, "id": kenmerk})
 
 
 @app.route("/shopify/api/stand")

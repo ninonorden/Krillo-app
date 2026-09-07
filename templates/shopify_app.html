@@ -156,6 +156,31 @@
     <button id="metenknop" class="rustig">Measure again</button>
   {% endif %}
 
+  <h2>We do the work, not you</h2>
+  <p class="onder">Most tools hand you a list of things to fix and leave you to it. We
+    write the missing text and put it in your store for you. You see every change before
+    it happens, and every change can be undone.</p>
+  <p class="onder">Three things, and only where they are missing:
+    image descriptions, product descriptions on products that have none, and a page with
+    frequently asked questions if you do not have one. We never overwrite text you wrote
+    yourself.</p>
+
+  <button id="nakijkknop" class="rustig">Check my store</button>
+
+  <div id="werkbezig" style="display:none;" class="bezig"><span id="werkbezigtekst">Working…</span></div>
+  <div id="werkfout" style="display:none;" class="misgegaan"><span id="werkfouttekst"></span></div>
+
+  <div id="voorstelblok" style="display:none;">
+    <div class="label" style="margin-top:22px;">What we would change</div>
+    <div id="voorstellen"></div>
+    <button id="toepasknop">Apply the selected changes</button>
+  </div>
+
+  <div id="wijzigingblok" style="display:none;">
+    <div class="label" style="margin-top:26px;">What we changed in your store</div>
+    <div id="wijzigingen"></div>
+  </div>
+
   <h2>How it works</h2>
   <div class="stappen">
     <div class="stap">
@@ -209,11 +234,29 @@
 
   <details>
     <summary>Does this change anything in my store?</summary>
-    <div class="inhoud">No. Krillo only reads. We look at your product pages and your
-      settings to work out what you sell and whether AI can read it. We never touch your
-      prices, stock, orders, customer data or theme. If we ever add the option to apply a
-      fix for you, it will be a separate button that asks you first, and every change will
-      be reversible.</div>
+    <div class="inhoud">Only when you press the button, and only what you selected. We
+      show you every proposed change first, in full, and nothing happens until you agree.
+      We fill in three things and only where they are missing: descriptions on images that
+      have none, product descriptions on products that have none, and a page with frequently
+      asked questions if you do not already have one. We never overwrite text you wrote
+      yourself, and if you add text between our proposal and your click, we skip that item.
+      We never touch your prices, stock, orders, customer data or theme.</div>
+  </details>
+
+  <details>
+    <summary>Can I undo what you changed?</summary>
+    <div class="inhoud">Yes, every single change, one at a time. Before we write anything
+      we store what was there before. If the old value cannot be stored, we do not write:
+      a change that cannot be undone is worse than no change. Under "What we changed in
+      your store" there is an Undo button next to each one.</div>
+  </details>
+
+  <details>
+    <summary>Why do you need permission to edit products and pages?</summary>
+    <div class="inhoud">Because we do the work instead of handing you a to-do list. To
+      write a description into a product or add a page, Shopify needs us to have that
+      permission. We ask for nothing beyond products and pages: no customers, no orders,
+      no checkout.</div>
   </details>
 
   <details>
@@ -348,6 +391,196 @@
   kijkenNaarStand();
   kijken = setInterval(kijkenNaarStand, 5000);
   {% endif %}
+
+  // ---------------------------------------------------------------- wij doen het
+  //
+  // Twee stappen, met opzet gescheiden: eerst laten zien wat er komt te staan,
+  // dan pas schrijven. Wat het scherm terugstuurt is alleen een lijstje met
+  // kenmerken. De teksten zelf komen van de server, zodat er nooit iets in de
+  // winkel kan komen dat wij niet zelf gemaakt hebben.
+  var naKijkKnop = document.getElementById('nakijkknop');
+  var toepasKnop = document.getElementById('toepasknop');
+  var werkBezig = document.getElementById('werkbezig');
+  var werkBezigTekst = document.getElementById('werkbezigtekst');
+  var werkFout = document.getElementById('werkfout');
+  var werkFoutTekst = document.getElementById('werkfouttekst');
+  var voorstelBlok = document.getElementById('voorstelblok');
+  var voorstellen = document.getElementById('voorstellen');
+  var wijzigingBlok = document.getElementById('wijzigingblok');
+  var wijzigingen = document.getElementById('wijzigingen');
+  var werkKijken = null;
+
+  function werkFoutTonen(tekst){
+    if (werkKijken) { clearInterval(werkKijken); werkKijken = null; }
+    werkBezig.style.display = 'none';
+    werkFoutTekst.textContent = tekst;
+    werkFout.style.display = 'block';
+    if (naKijkKnop) { naKijkKnop.disabled = false; naKijkKnop.textContent = 'Try again'; }
+  }
+
+  function tekstvak(waarde){
+    var d = document.createElement('div');
+    d.textContent = waarde;
+    return d.innerHTML;
+  }
+
+  function toonVoorstellen(stand){
+    voorstellen.innerHTML = '';
+    var lijst = stand.voorstellen || [];
+    if (!lijst.length){
+      voorstelBlok.style.display = 'none';
+      werkBezig.style.display = 'none';
+      werkFoutTekst.textContent = 'We looked and found nothing missing that we can fill in. '
+        + 'That is good news: your images and product texts are in order.';
+      werkFout.style.display = 'block';
+      naKijkKnop.disabled = false;
+      naKijkKnop.textContent = 'Check again';
+      return;
+    }
+    lijst.forEach(function(v){
+      var kaart = document.createElement('div');
+      kaart.className = 'taak';
+      kaart.innerHTML =
+        '<label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer;">'
+        + '<input type="checkbox" checked data-id="' + tekstvak(v.id) + '" style="margin-top:5px;">'
+        + '<span><span class="taak-titel">' + tekstvak(v.wat) + '</span>'
+        + '<div class="label" style="margin-top:6px;">' + tekstvak(v.waar) + '</div>'
+        + (v.oud ? '<div class="waar" style="text-decoration:line-through; opacity:.6;">'
+                   + tekstvak(v.oud) + '</div>' : '')
+        + '<div class="waar" style="margin-top:6px;">' + tekstvak(v.nieuw) + '</div>'
+        + '</span></label>';
+      voorstellen.appendChild(kaart);
+    });
+    werkBezig.style.display = 'none';
+    voorstelBlok.style.display = 'block';
+    naKijkKnop.disabled = false;
+    naKijkKnop.textContent = 'Check again';
+    if (stand.fouten && stand.fouten.length){
+      werkFoutTekst.textContent = 'Some parts could not be prepared: ' + stand.fouten.join(' ');
+      werkFout.style.display = 'block';
+    }
+  }
+
+  function kijkenNaarWerk(){
+    metKaartje(function(kaartje){
+      fetch('/shopify/api/werkstand', {headers: {'Authorization': 'Bearer ' + kaartje}})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var stand = d.stand;
+          if (!stand) { return; }
+          if (stand.mislukt) { werkFoutTonen(stand.tekst); return; }
+          if (stand.klaar){
+            if (werkKijken) { clearInterval(werkKijken); werkKijken = null; }
+            toonVoorstellen(stand);
+            return;
+          }
+          werkBezigTekst.textContent = 'Working: ' + stand.tekst;
+        })
+        .catch(function(){ /* een mislukte peiling proberen we zo weer */ });
+    });
+  }
+
+  if (naKijkKnop){
+    naKijkKnop.addEventListener('click', function(){
+      naKijkKnop.disabled = true;
+      naKijkKnop.textContent = 'Working…';
+      werkFout.style.display = 'none';
+      voorstelBlok.style.display = 'none';
+      werkBezig.style.display = 'block';
+      werkBezigTekst.textContent = 'Reading your store…';
+      metKaartje(function(kaartje){
+        fetch('/shopify/api/voorstellen', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + kaartje, 'Content-Type': 'application/json'}
+        })
+        .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
+        .then(function(res){
+          if (!res.ok) { werkFoutTonen(res.data.error || 'We could not check your store.'); return; }
+          if (!werkKijken) { werkKijken = setInterval(kijkenNaarWerk, 4000); }
+        })
+        .catch(function(){ werkFoutTonen('Something went wrong. Please try again.'); });
+      });
+    });
+  }
+
+  if (toepasKnop){
+    toepasKnop.addEventListener('click', function(){
+      var gekozen = [];
+      voorstellen.querySelectorAll('input[type=checkbox]').forEach(function(v){
+        if (v.checked) { gekozen.push(v.dataset.id); }
+      });
+      if (!gekozen.length) { werkFoutTonen('Nothing selected.'); return; }
+      toepasKnop.disabled = true;
+      toepasKnop.textContent = 'Applying…';
+      metKaartje(function(kaartje){
+        fetch('/shopify/api/toepassen', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + kaartje, 'Content-Type': 'application/json'},
+          body: JSON.stringify({ids: gekozen})
+        })
+        .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
+        .then(function(res){
+          toepasKnop.disabled = false;
+          toepasKnop.textContent = 'Apply the selected changes';
+          if (!res.ok) { werkFoutTonen(res.data.error || 'We could not apply the changes.'); return; }
+          voorstelBlok.style.display = 'none';
+          var d = res.data;
+          var melding = d.gedaan.length + ' change(s) applied.';
+          if (d.overgeslagen.length) { melding += ' ' + d.overgeslagen.length + ' skipped because text was already there.'; }
+          if (d.mislukt.length) { melding += ' ' + d.mislukt.length + ' failed.'; }
+          werkFoutTekst.textContent = melding;
+          werkFout.style.display = 'block';
+          haalWijzigingen();
+        })
+        .catch(function(){ werkFoutTonen('Something went wrong. Please try again.'); });
+      });
+    });
+  }
+
+  function haalWijzigingen(){
+    metKaartje(function(kaartje){
+      fetch('/shopify/api/wijzigingen', {headers: {'Authorization': 'Bearer ' + kaartje}})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var lijst = d.wijzigingen || [];
+          if (!lijst.length) { wijzigingBlok.style.display = 'none'; return; }
+          wijzigingen.innerHTML = '';
+          lijst.forEach(function(w){
+            var kaart = document.createElement('div');
+            kaart.className = 'taak';
+            kaart.innerHTML = '<span class="taak-titel">' + tekstvak(w.wat) + '</span>'
+              + '<div class="label" style="margin-top:6px;">' + tekstvak(w.waar || '') + '</div>'
+              + '<div class="waar" style="margin-top:6px;">' + tekstvak(w.nieuw) + '</div>';
+            var terug = document.createElement('button');
+            terug.className = 'rustig';
+            terug.textContent = 'Undo this';
+            terug.addEventListener('click', function(){
+              terug.disabled = true;
+              terug.textContent = 'Undoing…';
+              metKaartje(function(kaartje2){
+                fetch('/shopify/api/terugzetten', {
+                  method: 'POST',
+                  headers: {'Authorization': 'Bearer ' + kaartje2, 'Content-Type': 'application/json'},
+                  body: JSON.stringify({id: w.id})
+                })
+                .then(function(r){ return r.json().then(function(x){ return {ok: r.ok, data: x}; }); })
+                .then(function(res){
+                  if (!res.ok) { werkFoutTonen(res.data.error || 'We could not undo that.'); terug.disabled = false; terug.textContent = 'Undo this'; return; }
+                  haalWijzigingen();
+                })
+                .catch(function(){ werkFoutTonen('Something went wrong.'); terug.disabled = false; terug.textContent = 'Undo this'; });
+              });
+            });
+            kaart.appendChild(terug);
+            wijzigingen.appendChild(kaart);
+          });
+          wijzigingBlok.style.display = 'block';
+        })
+        .catch(function(){ /* niet erg, dit is een overzicht */ });
+    });
+  }
+
+  haalWijzigingen();
 
   document.querySelectorAll('.kopieer').forEach(function(k){
     k.addEventListener('click', function(){

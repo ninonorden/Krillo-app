@@ -114,6 +114,39 @@ def init_db():
                 """)
                 cur.execute("""CREATE UNIQUE INDEX IF NOT EXISTS wijzigingen_uniek
                                ON wijzigingen (webshop_url, taak_id);""")
+                # De winkels die wij benaderen, met per winkel hoe ver wij zijn.
+                # Eén regel per winkel en de stand erin, zodat een herstart van
+                # de server niet betekent dat iemand twee keer post krijgt. Dat
+                # is hier het echte risico: een dubbele mail aan iemand die er
+                # niet om vroeg kost je het adres en het domein.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS benadering (
+                        webshop_url TEXT PRIMARY KEY,
+                        naam TEXT,
+                        land TEXT,
+                        branche TEXT,
+                        stand TEXT NOT NULL DEFAULT 'nieuw',
+                        email TEXT,
+                        email_bron TEXT,
+                        notitie TEXT,
+                        afgemeld BOOLEAN NOT NULL DEFAULT FALSE,
+                        gemaild_op TIMESTAMPTZ,
+                        toegevoegd_op TIMESTAMPTZ DEFAULT now(),
+                        bijgewerkt_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
+                cur.execute("""CREATE INDEX IF NOT EXISTS benadering_stand
+                               ON benadering (stand);""")
+                # Knoppen die aan of uit staan zonder dat er een nieuwe versie
+                # van de site voor nodig is. Nu alleen voor de dagrem op de
+                # post, maar bewust algemeen gehouden.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS instellingen (
+                        sleutel TEXT PRIMARY KEY,
+                        waarde TEXT,
+                        bijgewerkt_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
                 # De werklijst voor "wij voeren het uit". Dit is bewust een
                 # eigen tabel en geen vlaggetje bij het rapport: het is een
                 # opdracht die dagen loopt en die van hand tot hand gaat.
@@ -2342,5 +2375,213 @@ def benchmark_regels():
     except Exception as e:
         print(f"Benchmarkregels ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# De benaderlijst
+#
+# Eén tabel met per winkel hoe ver we zijn. De standen, in volgorde:
+#   nieuw        -> net toegevoegd, we weten nog niets
+#   geen_adres   -> gezocht, niets bruikbaars gevonden. Hier stopt het.
+#   adres        -> er is een algemeen mailadres
+#   gemeten      -> de meting bij ChatGPT en Gemini is klaar
+#   gemaild      -> hij heeft zijn eigen uitkomst gehad
+#   gereageerd / klant / afgevallen -> met de hand gezet
+#
+# Een winkel gaat nooit twee keer door dezelfde stap. Dat is niet netjesheid,
+# dat is de reden dat deze tabel bestaat.
+# ---------------------------------------------------------------------------
+
+BENADER_STANDEN = ("nieuw", "geen_adres", "adres", "gemeten", "gemaild",
+                   "gereageerd", "klant", "afgevallen")
+
+
+def voeg_benadering_toe(webshop_url, naam=None, land=None, branche=None):
+    """Zet een winkel op de lijst. Stond hij er al, dan verandert er niets.
+
+    Met opzet DO NOTHING en geen bijwerken: als jij de lijst twee keer plakt,
+    mag een winkel die al gemaild is niet terug naar 'nieuw'."""
+    if not webshop_url:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO benadering (webshop_url, naam, land, branche)
+                       VALUES (%s, %s, %s, %s)
+                       ON CONFLICT (webshop_url) DO NOTHING""",
+                    (webshop_url, naam, land, branche))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Winkel op de benaderlijst zetten mislukt ({webshop_url}): {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_benadering(webshop_url):
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM benadering WHERE webshop_url = %s",
+                            (webshop_url,))
+                return cur.fetchone()
+    except Exception as e:
+        print(f"Benadering ophalen mislukt ({webshop_url}): {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def get_benaderingen(stand=None, limiet=None, alleen_niet_afgemeld=True):
+    """De lijst, oudste eerst. Oudste eerst omdat dat de volgorde van het werk is."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    vraag = "SELECT * FROM benadering"
+    waarden, voorwaarden = [], []
+    if stand:
+        if isinstance(stand, (list, tuple, set)):
+            voorwaarden.append("stand = ANY(%s)")
+            waarden.append(list(stand))
+        else:
+            voorwaarden.append("stand = %s")
+            waarden.append(stand)
+    if alleen_niet_afgemeld:
+        voorwaarden.append("afgemeld = FALSE")
+    if voorwaarden:
+        vraag += " WHERE " + " AND ".join(voorwaarden)
+    vraag += " ORDER BY toegevoegd_op, webshop_url"
+    if limiet:
+        vraag += " LIMIT %s"
+        waarden.append(int(limiet))
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(vraag, waarden)
+                return cur.fetchall()
+    except Exception as e:
+        print(f"Benaderlijst ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def zet_benadering(webshop_url, stand=None, email=None, email_bron=None,
+                   notitie=None, gemaild=False, afgemeld=None):
+    """Werkt één winkel bij. Alleen wat je meegeeft verandert."""
+    if not webshop_url:
+        return False
+    stukken, waarden = ["bijgewerkt_op = now()"], []
+    if stand is not None:
+        if stand not in BENADER_STANDEN:
+            print(f"Onbekende stand geweigerd: {stand}")
+            return False
+        stukken.append("stand = %s")
+        waarden.append(stand)
+    for kolom, waarde in (("email", email), ("email_bron", email_bron),
+                          ("notitie", notitie)):
+        if waarde is not None:
+            stukken.append(f"{kolom} = %s")
+            waarden.append(waarde)
+    if afgemeld is not None:
+        stukken.append("afgemeld = %s")
+        waarden.append(bool(afgemeld))
+    if gemaild:
+        stukken.append("gemaild_op = now()")
+    waarden.append(webshop_url)
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE benadering SET {', '.join(stukken)} WHERE webshop_url = %s",
+                    waarden)
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Benadering bijwerken mislukt ({webshop_url}): {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def tel_benaderingen():
+    """Hoeveel winkels er in elke stand staan, plus hoeveel er vandaag gemaild zijn.
+
+    Dat laatste getal is de dagrem. Het telt tegen de klok van de database aan
+    en niet tegen een teller in het geheugen, want Render herstart de server
+    vaker dan je denkt en een teller in het geheugen staat dan weer op nul."""
+    leeg = {"per_stand": {}, "totaal": 0, "vandaag_gemaild": 0}
+    conn = _get_connection()
+    if conn is None:
+        return leeg
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT stand, COUNT(*) FROM benadering GROUP BY stand")
+                per_stand = {rij[0]: rij[1] for rij in cur.fetchall()}
+                cur.execute("""SELECT COUNT(*) FROM benadering
+                                WHERE gemaild_op >= date_trunc('day', now())""")
+                vandaag = cur.fetchone()[0]
+        return {"per_stand": per_stand, "totaal": sum(per_stand.values()),
+                "vandaag_gemaild": vandaag}
+    except Exception as e:
+        print(f"Benaderlijst tellen mislukt: {e}")
+        return leeg
+    finally:
+        conn.close()
+
+
+def meld_benadering_af(webshop_url):
+    """Iemand wil geen post meer. Dat is definitief en gaat voor alles."""
+    return zet_benadering(webshop_url, stand="afgevallen", afgemeld=True,
+                          notitie="Afgemeld via de link in de mail.")
+
+
+def get_instelling(sleutel, standaard=None):
+    conn = _get_connection()
+    if conn is None:
+        return standaard
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT waarde FROM instellingen WHERE sleutel = %s",
+                            (sleutel,))
+                rij = cur.fetchone()
+                return rij[0] if rij else standaard
+    except Exception as e:
+        print(f"Instelling ophalen mislukt ({sleutel}): {e}")
+        return standaard
+    finally:
+        conn.close()
+
+
+def zet_instelling(sleutel, waarde):
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO instellingen (sleutel, waarde)
+                       VALUES (%s, %s)
+                       ON CONFLICT (sleutel) DO UPDATE
+                       SET waarde = EXCLUDED.waarde, bijgewerkt_op = now()""",
+                    (sleutel, str(waarde)))
+        return True
+    except Exception as e:
+        print(f"Instelling bewaren mislukt ({sleutel}): {e}")
+        return False
     finally:
         conn.close()

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>{% if gelukt %}Afgemeld{% else %}Deze link werkt niet{% endif %} | Krillo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+        --line:#E4E2DA; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;}
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.7;
+       display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px;}
+  .kaart{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+         padding:36px 34px; max-width:520px;}
+  .merk{font-family:var(--disp); font-weight:700; font-size:17px; margin-bottom:22px;}
+  .merk span{display:inline-block; width:9px; height:9px; background:#FF4B3E;
+             border-radius:50%; margin-right:8px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:24px; margin-bottom:12px;}
+  p{color:var(--ink-soft); font-size:15px; margin-bottom:14px;}
+  a{color:#D42E22;}
+</style>
+</head>
+<body>
+  <div class="kaart">
+    <div class="merk"><span></span>Krillo</div>
+    {% if gelukt %}
+      <h1>Dat is geregeld.</h1>
+      <p>Je krijgt geen post meer van ons{% if winkel %} over {{ winkel.replace('https://', '') }}{% endif %}.
+        Je uitkomst is uit ons onderzoek gehaald en we nemen je winkel niet meer mee.</p>
+      <p>Sorry voor de storing. Je hoeft verder niets te doen.</p>
+    {% else %}
+      <h1>Deze link werkt niet.</h1>
+      <p>Waarschijnlijk is hij niet compleet overgenomen, of is de afmelding al eerder
+        gelukt. In beide gevallen kun je ons gewoon een mail sturen op
+        <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a> en dan halen we je er
+        dezelfde dag uit.</p>
+    {% endif %}
+  </div>
+</body>
+</html>
