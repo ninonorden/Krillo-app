@@ -181,7 +181,7 @@ def voeg_lijst_toe(tekst):
     Per regel een webadres, en er mag van alles achter staan: naam, land,
     branche, gescheiden door een puntkomma of een tab. Wat er niet staat laten
     wij leeg, wij verzinnen het niet."""
-    nieuw, al_bekend, fout = 0, 0, []
+    klaar, fout, gezien = [], [], set()
     for regel in (tekst or "").splitlines():
         regel = regel.strip()
         if not regel or regel.startswith("#"):
@@ -191,11 +191,22 @@ def voeg_lijst_toe(tekst):
         if not url or "." not in url:
             fout.append(regel[:80])
             continue
-        naam = delen[1] if len(delen) > 1 and delen[1] else None
-        land = delen[2] if len(delen) > 2 and delen[2] else None
-        branche = delen[3] if len(delen) > 3 and delen[3] else None
-        if db.voeg_benadering_toe(url, naam=naam, land=land, branche=branche):
-            nieuw += 1
-        else:
-            al_bekend += 1
-    return {"nieuw": nieuw, "al_bekend": al_bekend, "fout": fout}
+        if url in gezien:
+            # Twee keer dezelfde winkel in één geplakte lijst. Dat mag niet in
+            # dezelfde opdracht terechtkomen, want dan valt de hele invoer om.
+            continue
+        gezien.add(url)
+        klaar.append((
+            url,
+            delen[1] if len(delen) > 1 and delen[1] else None,
+            delen[2] if len(delen) > 2 and delen[2] else None,
+            delen[3] if len(delen) > 3 and delen[3] else None,
+        ))
+
+    # In stukken van honderd. Eén opdracht met tweehonderd regels lukt prima,
+    # maar met een lijst van duizenden wordt de opdracht zo groot dat hij weer
+    # tegen een tijdslimiet aanloopt. Honderd per keer is overal snel.
+    nieuw = 0
+    for begin in range(0, len(klaar), 100):
+        nieuw += db.voeg_benaderingen_toe(klaar[begin:begin + 100])
+    return {"nieuw": nieuw, "al_bekend": len(klaar) - nieuw, "fout": fout}

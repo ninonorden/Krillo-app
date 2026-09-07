@@ -39,6 +39,7 @@ import benchmark
 import markt
 import shopify_app
 import shopify_werk
+import shopify_billing
 import benadering
 
 app = Flask(__name__)
@@ -761,6 +762,43 @@ def _is_aan_de_beurt(webshop_url, vandaag, alles=False):
     return False
 
 
+def _shopify_abonnees():
+    """De Shopify-winkels die betalen voor monitoring.
+
+    Dit hoort hier omdat het anders stilletjes misgaat: op het scherm in de app
+    staat "elke week opnieuw gemeten", en dat is precies wat je verkoopt. Wordt
+    deze lijst niet meegenomen in de wekelijkse ronde, dan betaalt iemand 39
+    dollar per maand voor iets wat nooit gebeurt, en dat merkt hij pas na
+    weken.
+
+    De stand komt elke keer vers van Shopify. Kunnen wij hem niet ophalen, dan
+    slaan wij de winkel over in plaats van te gokken: liever een week te laat
+    gemeten dan iemand meten die niet betaalt."""
+    uit = []
+    try:
+        winkels = db.get_shopify_winkels()
+    except Exception as e:
+        print(f"Shopify-abonnees ophalen mislukt: {e}")
+        return uit
+    for rij in winkels:
+        if not rij.get("actief") or not rij.get("toegangssleutel"):
+            continue
+        if not rij.get("webshop_url"):
+            continue
+        try:
+            stand = shopify_billing.huidig_abonnement(rij["winkel"], rij["toegangssleutel"])
+        except Exception as e:
+            print(f"Abonnement nakijken mislukt voor {rij['winkel']}: {e}")
+            continue
+        if not stand.get("actief"):
+            continue
+        uit.append({"webshop_url": rij["webshop_url"],
+                    "email": rij.get("email") or f"shopify@{rij['winkel']}"})
+    if uit:
+        print(f"{len(uit)} betalende Shopify-winkel(s) meegenomen in de ronde.")
+    return uit
+
+
 def _draai_wekelijkse_scans(base_url, alles=False):
     """Doet de scans op de achtergrond. Draait los van het verzoek, zodat de
     aanroeper niet hoeft te wachten en er niets vastloopt, ook niet als er
@@ -772,7 +810,7 @@ def _draai_wekelijkse_scans(base_url, alles=False):
     zijn. Met alles=True wordt iedereen gedaan, ongeacht de dag."""
     try:
         vandaag = datetime.now(timezone.utc)
-        customers = payments.list_active_monitoring_customers()
+        customers = payments.list_active_monitoring_customers() + _shopify_abonnees()
         aan_de_beurt = [c for c in customers
                         if _is_aan_de_beurt(c["webshop_url"], vandaag, alles)]
         print(f"{len(customers)} actieve klant(en), {len(aan_de_beurt)} vandaag aan de beurt.")
@@ -2770,6 +2808,65 @@ def shopify_api_terugzetten():
         return jsonify({"error": uit.get("fout") or "Terugzetten mislukt."}), 502
     db.verwijder_wijziging(webshop_url, kenmerk)
     return jsonify({"ok": True, "id": kenmerk})
+
+
+@app.route("/shopify/api/abonnement")
+def shopify_api_abonnement():
+    """Of deze winkel een lopend abonnement heeft. Elke keer vers bij Shopify."""
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij or not rij.get("toegangssleutel"):
+        return jsonify({"error": "Niet toegestaan."}), 401
+    stand = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])
+    return jsonify({
+        "actief": stand["actief"],
+        "abonnement": stand["abonnement"],
+        "prijs": shopify_billing.PLAN_PRIJS,
+        "valuta": shopify_billing.PLAN_VALUTA,
+        "proefdagen": shopify_billing.PROEFDAGEN,
+        "test": shopify_billing.testmodus(),
+    })
+
+
+@app.route("/shopify/api/abonneren", methods=["POST"])
+def shopify_api_abonneren():
+    """Start een abonnement en geef de bevestigingslink terug.
+
+    Hier is nog niets afgesloten en niets betaald. Het scherm moet de winkelier
+    naar die link sturen in het BOVENSTE venster, niet in het lijstje waar onze
+    app in staat: Shopify weigert de betaalpagina in een venster-in-een-venster
+    en dan ziet hij een lege bladzijde."""
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij or not rij.get("toegangssleutel"):
+        return jsonify({"error": "Niet toegestaan."}), 401
+
+    bestaand = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])
+    if bestaand["actief"]:
+        # Twee abonnementen naast elkaar betekent twee keer betalen. Dat mag
+        # nooit gebeuren door een dubbele klik.
+        return jsonify({"error": "Je hebt al een lopend abonnement.",
+                        "actief": True}), 409
+
+    terug = f"{get_base_url()}/shopify?shop={winkel}"
+    uit = shopify_billing.start_abonnement(winkel, rij["toegangssleutel"], terug)
+    if not uit["gelukt"]:
+        return jsonify({"error": uit["fout"]}), 502
+    return jsonify({"link": uit["link"], "test": uit["test"]})
+
+
+@app.route("/shopify/api/opzeggen", methods=["POST"])
+def shopify_api_opzeggen():
+    """Opzeggen vanuit onze eigen app."""
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij or not rij.get("toegangssleutel"):
+        return jsonify({"error": "Niet toegestaan."}), 401
+    stand = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])
+    if not stand["actief"]:
+        return jsonify({"error": "Er loopt geen abonnement."}), 400
+    uit = shopify_billing.zeg_op(winkel, rij["toegangssleutel"],
+                                 (stand["abonnement"] or {}).get("id"))
+    if not uit["gelukt"]:
+        return jsonify({"error": uit["fout"]}), 502
+    return jsonify({"ok": True})
 
 
 @app.route("/shopify/api/stand")

@@ -13,7 +13,7 @@ import os
 import json
 import uuid
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, execute_values
 
 
 def _get_connection():
@@ -2420,6 +2420,42 @@ def voeg_benadering_toe(webshop_url, naam=None, land=None, branche=None):
     except Exception as e:
         print(f"Winkel op de benaderlijst zetten mislukt ({webshop_url}): {e}")
         return False
+    finally:
+        conn.close()
+
+
+def voeg_benaderingen_toe(regels):
+    """Zet een hele lijst winkels in een keer op de benaderlijst.
+
+    Dit bestaat omdat de losse versie hierboven per winkel een eigen verbinding
+    met de database opende. Bij tweehonderd winkels zijn dat tweehonderd
+    verbindingen achter elkaar: dat duurt te lang en de database kapt hem af,
+    en dan zie je een halve lijst en een foutmelding. Een verbinding, een
+    opdracht, klaar.
+
+    Elke regel is (webadres, naam, land, branche). Winkels die er al op staan
+    blijven staan zoals ze staan. Geeft terug hoeveel er echt bij gekomen zijn.
+    """
+    regels = [r for r in (regels or []) if r and r[0]]
+    if not regels:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                gedaan = execute_values(
+                    cur,
+                    """INSERT INTO benadering (webshop_url, naam, land, branche)
+                       VALUES %s
+                       ON CONFLICT (webshop_url) DO NOTHING
+                       RETURNING webshop_url""",
+                    regels, page_size=200, fetch=True)
+                return len(gedaan)
+    except Exception as e:
+        print(f"Winkels op de benaderlijst zetten mislukt: {e}")
+        return 0
     finally:
         conn.close()
 

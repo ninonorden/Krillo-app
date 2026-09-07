@@ -205,30 +205,32 @@
 
   <h2>Plans</h2>
   <div class="prijzen">
-    <div class="prijs nu">
-      <div class="naam">Free <span class="nulabel">your plan</span></div>
+    <div class="prijs nu" id="planvrij">
+      <div class="naam">Free <span class="nulabel" id="vrijlabel">your plan</span></div>
       <div class="bedrag">$0</div>
       <ul>
         <li>One measurement, whenever you want it</li>
         <li>Up to 30 shopping questions</li>
         <li>The stores that come up instead of you</li>
-        <li>Up to three things to fix, written out for you</li>
+        <li>We write and apply the missing text for you</li>
       </ul>
     </div>
-    <div class="prijs">
-      <div class="naam">Monitoring</div>
+    <div class="prijs" id="planbetaald">
+      <div class="naam">Monitoring <span class="nulabel" id="betaaldlabel" style="display:none;">your plan</span></div>
       <div class="bedrag">$39 <small>/ month</small></div>
       <ul>
         <li>Measured again every week, automatically</li>
         <li>An alert when something actually changes</li>
         <li>The pages your competitors appear on and you don't</li>
         <li>Anything AI gets wrong about your store</li>
-        <li>Cancel any time</li>
+        <li>Cancel any time, from here</li>
       </ul>
-      <p style="font-size:13px; color:var(--ink-soft); margin-top:12px;">Coming shortly.
-        You will be able to upgrade from here, billed through Shopify.</p>
+      <button id="abonneerknop" style="display:none;">Start 7 day free trial</button>
+      <button id="opzegknop" class="rustig" style="display:none;">Cancel subscription</button>
+      <p id="abonnementuitleg" style="font-size:13px; color:var(--ink-soft); margin-top:12px;"></p>
     </div>
   </div>
+  <div id="abonnementfout" style="display:none;" class="misgegaan"><span id="abonnementfouttekst"></span></div>
 
   <h2>Questions people ask us</h2>
 
@@ -581,6 +583,109 @@
   }
 
   haalWijzigingen();
+
+  // ---------------------------------------------------------------- het abonnement
+  //
+  // De stand komt elke keer vers van Shopify. Wij bewaren hem niet: een
+  // winkelier kan opzeggen in zijn eigen scherm zonder dat wij iets horen, en
+  // dan zouden wij zeggen dat hij betaalt terwijl dat niet zo is.
+  var abonneerKnop = document.getElementById('abonneerknop');
+  var opzegKnop = document.getElementById('opzegknop');
+  var abonnementUitleg = document.getElementById('abonnementuitleg');
+  var vrijLabel = document.getElementById('vrijlabel');
+  var betaaldLabel = document.getElementById('betaaldlabel');
+  var abonnementFout = document.getElementById('abonnementfout');
+  var abonnementFoutTekst = document.getElementById('abonnementfouttekst');
+
+  function abonnementFoutTonen(tekst){
+    abonnementFoutTekst.textContent = tekst;
+    abonnementFout.style.display = 'block';
+  }
+
+  function haalAbonnement(){
+    metKaartje(function(kaartje){
+      fetch('/shopify/api/abonnement', {headers: {'Authorization': 'Bearer ' + kaartje}})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d.error) { return; }
+          if (d.actief){
+            vrijLabel.style.display = 'none';
+            betaaldLabel.style.display = 'inline-block';
+            abonneerKnop.style.display = 'none';
+            opzegKnop.style.display = 'inline-block';
+            abonnementUitleg.textContent = d.test
+              ? 'This is a test subscription. No money is charged.'
+              : 'Billed through Shopify, on your regular Shopify invoice.';
+          } else {
+            vrijLabel.style.display = 'inline-block';
+            betaaldLabel.style.display = 'none';
+            abonneerKnop.style.display = 'inline-block';
+            opzegKnop.style.display = 'none';
+            abonnementUitleg.textContent = 'Free for the first ' + d.proefdagen
+              + ' days, then $' + d.prijs + ' a month on your Shopify invoice. '
+              + 'Cancel any time from this page.';
+          }
+        })
+        .catch(function(){ /* geen ramp, dan blijft het blok zoals het staat */ });
+    });
+  }
+
+  if (abonneerKnop){
+    abonneerKnop.addEventListener('click', function(){
+      abonneerKnop.disabled = true;
+      abonneerKnop.textContent = 'One moment…';
+      abonnementFout.style.display = 'none';
+      metKaartje(function(kaartje){
+        fetch('/shopify/api/abonneren', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + kaartje, 'Content-Type': 'application/json'}
+        })
+        .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
+        .then(function(res){
+          abonneerKnop.disabled = false;
+          abonneerKnop.textContent = 'Start 7 day free trial';
+          if (!res.ok) { abonnementFoutTonen(res.data.error || 'We could not start the subscription.'); haalAbonnement(); return; }
+          // Naar het BOVENSTE venster. Shopify weigert zijn betaalpagina in
+          // het venstertje waar onze app in draait, en dan ziet de winkelier
+          // een lege bladzijde in plaats van de prijs.
+          if (window.open){ window.open(res.data.link, '_top'); }
+          else { window.top.location.href = res.data.link; }
+        })
+        .catch(function(){
+          abonneerKnop.disabled = false;
+          abonneerKnop.textContent = 'Start 7 day free trial';
+          abonnementFoutTonen('Something went wrong. Please try again.');
+        });
+      });
+    });
+  }
+
+  if (opzegKnop){
+    opzegKnop.addEventListener('click', function(){
+      opzegKnop.disabled = true;
+      opzegKnop.textContent = 'Cancelling…';
+      metKaartje(function(kaartje){
+        fetch('/shopify/api/opzeggen', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + kaartje, 'Content-Type': 'application/json'}
+        })
+        .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
+        .then(function(res){
+          opzegKnop.disabled = false;
+          opzegKnop.textContent = 'Cancel subscription';
+          if (!res.ok) { abonnementFoutTonen(res.data.error || 'We could not cancel.'); }
+          haalAbonnement();
+        })
+        .catch(function(){
+          opzegKnop.disabled = false;
+          opzegKnop.textContent = 'Cancel subscription';
+          abonnementFoutTonen('Something went wrong. Please try again.');
+        });
+      });
+    });
+  }
+
+  haalAbonnement();
 
   document.querySelectorAll('.kopieer').forEach(function(k){
     k.addEventListener('click', function(){
