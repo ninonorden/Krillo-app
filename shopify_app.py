@@ -57,7 +57,13 @@ import requests
 # niet gelijk, dan krijg je bij het schrijven een 403 die nergens op lijkt.
 SCOPES = "read_products,write_products,read_content,write_content"
 
-API_VERSIE = "2025-07"
+# De versie van de Shopify-API waar wij mee praten.
+#
+# LET OP: elke versie wordt ongeveer een jaar ondersteund. 2025-07 liep af op
+# 16 juli 2026, en aanroepen naar een verlopen versie gaan stilletjes mis. Kijk
+# hier elk halfjaar naar. De actuele lijst staat op
+# https://shopify.dev/docs/api/usage/versioning
+API_VERSIE = "2026-07"
 
 # Alleen echte Shopify-winkeladressen. Dit patroon is de belangrijkste
 # beveiliging in dit bestand.
@@ -75,22 +81,36 @@ WEBHOOKS = [
     ("app/uninstalled", "/shopify/webhooks/verwijderd"),
 ]
 
-# De drie verplichte privacy-webhooks. Deze zetten WIJ niet aan via de API, ze
-# horen in shopify.app.toml. Ze staan hier alleen zodat de adressen op één plek
-# vastliggen en de routes in app.py ernaar kunnen verwijzen.
+# De drie verplichte privacy-webhooks van Shopify.
 #
-# In shopify.app.toml hoort dit te staan, met JOUW adres ervoor:
+# Die kan je NIET aanmelden via de API: deze onderwerpen worden daar geweigerd,
+# en in het partnerscherm zijn de velden ervoor weggehaald. Ze horen in
+# shopify.app.toml, en die zet je live met de Shopify CLI.
+#
+# Alle drie gaan naar EEN adres, /shopify/webhooks/naleving, dat kijkt welk
+# onderwerp het is. Zo hoort het volgens Shopify zelf.
+#
+# Dit hoort in shopify.app.toml te staan:
 #
 #   [webhooks]
-#   api_version = "2025-07"
-#     [webhooks.privacy_compliance]
-#     customer_deletion_url = "https://www.krillo.nl/shopify/webhooks/klant-wissen"
-#     customer_data_request_url = "https://www.krillo.nl/shopify/webhooks/klantgegevens"
-#     shop_deletion_url = "https://www.krillo.nl/shopify/webhooks/winkel-wissen"
+#   api_version = "2026-07"
+#
+#     [[webhooks.subscriptions]]
+#     compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+#     uri = "https://www.krillo.nl/shopify/webhooks/naleving"
+#
+#     [[webhooks.subscriptions]]
+#     topics = [ "app/uninstalled" ]
+#     uri = "https://www.krillo.nl/shopify/webhooks/verwijderd"
+#
+# Let op het woord compliance_topics. Met gewoon "topics" worden deze drie
+# geweigerd, en dat is de fout waar de meeste mensen op vastlopen.
+NALEVINGS_ADRES = "/shopify/webhooks/naleving"
+
 PRIVACY_WEBHOOKS = [
-    ("customers/data_request", "/shopify/webhooks/klantgegevens"),
-    ("customers/redact", "/shopify/webhooks/klant-wissen"),
-    ("shop/redact", "/shopify/webhooks/winkel-wissen"),
+    ("customers/data_request", NALEVINGS_ADRES),
+    ("customers/redact", NALEVINGS_ADRES),
+    ("shop/redact", NALEVINGS_ADRES),
 ]
 
 # Openstaande installaties: kenmerk -> tijdstip. Alleen in het geheugen, want

@@ -3239,6 +3239,49 @@ def _webhook_binnen(onderwerp):
     return winkel, gegevens
 
 
+@app.route("/shopify/webhooks/naleving", methods=["POST"])
+def shopify_naleving():
+    """Eén adres voor de drie verplichte privacy-webhooks van Shopify.
+
+    Waarom dit erbij komt terwijl de drie losse adressen hieronder al bestaan:
+    die drie kan je namelijk NIET aanmelden. Niet via de API (die weigert deze
+    onderwerpen), en niet meer in het partnerscherm (die velden zijn weg).
+    Ze horen in shopify.app.toml, en daar hoort per blok één adres bij dat alle
+    drie de onderwerpen ontvangt. Dit is dat adres.
+
+    Welk onderwerp het is staat in de kop X-Shopify-Topic. Daar kiezen wij op.
+
+    De drie losse adressen blijven bestaan. Dat is geen dubbelop maar met opzet:
+    de controle van Shopify klopt soms nog aan op de oude paden, en een 404 daar
+    telt als afgekeurd."""
+    handtekening = request.headers.get("X-Shopify-Hmac-Sha256")
+    ruw = request.get_data()
+    if not shopify_app.klopt_webhook_handtekening(ruw, handtekening):
+        print("Shopify-nalevingswebhook geweigerd: handtekening klopt niet.")
+        return "", 401
+
+    onderwerp = (request.headers.get("X-Shopify-Topic") or "").strip().lower()
+    winkel = (request.headers.get("X-Shopify-Shop-Domain") or "").strip().lower()
+
+    if onderwerp == "customers/data_request":
+        print(f"AVG-verzoek gegevens van {winkel}: Krillo bewaart geen gegevens van "
+              f"kopers van deze winkel. Niets te leveren.")
+    elif onderwerp == "customers/redact":
+        print(f"AVG-wisverzoek klant van {winkel}: niets opgeslagen, niets gewist.")
+    elif onderwerp == "shop/redact":
+        if db.wis_shopify_winkel(winkel):
+            print(f"Alles gewist voor {winkel} na shop/redact.")
+        else:
+            print(f"LET OP: wissen na shop/redact MISLUKT voor {winkel}. "
+                  f"Handmatig nakijken.")
+    else:
+        # Een onderwerp dat wij hier niet verwachten. Wel 200 terug, want de
+        # handtekening klopte en het kwam echt van Shopify. Blijven herhalen
+        # heeft geen zin, maar het moet wel in de logs staan.
+        print(f"Onbekend onderwerp op de nalevingswebhook: {onderwerp!r} van {winkel}")
+    return "", 200
+
+
 @app.route("/shopify/webhooks/klantgegevens", methods=["POST"])
 def shopify_klantgegevens():
     """customers/data_request. Verplicht.
