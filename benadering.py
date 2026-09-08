@@ -230,9 +230,22 @@ def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
     # 1. Draait er wel iets. Zonder aanroep gebeurt er helemaal niets, en dat
     # is verreweg de meest voorkomende oorzaak.
     if moment_laatste_ronde is None:
-        uit.append(("blok", "Er is nog geen ronde gedraaid. Zonder een cron-taak "
-                            "op /api/cron/benadering gebeurt er niets, hoeveel "
-                            "winkels er ook op de lijst staan."))
+        # Let op wat hier NIET beweerd wordt. Wij weten alleen dat wij geen
+        # ronde hebben opgeschreven, en dat is iets anders dan dat er nooit een
+        # gedraaid heeft: deze klok bestaat pas sinds september 2026, dus vlak
+        # na een nieuwe versie staat hij altijd leeg. Stonden er winkels voorbij
+        # "nieuw", dan hebben er wel degelijk rondes gedraaid.
+        gelopen = (per_stand.get("adres", 0) + per_stand.get("geen_adres", 0)
+                   + per_stand.get("meten", 0) + per_stand.get("gemeten", 0))
+        if gelopen:
+            uit.append(("wacht", "Sinds de laatste nieuwe versie is er nog geen "
+                                 "ronde langsgekomen. Er zijn wel eerder rondes "
+                                 "geweest, want er staan winkels voorbij 'nieuw'. "
+                                 "Na de eerstvolgende ronde staat hier de tijd."))
+        else:
+            uit.append(("blok", "Er is nog geen ronde gedraaid. Zonder een cron-taak "
+                                "op /api/cron/benadering gebeurt er niets, hoeveel "
+                                "winkels er ook op de lijst staan."))
     else:
         uren = (datetime.now(KLOK) - moment_laatste_ronde).total_seconds() / 3600
         if uren > 3:
