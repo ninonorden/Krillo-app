@@ -14,6 +14,7 @@ Optioneel:
 - SMTP_FROM_EMAIL: het afzenderadres (standaard: hallo@krillo.nl)
 """
 
+import html as _html
 import os
 import requests
 from datetime import datetime
@@ -157,7 +158,8 @@ def send_factuur_email(to_email, factuurnummer, omschrijving, bedrag, bedrijfsna
         btw_regel = ("<p style='font-size:12px; color:#3B3D57;'>Geen btw in rekening gebracht op grond van "
                       "de kleineondernemersregeling.</p>")
 
-    klantregel = f"<div style='font-size:13px; color:#3B3D57;'>{bedrijfsnaam}</div>" if bedrijfsnaam else ""
+    klantregel = (f"<div style='font-size:13px; color:#3B3D57;'>{veilig(bedrijfsnaam)}</div>"
+                  if bedrijfsnaam else "")
 
     body = f"""
     <p style="font-size:14.5px;">Je betaling is gelukt. Hieronder vind je de factuur, bewaar deze voor je administratie.</p>
@@ -217,14 +219,25 @@ def send_herroeping_bevestiging(to_email, nummer, webshop_url=None):
     return send_email(to_email, f"Bevestiging van je herroeping ({kenmerk})", html)
 
 
+def veilig(tekst):
+    """Maakt tekst van buiten onschadelijk voordat hij in een mail komt.
+
+    Waarom dit nodig is: bij een herroeping mag iemand een vrije toelichting
+    typen, en die kwam ongefilterd in de HTML van de mail aan de beheerder
+    terecht. Iemand kon daar dus een link in zetten die eruitziet alsof hij van
+    Krillo zelf komt, of een plaatje dat meldt wanneer de mail gelezen wordt.
+    Dat is phishing in je eigen postvak, en het is met een regel te voorkomen."""
+    return _html.escape(str(tekst)) if tekst is not None else ""
+
+
 def send_herroeping_melding(beheerder_email, klant_email, webshop_url, toelichting, nummer):
     """Melding aan Nino, zodat een herroeping niet ongemerkt blijft liggen."""
     body = f"""
     <p style="font-size:14.5px;"><strong>Er is een herroeping binnengekomen.</strong></p>
     <p style="font-size:14px;">Kenmerk: HR-{datetime.now().year}-{nummer:04d}<br>
-    Klant: {klant_email}<br>
-    Webshop: {webshop_url or 'niet opgegeven'}</p>
-    <p style="font-size:14px;">Toelichting: {toelichting or 'geen'}</p>
+    Klant: {veilig(klant_email)}<br>
+    Webshop: {veilig(webshop_url) or 'niet opgegeven'}</p>
+    <p style="font-size:14px;">Toelichting: {veilig(toelichting) or 'geen'}</p>
     <p style="font-size:13.5px; color:#3B3D57;">Wettelijke termijn: binnen veertien dagen afhandelen en eventueel terugbetalen via dezelfde betaalmethode.</p>
     """
     html = _base_html("Herroeping ontvangen", "Actie nodig.", body)

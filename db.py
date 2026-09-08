@@ -13,6 +13,7 @@ import os
 import json
 import uuid
 import secrets
+import scan_engine
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 
@@ -184,6 +185,33 @@ def init_db():
                             "ADD COLUMN IF NOT EXISTS meting_gestart_op TIMESTAMPTZ;")
                 cur.execute("""CREATE INDEX IF NOT EXISTS benadering_stand
                                ON benadering (stand);""")
+                # Bestaande winkels meenemen naar de nieuwe schrijfwijze.
+                #
+                # normalize_url haalt sinds september 2026 ook "www." en de
+                # schuine streep aan het eind weg, en maakt van http https.
+                # Zonder deze opruiming zou een winkel die als
+                # "https://www.winkel.nl" op de lijst staat nooit meer gevonden
+                # worden, want er wordt voortaan naar "https://winkel.nl"
+                # gezocht. Die winkel blijft dan eeuwig staan zonder dat er iets
+                # met hem gebeurt.
+                #
+                # Levert de nieuwe schrijfwijze een winkel op die er al staat,
+                # dan gooien wij de dubbele weg en houden wij degene die het
+                # verst is: liever de rij die al gemaild is dan de rij die nog
+                # op nieuw staat.
+                cur.execute("SELECT webshop_url FROM benadering")
+                for (oud_adres,) in list(cur.fetchall()):
+                    nieuw_adres = scan_engine.normalize_url(oud_adres)
+                    if not nieuw_adres or nieuw_adres == oud_adres:
+                        continue
+                    cur.execute("SELECT 1 FROM benadering WHERE webshop_url = %s",
+                                (nieuw_adres,))
+                    if cur.fetchone():
+                        cur.execute("DELETE FROM benadering WHERE webshop_url = %s",
+                                    (oud_adres,))
+                    else:
+                        cur.execute("UPDATE benadering SET webshop_url = %s "
+                                    "WHERE webshop_url = %s", (nieuw_adres, oud_adres))
                 # Koppelingen met winkels die niet op Shopify draaien.
                 #
                 # De sleutels staan hier versleuteld in, niet in platte tekst.

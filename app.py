@@ -1744,9 +1744,27 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
     # Is de ronde halverwege gestopt, dan is dat geen normale ronde. De klant
     # mag geen "genoemd bij 1 van de 3 vragen" te zien krijgen alsof dat een
     # volledige week is.
+    #
+    # Hier stond alleen een print. Dat betekende dat precies het scherm waar
+    # deze regels voor waarschuwen gewoon getoond werd: de dagpot is gedeeld
+    # met alle klanten, dus op een drukke dag kon een winkel na drie van de
+    # dertig vragen stoppen en las zijn pagina "genoemd bij 1 van de 3". Dat is
+    # geen klein cijfer, dat is een verkeerd cijfer, en het staat op de pagina
+    # waar hij voor betaalt.
+    #
+    # De grens van 75 procent is dezelfde die waarschuwing.py gebruikt om twee
+    # rondes vergelijkbaar te noemen. Onder die grens beoordelen wij niets en
+    # tonen wij niets: liever geen cijfer dan een verkeerd cijfer.
     if samenvatting.get("gestopt_door_rem"):
-        print(f"LET OP: de meetronde voor {webshop_url} is halverwege gestopt: "
-              f"{samenvatting.get('reden')}")
+        gedaan = samenvatting.get("gelukt") or 0
+        bedoeld = samenvatting.get("gesteld") or gedaan
+        deel = (gedaan / bedoeld) if bedoeld else 0
+        print(f"LET OP: de meetronde voor {webshop_url} is halverwege gestopt na "
+              f"{gedaan} van {bedoeld} vragen: {samenvatting.get('reden')}")
+        if deel < 0.75:
+            melden("mislukt: er is niets gemeten "
+                   f"(de ronde stopte na {gedaan} van {bedoeld} vragen)")
+            return
 
     try:
         melden("antwoorden beoordelen")
@@ -2233,7 +2251,7 @@ def admin_demo():
     gebeurt alleen op een knop en nooit vanzelf bij het openen van de pagina."""
     admin_key = os.environ.get("ADMIN_KEY")
     sleutel = request.form.get("key") if request.method == "POST" else request.args.get("key")
-    if not admin_key or sleutel != admin_key:
+    if not admin_key or not _sleutel_klopt(sleutel, admin_key):
         return "", 404
 
     # Meerdere winkels tegelijk mag: gescheiden door een nieuwe regel, een komma
@@ -2934,6 +2952,15 @@ STAND_ENGELS = {
 }
 
 
+# Wat een Engelse winkelier ziet als er iets misgaat en wij de reden niet
+# kunnen vertalen. De reden zelf komt uit de kostenrem of uit de meetketen en
+# staat in het Nederlands, met bedragen en interne begrippen erin. Die laten wij
+# bewust weg in plaats van hem onvertaald te tonen: een halve Nederlandse zin op
+# een Engels scherm is erger dan een net gebrek aan detail. In de logboeken
+# staat de echte reden wel, dus wij kunnen het altijd nazoeken.
+MISLUKT_ENGELS = "Something went wrong. Please try again in a moment."
+
+
 def _stand_in_taal(stand, markt):
     """De voortgangstekst in de taal van de winkel.
 
@@ -2943,7 +2970,13 @@ def _stand_in_taal(stand, markt):
     if not stand or (markt or {}).get("is_nederlands", True):
         return stand
     uit = dict(stand)
-    uit["tekst"] = STAND_ENGELS.get(stand.get("tekst"), stand.get("tekst"))
+    tekst = stand.get("tekst")
+    vertaald = STAND_ENGELS.get(tekst)
+    if vertaald is None and tekst:
+        # Niet in de tabel. Zit er een reden achter, dan is dat vrije
+        # Nederlandse tekst uit de rem of uit de meetketen. Die tonen wij niet.
+        vertaald = MISLUKT_ENGELS if str(tekst).startswith("mislukt") else tekst
+    uit["tekst"] = vertaald
     return uit
 
 

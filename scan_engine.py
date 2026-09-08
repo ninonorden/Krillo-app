@@ -75,11 +75,40 @@ def normalize_url(url):
     # waar hij vervolgens op gaat zoeken.
     if not url:
         return ""
-    if not url.startswith(("http://", "https://")):
+    # Op kleine letters vergelijken, want iemand die "HTTPS://WINKEL.NL" plakt
+    # kreeg er anders nog een keer "https://" voorgeplakt.
+    if not url.lower().startswith(("http://", "https://")):
         url = "https://" + url
-    schema, _, rest = url.partition("://")
+    _, _, rest = url.partition("://")
     host, schuin, pad = rest.partition("/")
-    return f"{schema.lower()}://{host.lower()}{schuin}{pad}"
+    host = host.lower()
+
+    # Alles naar EEN vorm. Dit is de belangrijkste regel van het hele bestand,
+    # want deze uitkomst is overal de sleutel waaronder wij bewaren.
+    #
+    # Waarom het zo streng moet: in de kostentabel stond dezelfde winkel twee
+    # keer, als "dille-kamille.nl" en als "https://dille-kamille.nl". Dat is
+    # geen schoonheidsfoutje. Twee sleutels betekent twee keer koopvragen
+    # bedenken, twee keer meten bij de modellen, twee keer betalen, en een
+    # maandgrens per klant die de helft van de uitgaven niet ziet. Het betekent
+    # ook dat een bestaande klant die zijn adres net iets anders intypt een
+    # gloednieuwe pagina krijgt zonder zijn eigen geschiedenis erin.
+    #
+    # Drie dingen liggen dus vast:
+    #   http wordt https, want het is dezelfde winkel
+    #   www. gaat eraf, want www.winkel.nl en winkel.nl zijn dezelfde winkel
+    #   de schuine streep aan het eind gaat eraf
+    if host.startswith("www."):
+        host = host[4:]
+    # De poort erbij laten staan als hij er staat, behalve de standaardpoorten.
+    for standaard in (":443", ":80"):
+        if host.endswith(standaard):
+            host = host[: -len(standaard)]
+
+    pad = pad.rstrip("/")
+    if not pad:
+        return f"https://{host}"
+    return f"https://{host}/{pad}"
 
 
 # Adressen die nooit een webshop zijn maar wel op onze eigen server uitkomen.
@@ -236,6 +265,41 @@ def is_eigen_winkel(webshop_url, naam):
     return False
 
 
+# Hoeveel omleidingen wij zelf volgen. Meer dan dit is geen webshop meer maar
+# een lus, en die willen wij niet uitlopen.
+MAX_OMLEIDINGEN = 5
+
+
+def _haal_op_zonder_omleiding_naar_binnen(url):
+    """Haalt een pagina op en volgt omleidingen ZELF, met een controle per stap.
+
+    Waarom dit niet aan requests wordt overgelaten: requests volgt omleidingen
+    standaard zonder ons iets te vragen. Wij controleren het adres dat iemand
+    intypt wel op een intern adres, maar niet waar dat adres hem daarna heen
+    stuurt. Iemand kan dus een gewoon domein invullen dat hij zelf beheert, dat
+    met een omleiding naar 127.0.0.1 of naar het interne adres van de
+    cloudprovider wijst, en dan haalt onze server dat voor hem op.
+
+    Geeft None terug zodra een stap naar binnen wijst. Bewust None en geen
+    foutmelding met het interne adres erin, want dan vertel je alsnog wat er
+    achter dat adres zit."""
+    huidig = url
+    for _ in range(MAX_OMLEIDINGEN + 1):
+        if is_intern_adres(huidig):
+            print(f"Geweigerd, wijst naar een intern adres: {huidig[:80]}")
+            return None
+        resp = requests.get(huidig, headers=HEADERS, timeout=TIMEOUT,
+                            allow_redirects=False)
+        if resp.status_code not in (301, 302, 303, 307, 308):
+            return resp
+        volgende = resp.headers.get("Location")
+        if not volgende:
+            return resp
+        huidig = urljoin(huidig, volgende)
+    print(f"Geweigerd, te veel omleidingen: {url[:80]}")
+    return None
+
+
 def fetch(url, measure_time=False, pogingen=3):
     """Haalt een pagina op, met meerdere pogingen. Een tijdelijke storing mag
     niet leiden tot een verkeerde score, dus we proberen het opnieuw voordat
@@ -246,8 +310,11 @@ def fetch(url, measure_time=False, pogingen=3):
     for poging in range(pogingen):
         try:
             start = time.monotonic()
-            resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+            resp = _haal_op_zonder_omleiding_naar_binnen(url)
             elapsed = time.monotonic() - start
+            if resp is None:
+                # Onderweg omgeleid naar een adres op ons eigen netwerk.
+                return (None, None) if measure_time else None
             laatste_resp = resp
 
             # Kregen we een beveiligingspagina in plaats van de echte site,
