@@ -2887,6 +2887,49 @@ def _shopify_meten(winkel, webshop_url, email=None):
             "klaar": True, "mislukt": True}
 
 
+# De voortgangsteksten in het Engels.
+#
+# Waarom een tabel en niet overal een taalparameter: die teksten worden gemaakt
+# in de meetketen, en die keten is gedeeld met krillo.nl en met de wekelijkse
+# ronde. Zou die keten talen moeten kennen, dan moet elke stap in elk bestand
+# aangepast worden, en dan gaat er ergens eentje mis. Nu vertalen wij op één
+# plek: vlak voordat het scherm het te zien krijgt.
+#
+# Staat een tekst hier niet in, dan gaat hij onvertaald door. Dat is met opzet:
+# liever een Nederlandse regel dan een lege balk of een foutmelding.
+STAND_ENGELS = {
+    "we beginnen": "starting",
+    "je winkel doorlezen": "reading your store",
+    "koopvragen maken": "writing shopping questions",
+    "vragen stellen aan AI": "asking the AI assistants",
+    "antwoorden beoordelen": "reading the answers",
+    "uitspraken controleren": "checking what they say about you",
+    "externe bronnen zoeken": "looking for pages you are missing from",
+    "actieplan klaarzetten": "putting your plan together",
+    "we kijken je winkel na": "checking your store",
+    "klaar": "done",
+    "We konden je winkel niet inlezen. Staat er een wachtwoord op?":
+        "We could not read your store. Is it password protected?",
+    "Er ging iets mis bij het meten. Probeer het zo nog eens.":
+        "Something went wrong while measuring. Please try again in a moment.",
+    "Er ging iets mis bij het nakijken van je winkel.":
+        "Something went wrong while checking your store.",
+}
+
+
+def _stand_in_taal(stand, markt):
+    """De voortgangstekst in de taal van de winkel.
+
+    Een Engelse winkelier las "Working: vragen stellen aan AI" op zijn eigen
+    beheerscherm. Dat is precies het soort detail waaraan je ziet dat een app
+    niet af is."""
+    if not stand or (markt or {}).get("is_nederlands", True):
+        return stand
+    uit = dict(stand)
+    uit["tekst"] = STAND_ENGELS.get(stand.get("tekst"), stand.get("tekst"))
+    return uit
+
+
 def _voorstel_voor_scherm(voorstel, markt=None):
     """Een voorstel klaarmaken om te tonen.
 
@@ -3006,7 +3049,8 @@ def _shopify_scherm(winkel, rij):
         bronnen=gegevens.get("bronnen"),
         laatste=laatste,
         markt=_markt_van(webshop_url) if webshop_url else None,
-        stand=_shopify_status.get(winkel),
+        stand=_stand_in_taal(_shopify_status.get(winkel), _markt_van(webshop_url)
+                             if webshop_url else None),
         gratis_totaal=shopify_werk.GRATIS_WIJZIGINGEN,
     )
 
@@ -3230,16 +3274,17 @@ def shopify_api_meten():
     if not webshop_url:
         return jsonify({"error": "We weten het adres van je winkel nog niet."}), 400
 
+    markt = _markt_van(webshop_url)
     bezig = _shopify_status.get(winkel)
     if bezig and not bezig.get("klaar"):
         # Al bezig. Twee metingen tegelijk kosten dubbel en leveren niets
         # extra's op, dus we melden gewoon waar de lopende meting is.
-        return jsonify({"stand": bezig})
+        return jsonify({"stand": _stand_in_taal(bezig, markt)})
 
     _shopify_status[winkel] = {"tekst": "we beginnen", "klaar": False, "mislukt": False}
     threading.Thread(target=_shopify_meten,
                      args=(winkel, webshop_url, rij.get("email")), daemon=True).start()
-    return jsonify({"stand": _shopify_status[winkel]})
+    return jsonify({"stand": _stand_in_taal(_shopify_status[winkel], markt)})
 
 
 _shopify_voorstellen = {}
@@ -3294,15 +3339,16 @@ def shopify_api_voorstellen():
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij or not rij.get("toegangssleutel"):
         return jsonify({"error": "Niet toegestaan."}), 401
+    markt = _markt_van(rij.get("webshop_url") or "")
     bezig = _shopify_werk_status.get(winkel)
     if bezig and not bezig.get("klaar"):
-        return jsonify({"stand": bezig})
+        return jsonify({"stand": _stand_in_taal(bezig, markt)})
     threading.Thread(
         target=_shopify_voorstellen_maken,
         args=(winkel, _shopify_sleutel(rij), rij.get("webshop_url")),
         daemon=True).start()
-    return jsonify({"stand": {"tekst": "we kijken je winkel na", "klaar": False,
-                              "mislukt": False}})
+    return jsonify({"stand": _stand_in_taal(
+        {"tekst": "we kijken je winkel na", "klaar": False, "mislukt": False}, markt)})
 
 
 @app.route("/shopify/api/werkstand")
@@ -3310,7 +3356,9 @@ def shopify_api_werkstand():
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij:
         return jsonify({"error": "Niet toegestaan."}), 401
-    return jsonify({"stand": _shopify_werk_status.get(winkel)})
+    return jsonify({"stand": _stand_in_taal(
+        _shopify_werk_status.get(winkel),
+        _markt_van(rij.get("webshop_url") or ""))})
 
 
 @app.route("/shopify/api/toepassen", methods=["POST"])
@@ -3556,11 +3604,15 @@ def shopify_api_automatisch():
 
 @app.route("/shopify/api/stand")
 def shopify_api_stand():
-    """Waar de meting is. Het scherm vraagt dit elke paar seconden."""
+    """Waar de meting is. Het scherm vraagt dit elke paar seconden.
+
+    Dit is de meest zichtbare tekst van de hele app: hij staat er minutenlang
+    en ververst elke vijf seconden. Juist hier moet de taal dus kloppen."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij:
         return jsonify({"error": "Niet toegestaan."}), 401
-    return jsonify({"stand": _shopify_status.get(winkel)})
+    return jsonify({"stand": _stand_in_taal(
+        _shopify_status.get(winkel), _markt_van(rij.get("webshop_url") or ""))})
 
 
 @app.route("/shopify/callback")
