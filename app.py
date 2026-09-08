@@ -952,6 +952,15 @@ def _shopify_abonnees():
             print(f"Abonnement nakijken mislukt voor {rij['winkel']}: {e}")
             continue
         if not stand.get("actief"):
+            if stand.get("fout"):
+                # Wij WETEN het niet. Deze winkel wordt deze week overgeslagen
+                # terwijl op zijn scherm staat dat hij elke week gemeten wordt.
+                # Dat mag niet stil gebeuren.
+                _meld_aan_beheer(
+                    "Abonnement niet na te kijken",
+                    f"Bij {rij['winkel']} lukte het niet om het abonnement bij Shopify "
+                    f"op te vragen: {stand['fout']}. Die winkel is deze ronde "
+                    f"overgeslagen. Kijk of hij nog klant is.")
             continue
         adres = (rij.get("email") or "").strip()
         if not adres or not _EMAIL_VORM.match(adres):
@@ -1021,6 +1030,7 @@ def _shopify_automatisch_aanvullen(winkel, base_url):
         if uit.get("gelukt"):
             gedaan.append({"wat": voorstel.get("wat"), "waar": voorstel.get("waar"),
                            "nieuw": voorstel.get("nieuw")})
+            db.tel_shopify_wijziging(winkel)
 
     db.markeer_shopify_automatisch(winkel)
     if not gedaan:
@@ -1137,7 +1147,10 @@ def _shopify_inbed_kop(antwoord):
     if shopify_app.geldige_winkel(winkel):
         toegestaan = f"https://{winkel} https://admin.shopify.com"
     else:
-        toegestaan = "https://admin.shopify.com https://*.myshopify.com"
+        # Geen winkel in het verzoek, dus wij weten niet wie hem mag inbedden.
+        # Dan niemand. Shopify stuurt bij het openen van het app-scherm altijd
+        # de winkel mee, dus dit raakt geen echte bezoeker.
+        toegestaan = "'none'"
     antwoord.headers["Content-Security-Policy"] = f"frame-ancestors {toegestaan};"
     return antwoord
 
@@ -2969,12 +2982,29 @@ def shopify_start():
             titel="Dit is geen geldig winkeladres",
             bericht="Open de app vanuit je eigen Shopify-beheerscherm."), 400
 
+    # Heeft deze winkel de app AL, dan tonen wij gewoon het scherm.
+    #
+    # Hier stond eerder meteen een doorverwijzing naar het toestemmingsscherm
+    # van Shopify. Dat is een van de dingen waarop een app afgekeurd wordt:
+    # iemand die al toestemming gaf en de app opent via een bewaarde link,
+    # kreeg opnieuw de vraag of Krillo bij zijn producten mag.
+    rij = db.get_shopify_winkel(winkel)
+    if rij and rij.get("toegangssleutel") and rij.get("actief"):
+        return _shopify_scherm(winkel, rij)
+
     link = shopify_app.installatielink(winkel, get_base_url())
     if not link:
         return render_template(
             "fout.html", titel="Installeren lukt nu niet",
             bericht="Probeer het zo nog eens, of mail hallo@krillo.nl."), 503
-    return redirect(link)
+
+    # NIET met een gewone doorverwijzing. Shopify weigert zijn eigen
+    # toestemmingspagina in een venster binnen het beheerscherm, en dan ziet de
+    # winkelier een lege bladzijde in plaats van een scherm. Daarom een klein
+    # paginaatje dat het BOVENSTE venster verplaatst. Werkt ook gewoon als de
+    # app buiten Shopify geopend wordt, want dan is het bovenste venster het
+    # enige venster.
+    return render_template("shopify_doorsturen.html", link=link)
 
 
 def _shopify_uit_kop():
@@ -3032,8 +3062,11 @@ def _shopify_voorstellen_maken(winkel, sleutel, webshop_url):
                     winkel, rij["toegangssleutel"])["actief"]
         except Exception as e:
             print(f"Abonnement nakijken mislukt voor {winkel}: {e}")
-        al_gedaan = len([w for w in db.get_wijzigingen(webshop_url or "")
-                         if (w.get("taak_id") or "").startswith("shopify:")])
+        rij_nu = db.get_shopify_winkel(winkel) or {}
+        al_gedaan = max(
+            len([w for w in db.get_wijzigingen(webshop_url or "")
+                 if (w.get("taak_id") or "").startswith("shopify:")]),
+            int(rij_nu.get("wijzigingen_ooit") or 0))
         _shopify_werk_status[winkel] = {
             "tekst": "klaar", "klaar": True, "mislukt": False,
             "betaalt": betaalt,
@@ -3110,7 +3143,12 @@ def shopify_api_toepassen():
     betaalt = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])["actief"]
     al_gedaan = len([w for w in db.get_wijzigingen(webshop_url)
                      if (w.get("taak_id") or "").startswith("shopify:")])
-    over = 10_000 if betaalt else max(0, shopify_werk.GRATIS_WIJZIGINGEN - al_gedaan)
+    # De teller loopt alleen op. Hier stond eerder het aantal wijzigingen dat NU
+    # in de winkel staat, en dat betekende: drie keer toepassen, drie keer
+    # terugzetten, en je had weer drie gratis. Dan doet Krillo al het werk voor
+    # niets.
+    ooit = max(al_gedaan, int(rij.get("wijzigingen_ooit") or 0))
+    over = 10_000 if betaalt else max(0, shopify_werk.GRATIS_WIJZIGINGEN - ooit)
 
     gedaan, mislukt, overgeslagen, geblokkeerd = [], [], [], []
     for kenmerk in gevraagd[:50]:
@@ -3124,6 +3162,7 @@ def shopify_api_toepassen():
         if uit.get("gelukt"):
             gedaan.append({"id": kenmerk, "waar": voorstel.get("waar")})
             over -= 1
+            db.tel_shopify_wijziging(winkel)
         elif uit.get("overgeslagen"):
             # Overgeslagen kost geen tegoed: er is niets veranderd.
             overgeslagen.append({"id": kenmerk, "waar": voorstel.get("waar"),
@@ -3187,6 +3226,11 @@ def shopify_api_abonnement():
     if not winkel or not rij or not rij.get("toegangssleutel"):
         return jsonify({"error": "Niet toegestaan."}), 401
     stand = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])
+    # Loopt er echt een abonnement, dan is de gratis proefperiode ook echt
+    # gebruikt. Pas hier, en niet al bij het maken van de link.
+    if stand["actief"] and not rij.get("proef_gehad_op"):
+        db.markeer_proef_gehad(winkel)
+        rij = db.get_shopify_winkel(winkel) or rij
     return jsonify({
         "actief": stand["actief"],
         "abonnement": stand["abonnement"],
@@ -3240,8 +3284,14 @@ def shopify_api_abonneren():
                                            proefdagen=proefdagen)
     if not uit["gelukt"]:
         return jsonify({"error": uit["fout"]}), 502
-    if not al_gehad:
-        db.markeer_proef_gehad(winkel)
+    # Hier stond dat de proefperiode nu verbruikt was. Dat is te vroeg: op dit
+    # punt is er alleen een link gemaakt en heeft de winkelier nog nergens ja
+    # op gezegd. Klikt hij die pagina weg, dan was zijn gratis week op zonder
+    # dat hij ooit iets had. De volgende keer stond er dan 39 dollar per maand
+    # terwijl het scherm zeven dagen gratis belooft.
+    #
+    # Het verbruiken gebeurt nu pas als er echt een lopend abonnement is, zie
+    # de route hieronder die de stand opvraagt.
     return jsonify({"link": uit["link"], "test": uit["test"],
                     "proefdagen": 0 if al_gehad else shopify_billing.PROEFDAGEN})
 
@@ -3360,9 +3410,16 @@ def shopify_callback():
         target=shopify_app.meld_webhooks_aan,
         args=(winkel, sleutel, get_base_url()), daemon=True).start()
 
-    # Terug naar het beheerscherm van de winkel. In de volgende stap komt hier
-    # het scherm van de app zelf.
-    return redirect(f"https://{winkel}/admin/apps")
+    # Terug naar het SCHERM VAN DE APP, niet naar de lijst met alle apps.
+    # "Redirect to the app UI after installation" staat letterlijk in de eisen
+    # van Shopify, en de appslijst is niet het scherm van de app.
+    kort = winkel.replace(".myshopify.com", "")
+    handvat = (os.environ.get("SHOPIFY_APP_HANDLE") or "").strip()
+    if handvat:
+        return redirect(f"https://admin.shopify.com/store/{kort}/apps/{handvat}")
+    print("LET OP: SHOPIFY_APP_HANDLE staat niet ingesteld, na het installeren "
+          "komt de winkelier in de appslijst in plaats van in de app.")
+    return redirect(f"https://admin.shopify.com/store/{kort}/apps")
 
 
 def _webhook_binnen(onderwerp):

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Krillo</title>
+{# Waarom deze pagina bestaat, en waarom hier geen gewone doorverwijzing staat:
+   Shopify weigert zijn eigen toestemmingspagina in een venster binnen het
+   beheerscherm. Een gewone doorverwijzing levert daar dus een lege bladzijde
+   op, en dat is precies het soort scherm waarop een app afgekeurd wordt.
+   Daarom verplaatsen wij het BOVENSTE venster. Zit de app niet ingebed, dan is
+   het bovenste venster het enige venster en werkt het net zo goed. #}
+<style>
+  body{font-family:-apple-system, 'Segoe UI', Arial, sans-serif; background:#F6F5F1;
+       color:#12142B; display:flex; align-items:center; justify-content:center;
+       min-height:100vh; margin:0; padding:24px;}
+  .kaart{background:#fff; border:1px solid #E4E2DA; border-radius:14px;
+         padding:32px 30px; max-width:420px; text-align:center;}
+  .merk{font-weight:700; font-size:16px; margin-bottom:14px;}
+  .stip{display:inline-block; width:9px; height:9px; background:#FF4B3E;
+        border-radius:50%; margin-right:7px;}
+  p{color:#3B3D57; font-size:14.5px; line-height:1.6; margin:0 0 14px;}
+  a{color:#D42E22;}
+</style>
+</head>
+<body>
+  <div class="kaart">
+    <div class="merk"><span class="stip"></span>Krillo</div>
+    <p>Taking you to Shopify to confirm the permissions.</p>
+    {# Vangnet voor het geval het verplaatsen geblokkeerd wordt. Zonder deze
+       link zou de winkelier naar een pagina kijken waarop niets gebeurt. #}
+    <p><a id="handmatig" href="{{ link }}" target="_top">Continue</a></p>
+  </div>
+<script>
+  (function(){
+    var link = document.getElementById('handmatig').getAttribute('href');
+    try {
+      if (window.top) { window.top.location.href = link; }
+      else { window.location.href = link; }
+    } catch (e) {
+      // Het bovenste venster is van een ander domein en laat zich niet
+      // verplaatsen. Dan blijft de link hierboven over.
+      window.open(link, '_top');
+    }
+  })();
+</script>
+</body>
+</html>

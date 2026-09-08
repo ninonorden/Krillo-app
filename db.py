@@ -114,6 +114,13 @@ def init_db():
                             "DEFAULT true;")
                 cur.execute("ALTER TABLE shopify_winkels "
                             "ADD COLUMN IF NOT EXISTS automatisch_op TIMESTAMPTZ;")
+                # Hoeveel wijzigingen wij OOIT in deze winkel gezet hebben.
+                # Loopt alleen op, ook als er iets teruggezet wordt. Zonder dit
+                # kon je drie keer toepassen, drie keer terugzetten, en had je
+                # weer drie gratis wijzigingen.
+                cur.execute("ALTER TABLE shopify_winkels "
+                            "ADD COLUMN IF NOT EXISTS wijzigingen_ooit INTEGER "
+                            "NOT NULL DEFAULT 0;")
                 # Wat wij in de winkel van een klant veranderd hebben, met de
                 # oude tekst erbij. Dit is geen logboek voor onszelf maar het
                 # product: we beloven dat de klant alles kan terugzetten, en
@@ -935,6 +942,25 @@ def bewaar_shopify_winkel(winkel, toegangssleutel, rechten=None, webshop_url=Non
         return True
     except Exception as e:
         print(f"Shopify-winkel bewaren mislukt voor {winkel}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def tel_shopify_wijziging(winkel):
+    """Telt er een op bij het aantal wijzigingen dat wij ooit gedaan hebben."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE shopify_winkels "
+                            "SET wijzigingen_ooit = coalesce(wijzigingen_ooit, 0) + 1 "
+                            "WHERE winkel = %s", (winkel,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Wijziging tellen mislukt voor {winkel}: {e}")
         return False
     finally:
         conn.close()
