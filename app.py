@@ -953,11 +953,92 @@ def _shopify_abonnees():
             continue
         if not stand.get("actief"):
             continue
-        uit.append({"webshop_url": rij["webshop_url"],
-                    "email": rij.get("email") or f"shopify@{rij['winkel']}"})
+        adres = (rij.get("email") or "").strip()
+        if not adres or not _EMAIL_VORM.match(adres):
+            # Hier stond een verzonnen adres. Dat ziet eruit als "we hebben hem
+            # bericht" terwijl de mail nergens aankomt, en op het scherm staat
+            # dat hij een waarschuwing krijgt als er iets verandert. Dan liever
+            # geen mail en wel een melding in de logs.
+            print(f"LET OP: geen mailadres voor {rij['winkel']}, deze klant krijgt "
+                  f"geen weekbericht. Vul het aan in de database.")
+            continue
+        uit.append({"webshop_url": rij["webshop_url"], "email": adres,
+                    "winkel": rij["winkel"]})
     if uit:
         print(f"{len(uit)} betalende Shopify-winkel(s) meegenomen in de ronde.")
     return uit
+
+
+def _shopify_automatisch_aanvullen(winkel, base_url):
+    """Vult uit onszelf aan bij een winkel met een abonnement.
+
+    Dit is wat er op de prijskaart staat: nieuwe producten worden opgepakt en
+    ingevuld. Zonder deze functie was dat een belofte zonder dekking.
+
+    Let op wat hier anders is dan bij de knop. Bij de knop ziet de eigenaar
+    elk voorstel voordat er iets gebeurt. Hier niet, want er is niemand die
+    kijkt. Wat hij koopt is juist dat wij het doen zonder dat hij ernaar hoeft
+    te kijken. Daarom drie dingen: hij kan het uitzetten, hij krijgt achteraf
+    een mail met precies wat er veranderd is, en elke wijziging blijft met een
+    knop terug te draaien. Dat laatste is de reden dat dit te verantwoorden is.
+
+    Verder gelden alle gewone regels nog: alleen invullen waar het leeg is,
+    nooit iets overschrijven, en de oude waarde eerst bewaren."""
+    rij = db.get_shopify_winkel(winkel) or {}
+    if not rij.get("toegangssleutel") or not rij.get("webshop_url"):
+        return None
+    if not rij.get("automatisch", True):
+        print(f"Automatisch aanvullen staat uit voor {winkel}.")
+        return None
+
+    # Niet twee keer op een dag. Draait de cron dubbel, dan zou dat dubbele
+    # kosten bij het model geven voor hetzelfde werk.
+    laatst = rij.get("automatisch_op")
+    if laatst:
+        try:
+            if (datetime.now(timezone.utc) - laatst).days < 5:
+                return None
+        except (TypeError, AttributeError):
+            pass
+
+    webshop_url = rij["webshop_url"]
+    ruimte = kosten.mag_doorgaan(webshop_url=webshop_url)
+    if not ruimte["mag"]:
+        print(f"Automatisch aanvullen overgeslagen voor {winkel}: {ruimte['reden']}")
+        return None
+
+    try:
+        markt_gegevens = _markt_van(webshop_url)
+        uitkomst = shopify_werk.maak_voorstellen(winkel, rij["toegangssleutel"],
+                                                 markt_gegevens)
+    except Exception as e:
+        print(f"Automatisch aanvullen mislukt voor {winkel}: {e}")
+        return None
+
+    gedaan = []
+    for voorstel in (uitkomst.get("voorstellen") or [])[:shopify_werk.AUTOMATISCH_PER_WEEK]:
+        uit = shopify_werk.pas_toe(winkel, rij["toegangssleutel"], voorstel, webshop_url)
+        if uit.get("gelukt"):
+            gedaan.append({"wat": voorstel.get("wat"), "waar": voorstel.get("waar"),
+                           "nieuw": voorstel.get("nieuw")})
+
+    db.markeer_shopify_automatisch(winkel)
+    if not gedaan:
+        return None
+
+    print(f"Automatisch aangevuld bij {winkel}: {len(gedaan)} wijziging(en).")
+    adres = (rij.get("email") or "").strip()
+    if adres and _EMAIL_VORM.match(adres):
+        try:
+            emailing.send_shopify_bijgewerkt(
+                adres, webshop_url, gedaan,
+                f"https://admin.shopify.com/store/"
+                f"{winkel.replace('.myshopify.com', '')}/apps/"
+                f"{(os.environ.get('SHOPIFY_APP_HANDLE') or '').strip()}",
+                taal=_mailtaal(webshop_url))
+        except Exception as e:
+            print(f"Bericht over bijwerken mislukt voor {winkel}: {e}")
+    return gedaan
 
 
 def _draai_wekelijkse_scans(base_url, alles=False):
@@ -1005,6 +1086,15 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                     _meet_en_beoordeel(c["webshop_url"], c["email"], klant_token, base_url)
                 except Exception as e:
                     print(f"Meting mislukt voor {c['webshop_url']}: {e}")
+
+                # Is dit een Shopify-winkel met een abonnement, dan vullen wij
+                # ook uit onszelf aan. Dat staat op de prijskaart en zonder dit
+                # is het een belofte zonder dekking.
+                if c.get("winkel"):
+                    try:
+                        _shopify_automatisch_aanvullen(c["winkel"], base_url)
+                    except Exception as e:
+                        print(f"Automatisch aanvullen mislukt voor {c['winkel']}: {e}")
             except Exception as e:
                 print(f"Wekelijkse scan mislukt voor {c.get('webshop_url')}: {e}")
         print("Ronde afgerond.")
@@ -3177,6 +3267,25 @@ def shopify_api_opzeggen():
     if not uit["gelukt"]:
         return jsonify({"error": uit["fout"]}), 502
     return jsonify({"ok": True})
+
+
+@app.route("/shopify/api/automatisch", methods=["GET", "POST"])
+def shopify_api_automatisch():
+    """Of wij uit onszelf mogen aanvullen bij deze winkel.
+
+    Moet uit kunnen, en hij moet kunnen zien dat het aanstaat. Een app die
+    ongevraagd in andermans winkel schrijft zonder schakelaar is een app waar
+    terecht over geklaagd wordt."""
+    winkel, rij = _shopify_uit_kop()
+    if not winkel or not rij:
+        return jsonify({"error": "Niet toegestaan."}), 401
+    if request.method == "POST":
+        aan = bool((request.get_json(silent=True) or {}).get("aan"))
+        db.zet_shopify_automatisch(winkel, aan)
+        rij = db.get_shopify_winkel(winkel) or rij
+    return jsonify({"aan": bool(rij.get("automatisch", True)),
+                    "laatst": (rij.get("automatisch_op").isoformat()
+                               if rij.get("automatisch_op") else None)})
 
 
 @app.route("/shopify/api/stand")

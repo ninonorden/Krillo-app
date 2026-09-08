@@ -889,3 +889,74 @@ def send_zichtbaarheidstest(to_email, webshop_url, resultaat, zin, site_url=None
 
     html = _base_html("Dit zei AI over je webshop", zin, body)
     return send_email(to_email, f"Wat AI over {webshop_url} zegt", html)
+
+
+def send_shopify_bijgewerkt(to_email, webshop_url, wijzigingen, app_url=None, taal="nl"):
+    """Wat wij uit onszelf in de winkel van een abonnee hebben aangevuld.
+
+    Deze mail is niet optioneel en ook geen nieuwsbrief. Wij hebben zonder te
+    vragen in zijn winkel geschreven, want dat is wat hij koopt. Dan is het
+    minste wat wij kunnen doen: precies opsommen wat er veranderd is, en er de
+    weg bij zetten om het terug te draaien. Zonder dit bericht zou hij op een
+    dag een tekst tegenkomen die hij niet herkent, en dat is het moment waarop
+    iemand opzegt.
+    """
+    if not to_email or not wijzigingen:
+        return False
+
+    engels = taal == "en"
+    winkel = _kaal_adres(webshop_url)
+    aantal = len(wijzigingen)
+
+    regels = []
+    for w in wijzigingen[:25]:
+        wat = (w.get("wat") or "").strip()
+        waar = (w.get("waar") or "").strip()
+        nieuw = (w.get("nieuw") or "").strip()
+        if len(nieuw) > 220:
+            nieuw = nieuw[:220].rsplit(" ", 1)[0] + "..."
+        regels.append(f"""
+        <tr><td style="padding:12px 0; border-bottom:1px solid #E4E2DA;">
+          <div style="font-size:14.5px; font-weight:600; color:#12142B;">{waar}</div>
+          <div style="font-size:12.5px; color:#6B6D85; margin:2px 0 6px;">{wat}</div>
+          <div style="font-size:13.5px; color:#3B3D57;">{nieuw}</div>
+        </td></tr>""")
+    meer = ""
+    if aantal > 25:
+        meer = (f"<p style='font-size:13px; color:#6B6D85;'>"
+                f"{'And ' + str(aantal - 25) + ' more.' if engels else 'En nog ' + str(aantal - 25) + '.'}</p>")
+
+    if engels:
+        onderwerp = f"We filled in {aantal} thing{'s' if aantal != 1 else ''} in {winkel}"
+        kop = f"We filled in {aantal} thing{'s' if aantal != 1 else ''} for you"
+        inleiding = (f"Your plan covers this: we look at {winkel} every week and write the "
+                     f"text that is missing. Here is exactly what changed this week. We only "
+                     f"filled in empty places, we did not touch anything you wrote yourself.")
+        slot = ("Not happy with one of these? Open Krillo and press Undo next to it, and it "
+                "goes back to how it was. You can also switch this off there if you would "
+                "rather approve every change yourself.")
+        knop = "See it in Krillo"
+    else:
+        onderwerp = f"We hebben {aantal} ding{'en' if aantal != 1 else ''} ingevuld in {winkel}"
+        kop = f"We hebben {aantal} ding{'en' if aantal != 1 else ''} voor je ingevuld"
+        inleiding = (f"Dat hoort bij je abonnement: wij kijken elke week naar {winkel} en "
+                     f"schrijven de tekst die ontbreekt. Hieronder staat precies wat er deze "
+                     f"week veranderd is. Wij hebben alleen lege plekken ingevuld en niets "
+                     f"aangeraakt wat jij zelf geschreven hebt.")
+        slot = ("Ben je het ergens niet mee eens? Open Krillo en klik op Terugzetten "
+                "ernaast, dan staat het weer zoals het was. Je kunt het daar ook uitzetten "
+                "als je liever elke wijziging zelf goedkeurt.")
+        knop = "Bekijk het in Krillo"
+
+    knop_html = _score_button(app_url, knop) if app_url else ""
+
+    body = f"""
+    <p style="font-size:14.5px;">{inleiding}</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+           style="margin:18px 0;">{''.join(regels)}</table>
+    {meer}
+    {knop_html}
+    <p style="font-size:13px; color:#3B3D57; margin-top:22px;">{slot}</p>
+    """
+    html = _base_html(kop, "", body, taal=taal)
+    return send_email(to_email, onderwerp, html)

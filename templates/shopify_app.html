@@ -229,7 +229,7 @@
       <div class="bedrag">$39 <small>/ month</small></div>
       <ul>
         <li>Every remaining change written and applied for you</li>
-        <li>New products picked up and filled in automatically</li>
+        <li>New products picked up and filled in every week, without you asking</li>
         <li>Measured again every week, so you see whether it helped</li>
         <li>An alert when something actually changes</li>
         <li>Cancel any time, from here</li>
@@ -237,6 +237,20 @@
       <button id="abonneerknop" style="display:none;">Start 7 day free trial</button>
       <button id="opzegknop" class="rustig" style="display:none;">Cancel subscription</button>
       <p id="abonnementuitleg" style="font-size:13px; color:var(--ink-soft); margin-top:12px;"></p>
+      {# De schakelaar voor het uit onszelf aanvullen. Staat hier en niet
+         verstopt in een instellingenscherm, want dit is het enige punt waarop
+         wij in zijn winkel schrijven zonder dat hij kijkt. Dat mag geen
+         verrassing zijn. #}
+      <div id="autoblok" style="display:none; margin-top:14px; padding-top:12px;
+           border-top:1px solid var(--line);">
+        <label style="display:flex; gap:9px; align-items:flex-start; font-size:13px;
+               color:var(--ink-soft); cursor:pointer;">
+          <input type="checkbox" id="autoaan" style="margin-top:3px;">
+          <span>Fill things in for me automatically each week. You get an email listing
+            exactly what changed, and every change can still be undone. Switch this off
+            if you would rather approve each one yourself.</span>
+        </label>
+      </div>
     </div>
   </div>
   <div id="abonnementfout" style="display:none;" class="misgegaan"><span id="abonnementfouttekst"></span></div>
@@ -650,6 +664,7 @@
             betaaldLabel.style.display = 'inline-block';
             abonneerKnop.style.display = 'none';
             opzegKnop.style.display = 'inline-block';
+            if (autoBlok) { autoBlok.style.display = 'block'; haalAutomatisch(); }
             abonnementUitleg.textContent = d.test
               ? 'This is a test subscription. No money is charged.'
               : 'Billed through Shopify, on your regular Shopify invoice.';
@@ -658,6 +673,7 @@
             betaaldLabel.style.display = 'none';
             abonneerKnop.style.display = 'inline-block';
             opzegKnop.style.display = 'none';
+            if (autoBlok) { autoBlok.style.display = 'none'; }
             if (d.proefdagen > 0){
               abonneerKnop.textContent = 'Start ' + d.proefdagen + ' day free trial';
               abonnementUitleg.textContent = 'Free for the first ' + d.proefdagen
@@ -728,6 +744,37 @@
           opzegKnop.textContent = 'Cancel subscription';
           abonnementFoutTonen('Something went wrong. Please try again.');
         });
+      });
+    });
+  }
+
+  // ------------------------------------------------- uit onszelf aanvullen
+  var autoBlok = document.getElementById('autoblok');
+  var autoAan = document.getElementById('autoaan');
+
+  function haalAutomatisch(){
+    if (!autoAan) { return; }
+    metKaartje(function(kaartje){
+      fetch('/shopify/api/automatisch', {headers: {'Authorization': 'Bearer ' + kaartje}})
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if (!d.error) { autoAan.checked = !!d.aan; } })
+        .catch(function(){ /* niet erg, dit is een instelling */ });
+    });
+  }
+
+  if (autoAan){
+    autoAan.addEventListener('change', function(){
+      var gewenst = autoAan.checked;
+      autoAan.disabled = true;
+      metKaartje(function(kaartje){
+        fetch('/shopify/api/automatisch', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + kaartje, 'Content-Type': 'application/json'},
+          body: JSON.stringify({aan: gewenst})
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){ autoAan.disabled = false; if (!d.error) { autoAan.checked = !!d.aan; } })
+        .catch(function(){ autoAan.disabled = false; autoAan.checked = !gewenst; });
       });
     });
   }

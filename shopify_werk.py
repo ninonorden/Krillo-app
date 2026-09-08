@@ -49,6 +49,32 @@ PRODUCTEN_PER_KEER = 1000
 # stuk voor stuk kunnen nakijken; een lijst van honderd kijkt niemand na.
 VOORSTELLEN_PER_KEER = 12
 
+# Wat er in het overzicht komt te staan bij een wijziging. Tweetalig, want dit
+# hangt in de winkel van de klant en in zijn mailbox. Losse Nederlandse woorden
+# onder een Engels kopje zien er niet uit als een nette vertaling maar als iets
+# dat half kapot is.
+LABELS = {
+    "nl": {"alt": "Beschrijving bij een productfoto",
+           "tekst": "Producttekst",
+           "faq": "Nieuwe pagina met veelgestelde vragen",
+           "faq_waar": "Winkel, Pagina's",
+           "foto": "foto",
+           "pagina": "pagina"},
+    "en": {"alt": "Description on a product image",
+           "tekst": "Product description",
+           "faq": "New page with frequently asked questions",
+           "faq_waar": "Online Store, Pages",
+           "foto": "image",
+           "pagina": "page"},
+}
+
+
+def _label(markt, sleutel):
+    """Het woord in de taal van deze winkel. Onbekend wordt Nederlands."""
+    taal = "nl" if (markt or {}).get("is_nederlands", True) else "en"
+    return LABELS.get(taal, LABELS["nl"]).get(sleutel, LABELS["nl"][sleutel])
+
+
 # Hoeveel wijzigingen wij gratis in een winkel zetten.
 #
 # Waarom niet nul en waarom niet alles: een onbekende app met nul beoordelingen
@@ -58,6 +84,10 @@ VOORSTELLEN_PER_KEER = 12
 # betaalt. Laten zien in plaats van vertellen, dat is het hele idee.
 GRATIS_WIJZIGINGEN = 3
 
+# Hoeveel wij per week hoogstens uit onszelf aanpassen bij een abonnee. Een
+# grens is nodig: een winkel die driehonderd producten importeert hoort niet in
+# een nacht driehonderd keer een aanroep bij het model op te leveren.
+AUTOMATISCH_PER_WEEK = 25
 
 FAQ_HANDLE = "veelgestelde-vragen-krillo"
 
@@ -486,8 +516,8 @@ Antwoord ALLEEN met een JSON-lijst, niets ervoor of erna:
         voorstellen.append({
             "id": f"shopify:alt:{bron['product_id']}:{bron['afbeelding_id']}",
             "soort": "alt",
-            "wat": "Beschrijving bij een productfoto",
-            "waar": f"{bron['titel']} (foto)",
+            "wat": _label(markt, "alt"),
+            "waar": f"{bron['titel']} ({_label(markt, 'foto')})",
             "link": _productlink(winkel, bron["product_id"]),
             "afbeelding": bron["src"],
             "oud": "",
@@ -553,7 +583,7 @@ Antwoord ALLEEN met een JSON-lijst, niets ervoor of erna:
         voorstellen.append({
             "id": f"shopify:tekst:{bron['product_id']}",
             "soort": "tekst",
-            "wat": "Producttekst",
+            "wat": _label(markt, "tekst"),
             "waar": bron["titel"],
             "link": _productlink(winkel, bron["product_id"]),
             "afbeelding": "",
@@ -613,8 +643,8 @@ Antwoord ALLEEN met een JSON-lijst, niets ervoor of erna:
     return {"gelukt": True, "voorstellen": [{
         "id": "shopify:faq",
         "soort": "faq",
-        "wat": "Nieuwe pagina met veelgestelde vragen",
-        "waar": "Winkel, Pagina's",
+        "wat": _label(markt, "faq"),
+        "waar": _label(markt, "faq_waar"),
         "link": f"https://{shopify_app._schoon(winkel)}/admin/pages",
         "afbeelding": "",
         "oud": "",
@@ -816,7 +846,7 @@ def pas_toe(winkel, sleutel, voorstel, klant_url):
             nieuwe = _nummer(((uit["gegevens"] or {}).get("page") or {}).get("id"))
             db.bewaar_wijziging(
                 webshop_url=klant_url, taak_id=voorstel["id"], wat=voorstel.get("wat"),
-                waar=f"pagina {nieuwe}", oude_waarde="",
+                waar=voorstel.get("waar") or f"page {nieuwe}", oude_waarde="",
                 nieuwe_waarde=voorstel.get("nieuw_html") or voorstel["nieuw"])
     else:
         return {"gelukt": False, "fout": "Onbekend soort wijziging."}

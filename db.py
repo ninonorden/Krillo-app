@@ -102,6 +102,18 @@ def init_db():
                 # zo eindeloos zeven gratis dagen blijven krijgen.
                 cur.execute("ALTER TABLE shopify_winkels "
                             "ADD COLUMN IF NOT EXISTS proef_gehad_op TIMESTAMPTZ;")
+                # Of wij bij deze winkel uit onszelf mogen aanvullen.
+                #
+                # Standaard aan, want dat is precies wat een abonnee koopt: wij
+                # doen het. Maar het moet uit kunnen, en hij moet weten dat het
+                # aanstaat. Een app die ongevraagd in andermans winkel schrijft
+                # zonder dat je het uit kunt zetten, is een app waar terecht
+                # over geklaagd wordt.
+                cur.execute("ALTER TABLE shopify_winkels "
+                            "ADD COLUMN IF NOT EXISTS automatisch BOOLEAN NOT NULL "
+                            "DEFAULT true;")
+                cur.execute("ALTER TABLE shopify_winkels "
+                            "ADD COLUMN IF NOT EXISTS automatisch_op TIMESTAMPTZ;")
                 # Wat wij in de winkel van een klant veranderd hebben, met de
                 # oude tekst erbij. Dit is geen logboek voor onszelf maar het
                 # product: we beloven dat de klant alles kan terugzetten, en
@@ -923,6 +935,45 @@ def bewaar_shopify_winkel(winkel, toegangssleutel, rechten=None, webshop_url=Non
         return True
     except Exception as e:
         print(f"Shopify-winkel bewaren mislukt voor {winkel}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def zet_shopify_automatisch(winkel, aan):
+    """Zet het uit onszelf aanvullen aan of uit voor deze winkel."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE shopify_winkels SET automatisch = %s WHERE winkel = %s",
+                            (bool(aan), winkel))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Automatisch aanvullen instellen mislukt voor {winkel}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def markeer_shopify_automatisch(winkel):
+    """Legt vast wanneer wij voor het laatst uit onszelf hebben aangevuld.
+
+    Nodig om te voorkomen dat een ronde die twee keer draait ook twee keer
+    aanvult, met dubbele kosten bij het model."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE shopify_winkels SET automatisch_op = now() "
+                            "WHERE winkel = %s", (winkel,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Bijwerkmoment vastleggen mislukt voor {winkel}: {e}")
         return False
     finally:
         conn.close()
