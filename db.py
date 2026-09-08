@@ -121,6 +121,22 @@ def init_db():
                 cur.execute("ALTER TABLE shopify_winkels "
                             "ADD COLUMN IF NOT EXISTS wijzigingen_ooit INTEGER "
                             "NOT NULL DEFAULT 0;")
+                # Sleutels van Shopify verlopen tegenwoordig na een uur. Wij
+                # bewaren dus niet alleen de sleutel maar ook tot wanneer hij
+                # geldig is, plus de verversleutel waarmee wij een nieuwe
+                # kunnen halen.
+                #
+                # Staat sleutel_tot leeg, dan is het nog een sleutel van de
+                # oude soort. Die wordt door Shopify geweigerd en moet opnieuw
+                # opgehaald worden. Dat is met opzet te zien aan een lege kolom
+                # en niet aan een aparte vlag: een lege kolom kan niet per
+                # ongeluk op "goed" blijven staan.
+                cur.execute("ALTER TABLE shopify_winkels "
+                            "ADD COLUMN IF NOT EXISTS sleutel_tot TIMESTAMPTZ;")
+                cur.execute("ALTER TABLE shopify_winkels "
+                            "ADD COLUMN IF NOT EXISTS verversleutel TEXT;")
+                cur.execute("ALTER TABLE shopify_winkels "
+                            "ADD COLUMN IF NOT EXISTS verversleutel_tot TIMESTAMPTZ;")
                 # Wat wij in de winkel van een klant veranderd hebben, met de
                 # oude tekst erbij. Dit is geen logboek voor onszelf maar het
                 # product: we beloven dat de klant alles kan terugzetten, en
@@ -909,7 +925,8 @@ def leg_herroeping_vast(email, webshop_url, toelichting):
 
 
 def bewaar_shopify_winkel(winkel, toegangssleutel, rechten=None, webshop_url=None,
-                          email=None, naam=None):
+                          email=None, naam=None, geldig_seconden=None,
+                          verversleutel=None, verversleutel_seconden=None):
     """Legt een geïnstalleerde Shopify-winkel vast, of werkt hem bij.
 
     Installeert iemand opnieuw, dan hoort de nieuwe sleutel de oude te
@@ -926,22 +943,95 @@ def bewaar_shopify_winkel(winkel, toegangssleutel, rechten=None, webshop_url=Non
                 cur.execute(
                     """INSERT INTO shopify_winkels
                            (winkel, toegangssleutel, rechten, webshop_url, email, naam,
+                            sleutel_tot, verversleutel, verversleutel_tot,
                             actief, geinstalleerd_op, verwijderd_op)
-                       VALUES (%s, %s, %s, %s, %s, %s, true, now(), NULL)
+                       VALUES (%s, %s, %s, %s, %s, %s,
+                               now() + make_interval(secs => %s), %s,
+                               now() + make_interval(secs => %s),
+                               true, now(), NULL)
                        ON CONFLICT (winkel) DO UPDATE
                        SET toegangssleutel = EXCLUDED.toegangssleutel,
                            rechten = EXCLUDED.rechten,
                            webshop_url = coalesce(EXCLUDED.webshop_url, shopify_winkels.webshop_url),
                            email = coalesce(EXCLUDED.email, shopify_winkels.email),
                            naam = coalesce(EXCLUDED.naam, shopify_winkels.naam),
+                           sleutel_tot = EXCLUDED.sleutel_tot,
+                           verversleutel = EXCLUDED.verversleutel,
+                           verversleutel_tot = EXCLUDED.verversleutel_tot,
                            actief = true,
                            geinstalleerd_op = now(),
                            verwijderd_op = NULL""",
-                    (winkel, toegangssleutel, rechten, webshop_url, email, naam),
+                    (winkel, toegangssleutel, rechten, webshop_url, email, naam,
+                     float(geldig_seconden or 0), verversleutel,
+                     float(verversleutel_seconden or 0)),
                 )
         return True
     except Exception as e:
         print(f"Shopify-winkel bewaren mislukt voor {winkel}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def vervang_shopify_sleutelpaar(winkel, toegangssleutel, geldig_seconden,
+                                verversleutel, verversleutel_seconden, rechten=None):
+    """Zet een vers sleutelpaar neer, zonder de rest van de rij aan te raken.
+
+    Bewust apart van bewaar_shopify_winkel: die zet ook geinstalleerd_op op nu
+    en actief op waar, en dat hoort niet te gebeuren omdat er toevallig een
+    sleutel ververst is.
+
+    Dit moet gebeuren VOORDAT de nieuwe sleutel ergens voor gebruikt wordt.
+    Shopify laat de oude verversleutel vervallen zodra je de nieuwe gebruikt,
+    dus als wij hem niet eerst opslaan zijn wij de winkel kwijt. Daarom geeft
+    deze functie ook eerlijk False terug als het opslaan mislukt."""
+    if not winkel or not toegangssleutel:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE shopify_winkels
+                          SET toegangssleutel = %s,
+                              sleutel_tot = now() + make_interval(secs => %s),
+                              verversleutel = %s,
+                              verversleutel_tot = now() + make_interval(secs => %s),
+                              rechten = coalesce(%s, rechten)
+                        WHERE winkel = %s""",
+                    (toegangssleutel, float(geldig_seconden or 0), verversleutel,
+                     float(verversleutel_seconden or 0), rechten, winkel),
+                )
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Shopify-sleutelpaar bijwerken mislukt voor {winkel}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def wis_shopify_verversleutel(winkel):
+    """Gooit een verversleutel weg die Shopify voorgoed geweigerd heeft.
+
+    Blijft hij staan, dan probeert elke wekelijkse ronde het opnieuw met een
+    sleutel waarvan wij weten dat hij dood is. De winkel blijft wel op actief
+    staan: de winkelier heeft de app nog gewoon, en zodra hij hem opent halen
+    wij een nieuw paar op."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE shopify_winkels "
+                            "SET verversleutel = NULL, verversleutel_tot = NULL, "
+                            "    sleutel_tot = NULL "
+                            "WHERE winkel = %s", (winkel,))
+        return True
+    except Exception as e:
+        print(f"Verversleutel wissen mislukt voor {winkel}: {e}")
         return False
     finally:
         conn.close()

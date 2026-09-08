@@ -946,8 +946,14 @@ def _shopify_abonnees():
             continue
         if not rij.get("webshop_url"):
             continue
+        sleutel = _shopify_sleutel(rij)
+        if not sleutel:
+            # Verlopen sleutel en geen bruikbare verversleutel. Daar is zonder
+            # de winkelier niets aan te doen: hij moet de app een keer openen.
+            print(f"Shopify: geen werkende sleutel voor {rij['winkel']}, overgeslagen.")
+            continue
         try:
-            stand = shopify_billing.huidig_abonnement(rij["winkel"], rij["toegangssleutel"])
+            stand = shopify_billing.huidig_abonnement(rij["winkel"], sleutel)
         except Exception as e:
             print(f"Abonnement nakijken mislukt voor {rij['winkel']}: {e}")
             continue
@@ -1016,17 +1022,27 @@ def _shopify_automatisch_aanvullen(winkel, base_url):
         print(f"Automatisch aanvullen overgeslagen voor {winkel}: {ruimte['reden']}")
         return None
 
+    sleutel = _shopify_sleutel(rij)
+    if not sleutel:
+        print(f"Automatisch aanvullen overgeslagen voor {winkel}: geen werkende sleutel.")
+        return None
+
     try:
         markt_gegevens = _markt_van(webshop_url)
-        uitkomst = shopify_werk.maak_voorstellen(winkel, rij["toegangssleutel"],
-                                                 markt_gegevens)
+        uitkomst = shopify_werk.maak_voorstellen(winkel, sleutel, markt_gegevens)
     except Exception as e:
         print(f"Automatisch aanvullen mislukt voor {winkel}: {e}")
         return None
 
     gedaan = []
     for voorstel in (uitkomst.get("voorstellen") or [])[:shopify_werk.AUTOMATISCH_PER_WEEK]:
-        uit = shopify_werk.pas_toe(winkel, rij["toegangssleutel"], voorstel, webshop_url)
+        # Elke keer opnieuw opvragen. Vijfentwintig wijzigingen kunnen langer
+        # duren dan het uur dat een sleutel geldig is.
+        sleutel = _shopify_sleutel(rij)
+        if not sleutel:
+            print(f"Automatisch aanvullen afgebroken voor {winkel}: sleutel verlopen.")
+            break
+        uit = shopify_werk.pas_toe(winkel, sleutel, voorstel, webshop_url)
         if uit.get("gelukt"):
             gedaan.append({"wat": voorstel.get("wat"), "waar": voorstel.get("waar"),
                            "nieuw": voorstel.get("nieuw")})
@@ -2882,6 +2898,67 @@ def _shopify_scherm(winkel, rij):
     )
 
 
+# Hoeveel seconden voor het verlopen wij al gaan verversen. Een meting duurt
+# minuten, dus een sleutel die over dertig seconden verloopt is voor ons al
+# verlopen. Zonder deze marge valt een lange meting halverwege om.
+SLEUTEL_MARGE_SECONDEN = 300
+
+
+def _shopify_sleutel(rij):
+    """Geeft een sleutel die nu echt werkt, of None.
+
+    Overal waar wij met Shopify praten moet dit ertussen zitten. Sleutels zijn
+    een uur geldig, dus de sleutel die een uur geleden in de database gezet is
+    doet het niet meer, en dat is precies de 403 waar dit voor gebouwd is.
+
+    Er wordt niets teruggegeven zonder dat het nieuwe paar eerst opgeslagen is.
+    Gebruiken wij een verse sleutel zonder hem op te slaan, dan vervalt de oude
+    verversleutel en zijn wij de winkel voorgoed kwijt."""
+    if not rij:
+        return None
+    winkel = rij.get("winkel")
+    sleutel = rij.get("toegangssleutel")
+    tot = rij.get("sleutel_tot")
+
+    if sleutel and tot:
+        over = (tot - datetime.now(timezone.utc)).total_seconds()
+        if over > SLEUTEL_MARGE_SECONDEN:
+            return sleutel
+
+    verversleutel = rij.get("verversleutel")
+    if not winkel or not verversleutel:
+        # Geen verversleutel: dit is nog een sleutel van de oude soort, of de
+        # winkel is nooit goed opgeslagen. Verversen kan niet, de winkelier
+        # moet de app een keer openen zodat wij een nieuw kaartje krijgen.
+        return None
+
+    uitkomst = shopify_app.ververs_sleutel(winkel, verversleutel)
+    if not uitkomst.get("gelukt"):
+        print(f"Shopify: verversen mislukt voor {winkel}: {uitkomst.get('fout')}")
+        if uitkomst.get("voorgoed_mislukt"):
+            db.wis_shopify_verversleutel(winkel)
+        return None
+
+    bewaard = db.vervang_shopify_sleutelpaar(
+        winkel, uitkomst["sleutel"], uitkomst.get("geldig_seconden"),
+        uitkomst.get("verversleutel"), uitkomst.get("verversleutel_seconden"),
+        rechten=uitkomst.get("rechten"))
+    if not bewaard:
+        # Niet opgeslagen betekent: niet gebruiken. Wij mogen de oude
+        # verversleutel niet laten vervallen voor een sleutel die wij straks
+        # nergens meer kunnen terugvinden.
+        print(f"LET OP: nieuw sleutelpaar voor {winkel} is NIET opgeslagen. Niet gebruikt.")
+        return None
+
+    # De rij die de aanroeper vasthoudt bijwerken, anders pakt de volgende
+    # regel in dezelfde functie nog de oude sleutel.
+    rij["toegangssleutel"] = uitkomst["sleutel"]
+    rij["verversleutel"] = uitkomst.get("verversleutel")
+    rij["sleutel_tot"] = datetime.now(timezone.utc) + timedelta(
+        seconds=int(uitkomst.get("geldig_seconden") or 0))
+    return uitkomst["sleutel"]
+
+
 def _shopify_uit_kaartje(id_token, winkel_uit_link=None):
     """Controleert het kaartje van Shopify en zorgt dat we een sleutel hebben.
 
@@ -2901,7 +2978,14 @@ def _shopify_uit_kaartje(id_token, winkel_uit_link=None):
         return None, None
 
     rij = db.get_shopify_winkel(winkel)
-    if rij and rij.get("toegangssleutel"):
+    # Hebben wij al een sleutel die het doet, of een verversleutel waarmee wij
+    # er een kunnen halen, dan is er niets aan de hand.
+    #
+    # Wat hier NIET mag staan is "hebben wij een sleutel, klaar". Een winkel
+    # met een sleutel van de oude eeuwige soort komt dan nooit meer aan een
+    # nieuwe, en elke aanroep bij Shopify geeft 403. Juist nu wij een geldig
+    # kaartje in handen hebben is het moment om die om te ruilen.
+    if rij and rij.get("toegangssleutel") and _shopify_sleutel(rij):
         return winkel, rij
 
     uitkomst = shopify_app.wissel_id_token(winkel, id_token)
@@ -2914,7 +2998,10 @@ def _shopify_uit_kaartje(id_token, winkel_uit_link=None):
     webshop_url = scan_engine.normalize_url(shopify_app.winkeladres(winkel, sleutel))
     db.bewaar_shopify_winkel(winkel, sleutel, rechten=uitkomst.get("rechten"),
                              webshop_url=webshop_url, email=gegevens.get("email"),
-                             naam=gegevens.get("naam"))
+                             naam=gegevens.get("naam"),
+                             geldig_seconden=uitkomst.get("geldig_seconden"),
+                             verversleutel=uitkomst.get("verversleutel"),
+                             verversleutel_seconden=uitkomst.get("verversleutel_seconden"))
     # Shopify vertelt ons de taal en het land van de winkel. Dat leggen we
     # meteen vast, want zonder dat krijgt een winkel in Texas Nederlandse
     # koopvragen. Dit moet gebeuren VOORDAT er gemeten wordt.
@@ -3059,7 +3146,7 @@ def _shopify_voorstellen_maken(winkel, sleutel, webshop_url):
             rij = db.get_shopify_winkel(winkel) or {}
             if rij.get("toegangssleutel"):
                 betaalt = shopify_billing.huidig_abonnement(
-                    winkel, rij["toegangssleutel"])["actief"]
+                    winkel, _shopify_sleutel(rij))["actief"]
         except Exception as e:
             print(f"Abonnement nakijken mislukt voor {winkel}: {e}")
         rij_nu = db.get_shopify_winkel(winkel) or {}
@@ -3101,7 +3188,7 @@ def shopify_api_voorstellen():
         return jsonify({"stand": bezig})
     threading.Thread(
         target=_shopify_voorstellen_maken,
-        args=(winkel, rij["toegangssleutel"], rij.get("webshop_url")),
+        args=(winkel, _shopify_sleutel(rij), rij.get("webshop_url")),
         daemon=True).start()
     return jsonify({"stand": {"tekst": "we kijken je winkel na", "klaar": False,
                               "mislukt": False}})
@@ -3140,7 +3227,7 @@ def shopify_api_toepassen():
     # Hoeveel er gratis nog in mogen. Wij tellen wat er al echt in de winkel
     # staat, niet wat er in deze ronde gevraagd wordt: anders kan iemand door
     # de knop vaker in te drukken alsnog alles gratis krijgen.
-    betaalt = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])["actief"]
+    betaalt = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))["actief"]
     al_gedaan = len([w for w in db.get_wijzigingen(webshop_url)
                      if (w.get("taak_id") or "").startswith("shopify:")])
     # De teller loopt alleen op. Hier stond eerder het aantal wijzigingen dat NU
@@ -3158,7 +3245,7 @@ def shopify_api_toepassen():
         if over <= 0:
             geblokkeerd.append({"id": kenmerk, "waar": voorstel.get("waar")})
             continue
-        uit = shopify_werk.pas_toe(winkel, rij["toegangssleutel"], voorstel, webshop_url)
+        uit = shopify_werk.pas_toe(winkel, _shopify_sleutel(rij), voorstel, webshop_url)
         if uit.get("gelukt"):
             gedaan.append({"id": kenmerk, "waar": voorstel.get("waar")})
             over -= 1
@@ -3212,7 +3299,7 @@ def shopify_api_terugzetten():
     if not wijziging:
         return jsonify({"error": "Die wijziging kennen we niet."}), 404
 
-    uit = shopify_werk.zet_terug(winkel, rij["toegangssleutel"], wijziging, webshop_url)
+    uit = shopify_werk.zet_terug(winkel, _shopify_sleutel(rij), wijziging, webshop_url)
     if not uit.get("gelukt"):
         return jsonify({"error": uit.get("fout") or "Terugzetten mislukt."}), 502
     db.verwijder_wijziging(webshop_url, kenmerk)
@@ -3225,7 +3312,7 @@ def shopify_api_abonnement():
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij or not rij.get("toegangssleutel"):
         return jsonify({"error": "Niet toegestaan."}), 401
-    stand = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])
+    stand = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
     # Loopt er echt een abonnement, dan is de gratis proefperiode ook echt
     # gebruikt. Pas hier, en niet al bij het maken van de link.
     if stand["actief"] and not rij.get("proef_gehad_op"):
@@ -3253,7 +3340,7 @@ def shopify_api_abonneren():
     if not winkel or not rij or not rij.get("toegangssleutel"):
         return jsonify({"error": "Niet toegestaan."}), 401
 
-    bestaand = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])
+    bestaand = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
     if bestaand["actief"]:
         # Twee abonnementen naast elkaar betekent twee keer betalen. Dat mag
         # nooit gebeuren door een dubbele klik.
@@ -3280,7 +3367,7 @@ def shopify_api_abonneren():
     # gaf anders telkens zeven nieuwe gratis dagen, en dat kan eindeloos.
     al_gehad = bool(rij.get("proef_gehad_op"))
     proefdagen = 0 if al_gehad else None
-    uit = shopify_billing.start_abonnement(winkel, rij["toegangssleutel"], terug,
+    uit = shopify_billing.start_abonnement(winkel, _shopify_sleutel(rij), terug,
                                            proefdagen=proefdagen)
     if not uit["gelukt"]:
         return jsonify({"error": uit["fout"]}), 502
@@ -3302,7 +3389,7 @@ def shopify_api_opzeggen():
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij or not rij.get("toegangssleutel"):
         return jsonify({"error": "Niet toegestaan."}), 401
-    stand = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])
+    stand = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
     if not stand["actief"]:
         if stand.get("fout"):
             # Wij WETEN het niet, en dat is iets anders dan "er loopt niets".
@@ -3312,7 +3399,7 @@ def shopify_api_opzeggen():
             return jsonify({"error": "We konden je abonnement nu niet bij Shopify "
                                      "opvragen. Probeer het zo nog eens."}), 503
         return jsonify({"error": "Er loopt geen abonnement."}), 400
-    uit = shopify_billing.zeg_op(winkel, rij["toegangssleutel"],
+    uit = shopify_billing.zeg_op(winkel, _shopify_sleutel(rij),
                                  (stand["abonnement"] or {}).get("id"))
     if not uit["gelukt"]:
         return jsonify({"error": uit["fout"]}), 502
@@ -3387,7 +3474,10 @@ def shopify_callback():
 
     bewaard = db.bewaar_shopify_winkel(
         winkel, sleutel, rechten=uitkomst.get("rechten"), webshop_url=webshop_url,
-        email=gegevens.get("email"), naam=gegevens.get("naam"))
+        email=gegevens.get("email"), naam=gegevens.get("naam"),
+        geldig_seconden=uitkomst.get("geldig_seconden"),
+        verversleutel=uitkomst.get("verversleutel"),
+        verversleutel_seconden=uitkomst.get("verversleutel_seconden"))
     if not bewaard:
         # Zonder opslaan hebben we straks geen sleutel meer en kunnen we niets.
         # Dan liever nu een eerlijke fout dan een app die stil niets doet.

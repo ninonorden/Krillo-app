@@ -265,18 +265,16 @@ def haal_toegangssleutel(winkel, code):
     try:
         antwoord = requests.post(
             f"https://{winkel}/admin/oauth/access_token",
-            json={"client_id": api_key, "client_secret": geheim, "code": code},
+            json={"client_id": api_key, "client_secret": geheim, "code": code,
+                  # Ook hier. Zonder deze vlag krijgen wij een eeuwige sleutel
+                  # en weigert de Admin API elke aanroep ermee met een 403.
+                  "expiring": 1},
             timeout=20,
         )
         if antwoord.status_code >= 300:
             return {"gelukt": False,
                     "fout": f"Shopify gaf {antwoord.status_code}: {antwoord.text[:200]}"}
-        gegevens = antwoord.json()
-        sleutel = gegevens.get("access_token")
-        if not sleutel:
-            return {"gelukt": False, "fout": "Shopify gaf geen toegangssleutel terug."}
-        return {"gelukt": True, "sleutel": sleutel,
-                "rechten": gegevens.get("scope") or SCOPES}
+        return _leesbaar_paar(antwoord.json())
     except Exception as e:
         return {"gelukt": False, "fout": f"{type(e).__name__}: {e}"[:300]}
 
@@ -385,12 +383,54 @@ def controleer_id_token(id_token, speling_seconden=10):
     return inhoud
 
 
-def wissel_id_token(winkel, id_token):
-    """Ruilt het kaartje in voor de echte sleutel van deze winkel.
+# ---------------------------------------------------------------------------
+# Sleutels die verlopen
+# ---------------------------------------------------------------------------
+#
+# Shopify accepteert voor nieuwe publieke apps geen eeuwig geldige sleutels
+# meer. Gebruik je er toch een, dan geeft de Admin API 403 met de tekst
+# "Non-expiring access tokens are no longer accepted for the Admin API".
+#
+# Hoe het nu werkt:
+#   - Bij het inwisselen van het kaartje vragen wij "expiring": 1.
+#   - Wij krijgen dan een sleutel die een uur geldig is, plus een verversleutel
+#     die 90 dagen geldig is.
+#   - Verloopt de sleutel, dan ruilen wij de verversleutel in voor een nieuw
+#     paar. Elke keer krijgen wij OOK een nieuwe verversleutel.
+#
+# De valkuil: de oude verversleutel vervalt zodra je de nieuwe gebruikt. Sla je
+# het nieuwe paar niet op, dan ben je de toegang tot die winkel kwijt. Daarom
+# slaan wij het paar op VOORDAT wij de nieuwe sleutel ergens voor gebruiken.
 
-    Vraagt bewust een blijvende sleutel (offline), want Krillo meet ook 's
-    nachts door als er niemand in het beheerscherm zit. Een sleutel die aan een
-    ingelogde gebruiker hangt is dan waardeloos.
+def _leesbaar_paar(gegevens):
+    """Haalt het sleutelpaar uit het antwoord van Shopify.
+
+    Staat er geen vervaldatum in, dan heeft Shopify ons een eeuwige sleutel
+    gegeven en die wordt geweigerd. Dat noemen wij hier meteen een fout, want
+    anders komt de winkelier er pas achter bij zijn eerste meting."""
+    sleutel = gegevens.get("access_token")
+    if not sleutel:
+        return {"gelukt": False, "fout": "Shopify gaf geen toegangssleutel terug."}
+    if not gegevens.get("expires_in"):
+        return {"gelukt": False,
+                "fout": "Shopify gaf een sleutel zonder vervaldatum. Die wordt "
+                        "niet meer geaccepteerd."}
+    return {
+        "gelukt": True,
+        "sleutel": sleutel,
+        "rechten": gegevens.get("scope") or SCOPES,
+        "geldig_seconden": int(gegevens.get("expires_in") or 0),
+        "verversleutel": gegevens.get("refresh_token"),
+        "verversleutel_seconden": int(gegevens.get("refresh_token_expires_in") or 0),
+    }
+
+
+def wissel_id_token(winkel, id_token):
+    """Ruilt het kaartje in voor de sleutel van deze winkel.
+
+    Vraagt bewust een offline sleutel, want Krillo meet ook 's nachts door als
+    er niemand in het beheerscherm zit. Een sleutel die aan een ingelogde
+    gebruiker hangt is dan waardeloos.
 
     Roep dit ALLEEN aan nadat controleer_id_token gelukt is."""
     api_key, geheim = _sleutels()
@@ -411,20 +451,59 @@ def wissel_id_token(winkel, id_token):
                 "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
                 "requested_token_type":
                     "urn:shopify:params:oauth:token-type:offline-access-token",
+                # Zonder dit veld krijgen wij een eeuwige sleutel terug en
+                # weigert de Admin API elke aanroep ermee.
+                "expiring": 1,
             },
             timeout=20,
         )
         if antwoord.status_code >= 300:
             return {"gelukt": False,
                     "fout": f"Shopify gaf {antwoord.status_code}: {antwoord.text[:200]}"}
-        gegevens = antwoord.json()
-        sleutel = gegevens.get("access_token")
-        if not sleutel:
-            return {"gelukt": False, "fout": "Shopify gaf geen toegangssleutel terug."}
-        return {"gelukt": True, "sleutel": sleutel,
-                "rechten": gegevens.get("scope") or SCOPES}
+        return _leesbaar_paar(antwoord.json())
     except Exception as e:
         return {"gelukt": False, "fout": f"{type(e).__name__}: {e}"[:300]}
+
+
+def ververs_sleutel(winkel, verversleutel):
+    """Ruilt de verversleutel in voor een nieuw sleutelpaar.
+
+    Geeft naast "gelukt" ook "voorgoed_mislukt" terug. Dat onderscheid doet er
+    toe: bij een netwerkstoring mag je het straks opnieuw proberen met dezelfde
+    verversleutel, maar bij een geweigerde verversleutel heeft dat geen zin en
+    moet de winkelier de app een keer openen."""
+    api_key, geheim = _sleutels()
+    winkel = _schoon(winkel)
+    if not api_key or not geheim:
+        return {"gelukt": False, "fout": waarom_niet(), "voorgoed_mislukt": False}
+    if not geldige_winkel(winkel) or not verversleutel:
+        return {"gelukt": False, "fout": "Geen winkel of geen verversleutel.",
+                "voorgoed_mislukt": True}
+
+    try:
+        antwoord = requests.post(
+            f"https://{winkel}/admin/oauth/access_token",
+            json={
+                "client_id": api_key,
+                "client_secret": geheim,
+                "grant_type": "refresh_token",
+                "refresh_token": verversleutel,
+            },
+            timeout=20,
+        )
+        if antwoord.status_code in (400, 401, 403):
+            return {"gelukt": False, "voorgoed_mislukt": True,
+                    "fout": f"Shopify weigert de verversleutel ({antwoord.status_code}): "
+                            f"{antwoord.text[:160]}"}
+        if antwoord.status_code >= 300:
+            return {"gelukt": False, "voorgoed_mislukt": False,
+                    "fout": f"Shopify gaf {antwoord.status_code}: {antwoord.text[:200]}"}
+        uit = _leesbaar_paar(antwoord.json())
+        uit["voorgoed_mislukt"] = False
+        return uit
+    except Exception as e:
+        return {"gelukt": False, "voorgoed_mislukt": False,
+                "fout": f"{type(e).__name__}: {e}"[:300]}
 
 
 def _kop(sleutel):
