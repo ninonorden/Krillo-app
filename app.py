@@ -1058,9 +1058,7 @@ def _shopify_automatisch_aanvullen(winkel, base_url):
         try:
             emailing.send_shopify_bijgewerkt(
                 adres, webshop_url, gedaan,
-                f"https://admin.shopify.com/store/"
-                f"{winkel.replace('.myshopify.com', '')}/apps/"
-                f"{(os.environ.get('SHOPIFY_APP_HANDLE') or '').strip()}",
+                _app_adres_in_beheerscherm(winkel),
                 taal=_mailtaal(webshop_url))
         except Exception as e:
             print(f"Bericht over bijwerken mislukt voor {winkel}: {e}")
@@ -1250,6 +1248,19 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None):
         return bool(gelukt), None if gelukt else "Verzenden mislukt, kijk in de logs."
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"[:200]
+
+
+@app.route("/wakker")
+def wakker():
+    """Een piepklein antwoord om de app wakker te houden.
+
+    Render zet een app die vijftien minuten niets te doen heeft in de slaap.
+    De eerstvolgende bezoeker wacht dan een halve minuut op een leeg scherm,
+    en dat is precies wat er gebeurde bij het openen van de Shopify-app.
+
+    Roep dit elke tien minuten aan. Bewust zonder sleutel en zonder database:
+    dit moet het altijd doen en niets kosten."""
+    return "ok", 200
 
 
 @app.route("/api/cron/benadering", methods=["GET", "POST"])
@@ -2876,6 +2887,108 @@ def _shopify_meten(winkel, webshop_url, email=None):
             "klaar": True, "mislukt": True}
 
 
+def _voorstel_voor_scherm(voorstel, markt=None):
+    """Een voorstel klaarmaken om te tonen.
+
+    De HTML-versie gaat er bewust uit: die hoeft het scherm niet te weten en
+    het scheelt een hoop overbodig verkeer."""
+    if not voorstel:
+        return None
+    uit = {k: v for k, v in voorstel.items() if k != "nieuw_html"}
+    woord = _wijziging_soort_woord(voorstel.get("id"), markt)
+    if woord:
+        uit["wat"] = woord
+    uit["nieuw"] = _zonder_opmaak(uit.get("nieuw"))
+    uit["oud"] = _zonder_opmaak(uit.get("oud"))
+    return uit
+
+
+def _voorstel_uit_wijziging(wijziging):
+    """Bouwt een voorstel terug uit een teruggezette wijziging.
+
+    Nodig als de app tussendoor opnieuw opgestart is en de voorstellen uit het
+    geheugen weg zijn. Alles wat pas_toe nodig heeft staat in het kenmerk:
+    "shopify:alt:<product>:<foto>", "shopify:tekst:<product>" of
+    "shopify:faq"."""
+    delen = (wijziging.get("taak_id") or "").split(":")
+    if len(delen) < 2 or delen[0] != "shopify":
+        return None
+    soort = delen[1]
+    nieuw = wijziging.get("nieuwe_waarde") or ""
+    voorstel = {"id": wijziging["taak_id"], "soort": soort,
+                "wat": wijziging.get("wat"), "waar": wijziging.get("waar"),
+                "oud": wijziging.get("oude_waarde") or "",
+                "nieuw": _zonder_opmaak(nieuw), "nieuw_html": nieuw}
+    try:
+        if soort == "alt" and len(delen) >= 4:
+            voorstel["product_id"] = int(delen[2])
+            voorstel["afbeelding_id"] = int(delen[3])
+            voorstel["nieuw"] = nieuw
+            voorstel.pop("nieuw_html", None)
+        elif soort == "tekst" and len(delen) >= 3:
+            voorstel["product_id"] = int(delen[2])
+        elif soort != "faq":
+            return None
+    except ValueError:
+        return None
+    return voorstel
+
+
+def _zonder_opmaak(tekst):
+    """Haalt de HTML eruit, zodat er tekst op het scherm komt en geen code.
+
+    Wij bewaren de HTML wel, want die moet ongewijzigd terug de winkel in
+    kunnen bij het terugzetten. Alleen bij het TONEN hoort hij weg."""
+    if not tekst:
+        return ""
+    kaal = re.sub(r"<br\s*/?>|</p>|</h[1-6]>", " ", str(tekst), flags=re.I)
+    kaal = re.sub(r"<[^>]+>", "", kaal)
+    kaal = (kaal.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+                .replace("&quot;", '"').replace("&#39;", "'").replace("&nbsp;", " "))
+    return re.sub(r"\s+", " ", kaal).strip()
+
+
+def _wijziging_soort_woord(taak_id, markt):
+    """Het soort wijziging, in de taal van de winkel van nu.
+
+    Het kenmerk ziet eruit als "shopify:tekst:123". Dat middelste woord is het
+    enige wat in een vaste taal vastligt, dus daar rekenen wij mee, en niet met
+    het woord dat ooit is opgeslagen."""
+    delen = (taak_id or "").split(":")
+    if len(delen) < 2:
+        return None
+    sleutel = {"alt": "alt", "tekst": "tekst", "faq": "faq"}.get(delen[1])
+    if not sleutel:
+        return None
+    return shopify_werk._label(markt, sleutel)
+
+
+def _app_adres_in_beheerscherm(winkel):
+    """Het adres waarop deze app in het beheerscherm van de winkelier staat.
+
+    Dit is waar wij hem naartoe sturen nadat hij bij Shopify betaald heeft, en
+    nadat het installeren klaar is.
+
+    Waarom via de winkel zelf en niet via admin.shopify.com/store/x/apps/naam:
+    dat laatste adres hangt aan de naam die de app in de winkel heeft, en die
+    naam kennen wij niet met zekerheid. Klopt hij niet, dan krijgt de winkelier
+    een 404 direct nadat hij akkoord is gegaan met 39 dollar per maand. Dat is
+    het slechtst denkbare moment voor een lege pagina.
+
+    Het adres hieronder werkt met ons eigen klantnummer bij Shopify. Dat weten
+    wij altijd, want zonder dat nummer draait de app helemaal niet. Shopify
+    zoekt er zelf de juiste app bij en stuurt door naar het nieuwe
+    beheerscherm."""
+    api_key = (os.environ.get("SHOPIFY_API_KEY") or "").strip()
+    if api_key:
+        return f"https://{winkel}/admin/apps/{api_key}"
+    # Zonder klantnummer draait er niets, maar dan liever de appslijst dan een
+    # kapot adres.
+    winkelnaam_kort = winkel.replace(".myshopify.com", "")
+    print("LET OP: SHOPIFY_API_KEY ontbreekt, terugkeer gaat naar de appslijst.")
+    return f"https://admin.shopify.com/store/{winkelnaam_kort}/apps"
+
+
 def _shopify_scherm(winkel, rij):
     """Het scherm dat de winkelier binnen Shopify ziet."""
     webshop_url = rij.get("webshop_url") or ""
@@ -3162,9 +3275,7 @@ def _shopify_voorstellen_maken(winkel, sleutel, webshop_url):
             "gratis_totaal": shopify_werk.GRATIS_WIJZIGINGEN,
             "aantallen": uitkomst["aantallen"],
             "fouten": uitkomst["fouten"],
-            # Bewust zonder de HTML-versie: die hoeft het scherm niet te weten
-            # en het scheelt een hoop overbodig verkeer.
-            "voorstellen": [{k: v for k, v in stuk.items() if k != "nieuw_html"}
+            "voorstellen": [_voorstel_voor_scherm(stuk, markt_gegevens)
                             for stuk in uitkomst["voorstellen"]],
         }
     except Exception as e:
@@ -3269,14 +3380,27 @@ def shopify_api_wijzigingen():
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij:
         return jsonify({"error": "Niet toegestaan."}), 401
+    webshop_url = rij.get("webshop_url") or ""
+    markt = _markt_van(webshop_url) if webshop_url else None
     regels = []
-    for w in db.get_wijzigingen(rij.get("webshop_url") or ""):
-        if not (w.get("taak_id") or "").startswith("shopify:"):
+    for w in db.get_wijzigingen(webshop_url):
+        taak_id = w.get("taak_id") or ""
+        if not taak_id.startswith("shopify:"):
             continue
-        regels.append({"id": w["taak_id"], "wat": w.get("wat"), "waar": w.get("waar"),
-                       "oud": (w.get("oude_waarde") or "")[:600],
-                       "nieuw": (w.get("nieuwe_waarde") or "")[:600],
-                       "op": w["gedaan_op"].isoformat() if w.get("gedaan_op") else None})
+        regels.append({
+            "id": taak_id,
+            # Het soort staat in het kenmerk, en dat is de enige plek waar het
+            # in een vaste taal staat. Het opgeslagen woord komt uit de taal van
+            # de winkel op het moment van toepassen, en dan las een Engelse
+            # winkelier ineens "Producttekst" op zijn eigen scherm.
+            "wat": _wijziging_soort_woord(taak_id, markt) or w.get("wat"),
+            "waar": w.get("waar"),
+            # Zonder dit staat er letterlijk <p> en </p> op het scherm van de
+            # winkelier. Wij bewaren de HTML wel, want die moet terug de winkel
+            # in kunnen, maar tonen doen wij de tekst.
+            "oud": _zonder_opmaak(w.get("oude_waarde"))[:600],
+            "nieuw": _zonder_opmaak(w.get("nieuwe_waarde"))[:600],
+            "op": w["gedaan_op"].isoformat() if w.get("gedaan_op") else None})
     return jsonify({"wijzigingen": regels})
 
 
@@ -3303,7 +3427,22 @@ def shopify_api_terugzetten():
     if not uit.get("gelukt"):
         return jsonify({"error": uit.get("fout") or "Terugzetten mislukt."}), 502
     db.verwijder_wijziging(webshop_url, kenmerk)
-    return jsonify({"ok": True, "id": kenmerk})
+
+    # Het voorstel weer terugzetten in de lijst.
+    #
+    # Zonder dit moest je na een klik op "Undo this" opnieuw je hele winkel
+    # laten nakijken om die ene wijziging terug te krijgen, en kreeg je er
+    # tientallen andere voorstellen bij die je niet gevraagd had. Iemand die
+    # per ongeluk klikt hoort hem gewoon weer aan te kunnen zetten.
+    voorstel = (_shopify_voorstellen.get(winkel) or {}).get(kenmerk)
+    if not voorstel:
+        voorstel = _voorstel_uit_wijziging(wijziging)
+    if voorstel:
+        _shopify_voorstellen.setdefault(winkel, {})[kenmerk] = voorstel
+
+    markt = _markt_van(webshop_url) if webshop_url else None
+    return jsonify({"ok": True, "id": kenmerk,
+                    "voorstel": _voorstel_voor_scherm(voorstel, markt) if voorstel else None})
 
 
 @app.route("/shopify/api/abonnement")
@@ -3352,17 +3491,7 @@ def shopify_api_abonneren():
     # winkelier door naar een nieuw toestemmingsscherm. Iemand die net akkoord
     # is gegaan met 39 dollar en dan opnieuw om toestemming gevraagd wordt, is
     # precies degene die afhaakt.
-    winkelnaam_kort = winkel.replace(".myshopify.com", "")
-    handvat = (os.environ.get("SHOPIFY_APP_HANDLE") or "").strip()
-    if handvat:
-        terug = f"https://admin.shopify.com/store/{winkelnaam_kort}/apps/{handvat}"
-    else:
-        # Zonder SHOPIFY_APP_HANDLE weten we het adres van de app in het
-        # beheerscherm niet. Dan maar de appslijst: dat is nog altijd beter dan
-        # een toestemmingsscherm.
-        print("LET OP: SHOPIFY_APP_HANDLE staat niet ingesteld, terugkeer na "
-              "betalen gaat naar de appslijst in plaats van naar de app zelf.")
-        terug = f"https://admin.shopify.com/store/{winkelnaam_kort}/apps"
+    terug = _app_adres_in_beheerscherm(winkel)
     # De gratis proefperiode krijg je een keer. Opzeggen en meteen weer starten
     # gaf anders telkens zeven nieuwe gratis dagen, en dat kan eindeloos.
     al_gehad = bool(rij.get("proef_gehad_op"))
@@ -3503,13 +3632,7 @@ def shopify_callback():
     # Terug naar het SCHERM VAN DE APP, niet naar de lijst met alle apps.
     # "Redirect to the app UI after installation" staat letterlijk in de eisen
     # van Shopify, en de appslijst is niet het scherm van de app.
-    kort = winkel.replace(".myshopify.com", "")
-    handvat = (os.environ.get("SHOPIFY_APP_HANDLE") or "").strip()
-    if handvat:
-        return redirect(f"https://admin.shopify.com/store/{kort}/apps/{handvat}")
-    print("LET OP: SHOPIFY_APP_HANDLE staat niet ingesteld, na het installeren "
-          "komt de winkelier in de appslijst in plaats van in de app.")
-    return redirect(f"https://admin.shopify.com/store/{kort}/apps")
+    return redirect(_app_adres_in_beheerscherm(winkel))
 
 
 def _webhook_binnen(onderwerp):

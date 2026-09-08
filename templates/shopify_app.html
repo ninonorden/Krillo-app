@@ -191,7 +191,10 @@
 <div class="wrap">
   <div class="merk"><span class="stip"></span>Krillo</div>
 
-  <div id="bezigblok" style="display:none;" class="bezig"><span id="bezigtekst">Starting…</span></div>
+  <div id="bezigblok" style="display:none;" class="bezig">
+    <div id="bezigtekst">Starting…</div>
+    <div id="bezigklok" style="opacity:.75; margin-top:3px;"></div>
+  </div>
   <div id="foutblok" style="display:none;" class="misgegaan"><span id="fouttekst"></span></div>
 
   {% if not vermeldingen %}
@@ -252,7 +255,10 @@
       <div class="knoprij"><button id="nakijkknop">Check my store</button></div>
     </div>
 
-    <div id="werkbezig" style="display:none;" class="bezig"><span id="werkbezigtekst">Working…</span></div>
+      <div id="werkbezig" style="display:none;" class="bezig">
+      <div id="werkbezigtekst">Working…</div>
+      <div id="werkklok" style="opacity:.75; margin-top:3px;"></div>
+    </div>
     <div id="werkgelukt" style="display:none;" class="bezig gelukt-melding"><span id="werkgelukttekst"></span></div>
     <div id="werkfout" style="display:none;" class="misgegaan"><span id="werkfouttekst"></span></div>
 
@@ -475,6 +481,22 @@
   var foutTekst = document.getElementById('fouttekst');
   var kijken = null;
 
+  // Hoe lang het al loopt. Een balk die alleen "Working" zegt voelt na twee
+  // minuten als vastgelopen, en dan gaat iemand verversen of wegklikken. Een
+  // meelopende teller vertelt hem dat er echt iets gebeurt, en de verwachte
+  // duur erbij vertelt hem dat tien minuten normaal is.
+  function tijdteller(element, vanaf, verwacht){
+    function toon(){
+      var seconden = Math.round((Date.now() - vanaf) / 1000);
+      var minuten = Math.floor(seconden / 60);
+      var rest = seconden % 60;
+      element.textContent = (minuten ? minuten + ' min ' : '') + rest + ' sec of about '
+        + verwacht + '. You can close this screen, we keep working.';
+    }
+    toon();
+    return setInterval(toon, 1000);
+  }
+
   // Bij elk verzoek een VERS kaartje ophalen. Een kaartje is een minuut geldig,
   // dus eentje hergebruiken tijdens een meting van vijf minuten gaat gegarandeerd
   // mis. Daarom hier ophalen en niet ergens bewaren.
@@ -488,8 +510,12 @@
     });
   }
 
+  var klok = null;
+  function klokStop(){ if (klok) { clearInterval(klok); klok = null; } }
+
   function toonFout(tekst){
     if (kijken) { clearInterval(kijken); kijken = null; }
+    klokStop();
     bezigBlok.style.display = 'none';
     foutTekst.textContent = tekst;
     foutBlok.style.display = 'block';
@@ -501,6 +527,7 @@
     if (stand.mislukt) { toonFout(stand.tekst); return; }
     if (stand.klaar) {
       if (kijken) { clearInterval(kijken); kijken = null; }
+      klokStop();
       bezigTekst.textContent = 'Done. Loading your results…';
       window.location.reload();
       return;
@@ -508,6 +535,8 @@
     foutBlok.style.display = 'none';
     bezigBlok.style.display = 'block';
     bezigTekst.textContent = 'Working: ' + stand.tekst;
+    if (!klok) { klok = tijdteller(document.getElementById('bezigklok'),
+                                   Date.now(), '5 to 10 minutes'); }
   }
 
   function kijkenNaarStand(){
@@ -526,6 +555,9 @@
       foutBlok.style.display = 'none';
       bezigBlok.style.display = 'block';
       bezigTekst.textContent = 'Starting…';
+      klokStop();
+      klok = tijdteller(document.getElementById('bezigklok'), Date.now(),
+                        '5 to 10 minutes');
 
       metKaartje(function(kaartje){
         fetch('/shopify/api/meten', {
@@ -570,8 +602,12 @@
   var wijzigingen = document.getElementById('wijzigingen');
   var werkKijken = null;
 
+  var werkKlok = null;
+  function werkKlokStop(){ if (werkKlok) { clearInterval(werkKlok); werkKlok = null; } }
+
   function werkFoutTonen(tekst){
     if (werkKijken) { clearInterval(werkKijken); werkKijken = null; }
+    werkKlokStop();
     werkBezig.style.display = 'none';
     werkGelukt.style.display = 'none';
     werkFoutTekst.textContent = tekst;
@@ -583,6 +619,7 @@
   // amateuristisch uitzag: "12 changes applied" stond in dezelfde balk als
   // "something went wrong".
   function werkGeluktTonen(tekst){
+    werkKlokStop();
     werkBezig.style.display = 'none';
     werkFout.style.display = 'none';
     werkGeluktTekst.textContent = tekst;
@@ -593,6 +630,32 @@
     var d = document.createElement('div');
     d.textContent = waarde;
     return d.innerHTML;
+  }
+
+  // Elk voorstel als een regel met een vinkje ervoor, niet als een eigen
+  // kaartje. Twaalf kaartjes onder elkaar leest als een stapel losse
+  // meldingen; twaalf regels lees je in een keer na.
+  //
+  // Apart gezet omdat het terugzetten van een wijziging hier ook gebruik van
+  // maakt: die zet het voorstel weer bovenaan de lijst.
+  function voegVoorstelToe(v, bovenaan){
+    if (!v || !v.id) { return; }
+    if (voorstellen.querySelector('input[data-id="' + v.id.replace(/"/g,'') + '"]')) { return; }
+    var rij = document.createElement('label');
+    rij.className = 'voorstel';
+    rij.innerHTML =
+      '<input type="checkbox" checked data-id="' + tekstvak(v.id) + '">'
+      + '<span style="min-width:0;">'
+      + '<span class="waarheen">' + tekstvak(v.waar) + '</span>'
+      + '<div class="soort">' + tekstvak(v.wat) + '</div>'
+      + (v.oud ? '<div class="oud">' + tekstvak(v.oud) + '</div>' : '')
+      + '<div class="nieuw">' + tekstvak(v.nieuw) + '</div>'
+      + '</span>';
+    if (bovenaan && voorstellen.firstChild) {
+      voorstellen.insertBefore(rij, voorstellen.firstChild);
+    } else {
+      voorstellen.appendChild(rij);
+    }
   }
 
   function toonVoorstellen(stand){
@@ -607,22 +670,7 @@
       naKijkKnop.textContent = 'Check again';
       return;
     }
-    // Elk voorstel als een regel met een vinkje ervoor, niet als een eigen
-    // kaartje. Twaalf kaartjes onder elkaar leest als een stapel losse
-    // meldingen; twaalf regels lees je in een keer na.
-    lijst.forEach(function(v){
-      var rij = document.createElement('label');
-      rij.className = 'voorstel';
-      rij.innerHTML =
-        '<input type="checkbox" checked data-id="' + tekstvak(v.id) + '">'
-        + '<span style="min-width:0;">'
-        + '<span class="waarheen">' + tekstvak(v.waar) + '</span>'
-        + '<div class="soort">' + tekstvak(v.wat) + '</div>'
-        + (v.oud ? '<div class="oud">' + tekstvak(v.oud) + '</div>' : '')
-        + '<div class="nieuw">' + tekstvak(v.nieuw) + '</div>'
-        + '</span>';
-      voorstellen.appendChild(rij);
-    });
+    lijst.forEach(voegVoorstelToe);
     werkBezig.style.display = 'none';
     voorstelBlok.style.display = 'block';
     naKijkKnop.disabled = false;
@@ -663,6 +711,7 @@
           if (stand.mislukt) { werkFoutTonen(stand.tekst); return; }
           if (stand.klaar){
             if (werkKijken) { clearInterval(werkKijken); werkKijken = null; }
+            werkKlokStop();
             toonVoorstellen(stand);
             return;
           }
@@ -681,6 +730,9 @@
       voorstelBlok.style.display = 'none';
       werkBezig.style.display = 'block';
       werkBezigTekst.textContent = 'Reading your store…';
+      werkKlokStop();
+      werkKlok = tijdteller(document.getElementById('werkklok'), Date.now(),
+                            '2 to 5 minutes');
       metKaartje(function(kaartje){
         fetch('/shopify/api/voorstellen', {
           method: 'POST',
@@ -770,6 +822,17 @@
                 .then(function(r){ return r.json().then(function(x){ return {ok: r.ok, data: x}; }); })
                 .then(function(res){
                   if (!res.ok) { werkFoutTonen(res.data.error || 'We could not undo that.'); terug.disabled = false; terug.textContent = 'Undo this'; return; }
+                  // Het voorstel weer bovenaan de lijst zetten. Zonder dit moest
+                  // je opnieuw je hele winkel laten nakijken om die ene
+                  // wijziging terug te krijgen, en kreeg je er tientallen
+                  // andere voorstellen bij die je niet gevraagd had.
+                  if (res.data.voorstel) {
+                    voegVoorstelToe(res.data.voorstel, true);
+                    voorstelBlok.style.display = 'block';
+                    toepasKnop.disabled = false;
+                    werkGeluktTonen('Undone. We put it back at the top of the list, '
+                      + 'so you can apply it again whenever you want.');
+                  }
                   haalWijzigingen();
                 })
                 .catch(function(){ werkFoutTonen('Something went wrong.'); terug.disabled = false; terug.textContent = 'Undo this'; });
