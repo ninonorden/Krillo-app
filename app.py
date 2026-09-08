@@ -1190,10 +1190,18 @@ def _benadering_ronde():
         if not ruimte["mag"]:
             print(f"Benadering, geen metingen deze ronde: {ruimte['reden']}")
         if klaar_te_meten:
+            # EERST vastleggen dat deze winkels in de meting zitten, en pas
+            # daarna de meting starten. Andersom gaat er een ronde overheen
+            # waarin ze nog op "adres" staan, komen ze opnieuw aan de beurt, en
+            # betaal je twee keer voor dezelfde meting. Dat is precies wat er
+            # gebeurd is: vijf winkels, elk drie tot vijf keer gemeten.
+            benadering.markeer_in_meting(klaar_te_meten)
             _demo_inplannen(klaar_te_meten, benchmark_stand=True)
             print(f"Benadering, in de meetrij gezet: {len(klaar_te_meten)}")
         # Winkels waarvan de meting inmiddels klaar is doorzetten naar 'gemeten'.
-        for winkel in db.get_benaderingen(stand="adres"):
+        # Ook de winkels die nu op "meten" staan, want daar zit de winst: die
+        # zijn betaald en moeten niet nog een keer.
+        for winkel in db.get_benaderingen(stand=("adres", "meten")):
             if winkel["webshop_url"] in al_gemeten:
                 db.zet_benadering(winkel["webshop_url"], stand="gemeten")
     except Exception as e:

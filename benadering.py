@@ -25,7 +25,7 @@ Twee dingen die dit bestand nooit doet:
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 try:
     from zoneinfo import ZoneInfo
@@ -103,23 +103,62 @@ def zoek_adressen(hoeveel=None):
 
 # ------------------------------------------------------------------ 2. meten
 
+# Hoe lang een meting mag duren voordat wij hem als vastgelopen beschouwen.
+# Een meting duurt minuten, niet uren. Zes uur is ruim genoeg om een lange
+# wachtrij af te werken, en kort genoeg om een winkel niet dagen te laten hangen.
+METING_VASTGELOPEN_NA_UUR = 6
+
+
 def te_meten(hoeveel=None, al_gemeten=None):
     """Welke winkels aan de beurt zijn om gemeten te worden.
 
-    De lijst met al gemeten winkels geef je mee, zodat wij hier niet hoeven te
-    weten hoe de meting werkt."""
+    Wat hier NIET meer gebeurt: een winkel teruggeven die al in de meting zit.
+    Dat gebeurde wel, en het kostte echt geld. De wachtrij staat in het geheugen
+    van de server, dus een herstart van Render maakte hem leeg. De winkel stond
+    dan nog op "adres" en kwam de volgende ronde gewoon weer aan de beurt. Vijf
+    winkels, elk drie tot vijf keer gemeten, zestien euro op een dag, en de
+    teller "gemeten" bleef op nul. Nu zetten wij hem eerst op "meten" en pakken
+    wij hem pas weer op als hij daar uren later nog steeds staat.
+    """
     hoeveel = hoeveel if hoeveel is not None else instellingen()["metingen_per_ronde"]
     klaar = set(al_gemeten or [])
     uit = []
-    for winkel in db.get_benaderingen(stand="adres", limiet=hoeveel * 4):
-        if winkel["webshop_url"] in klaar:
-            # Al gemeten in een eerdere ronde, alleen de stand liep achter.
-            db.zet_benadering(winkel["webshop_url"], stand="gemeten")
+
+    # Eerst de vastgelopen metingen terugzetten, zodat ze hieronder gewoon weer
+    # meedoen. Een meting die nog loopt blijft met rust.
+    grens = datetime.now(KLOK) - timedelta(hours=METING_VASTGELOPEN_NA_UUR)
+    for winkel in db.get_benaderingen(stand="meten"):
+        url = winkel["webshop_url"]
+        if url in klaar:
+            db.zet_benadering(url, stand="gemeten")
             continue
-        uit.append(winkel["webshop_url"])
+        begonnen = winkel.get("meting_gestart_op")
+        if begonnen is not None and begonnen.tzinfo is None and KLOK:
+            begonnen = begonnen.replace(tzinfo=KLOK)
+        if begonnen is not None and begonnen > grens:
+            continue
+        db.zet_benadering(url, stand="adres",
+                          notitie="Meting liep vast, opnieuw ingepland.")
+
+    for winkel in db.get_benaderingen(stand="adres", limiet=hoeveel * 4):
+        url = winkel["webshop_url"]
+        if url in klaar:
+            # Al gemeten in een eerdere ronde, alleen de stand liep achter.
+            db.zet_benadering(url, stand="gemeten")
+            continue
+        uit.append(url)
         if len(uit) >= hoeveel:
             break
     return uit
+
+
+def markeer_in_meting(urls):
+    """Zet winkels op "meten" zodat de volgende ronde ze met rust laat.
+
+    Dit moet gebeuren VOORDAT de meting start. Doe je het erna, dan is er al een
+    ronde overheen gegaan en heb je twee keer betaald."""
+    for url in urls or []:
+        db.zet_benadering(url, stand="meten", meting_gestart=True)
 
 
 def markeer_gemeten(urls):

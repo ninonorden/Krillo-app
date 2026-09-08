@@ -176,6 +176,12 @@ def init_db():
                         bijgewerkt_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                # Wanneer de meting voor deze winkel begonnen is. Zonder dit
+                # kunnen wij een meting die nog loopt niet onderscheiden van een
+                # meting die onderweg is omgevallen, en dan blijft een winkel
+                # ofwel eeuwig hangen ofwel wordt hij eeuwig opnieuw betaald.
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS meting_gestart_op TIMESTAMPTZ;")
                 cur.execute("""CREATE INDEX IF NOT EXISTS benadering_stand
                                ON benadering (stand);""")
                 # Koppelingen met winkels die niet op Shopify draaien.
@@ -2740,7 +2746,13 @@ def benchmark_regels():
 # dat is de reden dat deze tabel bestaat.
 # ---------------------------------------------------------------------------
 
-BENADER_STANDEN = ("nieuw", "geen_adres", "adres", "gemeten", "gemaild",
+# "meten" zit hier bewust tussen "adres" en "gemeten".
+#
+# Zonder die tussenstand kwam een winkel die in de meting zat de volgende ronde
+# gewoon weer aan de beurt, want hij stond nog op "adres". Er is toen vijf keer
+# voor dezelfde vijf winkels betaald zonder dat er ooit iets afkwam. Zestien
+# euro op een dag, en de teller "gemeten" bleef op nul staan.
+BENADER_STANDEN = ("nieuw", "geen_adres", "adres", "meten", "gemeten", "gemaild",
                    "gereageerd", "klant", "afgevallen")
 
 
@@ -2858,7 +2870,7 @@ def get_benaderingen(stand=None, limiet=None, alleen_niet_afgemeld=True):
 
 
 def zet_benadering(webshop_url, stand=None, email=None, email_bron=None,
-                   notitie=None, gemaild=False, afgemeld=None):
+                   notitie=None, gemaild=False, afgemeld=None, meting_gestart=False):
     """Werkt één winkel bij. Alleen wat je meegeeft verandert."""
     if not webshop_url:
         return False
@@ -2879,6 +2891,8 @@ def zet_benadering(webshop_url, stand=None, email=None, email_bron=None,
         waarden.append(bool(afgemeld))
     if gemaild:
         stukken.append("gemaild_op = now()")
+    if meting_gestart:
+        stukken.append("meting_gestart_op = now()")
     waarden.append(webshop_url)
     conn = _get_connection()
     if conn is None:
