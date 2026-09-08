@@ -1175,6 +1175,7 @@ def _benadering_ronde():
     De volgorde is met opzet zo: eerst adressen zoeken (kost niets), dan meten
     (kost geld bij de modellen), dan pas mailen. Zo staat er altijd een voorraad
     gemeten winkels klaar en hoeft de post nooit te wachten op een meting."""
+    benadering.onthoud_ronde()
     try:
         gevonden = benadering.zoek_adressen()
         print(f"Benadering, adressen: {gevonden}")
@@ -1346,8 +1347,16 @@ def admin_benadering():
 
     inst = benadering.instellingen()
     mag, reden = benadering.hoeveel_mag_er_nu()
+    # Hoeveel metingen er op dit moment echt lopen. Zonder dit getal lijkt een
+    # ronde die gewoon aan het werk is precies op een ronde die vastligt.
+    bezig = len([1 for stand in _demo_status.values()
+                 if stand and stand != "klaar" and not stand.startswith("mislukt")])
     return render_template(
         "admin_benadering.html",
+        diagnose=benadering.waarom_gaat_er_niets_uit(
+            moment_laatste_ronde=benadering.laatste_ronde(),
+            meetruimte=kosten.ruimte_voor_benadering(),
+            metingen_bezig=bezig),
         regels=db.get_benaderingen(alleen_niet_afgemeld=False),
         tellingen=db.tel_benaderingen(),
         instellingen=inst,

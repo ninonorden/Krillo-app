@@ -147,6 +147,123 @@ def hoeveel_mag_er_nu(nu=None):
     return min(inst["per_ronde"], over_vandaag), None
 
 
+LAATSTE_RONDE_SLEUTEL = "benadering_laatste_ronde"
+
+
+def onthoud_ronde(moment=None):
+    """Legt vast wanneer de laatste ronde gedraaid heeft.
+
+    In de database en niet in het geheugen, want Render herstart de server
+    vaker dan je denkt en dan zou hij elke keer zeggen dat er nooit een ronde
+    geweest is."""
+    moment = moment or datetime.now(KLOK)
+    db.zet_instelling(LAATSTE_RONDE_SLEUTEL, moment.isoformat())
+
+
+def laatste_ronde():
+    """Wanneer er voor het laatst een ronde draaide, of None."""
+    waarde = db.get_instelling(LAATSTE_RONDE_SLEUTEL)
+    if not waarde:
+        return None
+    try:
+        return datetime.fromisoformat(str(waarde))
+    except ValueError:
+        return None
+
+
+def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
+                             metingen_bezig=0):
+    """Vertelt in gewone taal waarom er op dit moment geen post uitgaat.
+
+    Dit bestaat omdat "er staan 93 winkels op de lijst en er is nul gemaild"
+    zeven verschillende oorzaken kan hebben, en die zijn van buitenaf niet uit
+    elkaar te houden. Zonder dit blok moet je in de logboeken van Render gaan
+    graven om te zien of de schakelaar uit staat of dat er simpelweg nog geen
+    enkele winkel een adres heeft.
+
+    Geeft een lijst met (ernst, regel). Ernst is "blok" als het echt tegenhoudt,
+    "wacht" als het vanzelf goed komt, en "goed" als het in orde is."""
+    uit = []
+    inst = instellingen()
+    tellingen = db.tel_benaderingen()
+    per_stand = tellingen.get("per_stand") or {}
+
+    # 1. Draait er wel iets. Zonder aanroep gebeurt er helemaal niets, en dat
+    # is verreweg de meest voorkomende oorzaak.
+    if moment_laatste_ronde is None:
+        uit.append(("blok", "Er is nog geen ronde gedraaid. Zonder een cron-taak "
+                            "op /api/cron/benadering gebeurt er niets, hoeveel "
+                            "winkels er ook op de lijst staan."))
+    else:
+        uren = (datetime.now(KLOK) - moment_laatste_ronde).total_seconds() / 3600
+        if uren > 3:
+            uit.append(("blok", f"De laatste ronde was {uren:.0f} uur geleden. "
+                                f"Controleer de cron-taak, die hoort elk uur te "
+                                f"draaien."))
+        else:
+            uit.append(("goed", f"De laatste ronde was {uren:.1f} uur geleden."))
+
+    # 2. De schakelaar.
+    if not inst["aan"]:
+        uit.append(("blok", "De schakelaar hieronder staat uit. Er wordt wel "
+                            "gezocht en gemeten, maar er gaat geen post uit."))
+    else:
+        uit.append(("goed", "De schakelaar staat aan."))
+
+    # 3. De klok.
+    if not binnen_kantooruren():
+        uit.append(("wacht", f"Het is nu buiten {VROEGSTE_UUR}:00 tot "
+                             f"{LAATSTE_UUR}:00. Er gaat vanzelf weer post uit "
+                             f"zodra het weer kan."))
+
+    # 4. De dagrem.
+    vandaag = tellingen.get("vandaag_gemaild") or 0
+    if vandaag >= inst["per_dag"]:
+        uit.append(("wacht", f"De dagrem van {inst['per_dag']} is bereikt, "
+                             f"{vandaag} vandaag verstuurd. Morgen gaat het door."))
+
+    # 5. Waar de voorraad stokt. De volgorde is nieuw, adres, gemeten, gemaild.
+    nieuw = per_stand.get("nieuw", 0)
+    adres = per_stand.get("adres", 0)
+    gemeten = per_stand.get("gemeten", 0)
+    geen_adres = per_stand.get("geen_adres", 0)
+    if not tellingen.get("totaal"):
+        uit.append(("blok", "Er staan geen winkels op de lijst. Plak er eerst "
+                            "een lijst in."))
+    elif gemeten:
+        uit.append(("goed", f"{gemeten} winkels staan klaar om post te krijgen."))
+    elif adres:
+        # Hier zat het echte probleem. De wachtrij voor metingen staat in het
+        # geheugen van de server. Zet Render de app in slaap, dan is die rij weg
+        # en is er niets gemeten, terwijl het adressen zoeken wel gelukt is
+        # omdat dat binnen de ronde zelf afgehandeld wordt. Van buitenaf zie je
+        # dan alleen "102 met adres, 0 gemeten" en dat verklaart niets.
+        if meetruimte is not None and not meetruimte.get("mag"):
+            uit.append(("blok", "Er wordt niet gemeten omdat de dagpot voor de "
+                                "eigen benadering op is. "
+                                + (meetruimte.get("reden") or "")))
+        elif metingen_bezig:
+            uit.append(("goed", f"Er zijn nu {metingen_bezig} metingen bezig. "
+                                f"Een meting duurt minuten, dus geef het even."))
+        else:
+            uit.append(("blok", f"{adres} winkels hebben een adres, maar er is er "
+                                f"nog geen enkele gemeten. Dat wijst op een "
+                                f"onderbroken meting: de wachtrij staat in het "
+                                f"geheugen en verdwijnt als Render de app in slaap "
+                                f"zet. Houd de app wakker met een cron-taak op "
+                                f"/wakker, elke tien minuten."))
+    elif nieuw:
+        uit.append(("wacht", f"Alle {nieuw} winkels staan nog op 'nieuw'. Er is "
+                             f"nog geen e-mailadres gevonden. Dat gebeurt "
+                             f"{inst['adressen_per_ronde']} per ronde, dus dit "
+                             f"kost een paar rondes."))
+
+    if geen_adres:
+        uit.append(("wacht", f"Bij {geen_adres} winkels vonden wij geen algemeen "
+                             f"e-mailadres. Die slaan wij over, dat is geen fout."))
+    return uit
+
+
 def te_mailen(hoeveel):
     """De winkels die aan de beurt zijn voor post: gemeten, adres bekend, nog
     nooit gemaild, niet afgemeld."""

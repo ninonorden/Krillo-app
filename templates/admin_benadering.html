@@ -85,6 +85,28 @@
     </div>
   </div>
 
+  {# Waarom dit blok bestaat: "211 op de lijst en 0 gemaild" kan zeven
+     verschillende oorzaken hebben, en die zijn van buitenaf niet uit elkaar te
+     houden. Zonder dit moest je in de logboeken van Render gaan graven. #}
+  {% if diagnose %}
+  <div class="kaart">
+    <div class="uitleg" style="margin-bottom:10px;"><b>Wat houdt de post tegen</b></div>
+    {% for ernst, regel in diagnose %}
+    <div style="display:flex; gap:9px; align-items:flex-start; padding:7px 0;
+                border-top:1px solid var(--lijn, #E4E2DA); font-size:14px;">
+      <span style="flex-shrink:0; font-size:11px; font-weight:700; padding:2px 8px;
+                   border-radius:20px; white-space:nowrap;
+                   {% if ernst == 'blok' %}background:#FFE9E8; color:#8E1F0B;
+                   {% elif ernst == 'wacht' %}background:#FFF1E3; color:#5E4200;
+                   {% else %}background:#CDFEE1; color:#0C5132;{% endif %}">
+        {% if ernst == 'blok' %}houdt tegen{% elif ernst == 'wacht' %}wachten{% else %}in orde{% endif %}
+      </span>
+      <span>{{ regel }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <h2>1. Winkels toevoegen</h2>
   <div class="kaart">
     <div class="uitleg" style="margin-bottom:10px;">
