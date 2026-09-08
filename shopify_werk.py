@@ -49,6 +49,16 @@ PRODUCTEN_PER_KEER = 1000
 # stuk voor stuk kunnen nakijken; een lijst van honderd kijkt niemand na.
 VOORSTELLEN_PER_KEER = 12
 
+# Hoeveel wijzigingen wij gratis in een winkel zetten.
+#
+# Waarom niet nul en waarom niet alles: een onbekende app met nul beoordelingen
+# krijgt niemand zover om eerst te betalen voor een belofte. Maar iemand die
+# ziet dat er echt drie teksten in zijn winkel staan die hij zelf niet had, en
+# daarna leest dat er nog zevenenveertig klaarstaan, snapt meteen waar hij voor
+# betaalt. Laten zien in plaats van vertellen, dat is het hele idee.
+GRATIS_WIJZIGINGEN = 3
+
+
 FAQ_HANDLE = "veelgestelde-vragen-krillo"
 
 # Hoe lang wij wachten als Shopify zegt dat het te druk is, en hoe vaak wij het

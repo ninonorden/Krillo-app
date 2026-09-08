@@ -1741,7 +1741,8 @@ def _maak_taakoplossingen(webshop_url, plan, melden=None):
             taal="nl" if m["is_nederlands"] else "en") or {}
         if uitkomst.get("gelukt"):
             db.bewaar_taakoplossing(webshop_url, taak_id, uitkomst["titel"],
-                                    uitkomst["oplossing"], uitkomst["waar"])
+                                    uitkomst["oplossing"], uitkomst["waar"],
+                                    taal="nl" if m["is_nederlands"] else "en")
             uitkomsten.append({"titel": actie["titel"], "gelukt": True, "fout": None,
                                "was_er_al": False})
         else:
@@ -1942,7 +1943,11 @@ def _klantgegevens(webshop_url):
     # De bewaarde oplossingen aan de taken hangen. Alleen lezen, nooit
     # schrijven: dat gebeurt in de wekelijkse keten.
     if plan and plan.get("acties"):
-        opgeslagen = db.get_taakoplossingen(webshop_url)
+        # Alleen oplossingen in de taal die deze winkel ook op het scherm ziet.
+        # Staat er een Nederlandse tekst van vorige week onder een Engels kopje,
+        # dan lijkt het alsof er iets kapot is. Liever niets, want de volgende
+        # ronde maakt hem alsnog, dan wel in de goede taal.
+        opgeslagen = db.get_taakoplossingen(webshop_url, taal=plantaal)
         for actie in plan["acties"]:
             bewaard = opgeslagen.get(actie.get("id"))
             if bewaard:
@@ -2770,6 +2775,7 @@ def _shopify_scherm(winkel, rij):
         laatste=laatste,
         markt=_markt_van(webshop_url) if webshop_url else None,
         stand=_shopify_status.get(winkel),
+        gratis_totaal=shopify_werk.GRATIS_WIJZIGINGEN,
     )
 
 
@@ -2928,8 +2934,22 @@ def _shopify_voorstellen_maken(winkel, sleutel, webshop_url):
         markt_gegevens = _markt_van(webshop_url)
         uitkomst = shopify_werk.maak_voorstellen(winkel, sleutel, markt_gegevens)
         _shopify_voorstellen[winkel] = {v["id"]: v for v in uitkomst["voorstellen"]}
+        betaalt = False
+        try:
+            rij = db.get_shopify_winkel(winkel) or {}
+            if rij.get("toegangssleutel"):
+                betaalt = shopify_billing.huidig_abonnement(
+                    winkel, rij["toegangssleutel"])["actief"]
+        except Exception as e:
+            print(f"Abonnement nakijken mislukt voor {winkel}: {e}")
+        al_gedaan = len([w for w in db.get_wijzigingen(webshop_url or "")
+                         if (w.get("taak_id") or "").startswith("shopify:")])
         _shopify_werk_status[winkel] = {
             "tekst": "klaar", "klaar": True, "mislukt": False,
+            "betaalt": betaalt,
+            "gratis_over": None if betaalt else max(
+                0, shopify_werk.GRATIS_WIJZIGINGEN - al_gedaan),
+            "gratis_totaal": shopify_werk.GRATIS_WIJZIGINGEN,
             "aantallen": uitkomst["aantallen"],
             "fouten": uitkomst["fouten"],
             # Bewust zonder de HTML-versie: die hoeft het scherm niet te weten
@@ -2994,21 +3014,37 @@ def shopify_api_toepassen():
         return jsonify({"error": "De voorstellen zijn verlopen. Kijk je winkel "
                                  "opnieuw na, dan maken we ze vers."}), 409
 
-    gedaan, mislukt, overgeslagen = [], [], []
+    # Hoeveel er gratis nog in mogen. Wij tellen wat er al echt in de winkel
+    # staat, niet wat er in deze ronde gevraagd wordt: anders kan iemand door
+    # de knop vaker in te drukken alsnog alles gratis krijgen.
+    betaalt = shopify_billing.huidig_abonnement(winkel, rij["toegangssleutel"])["actief"]
+    al_gedaan = len([w for w in db.get_wijzigingen(webshop_url)
+                     if (w.get("taak_id") or "").startswith("shopify:")])
+    over = 10_000 if betaalt else max(0, shopify_werk.GRATIS_WIJZIGINGEN - al_gedaan)
+
+    gedaan, mislukt, overgeslagen, geblokkeerd = [], [], [], []
     for kenmerk in gevraagd[:50]:
         voorstel = bekend.get(kenmerk)
         if not voorstel:
             continue
+        if over <= 0:
+            geblokkeerd.append({"id": kenmerk, "waar": voorstel.get("waar")})
+            continue
         uit = shopify_werk.pas_toe(winkel, rij["toegangssleutel"], voorstel, webshop_url)
         if uit.get("gelukt"):
             gedaan.append({"id": kenmerk, "waar": voorstel.get("waar")})
+            over -= 1
         elif uit.get("overgeslagen"):
+            # Overgeslagen kost geen tegoed: er is niets veranderd.
             overgeslagen.append({"id": kenmerk, "waar": voorstel.get("waar"),
                                  "reden": uit.get("fout")})
         else:
             mislukt.append({"id": kenmerk, "waar": voorstel.get("waar"),
                             "reden": uit.get("fout")})
-    return jsonify({"gedaan": gedaan, "overgeslagen": overgeslagen, "mislukt": mislukt})
+    return jsonify({"gedaan": gedaan, "overgeslagen": overgeslagen, "mislukt": mislukt,
+                    "geblokkeerd": geblokkeerd, "betaalt": betaalt,
+                    "gratis_over": None if betaalt else over,
+                    "gratis_totaal": shopify_werk.GRATIS_WIJZIGINGEN})
 
 
 @app.route("/shopify/api/wijzigingen")

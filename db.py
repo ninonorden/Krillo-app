@@ -367,6 +367,13 @@ def init_db():
                         PRIMARY KEY (webshop_url, taak_id)
                     );
                 """)
+                # In welke taal deze oplossing geschreven is. Zonder dit kreeg
+                # een Amerikaanse winkel een Engels scherm met een Nederlandse
+                # tekst eronder die hij letterlijk moest overnemen. Bewaarde
+                # teksten worden namelijk niet opnieuw gemaakt, en dus bleef de
+                # oude taal hangen.
+                cur.execute("ALTER TABLE taakoplossingen "
+                            "ADD COLUMN IF NOT EXISTS taal TEXT DEFAULT 'nl';")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS gratis_scans (
                         id SERIAL PRIMARY KEY,
@@ -1732,7 +1739,7 @@ def get_bronvindplaatsen(webshop_url, meting_id=None, limit=200):
         conn.close()
 
 
-def bewaar_taakoplossing(webshop_url, taak_id, titel, oplossing, waar):
+def bewaar_taakoplossing(webshop_url, taak_id, titel, oplossing, waar, taal="nl"):
     """Bewaart de kant-en-klare oplossing bij een taak uit het actieplan.
 
     Bewust bewaren en niet elke week opnieuw laten schrijven. Een oplossing
@@ -1749,12 +1756,13 @@ def bewaar_taakoplossing(webshop_url, taak_id, titel, oplossing, waar):
             with conn.cursor() as cur:
                 cur.execute(
                     """INSERT INTO taakoplossingen
-                       (webshop_url, taak_id, titel, oplossing, waar)
-                       VALUES (%s, %s, %s, %s, %s)
+                       (webshop_url, taak_id, titel, oplossing, waar, taal)
+                       VALUES (%s, %s, %s, %s, %s, %s)
                        ON CONFLICT (webshop_url, taak_id) DO UPDATE
                        SET titel = EXCLUDED.titel, oplossing = EXCLUDED.oplossing,
-                           waar = EXCLUDED.waar, gemaakt_op = now()""",
-                    (webshop_url, taak_id, titel, oplossing, waar),
+                           waar = EXCLUDED.waar, taal = EXCLUDED.taal,
+                           gemaakt_op = now()""",
+                    (webshop_url, taak_id, titel, oplossing, waar, taal or "nl"),
                 )
         return True
     except Exception as e:
@@ -1764,18 +1772,30 @@ def bewaar_taakoplossing(webshop_url, taak_id, titel, oplossing, waar):
         conn.close()
 
 
-def get_taakoplossingen(webshop_url):
-    """Alle bewaarde oplossingen voor een winkel, als {taak_id: {...}}."""
+def get_taakoplossingen(webshop_url, taal=None):
+    """Alle bewaarde oplossingen voor een winkel, als {taak_id: {...}}.
+
+    Geef je een taal mee, dan krijg je alleen de oplossingen die in die taal
+    geschreven zijn. Dat is met opzet streng: liever geen tekst dan een
+    Nederlandse tekst onder een Engels kopje. De ontbrekende worden bij de
+    volgende ronde gewoon opnieuw gemaakt, nu wel in de goede taal."""
     conn = _get_connection()
     if conn is None:
         return {}
     try:
         with conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(
-                    "SELECT * FROM taakoplossingen WHERE webshop_url = %s",
-                    (webshop_url,),
-                )
+                if taal:
+                    cur.execute(
+                        """SELECT * FROM taakoplossingen
+                            WHERE webshop_url = %s AND coalesce(taal, 'nl') = %s""",
+                        (webshop_url, taal),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT * FROM taakoplossingen WHERE webshop_url = %s",
+                        (webshop_url,),
+                    )
                 return {r["taak_id"]: dict(r) for r in cur.fetchall()}
     except Exception as e:
         print(f"Taakoplossingen ophalen mislukt: {e}")

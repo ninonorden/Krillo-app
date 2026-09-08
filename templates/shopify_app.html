@@ -135,44 +135,28 @@
     </div>
     {% endif %}
 
-    {% if actieplan and actieplan.acties %}
-    <h2>What to do about it</h2>
-    <p class="onder">At most three things, in the order that matters most. Anything marked
-      <em>measured</em> is something we actually measured. Anything marked
-      <em>our reading</em> is our best interpretation of it, and we say so rather than
-      pretending to be sure.</p>
-    {% for a in actieplan.acties %}
-    <div class="taak">
-      <div class="taak-titel">{{ a.titel }}<span class="merkje {{ a.soort }}">{{ a.merkje or a.soort }}</span></div>
-      {% if a.oplossing %}
-      <div class="label" style="margin-top:14px;">Copy this as it is</div>
-      <div class="plak"><button type="button" class="kopieer" data-doel="p{{ loop.index }}">Copy</button><span id="p{{ loop.index }}">{{ a.oplossing }}</span></div>
-      {% endif %}
-      <div class="label" style="margin-top:14px;">{% if a.waar %}Where this goes{% else %}What to do{% endif %}</div>
-      <div class="waar">{{ a.waar or a.hoe }}</div>
-    </div>
-    {% endfor %}
-    {% endif %}
-
     <button id="metenknop" class="rustig">Measure again</button>
   {% endif %}
 
   <h2>We do the work, not you</h2>
-  <p class="onder">Most tools hand you a list of things to fix and leave you to it. We
-    write the missing text and put it in your store for you. You see every change before
-    it happens, and every change can be undone.</p>
-  <p class="onder">Three things, and only where they are missing:
-    image descriptions, product descriptions on products that have none, and a page with
-    frequently asked questions if you do not have one. We never overwrite text you wrote
+  <p class="onder">Most tools hand you a list of things to fix and leave you to it.
+    We write the missing text and put it in your store ourselves. You see every change
+    before it happens, and every change can be undone with one button.</p>
+  <p class="onder">Three kinds of thing, and only where they are missing: descriptions on
+    images that have none, product descriptions on products that have none, and a page
+    with frequently asked questions if you do not have one. We never touch text you wrote
     yourself.</p>
+  <p class="onder"><b>The first {{ gratis_totaal }} changes are free.</b> Not a demo:
+    they go into your store for real, and they stay there whatever you decide next.</p>
 
-  <button id="nakijkknop" class="rustig">Check my store</button>
+  <button id="nakijkknop">Check my store</button>
 
   <div id="werkbezig" style="display:none;" class="bezig"><span id="werkbezigtekst">Working…</span></div>
   <div id="werkfout" style="display:none;" class="misgegaan"><span id="werkfouttekst"></span></div>
 
   <div id="voorstelblok" style="display:none;">
     <div class="label" style="margin-top:22px;">What we would change</div>
+    <p class="onder" id="grensregel" style="margin-bottom:14px;"></p>
     <div id="voorstellen"></div>
     <button id="toepasknop">Apply the selected changes</button>
   </div>
@@ -204,6 +188,30 @@
     </div>
   </div>
 
+  {# Wat wij NIET zelf kunnen. Dit is het enige huiswerk dat overblijft, en het
+     staat daarom onderaan en klein. robots.txt, het thema en technische code
+     zitten niet in de producten of de pagina's, daar kunnen wij met onze
+     rechten niet bij, en dat moeten wij dan ook gewoon zeggen. #}
+  {% set eigen = ["faq", "productinfo", "alt_tekst"] %}
+  {% set voor_hem = actieplan.acties | rejectattr("id", "in", eigen) | list if actieplan and actieplan.acties else [] %}
+  {% if voor_hem %}
+  <h2>What we cannot do for you</h2>
+  <p class="onder">These sit in your theme or your hosting, not in your products or pages,
+    so we have no way to reach them. Below is the text to send to whoever built your
+    store. If that is nobody, Shopify support can do it.</p>
+  {% for a in voor_hem %}
+  <div class="taak">
+    <div class="taak-titel">{{ a.titel }}<span class="merkje {{ a.soort }}">{{ a.merkje or a.soort }}</span></div>
+    {% if a.oplossing %}
+    <div class="label" style="margin-top:14px;">Send this to your developer</div>
+    <div class="plak"><button type="button" class="kopieer" data-doel="p{{ loop.index }}">Copy</button><span id="p{{ loop.index }}">{{ a.oplossing }}</span></div>
+    {% endif %}
+    <div class="label" style="margin-top:14px;">{% if a.waar %}Where this goes{% else %}What to do{% endif %}</div>
+    <div class="waar">{{ a.waar or a.hoe }}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
   <h2>Plans</h2>
   <div class="prijzen">
     <div class="prijs nu" id="planvrij">
@@ -213,17 +221,17 @@
         <li>One measurement, whenever you want it</li>
         <li>Up to 30 shopping questions</li>
         <li>The stores that come up instead of you</li>
-        <li>We write and apply the missing text for you</li>
+        <li>The first {{ gratis_totaal }} changes written and applied for you</li>
       </ul>
     </div>
     <div class="prijs" id="planbetaald">
       <div class="naam">Monitoring <span class="nulabel" id="betaaldlabel" style="display:none;">your plan</span></div>
       <div class="bedrag">$39 <small>/ month</small></div>
       <ul>
-        <li>Measured again every week, automatically</li>
+        <li>Every remaining change written and applied for you</li>
+        <li>New products picked up and filled in automatically</li>
+        <li>Measured again every week, so you see whether it helped</li>
         <li>An alert when something actually changes</li>
-        <li>The pages your competitors appear on and you don't</li>
-        <li>Anything AI gets wrong about your store</li>
         <li>Cancel any time, from here</li>
       </ul>
       <button id="abonneerknop" style="display:none;">Start 7 day free trial</button>
@@ -460,6 +468,26 @@
     voorstelBlok.style.display = 'block';
     naKijkKnop.disabled = false;
     naKijkKnop.textContent = 'Check again';
+
+    // Eerlijk zijn over de grens VOORDAT hij op de knop drukt. Iemand die
+    // twaalf vakjes aanvinkt en er daarna drie terugkrijgt voelt zich beetgenomen,
+    // ook al staat het ergens in de kleine letters.
+    var grens = document.getElementById('grensregel');
+    if (stand.betaalt) {
+      grens.textContent = 'Your plan covers all of these.';
+      if (stand.aantallen && stand.aantallen.nog_te_gaan > 0) {
+        grens.textContent += ' ' + stand.aantallen.nog_te_gaan
+          + ' more are waiting after this batch.';
+      }
+    } else if (stand.gratis_over > 0) {
+      grens.textContent = 'You have ' + stand.gratis_over + ' of your '
+        + stand.gratis_totaal + ' free changes left. Tick the ones you want most, '
+        + 'the rest stays here.';
+    } else {
+      grens.textContent = 'You have used your ' + stand.gratis_totaal
+        + ' free changes. The plan below applies the rest and keeps up with new products.';
+    }
+    toepasKnop.disabled = (!stand.betaalt && stand.gratis_over === 0);
     if (stand.fouten && stand.fouten.length){
       werkFoutTekst.textContent = 'Some parts could not be prepared: ' + stand.fouten.join(' ');
       werkFout.style.display = 'block';
@@ -533,6 +561,12 @@
           var melding = d.gedaan.length + ' change(s) applied.';
           if (d.overgeslagen.length) { melding += ' ' + d.overgeslagen.length + ' skipped because text was already there.'; }
           if (d.mislukt.length) { melding += ' ' + d.mislukt.length + ' failed.'; }
+          if (d.geblokkeerd && d.geblokkeerd.length) {
+            melding += ' ' + d.geblokkeerd.length + ' were not applied: that is where your '
+              + d.gratis_totaal + ' free changes ran out. The plan below applies the rest.';
+          } else if (!d.betaalt && d.gratis_over === 0 && d.gedaan.length) {
+            melding += ' That was the last of your ' + d.gratis_totaal + ' free changes.';
+          }
           werkFoutTekst.textContent = melding;
           werkFout.style.display = 'block';
           haalWijzigingen();
