@@ -121,7 +121,10 @@ def te_meten(hoeveel=None, al_gemeten=None):
     wij hem pas weer op als hij daar uren later nog steeds staat.
     """
     hoeveel = hoeveel if hoeveel is not None else instellingen()["metingen_per_ronde"]
-    klaar = set(al_gemeten or [])
+    # Door dezelfde schrijfwijze halen, anders lopen "https://www.winkel.nl" en
+    # "https://winkel.nl" hier stil langs elkaar heen en wordt dezelfde winkel
+    # eeuwig opnieuw gemeten.
+    klaar = {scan_engine.normalize_url(u) for u in (al_gemeten or [])}
     uit = []
 
     # Eerst de vastgelopen metingen terugzetten, zodat ze hieronder gewoon weer
@@ -129,7 +132,7 @@ def te_meten(hoeveel=None, al_gemeten=None):
     grens = datetime.now(KLOK) - timedelta(hours=METING_VASTGELOPEN_NA_UUR)
     for winkel in db.get_benaderingen(stand="meten"):
         url = winkel["webshop_url"]
-        if url in klaar:
+        if scan_engine.normalize_url(url) in klaar:
             db.zet_benadering(url, stand="gemeten")
             continue
         begonnen = winkel.get("meting_gestart_op")
@@ -142,7 +145,7 @@ def te_meten(hoeveel=None, al_gemeten=None):
 
     for winkel in db.get_benaderingen(stand="adres", limiet=hoeveel * 4):
         url = winkel["webshop_url"]
-        if url in klaar:
+        if scan_engine.normalize_url(url) in klaar:
             # Al gemeten in een eerdere ronde, alleen de stand liep achter.
             db.zet_benadering(url, stand="gemeten")
             continue

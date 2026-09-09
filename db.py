@@ -13,6 +13,8 @@ import os
 import json
 import uuid
 import secrets
+
+import kluis
 import scan_engine
 import threading
 import time
@@ -670,6 +672,7 @@ def init_db():
     # verbinding. Mislukt dit, dan is alleen deze stap mislukt en start de app
     # gewoon op.
     _zet_slot_op_lopende_tests()
+    _sluit_bestaande_shopify_sleutels_weg()
 
 
 def ontclaim_payment(payment_id):
@@ -1109,6 +1112,110 @@ def leg_herroeping_vast(email, webshop_url, toelichting):
         conn.close()
 
 
+# ---------------------------------------------------------------------------
+# De sleutels van Shopify-winkels versleuteld bewaren
+# ---------------------------------------------------------------------------
+#
+# Met zo'n sleutel kan je in de winkel van een ander schrijven: producten,
+# pagina's, bestanden. Ze stonden hier in platte tekst. Lekt de database ooit,
+# dan heeft iemand schrijftoegang tot elke winkel die de app geinstalleerd
+# heeft, en dat is een heel andere ramp dan een gelekte lijst met webadressen.
+#
+# Waarom er een merkje voor staat en niet gewoon versleutelde tekst: er staan nu
+# al sleutels in platte tekst in de database. Zonder merkje kan je die twee niet
+# uit elkaar houden en zou de app na het bijwerken elke bestaande winkel als
+# onleesbaar beschouwen. Met het merkje weet elke leesactie precies wat hij
+# voor zich heeft.
+#
+# Staat KLUIS_SLEUTEL niet ingesteld, dan bewaren wij zoals het was en zeggen
+# wij dat in het logboek. Beter een app die draait met een waarschuwing dan een
+# app die er na een nieuwe versie mee ophoudt.
+SLEUTEL_MERKJE = "kluis1:"
+
+
+def _sluit_bestaande_shopify_sleutels_weg():
+    """Zet sleutels die nog in platte tekst staan alsnog in de kluis.
+
+    Draait bij elke opstart en doet daarna niets meer, want een sleutel met het
+    merkje ervoor wordt overgeslagen. Zonder deze stap zou alleen een winkel die
+    opnieuw installeert versleuteld raken, en blijven de bestaande winkels
+    voorgoed in platte tekst staan."""
+    if not kluis.beschikbaar():
+        print("LET OP: KLUIS_SLEUTEL ontbreekt. Shopify-sleutels staan in platte "
+              "tekst in de database. Zet in Render een KLUIS_SLEUTEL van minstens "
+              "32 willekeurige tekens, dan worden ze bij de volgende start "
+              "versleuteld.")
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    gedaan = 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT winkel, toegangssleutel, verversleutel "
+                            "FROM shopify_winkels")
+                rijen = cur.fetchall()
+                for winkel, sleutel, ververs in rijen:
+                    nieuw_s = _sluit_sleutel_weg(sleutel)
+                    nieuw_v = _sluit_sleutel_weg(ververs)
+                    if nieuw_s == sleutel and nieuw_v == ververs:
+                        continue
+                    cur.execute("UPDATE shopify_winkels SET toegangssleutel = %s, "
+                                "verversleutel = %s WHERE winkel = %s",
+                                (nieuw_s, nieuw_v, winkel))
+                    gedaan += 1
+        if gedaan:
+            print(f"{gedaan} Shopify-sleutel(s) alsnog versleuteld opgeborgen.")
+        return gedaan
+    except Exception as e:
+        print(f"Bestaande Shopify-sleutels wegsluiten mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def _sluit_sleutel_weg(waarde):
+    """Versleutelt een toegangssleutel. Lukt dat niet, dan onveranderd terug."""
+    if not waarde or str(waarde).startswith(SLEUTEL_MERKJE):
+        return waarde
+    if not kluis.beschikbaar():
+        print("LET OP: KLUIS_SLEUTEL ontbreekt, Shopify-sleutels worden in platte "
+              "tekst bewaard. Zet in Render een KLUIS_SLEUTEL van minstens 32 tekens.")
+        return waarde
+    try:
+        return SLEUTEL_MERKJE + kluis.sluit({"s": waarde})
+    except Exception as e:
+        print(f"Sleutel wegsluiten mislukt, onveranderd bewaard: {e}")
+        return waarde
+
+
+def _haal_sleutel_op(waarde):
+    """Draait _sluit_sleutel_weg terug. Platte tekst gaat onveranderd door."""
+    if not waarde or not str(waarde).startswith(SLEUTEL_MERKJE):
+        return waarde
+    geopend = kluis.open_(str(waarde)[len(SLEUTEL_MERKJE):])
+    if not geopend:
+        # De kluissleutel is veranderd of de regel is aangepast. Niets
+        # teruggeven is hier het juiste: met een halve sleutel naar Shopify gaan
+        # levert alleen verwarrende foutmeldingen op.
+        print("LET OP: een bewaarde Shopify-sleutel is niet te openen. "
+              "Is KLUIS_SLEUTEL veranderd? De winkel moet opnieuw installeren.")
+        return None
+    return geopend.get("s")
+
+
+def _rij_met_open_sleutels(rij):
+    """Een rij uit shopify_winkels met leesbare sleutels erin."""
+    if not rij:
+        return rij
+    uit = dict(rij)
+    for veld in ("toegangssleutel", "verversleutel"):
+        if veld in uit:
+            uit[veld] = _haal_sleutel_op(uit[veld])
+    return uit
+
+
 def bewaar_shopify_winkel(winkel, toegangssleutel, rechten=None, webshop_url=None,
                           email=None, naam=None, geldig_seconden=None,
                           verversleutel=None, verversleutel_seconden=None):
@@ -1146,8 +1253,9 @@ def bewaar_shopify_winkel(winkel, toegangssleutel, rechten=None, webshop_url=Non
                            actief = true,
                            geinstalleerd_op = now(),
                            verwijderd_op = NULL""",
-                    (winkel, toegangssleutel, rechten, webshop_url, email, naam,
-                     float(geldig_seconden or 0), verversleutel,
+                    (winkel, _sluit_sleutel_weg(toegangssleutel), rechten,
+                     webshop_url, email, naam,
+                     float(geldig_seconden or 0), _sluit_sleutel_weg(verversleutel),
                      float(verversleutel_seconden or 0)),
                 )
         return True
@@ -1186,7 +1294,8 @@ def vervang_shopify_sleutelpaar(winkel, toegangssleutel, geldig_seconden,
                               verversleutel_tot = now() + make_interval(secs => %s),
                               rechten = coalesce(%s, rechten)
                         WHERE winkel = %s""",
-                    (toegangssleutel, float(geldig_seconden or 0), verversleutel,
+                    (_sluit_sleutel_weg(toegangssleutel), float(geldig_seconden or 0),
+                     _sluit_sleutel_weg(verversleutel),
                      float(verversleutel_seconden or 0), rechten, winkel),
                 )
                 return cur.rowcount > 0
@@ -1308,7 +1417,7 @@ def get_shopify_winkel(winkel):
         with conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("SELECT * FROM shopify_winkels WHERE winkel = %s", (winkel,))
-                return cur.fetchone()
+                return _rij_met_open_sleutels(cur.fetchone())
     except Exception as e:
         print(f"Shopify-winkel ophalen mislukt voor {winkel}: {e}")
         return None
@@ -1328,7 +1437,7 @@ def get_shopify_winkels(alleen_actief=True):
                                     ORDER BY geinstalleerd_op DESC""")
                 else:
                     cur.execute("SELECT * FROM shopify_winkels ORDER BY geinstalleerd_op DESC")
-                return cur.fetchall()
+                return [_rij_met_open_sleutels(r) for r in cur.fetchall()]
     except Exception as e:
         print(f"Shopify-winkels ophalen mislukt: {e}")
         return []

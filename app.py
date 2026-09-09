@@ -1198,7 +1198,18 @@ def _benadering_ronde():
         print(f"Benadering, adressen zoeken mislukt: {e}")
 
     try:
-        al_gemeten = {w["webshop_url"] for w in db.get_demo_webshops()
+        # Aan beide kanten door dezelfde schrijfwijze halen voordat wij
+        # vergelijken.
+        #
+        # Waarom: dit is de vergelijking die bepaalt of een winkel van "meten"
+        # naar "gemeten" gaat, en dus of hij ooit post krijgt. Klopt hij niet,
+        # dan wordt dezelfde winkel elk uur opnieuw gemeten en gaat er nooit
+        # iets uit, zonder dat er ergens een foutmelding verschijnt. De
+        # rapporten van voor september staan nog in de oude schrijfwijze, met
+        # www ervoor of http in plaats van https, en die zouden hier stil langs
+        # elkaar heen lopen.
+        al_gemeten = {scan_engine.normalize_url(w["webshop_url"])
+                      for w in db.get_demo_webshops()
                       if (w.get("vragen") or 0) > 0}
         ruimte = kosten.ruimte_voor_benadering()
         # Niet meer inplannen dan er met de rest van de dagpot betaald kan
@@ -1229,7 +1240,7 @@ def _benadering_ronde():
         # Ook de winkels die nu op "meten" staan, want daar zit de winst: die
         # zijn betaald en moeten niet nog een keer.
         for winkel in db.get_benaderingen(stand=("adres", "meten")):
-            if winkel["webshop_url"] in al_gemeten:
+            if scan_engine.normalize_url(winkel["webshop_url"]) in al_gemeten:
                 db.zet_benadering(winkel["webshop_url"], stand="gemeten")
     except Exception as e:
         print(f"Benadering, meten mislukt: {e}")
