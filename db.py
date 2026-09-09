@@ -14,15 +14,120 @@ import json
 import uuid
 import secrets
 import scan_engine
+import threading
+import time
+
 import psycopg2
+import psycopg2.pool
 from psycopg2.extras import RealDictCursor, execute_values
 
 
+# Verbindingen hergebruiken in plaats van er telkens een nieuwe opzetten.
+#
+# Waarom dit nodig is: elke functie in dit bestand opende een eigen verbinding
+# naar Neon, en dat zijn er drieennegentig. Het openen van een winkel in de
+# Shopify-app doet er acht achter elkaar, elk met een eigen TLS-handdruk naar
+# een database die ergens anders staat. Dat is een halve tot een hele seconde
+# aan wachten waar niets gebeurt, en het is precies wat opviel bij het openen
+# van de app.
+#
+# Hoe het werkt zonder die drieennegentig plekken aan te passen: _get_connection
+# geeft geen kale verbinding meer terug maar een omhulsel. Dat omhulsel doet
+# alles door naar de echte verbinding, behalve close(). Die geeft hem terug aan
+# de pool in plaats van hem echt te sluiten. Elke bestaande "finally:
+# conn.close()" blijft dus staan en doet nu het goede.
+_POOL = None
+_POOL_SLOT = threading.Lock()
+
+# Klein houden. Neon rekent verbindingen af en Render draait maar een paar
+# processen. Twee tot acht is ruim voor het werk dat hier gebeurt.
+POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))
+POOL_MAX = int(os.environ.get("DB_POOL_MAX", "8"))
+# Hoe lang wij wachten op een vrije verbinding voordat wij er zelf een opzetten.
+# Vijftig keer twintig milliseconden is een seconde. Een databaseaanroep duurt
+# hier milliseconden, dus in de praktijk is het bijna altijd de eerste poging.
+POOL_WACHT_POGINGEN = 50
+POOL_WACHT_SECONDEN = 0.02
+
+
+class _Geleend:
+    """Een geleende verbinding die zichzelf teruggeeft in plaats van te sluiten.
+
+    Alles gaat door naar de echte verbinding. Alleen close() is anders, en
+    __enter__ en __exit__ moeten expliciet doorgegeven worden omdat Python die
+    op de klasse opzoekt en niet via __getattr__."""
+
+    def __init__(self, conn, pool):
+        self._conn = conn
+        self._pool = pool
+        self._terug = False
+
+    def __getattr__(self, naam):
+        return getattr(self._conn, naam)
+
+    def __enter__(self):
+        self._conn.__enter__()
+        return self
+
+    def __exit__(self, *fout):
+        return self._conn.__exit__(*fout)
+
+    def close(self):
+        if self._terug:
+            return
+        self._terug = True
+        try:
+            # Een verbinding die stuk is mag niet terug in de pool, anders
+            # krijgt de volgende aanroeper hem en gaat die ook stuk.
+            if self._conn.closed:
+                self._pool.putconn(self._conn, close=True)
+            else:
+                self._pool.putconn(self._conn)
+        except Exception:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+
+
 def _get_connection():
+    global _POOL
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         return None
-    return psycopg2.connect(db_url)
+    try:
+        if _POOL is None:
+            with _POOL_SLOT:
+                if _POOL is None:
+                    _POOL = psycopg2.pool.ThreadedConnectionPool(
+                        POOL_MIN, POOL_MAX, db_url)
+        # Zijn alle verbindingen in gebruik, dan even wachten in plaats van
+        # meteen een losse verbinding opzetten. Een aanroep duurt milliseconden,
+        # dus er komt bijna altijd binnen een oogwenk een vrij. Zonder dit zette
+        # een meting met twintig draden twintig losse verbindingen op, en dat is
+        # precies wat de pool moest voorkomen.
+        conn = None
+        for poging in range(POOL_WACHT_POGINGEN):
+            try:
+                conn = _POOL.getconn()
+                break
+            except psycopg2.pool.PoolError:
+                if poging == POOL_WACHT_POGINGEN - 1:
+                    raise
+                time.sleep(POOL_WACHT_SECONDEN)
+        if conn.closed:
+            _POOL.putconn(conn, close=True)
+            conn = _POOL.getconn()
+        return _Geleend(conn, _POOL)
+    except Exception as e:
+        # Lukt de pool niet, dan gewoon een losse verbinding. Liever langzaam
+        # dan helemaal niet: dit is de laag waar alles op draait.
+        print(f"Verbindingenpool niet beschikbaar, losse verbinding gebruikt: {e}")
+        try:
+            return psycopg2.connect(db_url)
+        except Exception as e2:
+            print(f"Verbinden met de database mislukt: {e2}")
+            return None
 
 
 def init_db():
@@ -478,6 +583,14 @@ def init_db():
                     );
                 """)
                 cur.execute("ALTER TABLE zichtbaarheidstests ADD COLUMN IF NOT EXISTS hergebruikt BOOLEAN DEFAULT false;")
+                # Tests die uren geleden begonnen en nooit afgemaakt zijn, zijn
+                # omgevallen processen. Die vrijgeven, anders blokkeren ze de
+                # winkel voorgoed zodra het slot hieronder actief wordt.
+                cur.execute("""UPDATE zichtbaarheidstests
+                                  SET status = 'mislukt', foutsoort = 'vastgelopen'
+                                WHERE status IN ('wachtrij', 'bezig')
+                                  AND aangevraagd_op < now() - interval '30 minutes'""")
+
                 cur.execute("ALTER TABLE zichtbaarheidstests ADD COLUMN IF NOT EXISTS soort TEXT DEFAULT 'volledig';")
                 # Een niet te raden kenmerk per test. Het rijnummer telde
                 # gewoon op: wie zelf een test deed en nummer 812 kreeg, kon
@@ -519,6 +632,11 @@ def init_db():
                 cur.execute("ALTER TABLE rapporten ADD COLUMN IF NOT EXISTS klant_token TEXT;")
     finally:
         conn.close()
+
+    # Bewust NA het sluiten van de verbinding hierboven, met een eigen
+    # verbinding. Mislukt dit, dan is alleen deze stap mislukt en start de app
+    # gewoon op.
+    _zet_slot_op_lopende_tests()
 
 
 def ontclaim_payment(payment_id):
@@ -2326,6 +2444,102 @@ def get_demo_webshops():
 # De gratis zichtbaarheidstest (fase 5 punt 12)
 # ---------------------------------------------------------------------------
 
+# Hoe lang een test mag lopen voordat wij hem als vastgelopen beschouwen.
+# Een test duurt minuten. Blijft hij langer dan dit op wachtrij of bezig staan,
+# dan is het proces omgevallen en mag er een nieuwe gestart worden.
+TEST_VASTGELOPEN_NA_MINUTEN = 30
+
+
+def _zet_slot_op_lopende_tests():
+    """Zorgt dat er per winkel hoogstens EEN test tegelijk kan lopen.
+
+    Waarom dit een index in de database is en geen controle in de code: een
+    dubbelklik stuurt twee verzoeken binnen milliseconden. Allebei kijken of er
+    al een test loopt, allebei zien van niet, en allebei starten er een. Dat is
+    met een controle vooraf niet te winnen, hoe je hem ook schrijft. Ik heb dat
+    gemeten: van tien gelijktijdige klikken kwamen er tien door. De database kan
+    het wel, want die kan twee regels tegelijk weigeren.
+
+    Dit staat met opzet in een EIGEN verbinding, buiten de grote opbouw van
+    init_db. Mislukt het aanmaken van deze index, dan is de transactie waarin
+    hij zit kapot en faalt alles wat erna komt. Dat is precies wat er gebeurde
+    toen dit er nog binnen stond, en dan start de app helemaal niet meer op."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                # Eerst opruimen. Staan er nu meerdere lopende tests voor
+                # dezelfde winkel, dan kan de index niet aangemaakt worden.
+                # Wij houden de nieuwste en geven de rest vrij, want die zijn
+                # toch nooit afgemaakt.
+                cur.execute("""
+                    UPDATE zichtbaarheidstests
+                       SET status = 'mislukt', foutsoort = 'dubbel gestart'
+                     WHERE status IN ('wachtrij', 'bezig')
+                       AND id NOT IN (
+                           SELECT max(id) FROM zichtbaarheidstests
+                            WHERE status IN ('wachtrij', 'bezig')
+                            GROUP BY webshop_url)""")
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""CREATE UNIQUE INDEX IF NOT EXISTS
+                               zichtbaarheidstests_een_lopende_per_winkel
+                               ON zichtbaarheidstests (webshop_url)
+                               WHERE status IN ('wachtrij', 'bezig')""")
+        return True
+    except Exception as e:
+        # De app draait gewoon door. Zonder de index is er nog steeds de
+        # controle vooraf, die vangt alles behalve twee klikken in dezelfde
+        # milliseconde.
+        print(f"Slot op lopende tests kon niet gezet worden: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def loopt_er_al_een_test(webshop_url):
+    """Of er voor deze winkel op dit moment al een test loopt.
+
+    Dit is een slot tegen dubbel betalen, en het staat in de database en niet in
+    het geheugen. Twee redenen: Render herstart de server vaker dan je denkt, en
+    er kan meer dan een werker tegelijk draaien. Een slot in het geheugen ziet
+    de klik van de andere werker niet.
+
+    Waarom dit nodig is: de gratis test en de voorproef staan op een publieke
+    pagina zonder wachtwoord. Twee keer klikken, of een dubbelklik, startte twee
+    volledige metingen bij de modellen. Dat kost twee keer geld en levert twee
+    keer dezelfde uitslag op. Precies dezelfde soort fout als bij de benadering,
+    alleen dan bereikbaar voor iedereen die de site bezoekt.
+
+    Een test die vastgelopen is telt niet meer mee, anders kan een winkel na een
+    omgevallen meting nooit meer getest worden."""
+    if not webshop_url:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT 1 FROM zichtbaarheidstests
+                        WHERE webshop_url = %s
+                          AND status IN ('wachtrij', 'bezig')
+                          AND aangevraagd_op > now() - make_interval(mins => %s)
+                        LIMIT 1""",
+                    (webshop_url, TEST_VASTGELOPEN_NA_MINUTEN))
+                return cur.fetchone() is not None
+    except Exception as e:
+        # Bij twijfel niet blokkeren. Een bezoeker die geen uitslag krijgt is
+        # erger dan een test die een keer dubbel loopt.
+        print(f"Nakijken of er al een test loopt mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
 def start_zichtbaarheidstest(webshop_url, email, nieuwsbrief=False, herkomst=None,
                              hergebruikt=False, soort='volledig'):
     """Legt een aanvraag vast en geeft {"id": ..., "kenmerk": ...} terug.
@@ -2354,6 +2568,12 @@ def start_zichtbaarheidstest(webshop_url, email, nieuwsbrief=False, herkomst=Non
                 )
                 rij = cur.fetchone()
                 return {"id": rij[0], "kenmerk": rij[1]}
+    except psycopg2.errors.UniqueViolation:
+        # Het slot heeft toegeslagen: er loopt al een test voor deze winkel.
+        # Dat is geen fout maar precies de bedoeling. Een dubbelklik komt hier
+        # terecht en krijgt netjes None terug in plaats van een tweede meting.
+        print(f"Tweede test voor {webshop_url} tegengehouden, er loopt er al een.")
+        return None
     except Exception as e:
         print(f"Zichtbaarheidstest vastleggen mislukt: {e}")
         return None

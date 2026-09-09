@@ -354,6 +354,14 @@
     <div class="prijs" id="planbetaald">
       <div class="naam">Monitoring <span class="nulabel" id="betaaldlabel" style="display:none;">your plan</span></div>
       <div class="bedrag">$39 <small>/ month</small></div>
+      {# Waarom dit er expliciet bij staat: Shopify laat een app alleen in
+         dollars afrekenen. Een winkelier die krillo.nl naast dit scherm legt
+         ziet daar 39 euro staan en hier 39 dollar, en denkt dat het hetzelfde
+         is. Dat is het niet, en dat hoort hij van ons te horen en niet van
+         zijn eigen factuur. #}
+      <div style="font-size:12.5px; color:var(--tekst-licht); margin:-8px 0 12px;">
+        In US dollars. Shopify converts this to the currency on your Shopify invoice.
+      </div>
       <ul>
         <li>Every remaining change written and applied for you</li>
         <li>New products picked up and filled in every week, without you asking</li>

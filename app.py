@@ -420,6 +420,13 @@ def api_voorproef():
         return jsonify({"status": "klaar", "resultaat": eerder["resultaat"],
                         "zin": zichtbaarheid.samenvattingszin(eerder["resultaat"], url)})
 
+    # Loopt er al een meting voor deze winkel, dan geen tweede starten.
+    # Dit is een publieke pagina zonder wachtwoord: twee keer klikken, of een
+    # dubbelklik, startte anders twee volledige metingen bij de modellen. Dat
+    # kost twee keer geld voor precies dezelfde uitslag.
+    if db.loopt_er_al_een_test(url):
+        return jsonify({"status": "uit"}), 200
+
     mag, _ = zichtbaarheid.mag_starten()
     if not mag:
         # Bewust geen foutmelding aan de bezoeker. Hij vroeg hier niet om, hij
@@ -489,6 +496,14 @@ def api_zichtbaarheidstest():
             daemon=True).start()
         return jsonify({"kenmerk": (aanvraag or {}).get("kenmerk"), "status": "klaar",
                         "resultaat": resultaat, "zin": zin})
+
+    # Loopt er al een meting voor deze winkel, dan geen tweede starten. Anders
+    # betaal je twee keer voor dezelfde uitslag. Deze bezoeker vroeg er zelf om
+    # en wacht op een antwoord, dus die krijgt wel te horen wat er aan de hand
+    # is, in plaats van een stille afwijzing zoals bij de voorproef.
+    if db.loopt_er_al_een_test(url):
+        return jsonify({"error": "Er loopt al een meting voor deze webshop. "
+                                 "Die is over een paar minuten klaar."}), 409
 
     mag, reden = zichtbaarheid.mag_starten()
     if not mag:

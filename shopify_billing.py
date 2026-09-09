@@ -28,6 +28,14 @@ import shopify_app
 PLAN_NAAM = "Krillo monitoring"
 PLAN_PRIJS = "39.00"
 PLAN_VALUTA = "USD"
+# Dit KAN niet in euro's, hoe graag wij ook zouden willen. Shopify accepteert
+# bij een app-abonnement alleen dollars en geeft anders letterlijk de fout
+# "Currency code must be USD". Er is geen instelling en geen omweg.
+#
+# Wat er wel gebeurt: Shopify zet het bedrag om naar de munt van de rekening van
+# de winkelier. Een Nederlandse winkelier ziet dus euro's op zijn Shopify-factuur,
+# alleen niet precies 39. Dat moet op het scherm staan, anders denkt iemand die
+# krillo.nl naast de app legt dat het hetzelfde bedrag is.
 PROEFDAGEN = 7
 
 
