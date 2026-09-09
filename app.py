@@ -1201,7 +1201,19 @@ def _benadering_ronde():
         al_gemeten = {w["webshop_url"] for w in db.get_demo_webshops()
                       if (w.get("vragen") or 0) > 0}
         ruimte = kosten.ruimte_voor_benadering()
-        klaar_te_meten = benadering.te_meten(al_gemeten=al_gemeten) if ruimte["mag"] else []
+        # Niet meer inplannen dan er met de rest van de dagpot betaald kan
+        # worden. Zonder deze grens plande een ronde er gewoon vijf in, ook als
+        # er nog maar twee euro over was. Die metingen worden dan halverwege
+        # afgekapt door de rem: wel betaald bij de modellen, geen uitkomst, en
+        # de winkel blijft op "meten" staan tot hij na zes uur opnieuw mag.
+        past = ruimte.get("past_nog")
+        hoeveel = None if past is None else min(
+            past, benadering.instellingen()["metingen_per_ronde"])
+        klaar_te_meten = (benadering.te_meten(hoeveel=hoeveel, al_gemeten=al_gemeten)
+                          if ruimte["mag"] and (hoeveel is None or hoeveel > 0) else [])
+        if ruimte["mag"] and hoeveel == 0:
+            print("Benadering, geen metingen deze ronde: er is nog wel dagpot over, "
+                  "maar niet genoeg voor een hele meting.")
         if not ruimte["mag"]:
             print(f"Benadering, geen metingen deze ronde: {ruimte['reden']}")
         if klaar_te_meten:

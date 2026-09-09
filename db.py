@@ -48,6 +48,10 @@ POOL_MAX = int(os.environ.get("DB_POOL_MAX", "8"))
 # hier milliseconden, dus in de praktijk is het bijna altijd de eerste poging.
 POOL_WACHT_POGINGEN = 50
 POOL_WACHT_SECONDEN = 0.02
+# Hoe vaak wij een dode verbinding weggooien en de volgende proberen voordat wij
+# opgeven en er zelf een opzetten. Drie is ruim: na een lange stilte zijn ze
+# meestal allemaal dood, en dan zijn er ook niet meer dan een paar.
+POOL_GEZONDE_POGINGEN = 3
 
 
 class _Geleend:
@@ -106,19 +110,48 @@ def _get_connection():
         # dus er komt bijna altijd binnen een oogwenk een vrij. Zonder dit zette
         # een meting met twintig draden twintig losse verbindingen op, en dat is
         # precies wat de pool moest voorkomen.
-        conn = None
-        for poging in range(POOL_WACHT_POGINGEN):
-            try:
-                conn = _POOL.getconn()
+        # Een verbinding uit de pool halen, en pas teruggeven als hij ECHT werkt.
+        #
+        # Dit is waar het misging. conn.closed is alleen een vlag aan onze kant.
+        # Neon doet een verbinding die een tijd stil ligt aan zijn kant weg, en
+        # dan staat onze vlag nog gewoon op open. De eerste aanroep erna gaf
+        # "connection already closed", en dat gebeurde precies bij de ronde die
+        # elk uur draait: die komt langs na een uur stilte.
+        #
+        # Dus vragen wij het aan de database zelf met een piepklein zinnetje.
+        # Dat kost een enkele heenreis, ergens tussen de vijf en twintig
+        # milliseconde bij Neon. Een nieuwe verbinding opzetten kost er honderd
+        # tot driehonderd. Zekerheid is die reis waard.
+        for ronde in range(POOL_GEZONDE_POGINGEN):
+            conn = None
+            for poging in range(POOL_WACHT_POGINGEN):
+                try:
+                    conn = _POOL.getconn()
+                    break
+                except psycopg2.pool.PoolError:
+                    if poging == POOL_WACHT_POGINGEN - 1:
+                        raise
+                    time.sleep(POOL_WACHT_SECONDEN)
+            if conn is None:
                 break
-            except psycopg2.pool.PoolError:
-                if poging == POOL_WACHT_POGINGEN - 1:
-                    raise
-                time.sleep(POOL_WACHT_SECONDEN)
-        if conn.closed:
-            _POOL.putconn(conn, close=True)
-            conn = _POOL.getconn()
-        return _Geleend(conn, _POOL)
+            try:
+                if conn.closed:
+                    raise psycopg2.InterfaceError("verbinding stond al dicht")
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+                conn.rollback()
+                return _Geleend(conn, _POOL)
+            except (psycopg2.InterfaceError, psycopg2.OperationalError,
+                    psycopg2.DatabaseError):
+                # Deze is dood. Weggooien en de volgende proberen. De pool maakt
+                # er vanzelf een nieuwe aan.
+                try:
+                    _POOL.putconn(conn, close=True)
+                except Exception:
+                    pass
+        # Alle pogingen op, dan een losse verbinding hieronder.
+        raise psycopg2.OperationalError("geen gezonde verbinding uit de pool")
     except Exception as e:
         # Lukt de pool niet, dan gewoon een losse verbinding. Liever langzaam
         # dan helemaal niet: dit is de laag waar alles op draait.

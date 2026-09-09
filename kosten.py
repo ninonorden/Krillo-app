@@ -214,6 +214,21 @@ def registreer_vaste_kosten(soort, provider, bedrag, webshop_url=None, email=Non
 #
 # Daarom tellen onbekende aanroepen nu mee tegen een ruime schatting. Liever
 # een rem die te vroeg dichtgaat dan een rem die niets ziet.
+# Wat een meting voor de eigen benadering ongeveer kost.
+#
+# Waarom dit getal er is: een ronde plande vijf winkels in zonder te kijken of
+# er nog genoeg dagpot over was. Bij Nino stonden er daardoor vijfendertig
+# winkels op "meten" terwijl de pot na 12,56 euro dicht ging. Die metingen zijn
+# halverwege afgekapt: wel betaald, geen uitkomst. Nu plannen wij er niet meer
+# in dan er betaald kunnen worden.
+#
+# Gemeten aan de echte cijfers van 8 september: vijf winkels van de
+# benaderlijst, samen ongeveer 15 euro, maar die zijn elk drie tot vijf keer
+# gemeten. Een enkele meting komt daarmee rond de 60 cent uit. Aan de veilige
+# kant afgerond, want te weinig inplannen kost alleen tijd en te veel inplannen
+# kost geld.
+SCHATTING_METING_EURO = float(os.environ.get("SCHATTING_METING_EURO", "0.75"))
+
 SCHATTING_ONBEKENDE_AANROEP_EURO = float(
     os.environ.get("SCHATTING_ONBEKENDE_AANROEP_EURO", "0.02"))
 
@@ -250,7 +265,11 @@ def ruimte_voor_benadering():
                 "reden": (f"Er is vandaag al {totaal:.2f} euro aan metingen uitgegeven, "
                           f"de grens voor de eigen benadering is {grens:.2f} euro. "
                           f"De rest van de dagpot houden we vrij voor klanten.")}
-    return {"mag": True, "reden": None, "besteed": totaal, "grens": grens}
+    return {"mag": True, "reden": None, "besteed": totaal, "grens": grens,
+            # Hoeveel metingen er met de rest van de pot nog betaald kunnen
+            # worden. Plan er nooit meer in dan dit, anders koop je halve
+            # metingen: wel betaald, geen uitkomst.
+            "past_nog": max(0, int((grens - totaal) / SCHATTING_METING_EURO))}
 
 
 def mag_doorgaan(webshop_url=None, scan_id=None):
