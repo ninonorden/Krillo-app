@@ -124,7 +124,8 @@
     plaats van te doen alsof we het zeker weten.</p>
   {% for a in actieplan.acties %}
   <div class="taak">
-    <div class="taak-titel">{{ a.titel }}<span class="merkje {{ a.soort }}">{{ a.soort }}</span></div>
+    <div class="taak-titel">{{ a.titel }}<span class="merkje {{ a.soort }}"
+      title="{{ a.merkje_uitleg }}">{{ a.merkje or a.soort }}</span></div>
     <p>{{ a.waarom }}</p>
   </div>
   {% endfor %}

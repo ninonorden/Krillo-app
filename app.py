@@ -31,6 +31,7 @@ import artikelen
 import koopvragen
 import kosten
 import paginataal
+import winkelvinder
 import metingen
 import actieplan
 import beoordeling
@@ -1239,6 +1240,22 @@ def _benadering_ronde():
     verslag = {"adressen": None, "gemeten_klaar": None, "ingepland": 0,
                "doorgezet": 0, "gemaild": 0, "mislukt": [], "redenen": []}
     benadering.onthoud_ronde()
+
+    # Eerst kijken of de lijst zichzelf moet aanvullen. Zonder dit raakt de
+    # benaderlijst gewoon op: bij vijftien mails per dag is tweehonderd winkels
+    # binnen twee weken leeg, en dan staat de machine stil zonder dat er iets
+    # kapot is. Dat gebeurt alleen als de voorraad onder de grens zakt, anders
+    # betaal je voor namen die weken blijven liggen.
+    try:
+        aanvulling = winkelvinder.vul_aan_indien_nodig(
+            ronde=benadering.rondenummer())
+        verslag["gevonden_winkels"] = aanvulling.get("nieuw", 0)
+        if aanvulling.get("gezocht") and aanvulling.get("reden"):
+            verslag["redenen"].append(aanvulling["reden"])
+    except Exception as e:
+        verslag["mislukt"].append(f"winkels zoeken: {e}")
+        print(f"Benadering, winkels zoeken mislukt: {e}")
+
     try:
         gevonden = benadering.zoek_adressen()
         verslag["adressen"] = gevonden
@@ -1266,6 +1283,22 @@ def _benadering_ronde():
         # dit binnen te_meten zat werd er bij een lege dagpot niets vrijgemaakt,
         # en bleven winkels voorgoed op "meten" staan. Opruimen kost niets.
         verslag["vrijgemaakt"] = benadering.maak_vastgelopen_metingen_vrij(al_gemeten)
+
+        # De wachtrij staat in het geheugen en verdwijnt bij elke herstart van
+        # Render, ook bij een nieuwe versie. Winkels bleven dan op "meten" staan
+        # terwijl er niets meer liep, en kwamen pas zes uur later weer aan de
+        # beurt. Ondertussen zette elke ronde er vijf nieuwe bij, dus de teller
+        # "meten" liep op naar vijfenzestig zonder dat er iets gebeurde.
+        #
+        # Nu: staat de wachtrij leeg en loopt er niets, dan pakken wij eerst op
+        # wat er al op "meten" staat, voordat wij er nieuwe bij zetten.
+        verslag["opnieuw_opgepakt"] = _hervat_onderbroken_metingen()
+
+        # En niet nog meer inplannen zolang er nog werk ligt. Zonder deze rem
+        # groeit de lijst sneller dan de werker hem afwerkt, en dan zegt de
+        # pagina "65 in meting" terwijl er een voor een gemeten wordt.
+        in_de_rij = len(_demo_wachtrij) + _metingen_bezig()
+        verslag["in_de_rij"] = in_de_rij
         ruimte = kosten.ruimte_voor_benadering()
         verslag["dagpot"] = {
             "besteed": (round(ruimte["besteed"], 2)
@@ -1282,8 +1315,15 @@ def _benadering_ronde():
         past = ruimte.get("past_nog")
         hoeveel = None if past is None else min(
             past, benadering.instellingen()["metingen_per_ronde"])
+        mag_meten = (ruimte["mag"] and (hoeveel is None or hoeveel > 0)
+                     and in_de_rij < WACHTRIJ_VOL)
         klaar_te_meten = (benadering.te_meten(hoeveel=hoeveel, al_gemeten=al_gemeten)
-                          if ruimte["mag"] and (hoeveel is None or hoeveel > 0) else [])
+                          if mag_meten else [])
+        if in_de_rij >= WACHTRIJ_VOL:
+            verslag["redenen"].append(
+                f"Er staan al {in_de_rij} metingen in de rij, dus er zijn er geen "
+                f"nieuwe bij gezet. Een meting duurt minuten en ze gaan een voor "
+                f"een.")
         if ruimte["mag"] and hoeveel == 0:
             verslag["redenen"].append("Er is nog wel dagpot over, maar niet genoeg "
                                       "voor een hele meting.")
@@ -1635,8 +1675,7 @@ def admin_benadering():
     mag, reden = benadering.hoeveel_mag_er_nu()
     # Hoeveel metingen er op dit moment echt lopen. Zonder dit getal lijkt een
     # ronde die gewoon aan het werk is precies op een ronde die vastligt.
-    bezig = len([1 for stand in _demo_status.values()
-                 if stand and stand != "klaar" and not stand.startswith("mislukt")])
+    bezig = _metingen_bezig()
     return render_template(
         "admin_benadering.html",
         diagnose=benadering.waarom_gaat_er_niets_uit(
@@ -1644,6 +1683,11 @@ def admin_benadering():
             meetruimte=kosten.ruimte_voor_benadering(),
             metingen_bezig=bezig),
         verslagen=benadering.rondeverslagen(),
+        meetfouten=benadering.meetfouten(),
+        wachtrij=len(_demo_wachtrij),
+        nu_bezig=[u for u, st in _demo_status.items()
+                  if st and st != "klaar" and not st.startswith("mislukt")][:5],
+        nu_bezig_stand=dict(list(_demo_status.items())[-5:]),
         dagpot=kosten.ruimte_voor_benadering(),
         regels=db.get_benaderingen(alleen_niet_afgemeld=False),
         tellingen=db.tel_benaderingen(),
@@ -2448,6 +2492,45 @@ _demo_slot = threading.Lock()
 _demo_werker_draait = [False]
 
 
+# Vanaf hoeveel wachtende metingen een ronde er geen nieuwe meer bij zet.
+WACHTRIJ_VOL = int(os.environ.get("WACHTRIJ_VOL", "5"))
+
+# Hoe lang een winkel op "meten" mag staan zonder dat er iets loopt, voordat wij
+# hem opnieuw oppakken. Kort, want als de wachtrij leeg is en er loopt niets, is
+# er niets om op te wachten.
+HERVAT_NA_MINUTEN = int(os.environ.get("HERVAT_NA_MINUTEN", "20"))
+
+
+def _metingen_bezig():
+    """Hoeveel metingen er op dit moment echt lopen."""
+    return len([1 for stand in _demo_status.values()
+                if stand and stand != "klaar" and not stand.startswith("mislukt")])
+
+
+def _hervat_onderbroken_metingen():
+    """Pakt winkels op die op "meten" staan terwijl er niets meer loopt.
+
+    Geeft terug hoeveel er opnieuw ingepland zijn."""
+    if _demo_wachtrij or _metingen_bezig():
+        return 0
+    grens = datetime.now(benadering.KLOK) - timedelta(minutes=HERVAT_NA_MINUTEN)
+    hervatten = []
+    for winkel in db.get_benaderingen(stand="meten", limiet=WACHTRIJ_VOL):
+        begonnen = winkel.get("meting_gestart_op")
+        if begonnen is not None and begonnen.tzinfo is None and benadering.KLOK:
+            begonnen = begonnen.replace(tzinfo=benadering.KLOK)
+        if begonnen is not None and begonnen > grens:
+            continue
+        hervatten.append(winkel["webshop_url"])
+    if not hervatten:
+        return 0
+    benadering.markeer_in_meting(hervatten)
+    _demo_inplannen(hervatten, benchmark_stand=True, vragen=BENADERING_VRAGEN,
+                    opnieuw=False)
+    print(f"Benadering, onderbroken metingen opnieuw opgepakt: {len(hervatten)}")
+    return len(hervatten)
+
+
 def _demo_werker():
     """Werkt de wachtrij een voor een af.
 
@@ -2465,6 +2548,38 @@ def _demo_werker():
             url, benchmark_stand = regel[0], regel[1]
             vragen = regel[2] if len(regel) > 2 else None
         _demo_draaien(url, benchmark_stand, vragen=vragen)
+        _meting_afgerond_melden(url)
+
+
+def _meting_afgerond_melden(webshop_url):
+    """Schrijft de uitkomst van een meting terug naar de benaderlijst.
+
+    Dit ontbrak, en daardoor was "er wordt wel gemeten maar er komt niets af"
+    van buitenaf niet te verklaren. De reden van een mislukking stond alleen in
+    het geheugen van de server en in de uitdraai van Render. Elke ronde meldde
+    keurig "ingepland: 5, doorgezet naar gemeten: 0" en daar hield het op.
+
+    Een mislukte meting gaat meteen terug naar "adres" met de reden erbij, in
+    plaats van zes uur op "meten" te blijven staan. Er is niets om op te wachten:
+    hij is al mislukt."""
+    stand = _demo_status.get(webshop_url) or ""
+    try:
+        rij = None
+        for r in db.get_benaderingen(stand="meten"):
+            if scan_engine.normalize_url(r["webshop_url"]) == \
+                    scan_engine.normalize_url(webshop_url):
+                rij = r
+                break
+        if rij is None:
+            return  # geen winkel van de benadering, dus niets te melden
+        if stand.startswith("mislukt"):
+            db.zet_benadering(rij["webshop_url"], stand="adres", notitie=stand[:400])
+            benadering.onthoud_meetfout(rij["webshop_url"], stand)
+            print(f"Benadering, meting mislukt voor {webshop_url}: {stand[:160]}")
+        elif stand == "klaar":
+            db.zet_benadering(rij["webshop_url"], stand="gemeten", notitie="")
+    except Exception as e:
+        print(f"Uitkomst van de meting bewaren mislukt voor {webshop_url}: {e}")
 
 
 def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False, vragen=None):

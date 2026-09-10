@@ -230,6 +230,26 @@ def laatste_ronde():
         return None
 
 
+RONDENUMMER_SLEUTEL = "benadering_rondenummer"
+
+
+def rondenummer():
+    """Het volgnummer van deze ronde, oplopend en blijvend.
+
+    De winkelvinder gebruikt dit om door de branches te rouleren. Zonder een
+    blijvend nummer zou elke ronde dezelfde zoekopdrachten doen en dus dezelfde
+    winkels terugkrijgen, en daar betaal je dan wel voor."""
+    try:
+        n = int(db.get_instelling(RONDENUMMER_SLEUTEL, 0) or 0) + 1
+    except (TypeError, ValueError):
+        n = 1
+    try:
+        db.zet_instelling(RONDENUMMER_SLEUTEL, n)
+    except Exception as e:
+        print(f"Rondenummer bewaren mislukt: {e}")
+    return n
+
+
 VERSLAG_SLEUTEL = "benadering_rondeverslagen"
 VERSLAGEN_BEWAREN = 12
 
@@ -320,6 +340,37 @@ def dagbericht_tekst(diagnose, tellingen=None, dagpot=None):
     else:
         regels.append("Er staat niets in de weg.")
     return onderwerp, regels
+
+
+MEETFOUTEN_SLEUTEL = "benadering_meetfouten"
+MEETFOUTEN_BEWAREN = 10
+
+
+def onthoud_meetfout(webshop_url, reden):
+    """Bewaart waarom een meting mislukt is, zodat het terug te lezen is.
+
+    Dit ontbrak volledig. De reden stond alleen in het geheugen van de server en
+    in de uitdraai van Render, en de beheerpagina meldde alleen "ingepland: 5,
+    doorgezet naar gemeten: 0". Dat is precies genoeg om te weten dat er iets
+    mis is en niets om te weten wat."""
+    try:
+        eerdere = meetfouten()
+        nieuw = [{"moment": datetime.now(KLOK).isoformat(),
+                  "winkel": str(webshop_url)[:200],
+                  "reden": str(reden)[:300]}] + eerdere
+        db.zet_instelling(MEETFOUTEN_SLEUTEL, json.dumps(nieuw[:MEETFOUTEN_BEWAREN]))
+    except Exception as e:
+        print(f"Meetfout bewaren mislukt: {e}")
+
+
+def meetfouten():
+    """De laatste mislukte metingen, nieuwste eerst."""
+    try:
+        waarde = db.get_instelling(MEETFOUTEN_SLEUTEL)
+        uit = json.loads(str(waarde)) if waarde else []
+        return [r for r in uit if isinstance(r, dict)] if isinstance(uit, list) else []
+    except Exception:
+        return []
 
 
 def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,

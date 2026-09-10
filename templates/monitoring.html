@@ -218,7 +218,8 @@
     <div class="taak">
       <div class="taak-kop">
         <div class="taak-nummer">{{ loop.index }}</div>
-        <div class="taak-titel">{{ a.titel }}<span class="merk {{ a.soort }}">{{ a.soort }}</span></div>
+        <div class="taak-titel">{{ a.titel }}<span class="merk {{ a.soort }}"
+             title="{{ a.merkje_uitleg }}">{{ a.merkje or a.soort }}</span></div>
       </div>
       <div class="taak-body">
 

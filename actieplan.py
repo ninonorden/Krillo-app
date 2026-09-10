@@ -289,8 +289,30 @@ def _uit(sjabloon, sleutel, taal):
 # "feit" of "vermoeden", want daar rekent de rest van Krillo mee en daar hangen
 # de opmaakregels aan. "merkje" is puur het woord dat de klant leest.
 MERKJES = {
-    "nl": {"feit": "feit", "vermoeden": "vermoeden"},
-    "en": {"feit": "measured", "vermoeden": "our reading"},
+    "nl": {"feit": "gemeten", "vermoeden": "ons oordeel"},
+    "en": {"feit": "measured", "vermoeden": "our view"},
+}
+
+# Waar het merkje voor staat, in een zin. Komt als tooltip op het merkje te
+# staan.
+#
+# "feit" en "vermoeden" stonden er eerst kaal bij en dat riep vooral de vraag op
+# waarom iets het een of het ander is. Het verschil is wel degelijk belangrijk:
+# bij het ene hebben wij het echt op je site of in het antwoord van de AI gezien,
+# bij het andere denken wij dat het helpt maar kunnen wij dat niet aantonen. Als
+# je dat verschil niet uitlegt, lees je alles als even hard, en dan klopt het
+# eerste type niet meer.
+MERKJE_UITLEG = {
+    "nl": {
+        "feit": "Dit hebben wij zelf gezien op je site of in het antwoord van de AI.",
+        "vermoeden": ("Wij denken dat dit helpt, maar wij kunnen niet aantonen dat "
+                      "je hierdoor vaker genoemd wordt."),
+    },
+    "en": {
+        "feit": "We saw this ourselves on your site or in the AI answer.",
+        "vermoeden": ("We think this helps, but we cannot prove it gets you "
+                      "mentioned more often."),
+    },
 }
 
 
@@ -300,6 +322,7 @@ def _actie(taak_id, soort, titel, waarom, hoe, links=None, taal="nl"):
     Zonder zo'n kenmerk zou dezelfde taak elke week een nieuwe tekst krijgen."""
     return {"id": taak_id, "soort": soort,
             "merkje": MERKJES.get(taal, MERKJES["nl"]).get(soort, soort),
+            "merkje_uitleg": MERKJE_UITLEG.get(taal, MERKJE_UITLEG["nl"]).get(soort, ""),
             "titel": titel, "waarom": waarom,
             "hoe": hoe, "links": links or [], "oplossing": None, "waar": None}
 

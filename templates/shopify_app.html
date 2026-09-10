@@ -323,7 +323,7 @@
   {% for a in voor_hem %}
   <div class="kaart">
     <div class="kaart-kop">
-      <div class="taak-titel">{{ a.titel }}<span class="merkje {{ a.soort }}">{{ a.merkje or a.soort }}</span></div>
+      <div class="taak-titel">{{ a.titel }}<span class="merkje {{ a.soort }}" title="{{ a.merkje_uitleg }}">{{ a.merkje or a.soort }}</span></div>
     </div>
     {% if a.oplossing %}
     <div class="label">Send this to your developer</div>

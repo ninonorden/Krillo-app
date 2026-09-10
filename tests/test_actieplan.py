@@ -16,6 +16,10 @@ import actieplan
 fouten = []
 
 
+def klopt(omschrijving, voorwaarde):
+    return zo(omschrijving, bool(voorwaarde), True)
+
+
 def zo(omschrijving, gekregen, verwacht):
     if gekregen != verwacht:
         fouten.append(f"FOUT: {omschrijving}: kreeg {gekregen!r}, verwacht {verwacht!r}")
@@ -178,7 +182,14 @@ zo("de blokkadetitel is onveranderd", nl["acties"][0]["titel"],
 zo("de kop is onveranderd", nl["kop"],
    "Dille & Kamille wordt genoemd bij 15 van de 22 vragen. Hieronder staat wat je deze week "
    "kan doen om dat te verbeteren, belangrijkste eerst.")
-zo("het merkje heet gewoon feit", nl["acties"][0]["merkje"], "feit")
+# Het merkje is bewust GEEN "feit" of "vermoeden" meer. Die woorden stonden er
+# kaal bij en riepen vooral de vraag op waarom iets het een of het ander was.
+# "soort" blijft wel feit of vermoeden, want daar rekent de rest mee.
+zo("het merkje is een woord dat een winkelier snapt",
+   nl["acties"][0]["merkje"], "gemeten")
+zo("de soort eronder is onveranderd", nl["acties"][0]["soort"], "feit")
+klopt("en er staat uitleg bij wat dat betekent",
+      len(nl["acties"][0]["merkje_uitleg"]) > 30)
 zo("een onbekende taal valt terug op Nederlands", actieplan.maak_actieplan(
     verklaring=VERKLARING_BLOK, klantbeeld=KLANTBEELD, bronnen=BRONNEN,
     controle=CONTROLE, winkelnaam="Dille & Kamille", taal="fr"), nl)
@@ -195,8 +206,8 @@ acties_en = [a for p in engels for a in p["acties"]]
 zo("overal een titel", all(a["titel"] for a in acties_en), True)
 zo("overal een reden", all(len(a["waarom"]) > 40 for a in acties_en), True)
 zo("overal een hoe", all(len(a["hoe"]) > 40 for a in acties_en), True)
-zo("het merkje is measured of our reading",
-   sorted({a["merkje"] for a in acties_en}), ["measured", "our reading"])
+zo("het merkje is measured of our view",
+   sorted({a["merkje"] for a in acties_en}), ["measured", "our view"])
 zo("geen gedachtestreepjes in de Engelse teksten",
    any("—" in a["hoe"] or "—" in a["waarom"] or "—" in a["titel"] for a in acties_en), False)
 zo("geen gedachtestreepjes in de koppen",
