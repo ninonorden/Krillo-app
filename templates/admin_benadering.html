@@ -107,6 +107,51 @@
   </div>
   {% endif %}
 
+  {# De dagpot los erbij, want dit is de rem die het langst onzichtbaar was.
+     "Er mag nog gemeten worden" en "er is genoeg over voor een hele meting"
+     zijn twee verschillende dingen, en het verschil ertussen heeft de lijst
+     dagen stilgelegd zonder dat er ergens iets over te zien was. #}
+  {% if dagpot and dagpot.besteed is not none %}
+  <div class="kaart">
+    <div class="uitleg">
+      <b>De dagpot voor eigen metingen.</b>
+      Vandaag {{ '%.2f'|format(dagpot.besteed) }} euro gebruikt van
+      {{ '%.2f'|format(dagpot.grens) }} euro.
+      {% if dagpot.past_nog is not none %}
+        Daar passen nu nog <b>{{ dagpot.past_nog }}</b> metingen in.
+        {% if dagpot.past_nog == 0 %}
+          Zolang dat nul is wordt er niets ingepland en komt er ook niets op
+          'gemeten'. Dat gaat om middernacht vanzelf weer open.
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Het logboek. Zonder dit is een ronde die niets deed niet te onderscheiden
+     van een ronde die niet gedraaid heeft. #}
+  {% if verslagen %}
+  <div class="kaart">
+    <div class="uitleg" style="margin-bottom:10px;"><b>Wat de laatste rondes gedaan hebben</b></div>
+    {% for v in verslagen %}
+    <div style="padding:7px 0; border-top:1px solid var(--lijn, #E4E2DA); font-size:14px;">
+      <span class="klein">{{ v.moment[:16]|replace('T', ' ') }}</span>
+      {% if v.handmatig %}
+        <b>met de hand:</b> {{ v.handmatig }}
+      {% else %}
+        adressen gevonden: {{ v.adressen.gevonden if v.adressen else 0 }},
+        ingepland om te meten: {{ v.ingepland or 0 }},
+        doorgezet naar gemeten: {{ v.doorgezet or 0 }},
+        gemaild: {{ v.gemaild or 0 }}
+      {% endif %}
+      {% for r in v.redenen or [] %}<br><span style="color:#8E1F0B;">{{ r }}</span>{% endfor %}
+      {% if v.reden %}<br><span style="color:#8E1F0B;">{{ v.reden }}</span>{% endif %}
+      {% if v.mislukt %}<br><span style="color:#8E1F0B;">{{ v.mislukt|join('; ') }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <h2>1. Winkels toevoegen</h2>
   <div class="kaart">
     <div class="uitleg" style="margin-bottom:10px;">
@@ -162,6 +207,22 @@
     <form method="post" action="/admin/benadering?key={{ sleutel }}">
       <input type="hidden" name="actie" value="ronde">
       <button type="submit" class="licht">Draai nu een ronde</button>
+    </form>
+  </div>
+
+  <h2>4. Eén winkel nu meten en mailen</h2>
+  <div class="kaart">
+    <div class="uitleg" style="margin-bottom:10px;">
+      Voor als er iets vastzit en je niet op de volgende ronde wilt wachten. Deze
+      knop meet de winkel meteen en stuurt hem daarna zijn uitkomst. Hij slaat de
+      dagrem en de klok over, maar niet de regel dat een winkel maar één keer post
+      krijgt. Kost ongeveer 75 cent. De uitkomst komt bovenaan in het logboek te
+      staan, ook als er iets misgaat.
+    </div>
+    <form method="post" action="/admin/benadering?key={{ sleutel }}">
+      <input type="hidden" name="actie" value="nu">
+      <input type="text" name="url" placeholder="voorbeeldwinkel.nl" style="min-width:260px;">
+      <button type="submit">Meet en mail deze winkel</button>
     </form>
   </div>
 

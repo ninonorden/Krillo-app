@@ -1189,12 +1189,22 @@ def _benadering_ronde():
 
     De volgorde is met opzet zo: eerst adressen zoeken (kost niets), dan meten
     (kost geld bij de modellen), dan pas mailen. Zo staat er altijd een voorraad
-    gemeten winkels klaar en hoeft de post nooit te wachten op een meting."""
+    gemeten winkels klaar en hoeft de post nooit te wachten op een meting.
+
+    Alles wat deze ronde doet wordt onderweg opgeschreven in `verslag` en aan
+    het eind bewaard. Dat is er bij gekomen omdat de lijst dagenlang op precies
+    dezelfde standen bleef staan terwijl er elk uur een ronde langskwam, en van
+    buitenaf niet te zien was welke van de zeven remmen dat deed. Nu staat het
+    per ronde op de beheerpagina."""
+    verslag = {"adressen": None, "gemeten_klaar": None, "ingepland": 0,
+               "doorgezet": 0, "gemaild": 0, "mislukt": [], "redenen": []}
     benadering.onthoud_ronde()
     try:
         gevonden = benadering.zoek_adressen()
+        verslag["adressen"] = gevonden
         print(f"Benadering, adressen: {gevonden}")
     except Exception as e:
+        verslag["mislukt"].append(f"adressen zoeken: {e}")
         print(f"Benadering, adressen zoeken mislukt: {e}")
 
     try:
@@ -1211,7 +1221,19 @@ def _benadering_ronde():
         al_gemeten = {scan_engine.normalize_url(w["webshop_url"])
                       for w in db.get_demo_webshops()
                       if (w.get("vragen") or 0) > 0}
+        verslag["gemeten_klaar"] = len(al_gemeten)
+        # Opruimen gaat voor de geldcontrole uit, en dat is geen detail. Zolang
+        # dit binnen te_meten zat werd er bij een lege dagpot niets vrijgemaakt,
+        # en bleven winkels voorgoed op "meten" staan. Opruimen kost niets.
+        verslag["vrijgemaakt"] = benadering.maak_vastgelopen_metingen_vrij(al_gemeten)
         ruimte = kosten.ruimte_voor_benadering()
+        verslag["dagpot"] = {
+            "besteed": (round(ruimte["besteed"], 2)
+                        if ruimte.get("besteed") is not None else None),
+            "grens": (round(ruimte["grens"], 2)
+                      if ruimte.get("grens") is not None else None),
+            "past_nog": ruimte.get("past_nog"),
+        }
         # Niet meer inplannen dan er met de rest van de dagpot betaald kan
         # worden. Zonder deze grens plande een ronde er gewoon vijf in, ook als
         # er nog maar twee euro over was. Die metingen worden dan halverwege
@@ -1223,10 +1245,17 @@ def _benadering_ronde():
         klaar_te_meten = (benadering.te_meten(hoeveel=hoeveel, al_gemeten=al_gemeten)
                           if ruimte["mag"] and (hoeveel is None or hoeveel > 0) else [])
         if ruimte["mag"] and hoeveel == 0:
+            verslag["redenen"].append("Er is nog wel dagpot over, maar niet genoeg "
+                                      "voor een hele meting.")
             print("Benadering, geen metingen deze ronde: er is nog wel dagpot over, "
                   "maar niet genoeg voor een hele meting.")
         if not ruimte["mag"]:
+            verslag["redenen"].append(ruimte["reden"])
             print(f"Benadering, geen metingen deze ronde: {ruimte['reden']}")
+        if ruimte["mag"] and (hoeveel is None or hoeveel > 0) and not klaar_te_meten:
+            verslag["redenen"].append("Er stond geen enkele winkel klaar om te "
+                                      "meten: alles staat al op gemeten, in de "
+                                      "meting, of zonder adres.")
         if klaar_te_meten:
             # EERST vastleggen dat deze winkels in de meting zitten, en pas
             # daarna de meting starten. Andersom gaat er een ronde overheen
@@ -1234,23 +1263,43 @@ def _benadering_ronde():
             # betaal je twee keer voor dezelfde meting. Dat is precies wat er
             # gebeurd is: vijf winkels, elk drie tot vijf keer gemeten.
             benadering.markeer_in_meting(klaar_te_meten)
-            _demo_inplannen(klaar_te_meten, benchmark_stand=True)
+            erbij = _demo_inplannen(klaar_te_meten, benchmark_stand=True)
+            verslag["ingepland"] = len(klaar_te_meten)
+            verslag["winkels"] = [str(u) for u in klaar_te_meten[:5]]
+            if not erbij:
+                # Dit is het geval waar wij eerder blind voor waren: de winkels
+                # gaan wel op "meten" maar de wachtrij pakt ze niet op, en dan
+                # blijft de lijst dagenlang op precies dezelfde standen staan.
+                verslag["redenen"].append(
+                    f"{len(klaar_te_meten)} winkel(s) klaargezet, maar de meetrij "
+                    f"nam er geen enkele aan.")
             print(f"Benadering, in de meetrij gezet: {len(klaar_te_meten)}")
         # Winkels waarvan de meting inmiddels klaar is doorzetten naar 'gemeten'.
         # Ook de winkels die nu op "meten" staan, want daar zit de winst: die
         # zijn betaald en moeten niet nog een keer.
+        doorgezet = 0
         for winkel in db.get_benaderingen(stand=("adres", "meten")):
             if scan_engine.normalize_url(winkel["webshop_url"]) in al_gemeten:
                 db.zet_benadering(winkel["webshop_url"], stand="gemeten")
+                doorgezet += 1
+        verslag["doorgezet"] = doorgezet
     except Exception as e:
+        verslag["mislukt"].append(f"meten: {e}")
         print(f"Benadering, meten mislukt: {e}")
 
     try:
         mag, reden = benadering.hoeveel_mag_er_nu()
         if not mag:
+            verslag["redenen"].append(reden)
             print(f"Benadering, geen post deze ronde: {reden}")
+            benadering.onthoud_rondeverslag(verslag)
             return
-        for winkel in benadering.te_mailen(mag):
+        beurt = benadering.te_mailen(mag)
+        if not beurt:
+            verslag["redenen"].append("Er mocht wel post uit, maar geen enkele winkel "
+                                      "was aan de beurt: gemeten, adres bekend en nog "
+                                      "nooit gemaild.")
+        for winkel in beurt:
             gelukt, fout = _stuur_onderzoeksmail(winkel["webshop_url"], winkel["email"],
                                                  winkel.get("land"))
             benadering.markeer_gemaild(winkel["webshop_url"], gelukt, fout)
@@ -1259,10 +1308,69 @@ def _benadering_ronde():
                 # toont. Stond het alleen op de benaderlijst, dan zag je daar
                 # een lege kolom en drukte je met de hand nog eens op versturen.
                 db.markeer_onderzoeksmail(winkel["webshop_url"])
+                verslag["gemaild"] += 1
+            else:
+                verslag["mislukt"].append(
+                    f"mail {winkel['webshop_url']}: {str(fout)[:120]}")
             print(f"Benadering, mail naar {winkel['webshop_url']}: "
                   f"{'gelukt' if gelukt else fout}")
     except Exception as e:
+        verslag["mislukt"].append(f"mailen: {e}")
         print(f"Benadering, mailen mislukt: {e}")
+
+    benadering.onthoud_rondeverslag(verslag)
+
+
+def _nu_meten_en_mailen(webshop_url):
+    """Eén winkel meteen meten en daarna zijn uitkomst mailen.
+
+    Dit staat naast de gewone ronde en niet erin, met opzet. De ronde houdt zich
+    aan de dagpot, aan de klok en aan de rondelimiet, en dat hoort ook zo. Maar
+    als er dagenlang niets uitgaat wil je één winkel kunnen pakken en met eigen
+    ogen zien waar het stukloopt, in plaats van nog een uur te wachten op een
+    ronde die het weer stil overslaat.
+
+    Wat hij wel blijft respecteren: de kostenrem per meting en het feit dat een
+    winkel maar één keer post krijgt. Hij mag dus geld kosten, maar hij kan geen
+    dubbele mail sturen."""
+    verslag = {"handmatig": webshop_url, "gemaild": 0, "mislukt": [], "redenen": []}
+    try:
+        winkel = None
+        for rij in db.get_benaderingen(alleen_niet_afgemeld=False):
+            if scan_engine.normalize_url(rij["webshop_url"]) == webshop_url:
+                winkel = rij
+                break
+        if winkel is None:
+            verslag["redenen"] = ["Deze winkel staat niet op de benaderlijst."]
+        elif winkel.get("gemaild_op"):
+            verslag["redenen"] = ["Deze winkel heeft al post gehad, dus er gaat niets uit."]
+        elif not winkel.get("email"):
+            verslag["redenen"] = ["Van deze winkel kennen wij geen algemeen "
+                                  "e-mailadres, dus er kan niets heen."]
+        else:
+            benadering.markeer_in_meting([webshop_url])
+            _demo_draaien(webshop_url, benchmark_stand=True)
+            stand = _demo_status.get(webshop_url) or ""
+            if stand.startswith("mislukt"):
+                verslag["redenen"] = [f"De meting is mislukt: {stand[:160]}"]
+                db.zet_benadering(webshop_url, stand="adres", notitie=stand[:400])
+            else:
+                db.zet_benadering(webshop_url, stand="gemeten")
+                gelukt, fout = _stuur_onderzoeksmail(
+                    webshop_url, winkel["email"], winkel.get("land"))
+                benadering.markeer_gemaild(webshop_url, gelukt, fout)
+                if gelukt:
+                    db.markeer_onderzoeksmail(webshop_url)
+                    verslag["gemaild"] = 1
+                    verslag["redenen"] = [f"Gemeten en gemaild naar {winkel['email']}."]
+                else:
+                    verslag["redenen"] = [f"Wel gemeten, mail mislukt: {str(fout)[:160]}"]
+                    verslag["mislukt"].append(str(fout)[:160])
+    except Exception as e:
+        verslag["mislukt"].append(str(e)[:200])
+        verslag["redenen"] = [f"Er ging iets mis: {str(e)[:160]}"]
+    print(f"Handmatig, {webshop_url}: {'; '.join(verslag['redenen'])}")
+    benadering.onthoud_rondeverslag(verslag)
 
 
 # Onder hoeveel meegetelde vragen wij geen post sturen.
@@ -1413,6 +1521,16 @@ def admin_benadering():
             threading.Thread(target=_benadering_ronde, daemon=True).start()
             melding = ("Een ronde is gestart. Ververs deze pagina over een minuut "
                        "of twee, dan zie je het resultaat.")
+        elif actie == "nu":
+            url = scan_engine.normalize_url((request.form.get("url") or "").strip())
+            if not url or "." not in url:
+                melding = "Vul een webadres in, bijvoorbeeld voorbeeldwinkel.nl."
+            else:
+                threading.Thread(target=_nu_meten_en_mailen, args=(url,),
+                                 daemon=True).start()
+                melding = (f"{url} wordt nu gemeten en daarna gemaild. Dit duurt een "
+                           f"paar minuten. Ververs deze pagina, de uitkomst komt in "
+                           f"het logboek hierboven te staan.")
         elif actie == "stand":
             url = (request.form.get("url") or "").strip()
             nieuwe = (request.form.get("stand") or "").strip()
@@ -1433,6 +1551,8 @@ def admin_benadering():
             moment_laatste_ronde=benadering.laatste_ronde(),
             meetruimte=kosten.ruimte_voor_benadering(),
             metingen_bezig=bezig),
+        verslagen=benadering.rondeverslagen(),
+        dagpot=kosten.ruimte_voor_benadering(),
         regels=db.get_benaderingen(alleen_niet_afgemeld=False),
         tellingen=db.tel_benaderingen(),
         instellingen=inst,

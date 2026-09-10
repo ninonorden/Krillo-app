@@ -24,6 +24,7 @@ Twee dingen die dit bestand nooit doet:
   fout kan gaan zonder dat je het merkt.
 """
 
+import json
 import os
 from datetime import datetime, timedelta
 
@@ -109,6 +110,36 @@ def zoek_adressen(hoeveel=None):
 METING_VASTGELOPEN_NA_UUR = 6
 
 
+def maak_vastgelopen_metingen_vrij(al_gemeten=None):
+    """Zet winkels die uren op "meten" hangen terug op "adres".
+
+    Dit stond eerst binnen te_meten, en daar zat een gat in dat de hele lijst
+    dagen heeft stilgelegd. Is de dagpot op, dan wordt te_meten helemaal niet
+    aangeroepen, en dus werd er ook niets vrijgemaakt. Winkels die bleven hangen
+    kwamen daardoor nooit meer aan de beurt, ook niet toen er de volgende dag
+    weer ruimte was. Nu draait dit elke ronde, los van het geld, want opruimen
+    kost niets.
+
+    Geeft terug hoeveel er vrijgemaakt zijn."""
+    klaar = {scan_engine.normalize_url(u) for u in (al_gemeten or [])}
+    grens = datetime.now(KLOK) - timedelta(hours=METING_VASTGELOPEN_NA_UUR)
+    vrij = 0
+    for winkel in db.get_benaderingen(stand="meten"):
+        url = winkel["webshop_url"]
+        if scan_engine.normalize_url(url) in klaar:
+            db.zet_benadering(url, stand="gemeten")
+            continue
+        begonnen = winkel.get("meting_gestart_op")
+        if begonnen is not None and begonnen.tzinfo is None and KLOK:
+            begonnen = begonnen.replace(tzinfo=KLOK)
+        if begonnen is not None and begonnen > grens:
+            continue
+        db.zet_benadering(url, stand="adres",
+                          notitie="Meting liep vast, opnieuw ingepland.")
+        vrij += 1
+    return vrij
+
+
 def te_meten(hoeveel=None, al_gemeten=None):
     """Welke winkels aan de beurt zijn om gemeten te worden.
 
@@ -127,21 +158,7 @@ def te_meten(hoeveel=None, al_gemeten=None):
     klaar = {scan_engine.normalize_url(u) for u in (al_gemeten or [])}
     uit = []
 
-    # Eerst de vastgelopen metingen terugzetten, zodat ze hieronder gewoon weer
-    # meedoen. Een meting die nog loopt blijft met rust.
-    grens = datetime.now(KLOK) - timedelta(hours=METING_VASTGELOPEN_NA_UUR)
-    for winkel in db.get_benaderingen(stand="meten"):
-        url = winkel["webshop_url"]
-        if scan_engine.normalize_url(url) in klaar:
-            db.zet_benadering(url, stand="gemeten")
-            continue
-        begonnen = winkel.get("meting_gestart_op")
-        if begonnen is not None and begonnen.tzinfo is None and KLOK:
-            begonnen = begonnen.replace(tzinfo=KLOK)
-        if begonnen is not None and begonnen > grens:
-            continue
-        db.zet_benadering(url, stand="adres",
-                          notitie="Meting liep vast, opnieuw ingepland.")
+    maak_vastgelopen_metingen_vrij(al_gemeten)
 
     for winkel in db.get_benaderingen(stand="adres", limiet=hoeveel * 4):
         url = winkel["webshop_url"]
@@ -211,6 +228,51 @@ def laatste_ronde():
         return datetime.fromisoformat(str(waarde))
     except ValueError:
         return None
+
+
+VERSLAG_SLEUTEL = "benadering_rondeverslagen"
+VERSLAGEN_BEWAREN = 12
+
+
+def onthoud_rondeverslag(verslag):
+    """Bewaart wat een ronde echt gedaan heeft, zodat je het terug kunt lezen.
+
+    Dit bestaat omdat "er gebeurt niets" en "hij heeft zijn werk gedaan en er
+    was niets te doen" er van buitenaf precies hetzelfde uitzien. De uitdraai
+    van Render is er wel, maar die rolt door en je moet ervoor inloggen. De
+    laatste twaalf rondes op de beheerpagina zijn genoeg om te zien waar het
+    stokt.
+
+    Bewust in de instellingentabel en niet in een eigen tabel: geen migratie
+    nodig, en twaalf regels tekst wegen niets."""
+    try:
+        eerdere = rondeverslagen()
+    except Exception:
+        eerdere = []
+    verslag = dict(verslag or {})
+    verslag.setdefault("moment", datetime.now(KLOK).isoformat())
+    nieuw = ([verslag] + eerdere)[:VERSLAGEN_BEWAREN]
+    try:
+        db.zet_instelling(VERSLAG_SLEUTEL, json.dumps(nieuw))
+    except Exception as e:
+        # Een mislukt logboek mag nooit de ronde zelf omgooien. Het logboek is
+        # er om problemen te laten zien, niet om er zelf een te worden.
+        print(f"Rondeverslag bewaren mislukt: {e}")
+
+
+def rondeverslagen():
+    """De laatste rondes, nieuwste eerst. Altijd een lijst, nooit None."""
+    try:
+        waarde = db.get_instelling(VERSLAG_SLEUTEL)
+    except Exception:
+        return []
+    if not waarde:
+        return []
+    try:
+        uit = json.loads(str(waarde))
+    except (ValueError, TypeError):
+        return []
+    return [r for r in uit if isinstance(r, dict)] if isinstance(uit, list) else []
 
 
 def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
@@ -300,6 +362,13 @@ def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
         elif metingen_bezig:
             uit.append(("goed", f"Er zijn nu {metingen_bezig} metingen bezig. "
                                 f"Een meting duurt minuten, dus geef het even."))
+        elif meetruimte is not None and meetruimte.get("past_nog") == 0:
+            # Niets zeggen. Een paar regels lager staat de echte reden: er past
+            # geen hele meting meer in de dagpot. De regel hieronder zou hier
+            # naar een onderbroken wachtrij wijzen, en dat is dan niet waar,
+            # want er is helemaal niets gestart. Twee verklaringen tegelijk is
+            # erger dan een, want dan ga je de verkeerde repareren.
+            pass
         else:
             uit.append(("blok", f"{adres} winkels hebben een adres, maar er is er "
                                 f"nog geen enkele gemeten. Dat wijst op een "
@@ -312,6 +381,27 @@ def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
                              f"nog geen e-mailadres gevonden. Dat gebeurt "
                              f"{inst['adressen_per_ronde']} per ronde, dus dit "
                              f"kost een paar rondes."))
+
+    # 6. De restpot. Bewust een eigen regel en niet weggestopt in de tak
+    # hierboven, want juist deze oorzaak werd drie dagen lang verkeerd gemeld.
+    # De pot is dan formeel niet op, dus "mag" staat op waar, maar er is te
+    # weinig over voor nog een hele meting en er wordt dus niets ingepland. De
+    # pagina wees ondertussen naar een onderbroken wachtrij, en daar was niets
+    # mis mee. Zolang er winkels op meting staan te wachten hoort dit er te
+    # staan, ongeacht welke tak hierboven aan de beurt was.
+    wachtenden = per_stand.get("adres", 0) + per_stand.get("meten", 0)
+    if (wachtenden and meetruimte is not None and meetruimte.get("mag")
+            and meetruimte.get("past_nog") == 0):
+        besteed = meetruimte.get("besteed")
+        grens = meetruimte.get("grens")
+        bedragen = (f" Er is vandaag {besteed:.2f} euro van de {grens:.2f} euro "
+                    f"gebruikt." if besteed is not None and grens is not None
+                    else "")
+        uit.append(("blok", "Er is te weinig dagpot over voor nog een hele meting, "
+                            "dus er wordt deze ronde niets gemeten en komt er ook "
+                            "niets op 'gemeten'." + bedragen
+                            + " Om middernacht loopt het vanzelf weer door, of "
+                              "verhoog de dagpot in Render."))
 
     if geen_adres:
         uit.append(("wacht", f"Bij {geen_adres} winkels vonden wij geen algemeen "
