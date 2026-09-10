@@ -275,6 +275,53 @@ def rondeverslagen():
     return [r for r in uit if isinstance(r, dict)] if isinstance(uit, list) else []
 
 
+DAGBERICHT_SLEUTEL = "benadering_dagbericht_op"
+
+
+def dagbericht_al_gestuurd(vandaag=None):
+    """Of het dagbericht vandaag al de deur uit is.
+
+    De ronde draait elk uur, dus zonder deze controle krijg je twaalf keer per
+    dag hetzelfde bericht en zet je het na twee dagen uit. Dan mis je het juist
+    op de dag dat het ertoe doet."""
+    vandaag = vandaag or datetime.now(KLOK).date().isoformat()
+    return str(db.get_instelling(DAGBERICHT_SLEUTEL) or "") == vandaag
+
+
+def onthoud_dagbericht(vandaag=None):
+    vandaag = vandaag or datetime.now(KLOK).date().isoformat()
+    db.zet_instelling(DAGBERICHT_SLEUTEL, vandaag)
+
+
+def dagbericht_tekst(diagnose, tellingen=None, dagpot=None):
+    """Het dagbericht in gewone taal. Geeft (onderwerp, regels) terug.
+
+    Bewust dezelfde diagnose als op de beheerpagina, en niet een eigen tekstje
+    ernaast. Twee plekken die hetzelfde zeggen lopen na twee wijzigingen uit
+    elkaar, en dan weet je niet meer welke van de twee je moet geloven."""
+    tellingen = tellingen or db.tel_benaderingen()
+    per_stand = tellingen.get("per_stand") or {}
+    blokkades = [r for ernst, r in diagnose if ernst == "blok"]
+
+    onderwerp = ("Krillo: de benadering staat stil"
+                 if blokkades else "Krillo: de benadering loopt")
+    regels = [
+        f"Vandaag gemaild: {tellingen.get('vandaag_gemaild') or 0}.",
+        f"Op de lijst: {tellingen.get('totaal') or 0}. "
+        f"Klaar om post te krijgen: {per_stand.get('gemeten', 0)}. "
+        f"Wacht op een meting: {per_stand.get('adres', 0) + per_stand.get('meten', 0)}.",
+    ]
+    if dagpot and dagpot.get("besteed") is not None:
+        regels.append(f"Dagpot voor eigen metingen: {dagpot['besteed']:.2f} van "
+                      f"{dagpot['grens']:.2f} euro gebruikt.")
+    if blokkades:
+        regels.append("Wat het tegenhoudt:")
+        regels.extend(blokkades)
+    else:
+        regels.append("Er staat niets in de weg.")
+    return onderwerp, regels
+
+
 def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
                              metingen_bezig=0):
     """Vertelt in gewone taal waarom er op dit moment geen post uitgaat.

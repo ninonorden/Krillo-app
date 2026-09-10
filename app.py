@@ -19,7 +19,8 @@ import re
 import threading
 import time
 from datetime import datetime, timezone, timedelta
-from flask import Flask, request, jsonify, render_template, redirect, Response
+from flask import (Flask, request, jsonify, render_template, redirect, Response,
+                   has_request_context)
 import scan_engine
 from scan_engine import run_scan
 import payments
@@ -53,7 +54,15 @@ def get_base_url():
     configured = os.environ.get("BASE_URL")
     if configured:
         return configured.rstrip("/")
-    return request.url_root.rstrip("/")
+    # Buiten een bezoek aan de site is er geen verzoek om het adres uit te
+    # halen. Dat is niet zeldzaam: de ronde van de benadering, de wekelijkse
+    # klantketen en de cron-taken draaien allemaal op een eigen draad. Zonder
+    # deze terugval gooit Flask daar "Working outside of request context", en
+    # dan mislukt elke mail die een link nodig heeft. Stil, want de fout wordt
+    # verderop opgevangen en de winkel blijft gewoon op zijn oude stand staan.
+    if has_request_context():
+        return request.url_root.rstrip("/")
+    return "https://krillo.nl"
 
 
 @app.route("/")
@@ -1263,7 +1272,8 @@ def _benadering_ronde():
             # betaal je twee keer voor dezelfde meting. Dat is precies wat er
             # gebeurd is: vijf winkels, elk drie tot vijf keer gemeten.
             benadering.markeer_in_meting(klaar_te_meten)
-            erbij = _demo_inplannen(klaar_te_meten, benchmark_stand=True)
+            erbij = _demo_inplannen(klaar_te_meten, benchmark_stand=True,
+                                    vragen=BENADERING_VRAGEN)
             verslag["ingepland"] = len(klaar_te_meten)
             verslag["winkels"] = [str(u) for u in klaar_te_meten[:5]]
             if not erbij:
@@ -1319,6 +1329,41 @@ def _benadering_ronde():
         print(f"Benadering, mailen mislukt: {e}")
 
     benadering.onthoud_rondeverslag(verslag)
+    _dagbericht_sturen()
+
+
+def _dagbericht_sturen():
+    """Eén keer per dag een berichtje aan jezelf over hoe de benadering loopt.
+
+    Dit bestaat omdat de lijst drie dagen stilstond en dat pas opviel toen er
+    met de hand op de beheerpagina gekeken werd. Een machine die stilstaat en
+    daar niets over zegt kost elke dag geld en levert niets op. Liever een mail
+    te veel dan nog een keer drie dagen niets.
+
+    Faalt hij, dan gebeurt er verder niets. Een bericht over de ronde mag de
+    ronde zelf nooit omgooien."""
+    ontvanger = os.environ.get("BEHEERDER_EMAIL")
+    if not ontvanger:
+        return
+    try:
+        if benadering.dagbericht_al_gestuurd():
+            return
+        # Alleen binnen de uren dat er post uitgaat, anders krijg je het bericht
+        # om zes uur 's ochtends terwijl de dag nog niets gedaan heeft.
+        if not benadering.binnen_kantooruren():
+            return
+        bezig = len([1 for stand in _demo_status.values()
+                     if stand and stand != "klaar" and not stand.startswith("mislukt")])
+        dagpot = kosten.ruimte_voor_benadering()
+        diagnose = benadering.waarom_gaat_er_niets_uit(
+            moment_laatste_ronde=benadering.laatste_ronde(),
+            meetruimte=dagpot, metingen_bezig=bezig)
+        onderwerp, regels = benadering.dagbericht_tekst(diagnose, dagpot=dagpot)
+        body = "".join(f"<p>{emailing.veilig(r)}</p>" for r in regels)
+        if emailing.send_email(ontvanger, onderwerp, body):
+            benadering.onthoud_dagbericht()
+    except Exception as e:
+        print(f"Dagbericht mislukt: {e}")
 
 
 def _nu_meten_en_mailen(webshop_url):
@@ -1349,7 +1394,8 @@ def _nu_meten_en_mailen(webshop_url):
                                   "e-mailadres, dus er kan niets heen."]
         else:
             benadering.markeer_in_meting([webshop_url])
-            _demo_draaien(webshop_url, benchmark_stand=True)
+            _demo_draaien(webshop_url, benchmark_stand=True,
+                          vragen=BENADERING_VRAGEN)
             stand = _demo_status.get(webshop_url) or ""
             if stand.startswith("mislukt"):
                 verslag["redenen"] = [f"De meting is mislukt: {stand[:160]}"]
@@ -1372,6 +1418,21 @@ def _nu_meten_en_mailen(webshop_url):
     print(f"Handmatig, {webshop_url}: {'; '.join(verslag['redenen'])}")
     benadering.onthoud_rondeverslag(verslag)
 
+
+# Hoeveel vragen een meting voor de benadering stelt.
+#
+# Dit getal MOET boven MINIMUM_VRAGEN_VOOR_POST liggen, en daar zat een fout die
+# alle post tegenhield zonder dat er ergens een foutmelding verscheen. De
+# benadering mat met de benchmarkstand, en die stelt er vijf. De mail weigert
+# onder de tien. Elke winkel werd dus keurig gemeten, kostte geld, en kreeg
+# daarna te horen "er zijn maar 5 vragen meegeteld, dat is te weinig". Nul post,
+# elke dag opnieuw, met de rekening er wel bij. Een test bewaakt nu dat deze
+# twee getallen elkaar niet meer stilletjes kunnen tegenspreken.
+#
+# Vijftien en niet elf, omdat niet elke gestelde vraag ook meetelt: een model dat
+# uitvalt of een antwoord dat niets oplevert telt niet mee. Met vijftien houd je
+# marge boven de tien en blijft de meting binnen de schatting van 75 cent.
+BENADERING_VRAGEN = int(os.environ.get("BENADERING_VRAGEN", "15"))
 
 # Onder hoeveel meegetelde vragen wij geen post sturen.
 #
@@ -2335,11 +2396,13 @@ def _demo_werker():
             if not _demo_wachtrij:
                 _demo_werker_draait[0] = False
                 return
-            url, benchmark_stand = _demo_wachtrij.pop(0)
-        _demo_draaien(url, benchmark_stand)
+            regel = _demo_wachtrij.pop(0)
+            url, benchmark_stand = regel[0], regel[1]
+            vragen = regel[2] if len(regel) > 2 else None
+        _demo_draaien(url, benchmark_stand, vragen=vragen)
 
 
-def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False):
+def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False, vragen=None):
     """Zet winkels in de wachtrij en start de werker als die stilstaat.
 
     Geeft terug hoeveel er echt bijgekomen zijn. Een winkel die al in de rij
@@ -2371,7 +2434,7 @@ def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False):
                 continue
             if any(w[0] == url for w in _demo_wachtrij) or bezig:
                 continue
-            _demo_wachtrij.append((url, benchmark_stand))
+            _demo_wachtrij.append((url, benchmark_stand, vragen))
             _demo_status[url] = "in de wachtrij"
             toegevoegd += 1
         starten = toegevoegd and not _demo_werker_draait[0]
@@ -2387,7 +2450,7 @@ def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False):
 BENCHMARK_VRAGEN = int(os.environ.get("BENCHMARK_VRAGEN", "5"))
 
 
-def _demo_draaien(webshop_url, benchmark_stand=False):
+def _demo_draaien(webshop_url, benchmark_stand=False, vragen=None):
     """De hele keten voor een winkel die geen klant is, in één keer.
 
     Bewust dezelfde route als bij een echte klant: eerst de gewone scan, dan
@@ -2415,7 +2478,7 @@ def _demo_draaien(webshop_url, benchmark_stand=False):
         _meet_en_beoordeel(
             resultaat["url"],
             stap=lambda t: _demo_status.__setitem__(webshop_url, t),
-            max_vragen=BENCHMARK_VRAGEN if benchmark_stand else None,
+            max_vragen=vragen or (BENCHMARK_VRAGEN if benchmark_stand else None),
             controleer=not benchmark_stand,
             # In de benchmarkstand ook de bronanalyse overslaan. Die kost per
             # winkel een paar zoekopdrachten en tientallen paginabezoeken, en
