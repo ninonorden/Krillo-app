@@ -527,10 +527,19 @@ def markeer_gemaild(webshop_url, gelukt, fout=None):
 
     Mislukt hij, dan blijft de winkel op 'gemeten' staan en komt hij een
     volgende ronde weer langs. Zou je hem hier al op 'gemaild' zetten, dan sla
-    je hem voorgoed over terwijl hij nooit iets gehad heeft."""
+    je hem voorgoed over terwijl hij nooit iets gehad heeft.
+
+    Op een uitzondering na: een meting met te weinig vragen wordt nooit beter
+    door hem nog een keer aan te bieden. Zo'n winkel blijft anders eeuwig op
+    'gemeten' staan, wordt elke ronde opnieuw geweigerd, en bezet ondertussen
+    een plek in de rij van winkels die wel klaar zijn. Die gaat terug naar
+    'adres' en wordt gewoon opnieuw gemeten."""
     if gelukt:
         return db.zet_benadering(webshop_url, stand="gemaild", gemaild=True, notitie="")
-    return db.zet_benadering(webshop_url, notitie=(fout or "Verzenden mislukt.")[:400])
+    reden = (fout or "Verzenden mislukt.")[:400]
+    if reden.startswith("TE_WEINIG_VRAGEN"):
+        return db.zet_benadering(webshop_url, stand="adres", notitie=reden)
+    return db.zet_benadering(webshop_url, notitie=reden)
 
 
 # ---------------------------------------------------------------- de lijst erin

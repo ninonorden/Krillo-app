@@ -1275,9 +1275,15 @@ def _benadering_ronde():
         # rapporten van voor september staan nog in de oude schrijfwijze, met
         # www ervoor of http in plaats van https, en die zouden hier stil langs
         # elkaar heen lopen.
+        # LET OP de ondergrens hieronder. Een winkel telt pas als gemeten als de
+        # meting ook bruikbaar is voor post. Stond hier "meer dan nul vragen", dan
+        # gebeurde dit: een winkel met vijf vragen ging naar "gemeten", de mail
+        # weigerde hem omdat er minstens tien nodig zijn, de ronde zette hem terug
+        # op "adres", en de volgende ronde zag "meer dan nul" en zette hem weer op
+        # "gemeten". Eeuwig rond, en nooit post.
         al_gemeten = {scan_engine.normalize_url(w["webshop_url"])
                       for w in db.get_demo_webshops()
-                      if (w.get("vragen") or 0) > 0}
+                      if (w.get("vragen") or 0) >= MINIMUM_VRAGEN_VOOR_POST}
         verslag["gemeten_klaar"] = len(al_gemeten)
         # Opruimen gaat voor de geldcontrole uit, en dat is geen detail. Zolang
         # dit binnen te_meten zat werd er bij een lege dagpot niets vrijgemaakt,
@@ -1542,9 +1548,16 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None):
         # gedachte niet "goh" maar "dit stelt niets voor", en dat is terecht.
         # Zo'n meting is een afgebroken ronde, en die hoort niet de deur uit.
         if v["telbaar"] < MINIMUM_VRAGEN_VOOR_POST:
-            return False, (f"Er zijn maar {v['telbaar']} vragen meegeteld, dat is te "
-                           f"weinig voor een uitkomst. De meting is waarschijnlijk "
-                           f"halverwege gestopt.")
+            # En dan niet op "gemeten" laten staan. Doe je dat wel, dan komt deze
+            # winkel elke ronde opnieuw langs, wordt elke ronde opnieuw
+            # geweigerd, en krijgt hij nooit post. Ondertussen bezet hij wel een
+            # plek in de rij van winkels die wel klaar zijn. Terug naar "adres"
+            # betekent: opnieuw meten, nu met vijftien vragen.
+            return False, (f"TE_WEINIG_VRAGEN: er zijn maar {v['telbaar']} vragen "
+                           f"meegeteld, dat is te weinig voor een uitkomst. De meting "
+                           f"is halverwege gestopt of dateert van voor 10 september, "
+                           f"toen er nog met vijf vragen gemeten werd. Deze winkel "
+                           f"wordt opnieuw gemeten.")
 
         c = benchmark.tel_op(db.benchmark_regels())
         # De vergelijking met de andere winkels alleen meesturen als er ook echt
@@ -2598,7 +2611,7 @@ def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False, vragen=None):
     if not opnieuw:
         try:
             al_gedaan = {w["webshop_url"] for w in db.get_demo_webshops()
-                         if (w.get("vragen") or 0) > 0}
+                         if (w.get("vragen") or 0) >= MINIMUM_VRAGEN_VOOR_POST}
         except Exception as e:
             print(f"Kon niet nakijken welke demo's al gedaan zijn: {e}")
 

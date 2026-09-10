@@ -222,12 +222,21 @@ def registreer_vaste_kosten(soort, provider, bedrag, webshop_url=None, email=Non
 # halverwege afgekapt: wel betaald, geen uitkomst. Nu plannen wij er niet meer
 # in dan er betaald kunnen worden.
 #
-# Gemeten aan de echte cijfers van 8 september: vijf winkels van de
-# benaderlijst, samen ongeveer 15 euro, maar die zijn elk drie tot vijf keer
-# gemeten. Een enkele meting komt daarmee rond de 60 cent uit. Aan de veilige
-# kant afgerond, want te weinig inplannen kost alleen tijd en te veel inplannen
-# kost geld.
-SCHATTING_METING_EURO = float(os.environ.get("SCHATTING_METING_EURO", "0.75"))
+# Bijgesteld op 10 september, aan de echte cijfers. De schatting stond op 75
+# cent, gebaseerd op een meting van vijf vragen. De benadering meet er sinds
+# vandaag vijftien, omdat de mail onder de tien meegetelde vragen weigert. Op
+# die dag ging 25 euro op aan negen afgeronde metingen plus wat afgebroken
+# pogingen: ergens tussen de twee en drie euro per meting.
+#
+# Waarom te laag schatten duur is, en niet alleen onhandig: de ronde plant in op
+# basis van dit getal. Staat het te laag, dan zet hij er vier in terwijl er nog
+# maar voor een betaald kan worden. De vier starten allemaal, de dagpot raakt op
+# en de rem kapt ze halverwege af. Dan heb je vier keer betaald bij de modellen
+# en nul bruikbare metingen, en de winkels blijven op "meten" staan. Precies wat
+# er op 10 september gebeurde.
+#
+# Aan de veilige kant afgerond. Te weinig inplannen kost alleen tijd.
+SCHATTING_METING_EURO = float(os.environ.get("SCHATTING_METING_EURO", "2.50"))
 
 SCHATTING_ONBEKENDE_AANROEP_EURO = float(
     os.environ.get("SCHATTING_ONBEKENDE_AANROEP_EURO", "0.02"))

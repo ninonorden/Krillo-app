@@ -112,6 +112,11 @@ krillo._klantgegevens = lambda url: {
 }
 db.zet_instelling("benadering_aan", "ja")
 
+# De klok vastzetten. Deze test draaide eerst gewoon op de tijd van de machine,
+# en dus slaagde hij overdag en viel hij 's avonds om met "buiten de uren dat wij
+# post versturen". Een test die afhangt van hoe laat je hem draait bewaakt niets.
+benadering.binnen_kantooruren = lambda moment=None: True
+
 krillo._benadering_ronde()
 
 zo("er is precies een mail verstuurd", len(verstuurd), 1)
@@ -141,8 +146,48 @@ klopt("en de reden staat in het logboek",
       any("vragen" in m for m in benadering.rondeverslagen()[0]["mislukt"]))
 stand = {r["webshop_url"]: r for r in db.get_benaderingen(alleen_niet_afgemeld=False)
          if r["webshop_url"] == KRAP}
-zo("hij blijft op gemeten staan en komt dus later terug",
-   (stand.get(KRAP) or {}).get("stand"), "gemeten")
+# Sinds 10 september gaat hij terug naar "adres" om opnieuw gemeten te worden.
+# Op "gemeten" laten staan betekende: elke ronde opnieuw aangeboden, elke ronde
+# opnieuw geweigerd, en nooit post.
+zo("hij gaat terug om opnieuw gemeten te worden",
+   (stand.get(KRAP) or {}).get("stand"), "adres")
+
+print("\n== een halve meting blijft niet eeuwig op gemeten staan ==")
+# Dit is de val die anders morgen weer toeslaat. Een winkel met te weinig
+# vragen werd geweigerd door de mail, bleef op "gemeten" staan, werd elke ronde
+# opnieuw geweigerd, en bezette ondertussen een plek in de rij van winkels die
+# wel klaar waren.
+HALF = "https://halvemeting-test.nl"
+db.zet_benadering(HALF, stand="afgevallen")
+db.voeg_benaderingen_toe([(HALF, "Half", "NL", None)])
+db.zet_benadering(HALF, stand="gemeten", email="info@halvemeting-test.nl",
+                  afgemeld=False)
+krillo._klantgegevens = lambda url: {"vermeldingen": {"telbaar": 5, "genoemd": 0}}
+verstuurd.clear()
+krillo._benadering_ronde()
+zo("er gaat geen halve uitkomst uit", len(verstuurd), 0)
+stand = {r["webshop_url"]: r for r in db.get_benaderingen(alleen_niet_afgemeld=False)
+         if r["webshop_url"] == HALF}
+zo("hij staat weer op adres, om opnieuw gemeten te worden",
+   (stand.get(HALF) or {}).get("stand"), "adres")
+klopt("met de reden erbij",
+      "te weinig" in ((stand.get(HALF) or {}).get("notitie") or "").lower())
+
+print("\n== en de ronde zet hem niet meteen terug op gemeten ==")
+# Zonder de ondergrens bij al_gemeten gebeurde precies dat, en dan blijf je
+# eeuwig rondgaan zonder ooit post te sturen.
+krillo._benadering_ronde()
+stand = {r["webshop_url"]: r for r in db.get_benaderingen(alleen_niet_afgemeld=False)
+         if r["webshop_url"] == HALF}
+klopt("hij staat niet op gemeten",
+      (stand.get(HALF) or {}).get("stand") != "gemeten")
+
+print("\n== de schatting per meting is niet te laag ==")
+# Staat dit getal te laag, dan plant de ronde meer metingen in dan er betaald
+# kunnen worden, worden ze halverwege afgekapt, en heb je betaald voor niets.
+import kosten  # noqa: E402
+klopt(f"schatting is {kosten.SCHATTING_METING_EURO} euro per meting",
+      kosten.SCHATTING_METING_EURO >= 1.50)
 
 print()
 if fouten:
