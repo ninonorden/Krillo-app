@@ -307,6 +307,33 @@ def fetch(url, measure_time=False, pogingen=3):
     eerlijkste beeld van hoe snel de site echt is."""
     snelste = None
     laatste_resp = None
+
+    # Terugvallen op www als het kale domein niet bereikbaar is.
+    #
+    # normalize_url haalt sinds september "www." weg, zodat winkel.nl en
+    # www.winkel.nl dezelfde sleutel krijgen. Dat is goed voor het bewaren, maar
+    # niet elke webshop is ook echt op het kale domein bereikbaar: er zijn er
+    # genoeg waar alleen www een certificaat of een DNS-record heeft. Zonder
+    # deze terugval kreeg zo'n winkel "we konden je website niet bereiken",
+    # terwijl hij gewoon online is. Voor een betalende klant is dat een
+    # wekelijkse meting die stilvalt zonder zichtbare reden.
+    adressen = [url]
+    schema, _, rest = url.partition("://")
+    if rest and not rest.lower().startswith("www."):
+        adressen.append(f"{schema}://www.{rest}")
+
+    for adres in adressen:
+        uitkomst = _probeer_adres(adres, measure_time, pogingen)
+        if uitkomst is not None:
+            return uitkomst
+    return (None, None) if measure_time else None
+
+
+def _probeer_adres(url, measure_time, pogingen):
+    """Een adres proberen. Geeft None terug als er niets bruikbaars uitkwam,
+    zodat de aanroeper het volgende adres kan proberen."""
+    snelste = None
+    laatste_resp = None
     for poging in range(pogingen):
         try:
             start = time.monotonic()
@@ -331,6 +358,12 @@ def fetch(url, measure_time=False, pogingen=3):
             if poging < pogingen - 1:
                 time.sleep(0.5)
             continue
+    # Niets binnengekregen, of alleen foutcodes: dan is dit adres niet de
+    # goede en mag de aanroeper het volgende proberen.
+    if laatste_resp is None:
+        return None
+    if laatste_resp.status_code >= 400:
+        return None
     if measure_time:
         return (laatste_resp, snelste)
     return laatste_resp

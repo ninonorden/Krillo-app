@@ -78,8 +78,10 @@
   <div class="waarom">
     Je krijgt deze pagina omdat {{ webshop_url }} is meegenomen in ons onderzoek naar
     Nederlandse webshops in AI-antwoorden. We hebben alleen openbare informatie gebruikt
-    en niets van je site aangepast. Wil je dat we je uitkomst weghalen, mail dan
-    <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a> en het is dezelfde dag weg.
+    en niets van je site aangepast. Wil je dat we je uitkomst weghalen, dan kan dat
+    {% if afmeld_token %}met <a href="/afmelden/{{ afmeld_token }}">deze link</a>, in
+    een klik.{% else %}door te mailen naar
+    <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a>.{% endif %}
   </div>
 
   <div class="eyebrow">{{ webshop_url }}</div>
@@ -140,8 +142,23 @@
       wij het erin: de veelgestelde vragen, je productinformatie zo opgeschreven dat AI
       hem kan lezen, en de technische punten goed. Je krijgt achteraf een overzicht van
       elke wijziging, met de oude tekst erbij, zodat je alles kunt terugzetten.</p>
-    <a href="/#prijzen">Laat het ons doen</a>
+    {# De winkel gaat mee in de link.
+
+       Waarom dat uitmaakt: wie hier op klikt komt van een mail over ZIJN winkel,
+       heeft net zijn eigen uitkomst gelezen, en belandde daarna op een algemene
+       prijspagina waar hij zijn adres opnieuw moest intypen. Dat is een
+       verloren stap op de enige plek waar een bezoeker klant kan worden, en wij
+       weten op dat moment precies om welke winkel het gaat. #}
+    <a href="/?winkel={{ webshop_url | urlencode }}#prijzen">Laat het ons doen</a>
     <a class="tweede" href="/onderzoek">Bekijk het onderzoek</a>
+    {# Deze regel stond alleen in de voorwaarden, en daar leest niemand hem.
+       Hij hoort hier: dit is het moment waarop iemand van een onbekend bedrijf
+       geld moet uitgeven, en dat is precies waar de drempel zit. #}
+    <p style="font-size:13.5px; color:#3B3D57; margin:16px 0 0;">
+      Levert de audit je niets op, dan krijg je binnen dertig dagen je geld terug.
+      Zonder uitleg, een mail is genoeg. Zeg je het abonnement binnen veertien dagen
+      op, dan krijg je die eerste maand terug.
+    </p>
   </div>
 </div></main>
 

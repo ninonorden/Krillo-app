@@ -325,33 +325,6 @@ def init_db():
                             "ADD COLUMN IF NOT EXISTS meting_gestart_op TIMESTAMPTZ;")
                 cur.execute("""CREATE INDEX IF NOT EXISTS benadering_stand
                                ON benadering (stand);""")
-                # Bestaande winkels meenemen naar de nieuwe schrijfwijze.
-                #
-                # normalize_url haalt sinds september 2026 ook "www." en de
-                # schuine streep aan het eind weg, en maakt van http https.
-                # Zonder deze opruiming zou een winkel die als
-                # "https://www.winkel.nl" op de lijst staat nooit meer gevonden
-                # worden, want er wordt voortaan naar "https://winkel.nl"
-                # gezocht. Die winkel blijft dan eeuwig staan zonder dat er iets
-                # met hem gebeurt.
-                #
-                # Levert de nieuwe schrijfwijze een winkel op die er al staat,
-                # dan gooien wij de dubbele weg en houden wij degene die het
-                # verst is: liever de rij die al gemaild is dan de rij die nog
-                # op nieuw staat.
-                cur.execute("SELECT webshop_url FROM benadering")
-                for (oud_adres,) in list(cur.fetchall()):
-                    nieuw_adres = scan_engine.normalize_url(oud_adres)
-                    if not nieuw_adres or nieuw_adres == oud_adres:
-                        continue
-                    cur.execute("SELECT 1 FROM benadering WHERE webshop_url = %s",
-                                (nieuw_adres,))
-                    if cur.fetchone():
-                        cur.execute("DELETE FROM benadering WHERE webshop_url = %s",
-                                    (oud_adres,))
-                    else:
-                        cur.execute("UPDATE benadering SET webshop_url = %s "
-                                    "WHERE webshop_url = %s", (nieuw_adres, oud_adres))
                 # Koppelingen met winkels die niet op Shopify draaien.
                 #
                 # De sleutels staan hier versleuteld in, niet in platte tekst.
@@ -623,7 +596,7 @@ def init_db():
                 # winkel voorgoed zodra het slot hieronder actief wordt.
                 cur.execute("""UPDATE zichtbaarheidstests
                                   SET status = 'mislukt', foutsoort = 'vastgelopen'
-                                WHERE status IN ('wachtrij', 'bezig')
+                                WHERE status NOT IN ('klaar', 'mislukt')
                                   AND aangevraagd_op < now() - interval '30 minutes'""")
 
                 cur.execute("ALTER TABLE zichtbaarheidstests ADD COLUMN IF NOT EXISTS soort TEXT DEFAULT 'volledig';")
@@ -673,6 +646,7 @@ def init_db():
     # gewoon op.
     _zet_slot_op_lopende_tests()
     _sluit_bestaande_shopify_sleutels_weg()
+    _zet_webadressen_op_een_schrijfwijze()
 
 
 def ontclaim_payment(payment_id):
@@ -2592,6 +2566,79 @@ def get_demo_webshops():
 TEST_VASTGELOPEN_NA_MINUTEN = 30
 
 
+def _zet_webadressen_op_een_schrijfwijze():
+    """Zet elk bewaard webadres om naar de vorm die normalize_url nu maakt.
+
+    Waarom dit over ALLE tabellen moet en niet alleen over de benaderlijst:
+    normalize_url haalt sinds september 2026 ook "www." weg, maakt van http
+    https en haalt de schuine streep aan het eind eraf. Elke aanroep zoekt dus
+    voortaan op de kale vorm. Alles wat er voor die wijziging in ging staat nog
+    in de oude vorm, en die twee vinden elkaar nooit meer.
+
+    Wat er dan gebeurt, en dat is geen theorie: een klant met adres
+    "https://www.klant.nl" start zijn wekelijkse meting, get_or_create_klant
+    zoekt naar "https://klant.nl", vindt zijn rij niet, en maakt een nieuwe
+    klant aan met een nieuw token. Hij kijkt op zijn eigen gebookmarkte pagina
+    en ziet daar nooit meer een update, terwijl er ergens anders een lege
+    pagina ontstaat. Zijn koopvragen en zijn geschiedenis raken hij ook kwijt,
+    en die worden opnieuw gemaakt, met kosten.
+
+    Elke tabel in een eigen transactie, en elke rij apart. Botst een rij met een
+    rij die er al staat, dan slaan wij die over in plaats van de hele omzetting
+    te laten omvallen. Beter negentien tabellen waarvan er achttien klaar zijn
+    dan een app die niet opstart."""
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    veranderd = 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT table_name FROM information_schema.columns
+                                WHERE column_name = 'webshop_url'
+                                  AND table_schema = 'public'
+                                ORDER BY table_name""")
+                tabellen = [r[0] for r in cur.fetchall()]
+
+        for tabel in tabellen:
+            try:
+                with conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            f"SELECT DISTINCT webshop_url FROM {tabel} "
+                            "WHERE webshop_url IS NOT NULL")
+                        adressen = [r[0] for r in cur.fetchall()]
+            except Exception as e:
+                print(f"Adressen lezen uit {tabel} mislukt: {e}")
+                continue
+
+            for oud_adres in adressen:
+                nieuw_adres = scan_engine.normalize_url(oud_adres)
+                if not nieuw_adres or nieuw_adres == oud_adres:
+                    continue
+                try:
+                    with conn:
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                f"UPDATE {tabel} SET webshop_url = %s "
+                                "WHERE webshop_url = %s", (nieuw_adres, oud_adres))
+                            veranderd += cur.rowcount
+                except Exception as e:
+                    # Meestal: er staat al een rij op de nieuwe schrijfwijze en
+                    # de twee kunnen niet naast elkaar. Laten staan.
+                    print(f"{tabel}: {oud_adres} kon niet omgezet worden: "
+                          f"{type(e).__name__}")
+        if veranderd:
+            print(f"{veranderd} rij(en) omgezet naar de nieuwe schrijfwijze van "
+                  f"webadressen.")
+        return veranderd
+    except Exception as e:
+        print(f"Webadressen gelijktrekken mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
 def _zet_slot_op_lopende_tests():
     """Zorgt dat er per winkel hoogstens EEN test tegelijk kan lopen.
 
@@ -2619,17 +2666,40 @@ def _zet_slot_op_lopende_tests():
                 cur.execute("""
                     UPDATE zichtbaarheidstests
                        SET status = 'mislukt', foutsoort = 'dubbel gestart'
-                     WHERE status IN ('wachtrij', 'bezig')
+                     WHERE status NOT IN ('klaar', 'mislukt')
                        AND id NOT IN (
                            SELECT max(id) FROM zichtbaarheidstests
-                            WHERE status IN ('wachtrij', 'bezig')
+                            WHERE status NOT IN ('klaar', 'mislukt')
                             GROUP BY webshop_url)""")
         with conn:
             with conn.cursor() as cur:
-                cur.execute("""CREATE UNIQUE INDEX IF NOT EXISTS
+                # Let op de omkering: wij noemen NIET op wat "loopt" maar wat
+                # "af" is.
+                #
+                # Dit ging mis. De eerste versie zocht op status in wachtrij of
+                # bezig. Maar zodra de meting begint zet zichtbaarheid.py de
+                # status op vrije tekst: "vragen bedenken", "vragen stellen aan
+                # AI", "antwoorden lezen". Die vallen buiten die twee, dus het
+                # slot beschermde alleen de eerste seconden, terwijl een meting
+                # minuten duurt. Precies de periode waarin het moest werken.
+                #
+                # Met "alles behalve klaar en mislukt" valt elke voortgangstekst
+                # eronder, ook eentje die er later bij komt.
+                # Eerst weggooien, dan opnieuw maken.
+                #
+                # Dit moet, en het is bijna misgegaan. De eerste versie van deze
+                # index had een andere voorwaarde. "CREATE UNIQUE INDEX IF NOT
+                # EXISTS" kijkt alleen naar de NAAM, niet naar de voorwaarde, dus
+                # op een database waar de oude index al staat gebeurt er
+                # helemaal niets en blijft de oude voorwaarde gelden. De
+                # reparatie zou dan wel in de code staan en niet in de database,
+                # en dat is het soort verschil waar je weken naar zoekt.
+                cur.execute("DROP INDEX IF EXISTS "
+                            "zichtbaarheidstests_een_lopende_per_winkel")
+                cur.execute("""CREATE UNIQUE INDEX
                                zichtbaarheidstests_een_lopende_per_winkel
                                ON zichtbaarheidstests (webshop_url)
-                               WHERE status IN ('wachtrij', 'bezig')""")
+                               WHERE status NOT IN ('klaar', 'mislukt')""")
         return True
     except Exception as e:
         # De app draait gewoon door. Zonder de index is er nog steeds de
@@ -2668,7 +2738,7 @@ def loopt_er_al_een_test(webshop_url):
                 cur.execute(
                     """SELECT 1 FROM zichtbaarheidstests
                         WHERE webshop_url = %s
-                          AND status IN ('wachtrij', 'bezig')
+                          AND status NOT IN ('klaar', 'mislukt')
                           AND aangevraagd_op > now() - make_interval(mins => %s)
                         LIMIT 1""",
                     (webshop_url, TEST_VASTGELOPEN_NA_MINUTEN))

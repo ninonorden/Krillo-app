@@ -1705,5 +1705,26 @@
 })();
 </script>
 
+<script>
+// De winkel uit de link overnemen in de velden.
+//
+// Iemand die vanaf zijn eigen uitkomstpagina hier komt heeft zijn adres al een
+// keer gezien en hoeft het niet nog eens in te typen. Zonder dit moest hij dat
+// wel, precies op het moment dat hij besloten had verder te willen.
+(function(){
+  try {
+    var winkel = new URLSearchParams(window.location.search).get('winkel');
+    if (!winkel) { return; }
+    ['checkoutUrl', 'scanUrlInput'].forEach(function(id){
+      var veld = document.getElementById(id);
+      // Niets overschrijven wat iemand zelf al ingetypt heeft.
+      if (veld && !veld.value) { veld.value = winkel; }
+    });
+  } catch (e) {
+    // Een oude browser zonder URLSearchParams. Dan typt hij het gewoon zelf,
+    // net als eerst. Geen reden om de pagina hierop te laten struikelen.
+  }
+})();
+</script>
 </body>
 </html>

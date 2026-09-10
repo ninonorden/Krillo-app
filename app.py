@@ -1265,6 +1265,18 @@ def _benadering_ronde():
         print(f"Benadering, mailen mislukt: {e}")
 
 
+# Onder hoeveel meegetelde vragen wij geen post sturen.
+#
+# Tien is de ondergrens waaronder een uitkomst niets zegt. Een winkel die bij 0
+# van de 4 vragen genoemd wordt, kan bij 30 vragen prima drie keer voorkomen.
+# Ongevraagde post met zo'n cijfer erin is niet alleen zwak, hij is misleidend.
+MINIMUM_VRAGEN_VOOR_POST = 10
+
+# Vanaf hoeveel gemeten winkels wij onszelf een onderzoek mogen noemen in de
+# vergelijkingsregel. Onder dit aantal laten wij die regel weg.
+MINIMUM_WINKELS_VOOR_VERGELIJKING = 25
+
+
 def _stuur_onderzoeksmail(webshop_url, email, land=None):
     """Stuurt één winkel zijn eigen uitkomst. Geeft (gelukt, reden) terug.
 
@@ -1285,12 +1297,30 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None):
         v = gegevens.get("vermeldingen") or {}
         if not v.get("telbaar"):
             return False, "Deze winkel is nog niet gemeten."
+        # Een uitkomst op een handjevol vragen is geen uitkomst. Krijgt iemand
+        # ongevraagd post met "genoemd bij 0 van de 4 vragen", dan is de eerste
+        # gedachte niet "goh" maar "dit stelt niets voor", en dat is terecht.
+        # Zo'n meting is een afgebroken ronde, en die hoort niet de deur uit.
+        if v["telbaar"] < MINIMUM_VRAGEN_VOOR_POST:
+            return False, (f"Er zijn maar {v['telbaar']} vragen meegeteld, dat is te "
+                           f"weinig voor een uitkomst. De meting is waarschijnlijk "
+                           f"halverwege gestopt.")
+
         c = benchmark.tel_op(db.benchmark_regels())
+        # De vergelijking met de andere winkels alleen meesturen als er ook echt
+        # iets te vergelijken valt.
+        #
+        # Deze mail heet een onderzoek en leunt op dat woord. Staat er "van de 5
+        # gemeten winkels", dan leest de ontvanger terecht: dit is geen
+        # onderzoek, dit is een verkoopmail met een jasje aan. Onder de grens
+        # laten wij die regel gewoon weg; de mail werkt ook zonder.
+        genoeg = (c.get("gemeten") or 0) >= MINIMUM_WINKELS_VOOR_VERGELIJKING
         basis = get_base_url()
         gelukt = emailing.send_onderzoeksmail(
             email, webshop_url, f"{basis}/uitkomst/{token}",
             genoemd=v.get("genoemd"), telbaar=v.get("telbaar"),
-            nooit_genoemd=c.get("nooit_genoemd"), gemeten=c.get("gemeten"),
+            nooit_genoemd=c.get("nooit_genoemd") if genoeg else None,
+            gemeten=c.get("gemeten") if genoeg else None,
             afmeld_url=f"{basis}/afmelden/{token}", land=land)
         return bool(gelukt), None if gelukt else "Verzenden mislukt, kijk in de logs."
     except Exception as e:
@@ -2444,6 +2474,12 @@ def uitkomst(token):
     return render_template(
         "uitkomst.html",
         webshop_url=webshop_url,
+        # Het kenmerk meegeven zodat de afmeldknop op deze pagina kan staan.
+        # Er stond alleen "mail ons", en iemand die zich overvallen voelt door
+        # ongevraagde post klikt eerder op de spamknop van zijn mailprogramma
+        # dan dat hij een mail gaat typen. Een spamklacht kost je je domein,
+        # een afmelding kost je een adres.
+        afmeld_token=token,
         winkelnaam=_winkelnaam(webshop_url),
         vermeldingen=gegevens["vermeldingen"],
         actieplan=gegevens["actieplan"],
