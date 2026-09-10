@@ -1,0 +1,18 @@
+Dit zijn de testbestanden. Render doet er niets mee: de app start met
+gunicorn app:app en kijkt niet in deze map. Ze staan hier zodat er in GitHub
+zichtbaar vastligt wat er bewaakt wordt, en zodat een volgende versie ze kan
+draaien in plaats van erop te vertrouwen dat het nog goed gaat.
+
+Ze verwachten een lege testdatabase in DATABASE_URL en de mappen een niveau
+hoger, dus draaien op je eigen computer vraagt wat opzet. Ze staan hier als
+verantwoording, niet als iets dat jij moet doen.
+
+Wat de belangrijkste bewaken:
+
+  test_postgaatuit.py  De hele keten, van winkel met adres tot verstuurde mail.
+                       Deze was rood bij de zip van 9 september en legde vast
+                       waarom er drie dagen geen post uitging.
+  test_logboek.py      Het logboek per ronde, het vrijmaken van vastgelopen
+                       metingen, en de diagnose over de dagpot.
+  test_dubbelmeten.py  Dat er nooit twee keer voor dezelfde meting betaald wordt.
+  test_standtaal.py    Dat een Engelse winkel geen Nederlandse tekst ziet.
