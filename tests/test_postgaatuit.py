@@ -182,6 +182,34 @@ stand = {r["webshop_url"]: r for r in db.get_benaderingen(alleen_niet_afgemeld=F
 klopt("hij staat niet op gemeten",
       (stand.get(HALF) or {}).get("stand") != "gemeten")
 
+print("\n== de trechter na de mail wordt geteld ==")
+# Zonder dit weet je na honderd verstuurde mails alleen dat er honderd
+# verstuurd zijn, en dat zegt niets over waar mensen afhaken.
+T = "https://trechter-posttest.nl"
+db.zet_benadering(T, stand="afgevallen")
+db.voeg_benaderingen_toe([(T, "Trechter", "NL", None)])
+db.zet_benadering(T, stand="gemeten", email="info@trechter-posttest.nl", afgemeld=False)
+voor = db.trechter_benadering()
+klopt("een bezoek wordt geteld", db.noteer_uitkomst_bekeken(T))
+klopt("een doorklik wordt geteld", db.noteer_doorgeklikt(T))
+zo("twee keer doorklikken telt maar een keer", db.noteer_doorgeklikt(T), False)
+na = db.trechter_benadering()
+zo("de teller is een omhoog", na["bekeken"], voor["bekeken"] + 1)
+zo("en de doorklik ook", na["doorgeklikt"], voor["doorgeklikt"] + 1)
+zo("een winkel die niet bestaat verandert niets",
+   db.noteer_uitkomst_bekeken("https://bestaat-echt-niet-zz.nl"), False)
+klopt("herhaald bezoek wordt apart geteld", db.noteer_uitkomst_bekeken(T))
+rij = [r for r in db.get_benaderingen(alleen_niet_afgemeld=False)
+       if r["webshop_url"] == T][0]
+zo("twee bezoeken geteld", rij.get("bekeken_aantal"), 2)
+
+print("\n== de knop op de uitkomstpagina loopt langs de teller ==")
+# Anders wordt de enige stap die over geld gaat niet geteld.
+sjabloon = open(os.path.join(APP, "templates", "uitkomst.html")).read()
+klopt("de knop gaat via /verder", "/uitkomst/{{ token }}/verder" in sjabloon)
+bron = open(os.path.join(APP, "app.py")).read()
+klopt("en die route bestaat", '"/uitkomst/<token>/verder"' in bron)
+
 print("\n== de schatting per meting is niet te laag ==")
 # Staat dit getal te laag, dan plant de ronde meer metingen in dan er betaald
 # kunnen worden, worden ze halverwege afgekapt, en heb je betaald voor niets.

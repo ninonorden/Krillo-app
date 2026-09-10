@@ -150,7 +150,10 @@
        prijspagina waar hij zijn adres opnieuw moest intypen. Dat is een
        verloren stap op de enige plek waar een bezoeker klant kan worden, en wij
        weten op dat moment precies om welke winkel het gaat. #}
-    <a href="/?winkel={{ webshop_url | urlencode }}#prijzen">Laat het ons doen</a>
+    {# Via /verder en niet rechtstreeks, zodat de doorklik geteld wordt. Dit is
+       de enige stap in de hele trechter die over geld gaat. Die route stuurt
+       door naar precies dezelfde plek, met de winkel al ingevuld. #}
+    <a href="/uitkomst/{{ token }}/verder">Laat het ons doen</a>
     <a class="tweede" href="/onderzoek">Bekijk het onderzoek</a>
     {# Deze regel stond alleen in de voorwaarden, en daar leest niemand hem.
        Hij hoort hier: dit is het moment waarop iemand van een onbekend bedrijf

@@ -19,6 +19,8 @@ import re
 import threading
 import time
 from datetime import datetime, timezone, timedelta
+from urllib.parse import quote
+
 from flask import (Flask, request, jsonify, render_template, redirect, Response,
                    has_request_context)
 import scan_engine
@@ -1405,8 +1407,60 @@ def _benadering_ronde():
         verslag["mislukt"].append(f"mailen: {e}")
         print(f"Benadering, mailen mislukt: {e}")
 
+    # Het warmste publiek dat er is: mensen die zelf hun mailadres invulden voor
+    # de gratis test. Die kregen tot nu toe hun uitkomst en daarna nooit meer
+    # iets. Bewust NA de benadering, want dit gaat om een handvol mails per dag
+    # en de benaderlijst is groter.
+    try:
+        verslag["opgevolgd"] = _volg_gratis_tests_op()
+    except Exception as e:
+        verslag["mislukt"].append(f"opvolging: {e}")
+        print(f"Opvolging gratis tests mislukt: {e}")
+
     benadering.onthoud_rondeverslag(verslag)
     _dagbericht_sturen()
+
+
+# Hoeveel dagen na de gratis test wij nog een keer schrijven. Kort genoeg dat
+# iemand het zich herinnert, lang genoeg dat het niet als een verkoopmachine
+# leest.
+OPVOLGEN_NA_DAGEN = int(os.environ.get("OPVOLGEN_NA_DAGEN", "3"))
+OPVOLGEN_PER_RONDE = int(os.environ.get("OPVOLGEN_PER_RONDE", "3"))
+
+
+def _volg_gratis_tests_op():
+    """Stuurt een tweede bericht aan aanvragers van de gratis test.
+
+    Houdt zich aan dezelfde klok en dezelfde schakelaar als de rest van de post.
+    Staat de benadering uit, dan gaat hier ook niets uit: dat is een schakelaar
+    voor alle ongevraagde post, niet alleen voor de benaderlijst.
+
+    Wat hier anders is dan bij de benadering: deze mensen hebben er zelf om
+    gevraagd. Ze krijgen precies een herinnering en daarna nooit meer."""
+    inst = benadering.instellingen()
+    if not inst["aan"] or not benadering.binnen_kantooruren():
+        return 0
+    gedaan = 0
+    for lead in db.leads_om_op_te_volgen(na_dagen=OPVOLGEN_NA_DAGEN,
+                                         hoeveel=OPVOLGEN_PER_RONDE):
+        try:
+            if db.is_afgemeld(lead["webshop_url"]):
+                db.markeer_lead_opgevolgd(lead["id"])
+                continue
+            gelukt = emailing.send_opvolging_gratis_test(
+                lead["email"], lead["webshop_url"], get_base_url(),
+                taal=_mailtaal(lead["webshop_url"]))
+            # Ook bij een mislukte verzending afvinken. Blijft hij openstaan,
+            # dan probeert elke ronde hetzelfde adres opnieuw, en een adres dat
+            # blijft weigeren is precies wat je reputatie sloopt.
+            db.markeer_lead_opgevolgd(lead["id"])
+            if gelukt:
+                gedaan += 1
+            print(f"Opvolging naar {lead['email']} voor {lead['webshop_url']}: "
+                  f"{'gelukt' if gelukt else 'mislukt'}")
+        except Exception as e:
+            print(f"Opvolging mislukt voor {lead.get('email')}: {e}")
+    return gedaan
 
 
 def _dagbericht_sturen():
@@ -1695,6 +1749,7 @@ def admin_benadering():
             moment_laatste_ronde=benadering.laatste_ronde(),
             meetruimte=kosten.ruimte_voor_benadering(),
             metingen_bezig=bezig),
+        trechter=db.trechter_benadering(),
         verslagen=benadering.rondeverslagen(),
         meetfouten=benadering.meetfouten(),
         wachtrij=len(_demo_wachtrij),
@@ -2843,6 +2898,10 @@ def uitkomst(token):
             "fout.html", titel="Deze link werkt niet meer",
             bericht="Vraag ons om een nieuwe, of doe de gratis scan op de homepage."), 404
 
+    # Alleen tellen dat de pagina geopend is. Zonder dit weet je na honderd
+    # verstuurde mails alleen dat er honderd verstuurd zijn.
+    db.noteer_uitkomst_bekeken(webshop_url)
+
     gegevens = _klantgegevens(webshop_url)
     laatste = (db.get_rapporten_voor_webshop(webshop_url) or [None])[0]
     cijfers = benchmark.tel_op(db.benchmark_regels())
@@ -2863,6 +2922,20 @@ def uitkomst(token):
         c=cijfers,
         token=token,
     )
+
+
+@app.route("/uitkomst/<token>/verder")
+def uitkomst_verder(token):
+    """De knop op de uitkomstpagina. Telt de doorklik en stuurt dan door.
+
+    Een eigen route en geen gewone link, want dit is de enige stap in de hele
+    trechter die over geld gaat. Zonder dit weet je wel hoeveel mensen hun
+    uitkomst openen, maar niet of ze daarna ook iets willen."""
+    webshop_url = db.winkel_bij_benchmark_token(token)
+    if not webshop_url:
+        return redirect("/#prijzen")
+    db.noteer_doorgeklikt(webshop_url)
+    return redirect(f"/?winkel={quote(webshop_url)}#prijzen")
 
 
 @app.route("/admin/benchmark")

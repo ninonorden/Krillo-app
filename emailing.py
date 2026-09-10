@@ -14,6 +14,7 @@ Optioneel:
 - SMTP_FROM_EMAIL: het afzenderadres (standaard: hallo@krillo.nl)
 """
 
+from urllib.parse import quote
 import html as _html
 import os
 import requests
@@ -764,6 +765,63 @@ def _weekly_en(to_email, webshop_url, score, report_url, vorige_score,
     body = (_vermeldingenblok(vermeldingen, "en") + melding
             + _score_button(report_url, "See your monitoring page"))
     html = _base_html(kop, f"The latest scan for {webshop_url}.", body, taal="en")
+    return send_email(to_email, onderwerp, html)
+
+
+def send_opvolging_gratis_test(to_email, webshop_url, site_url=None, taal="nl"):
+    """Een tweede bericht aan iemand die zelf de gratis test aanvroeg.
+
+    Dit is het warmste publiek dat Krillo heeft en het werd nooit gebruikt:
+    iemand vulde zijn mailadres in, kreeg zijn uitkomst, en hoorde daarna nooit
+    meer iets.
+
+    Bewust kort en zonder verkooppraat. Deze mensen weten al wat Krillo doet en
+    hebben hun eigen cijfer gezien. Wat ze niet weten is dat AI-antwoorden per
+    week veranderen en dat er iets aan te doen is. Dat is de hele boodschap.
+
+    Geen tweede opvolging. Wie na een herinnering niets doet, wil het niet, en
+    doorgaan levert alleen spamklachten op."""
+    basis = (site_url or "https://krillo.nl").rstrip("/")
+    winkel = _kaal_adres(webshop_url)
+    heen = f"{basis}/?winkel={quote(webshop_url or '')}#prijzen"
+
+    if taal == "en":
+        onderwerp = f"Your Krillo results for {winkel}"
+        kop = "One thing worth knowing"
+        body = (
+            f"<p style='font-size:14.5px;'>A little while ago you had us check whether "
+            f"AI assistants mention <strong>{veilig(winkel)}</strong>. You saw the result.</p>"
+            f"<p style='font-size:14.5px;'>What that measurement does not show: those "
+            f"answers change from week to week. A store that gets named today can be gone "
+            f"next month, without anything changing on your own site. It depends on what "
+            f"AI reads about you elsewhere.</p>"
+            f"<p style='font-size:14.5px;'>If you want, we keep measuring every week and "
+            f"we fix what we find, in your store, ourselves. You see exactly what changed "
+            f"and you can put anything back.</p>"
+            + _score_button(heen, "See what that costs")
+            + "<p style='font-size:13px; color:#5B5850;'>Not interested? Then just ignore "
+              "this. You will not hear from us again about this.</p>"
+        )
+    else:
+        onderwerp = f"Je Krillo-uitkomst voor {winkel}"
+        kop = "Een ding dat de moeite waard is om te weten"
+        body = (
+            f"<p style='font-size:14.5px;'>Een tijdje terug liet je bij ons nakijken of "
+            f"AI-assistenten <strong>{veilig(winkel)}</strong> noemen. Je hebt die uitkomst "
+            f"gezien.</p>"
+            f"<p style='font-size:14.5px;'>Wat die meting niet laat zien: die antwoorden "
+            f"veranderen per week. Een winkel die er vandaag bij staat kan er volgende maand "
+            f"uit liggen, zonder dat er iets aan je eigen site verandert. Het hangt af van "
+            f"wat AI elders over je leest.</p>"
+            f"<p style='font-size:14.5px;'>Wil je het bijhouden, dan meten wij elke week en "
+            f"zetten wij de verbeteringen er zelf in, in je eigen winkel. Je ziet precies "
+            f"wat er veranderd is en je kunt alles terugdraaien.</p>"
+            + _score_button(heen, "Bekijk wat dat kost")
+            + "<p style='font-size:13px; color:#5B5850;'>Niet interessant? Dan laat je deze "
+              "gewoon liggen. Hier hoor je ons niet nog een keer over.</p>"
+        )
+
+    html = _base_html(kop, f"Over {veilig(winkel)}.", body, taal=taal)
     return send_email(to_email, onderwerp, html)
 
 

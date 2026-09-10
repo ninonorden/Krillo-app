@@ -323,6 +323,18 @@ def init_db():
                 # ofwel eeuwig hangen ofwel wordt hij eeuwig opnieuw betaald.
                 cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS meting_gestart_op TIMESTAMPTZ;")
+                # De trechter na de mail. Zonder deze drie kolommen weet je na
+                # honderd verstuurde mails alleen dat er honderd verstuurd zijn,
+                # en dat is precies niets. Wat je wilt weten is: hoeveel mensen
+                # openen hun uitkomst, en hoeveel klikken door naar de prijzen.
+                # Pas dan weet je of de mail werkt of de pagina, en dus wat je
+                # moet veranderen.
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS bekeken_op TIMESTAMPTZ;")
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS bekeken_aantal INTEGER NOT NULL DEFAULT 0;")
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS doorgeklikt_op TIMESTAMPTZ;")
                 cur.execute("""CREATE INDEX IF NOT EXISTS benadering_stand
                                ON benadering (stand);""")
                 # Koppelingen met winkels die niet op Shopify draaien.
@@ -591,6 +603,15 @@ def init_db():
                     );
                 """)
                 cur.execute("ALTER TABLE zichtbaarheidstests ADD COLUMN IF NOT EXISTS hergebruikt BOOLEAN DEFAULT false;")
+                # Wanneer wij deze aanvrager nog een keer geschreven hebben.
+                #
+                # Dit ontbrak, en dat was het grootste gat in het hele bedrijf:
+                # iemand vult zijn mailadres in voor de gratis test, krijgt zijn
+                # uitkomst, en hoort daarna nooit meer iets. Dat is het warmste
+                # publiek dat Krillo heeft, warmer dan welke benaderlijst ook,
+                # want deze mensen hebben er zelf om gevraagd.
+                cur.execute("ALTER TABLE zichtbaarheidstests "
+                            "ADD COLUMN IF NOT EXISTS opgevolgd_op TIMESTAMPTZ;")
                 # Tests die uren geleden begonnen en nooit afgemaakt zijn, zijn
                 # omgevallen processen. Die vrijgeven, anders blokkeren ze de
                 # winkel voorgoed zodra het slot hieronder actief wordt.
@@ -1415,6 +1436,78 @@ def get_shopify_winkels(alleen_actief=True):
     except Exception as e:
         print(f"Shopify-winkels ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+def noteer_uitkomst_bekeken(webshop_url):
+    """Legt vast dat iemand zijn eigen uitkomst geopend heeft.
+
+    Alleen tellen, geen persoonsgegevens. Wat er bewaard wordt is: hoe vaak en
+    wanneer voor het laatst. Dat is genoeg om te weten of de mail werkt, en het
+    is het minste dat daarvoor nodig is."""
+    if not webshop_url:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE benadering
+                                  SET bekeken_op = now(),
+                                      bekeken_aantal = COALESCE(bekeken_aantal, 0) + 1
+                                WHERE webshop_url = %s""", (webshop_url,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Bezoek aan de uitkomst noteren mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def noteer_doorgeklikt(webshop_url):
+    """Legt vast dat iemand vanaf zijn uitkomst doorgeklikt heeft naar de
+    prijzen. Dit is de enige stap in de trechter die echt over geld gaat."""
+    if not webshop_url:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE benadering SET doorgeklikt_op = now()
+                                WHERE webshop_url = %s
+                                  AND doorgeklikt_op IS NULL""", (webshop_url,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Doorklik noteren mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def trechter_benadering():
+    """Hoeveel er gemaild, geopend en doorgeklikt is. Altijd een woordenboek."""
+    leeg = {"gemaild": 0, "bekeken": 0, "doorgeklikt": 0}
+    conn = _get_connection()
+    if conn is None:
+        return leeg
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT
+                        COUNT(*) FILTER (WHERE gemaild_op IS NOT NULL),
+                        COUNT(*) FILTER (WHERE bekeken_op IS NOT NULL),
+                        COUNT(*) FILTER (WHERE doorgeklikt_op IS NOT NULL)
+                    FROM benadering""")
+                rij = cur.fetchone() or (0, 0, 0)
+                return {"gemaild": rij[0] or 0, "bekeken": rij[1] or 0,
+                        "doorgeklikt": rij[2] or 0}
+    except Exception as e:
+        print(f"Trechter ophalen mislukt: {e}")
+        return leeg
     finally:
         conn.close()
 
@@ -2985,6 +3078,66 @@ def zichtbaarheidstest_leads(limit=200):
     except Exception as e:
         print(f"Leads ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+def leads_om_op_te_volgen(na_dagen=3, hoeveel=5):
+    """Aanvragers van de gratis test die nog nooit een tweede bericht kregen.
+
+    Alleen wie zijn test echt afgerond heeft, want anders schrijf je iemand over
+    een uitkomst die hij nooit gezien heeft. En alleen wie geen klant is: een
+    klant krijgt zijn eigen wekelijkse post al.
+
+    Per e-mailadres maar een keer, ook als iemand drie winkels getest heeft.
+    Drie mails op een dag naar hetzelfde adres is hoe je in de spammap komt."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT DISTINCT ON (z.email)
+                              z.id, z.webshop_url, z.email, z.aangevraagd_op
+                         FROM zichtbaarheidstests z
+                    LEFT JOIN klanten k ON k.webshop_url = z.webshop_url
+                        WHERE z.status = 'klaar'
+                          AND z.opgevolgd_op IS NULL
+                          AND z.email IS NOT NULL AND z.email <> ''
+                          AND z.aangevraagd_op < now() - (%s || ' days')::interval
+                          AND k.webshop_url IS NULL
+                     ORDER BY z.email, z.aangevraagd_op DESC
+                        LIMIT %s""",
+                    (str(int(na_dagen)), hoeveel),
+                )
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Leads om op te volgen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def markeer_lead_opgevolgd(test_id):
+    """Zet vast dat deze aanvrager een tweede bericht gehad heeft.
+
+    Per e-mailadres en niet per test, want iemand die drie winkels getest heeft
+    hoort geen drie mails te krijgen."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE zichtbaarheidstests SET opgevolgd_op = now()
+                                WHERE email = (SELECT email FROM zichtbaarheidstests
+                                                WHERE id = %s)
+                                  AND opgevolgd_op IS NULL""", (test_id,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Lead als opgevolgd markeren mislukt: {e}")
+        return False
     finally:
         conn.close()
 

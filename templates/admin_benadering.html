@@ -128,6 +128,23 @@
   </div>
   {% endif %}
 
+  {# De trechter. Na honderd verstuurde mails weten dat er honderd verstuurd
+     zijn is precies niets waard. Wat je moet weten is waar mensen afhaken: bij
+     de mail, of bij de pagina. Dat bepaalt wat je verandert. #}
+  {% if trechter and trechter.gemaild %}
+  <div class="kaart">
+    <div class="uitleg">
+      <b>Wat de post oplevert.</b>
+      {{ trechter.gemaild }} winkels gemaild.
+      Daarvan hebben er <b>{{ trechter.bekeken }}</b> hun uitkomst geopend
+      {%- if trechter.gemaild %} ({{ (trechter.bekeken * 100 // trechter.gemaild) }} procent){% endif %},
+      en <b>{{ trechter.doorgeklikt }}</b> klikten door naar de prijzen.
+      <br><span class="klein">Blijft 'geopend' laag, dan ligt het aan de mail. Blijft
+      'doorgeklikt' laag terwijl 'geopend' hoog is, dan ligt het aan de uitkomstpagina.</span>
+    </div>
+  </div>
+  {% endif %}
+
   {# Wat er op dit moment echt loopt. Zonder dit is "er wordt gemeten" en "er
      staat iets vast" van buitenaf hetzelfde. #}
   <div class="kaart">
