@@ -40,6 +40,7 @@ nep.zeg_abonnement_op = lambda a, b: {"ok": True}
 sys.modules["payments"] = nep
 
 import db
+import paginataal
 import app as krillo
 
 # Een vast actieplan, zodat de test niet afhangt van echte metingen.
@@ -178,12 +179,16 @@ env = Environment(loader=FileSystemLoader(
 basis = dict(webshop_url=WINKEL, klant_token="abc", voorbeeld=False, actieplan=PLAN,
              laatste=None, verschil=None, verloop=[], nieuwe_problemen=[],
              checks_by_categorie={}, vermeldingen=None, controle=None, beweging=None,
-             bronnen=None, verklaring=None, taakstand=None, sleutel="x", status_labels={})
+             bronnen=None, verklaring=None, taakstand=None, sleutel="x", status_labels={},
+             # De vaste teksten van de pagina komen sinds de tweetalige versie
+             # uit paginataal.py en niet meer uit het sjabloon zelf.
+             t=paginataal.TEKSTEN["nl"], paginataal="nl", shopify_beheer=None)
 u = dict(db.get_uitvoeringen(WINKEL)[0])
 u["stand"] = "opgeleverd"
 h = env.get_template("monitoring.html").render(
     uitvoering=u, wijzigingen=[dict(x) for x in db.get_wijzigingen(WINKEL)], **basis)
-zo("het overzicht staat er ingeklapt bij", "Wat we precies veranderd hebben (2)" in h, True)
+zo("het overzicht staat er ingeklapt bij",
+   f"{paginataal.TEKSTEN['nl']['wijzigingen_kop']} (2)" in h, True)
 zo("met de oude tekst", "Bel ons voor vragen, ma t/m vr." in h, True)
 
 h = env.get_template("monitoring.html").render(uitvoering=None, wijzigingen=[], **basis)

@@ -30,6 +30,7 @@ import db
 import artikelen
 import koopvragen
 import kosten
+import paginataal
 import metingen
 import actieplan
 import beoordeling
@@ -65,9 +66,23 @@ def get_base_url():
     return "https://krillo.nl"
 
 
+# Vanaf hoeveel gescande webshops wij dat aantal op de site zetten.
+MINIMUM_VOOR_TELLER = int(os.environ.get("MINIMUM_VOOR_TELLER", "50"))
+
+
 @app.route("/")
 def home():
-    return render_template("index.html")
+    # Het aantal gescande webshops als sociaal bewijs. Onder een ondergrens
+    # laten wij het weg: "wij scanden al 3 webshops" is slechter dan niets, want
+    # het zegt precies hoe klein je bent op de plek waar je vertrouwen wilt
+    # wekken. Mislukt het tellen, dan komt er 0 uit en valt het vanzelf weg.
+    try:
+        gescand = db.tel_gescande_webshops()
+    except Exception as e:
+        print(f"Teller ophalen mislukt: {e}")
+        gescand = 0
+    return render_template("index.html",
+                           gescand=gescand if gescand >= MINIMUM_VOOR_TELLER else None)
 
 
 @app.route("/privacybeleid")
@@ -1120,20 +1135,36 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                                 scan_result.get("checks", []), None, None, klant_token)
                 monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
 
-                emailing.send_weekly_update_email(
-                    c["email"], c["webshop_url"], scan_result, monitoring_url, vorige_score,
-                    taal=_mailtaal(c["webshop_url"])
-                )
-
                 # Fase 5 stap 3: dezelfde ronde meteen gebruiken om de
-                # koopvragen aan de AI-modellen te stellen. Gebeurt na de mail,
-                # zodat een storing bij een AI-aanbieder nooit de wekelijkse
-                # update van de klant tegenhoudt. Zijn er geen koopvragen of
-                # geen sleutels, dan doet dit niets.
+                # koopvragen aan de AI-modellen te stellen.
+                #
+                # Dit gebeurde eerst NA de mail, zodat een storing bij een
+                # AI-aanbieder de wekelijkse update nooit kon tegenhouden. Die
+                # zorg is terecht, maar de prijs was hoog: de mail ging dan over
+                # de meting van vorige week, en kon dus alleen het technische
+                # cijfer melden. "Je score is nog steeds 51 van 100, er is niets
+                # veranderd" is geen reden om 39 euro per maand te betalen. Waar
+                # een klant voor betaalt is of AI hem noemt.
+                #
+                # Nu meten wij eerst en mailen daarna. De zorg blijft opgelost
+                # doordat de mail hieronder buiten deze try staat: mislukt de
+                # meting, dan gaat de mail gewoon uit, alleen zonder het blok
+                # over vermeldingen.
                 try:
                     _meet_en_beoordeel(c["webshop_url"], c["email"], klant_token, base_url)
                 except Exception as e:
                     print(f"Meting mislukt voor {c['webshop_url']}: {e}")
+
+                vermeldingen = None
+                try:
+                    vermeldingen = (_klantgegevens(c["webshop_url"]) or {}).get("vermeldingen")
+                except Exception as e:
+                    print(f"Vermeldingen ophalen mislukt voor {c['webshop_url']}: {e}")
+
+                emailing.send_weekly_update_email(
+                    c["email"], c["webshop_url"], scan_result, monitoring_url, vorige_score,
+                    taal=_mailtaal(c["webshop_url"]), vermeldingen=vermeldingen,
+                )
 
                 # Is dit een Shopify-winkel met een abonnement, dan vullen wij
                 # ook uit onszelf aan. Dat staat op de prijskaart en zonder dit
@@ -1677,8 +1708,12 @@ def monitoring_pagina(klant_token):
     # als een slechte uitkomst, terwijl er alleen nog niet gemeten is.
     gegevens = _klantgegevens(klant["webshop_url"])
 
+    pagina = _paginagegevens(klant["webshop_url"])
     return render_template(
         "monitoring_details.html" if details else "monitoring.html",
+        t=pagina["t"],
+        paginataal=pagina["taal"],
+        shopify_beheer=pagina["shopify_beheer"],
         vermeldingen=gegevens["vermeldingen"],
         controle=gegevens["controle"],
         beweging=gegevens["beweging"],
@@ -1697,7 +1732,7 @@ def monitoring_pagina(klant_token):
         uitvoering=_laatste_uitvoering(klant["webshop_url"]),
         wijzigingen=db.get_wijzigingen(klant["webshop_url"]),
         abonnement=abonnement,
-        status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
+        status_labels=_standlabels(pagina["t"]),
     )
 
 
@@ -1723,8 +1758,38 @@ def rapport(token):
         checks_by_categorie=by_categorie,
         history=history,
         aangemaakt_op=report["aangemaakt_op"].strftime("%d-%m-%Y"),
-        status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
+        status_labels=_standlabels(
+            paginataal.teksten(_mailtaal(report["webshop_url"]))),
     )
+
+
+def _standlabels(t):
+    """De labels bij de dertien controlepunten, in de taal van de pagina.
+
+    Stonden hard in drie render-aanroepen, alle drie in het Nederlands. Een
+    Engelse winkel zag daardoor "verbeterpunt" tussen verder Engelse tekst."""
+    return {"ok": t["stand_ok"], "deels": t["stand_deels"],
+            "probleem": t["stand_probleem"]}
+
+
+def _paginagegevens(webshop_url):
+    """De taal van de klantpagina, en het adres van de app als dit een
+    Shopify-winkel is.
+
+    Twee dingen die bij elkaar horen omdat ze op dezelfde pagina thuishoren en
+    door twee routes gebruikt worden: de echte klantpagina en de
+    voorbeeldweergave. Zouden die het elk zelf uitrekenen, dan is de
+    voorbeeldweergave niet meer waar hij voor bedoeld is: laten zien wat een
+    klant precies ziet."""
+    taal = _mailtaal(webshop_url)
+    beheer = None
+    try:
+        rij = db.shopify_winkel_bij_webadres(webshop_url)
+        if rij and rij.get("winkel"):
+            beheer = _app_adres_in_beheerscherm(rij["winkel"])
+    except Exception as e:
+        print(f"Shopify-winkel zoeken mislukt voor {webshop_url}: {e}")
+    return {"taal": taal, "t": paginataal.teksten(taal), "shopify_beheer": beheer}
 
 
 def _markt_van(webshop_url):
@@ -2735,8 +2800,12 @@ def admin_voorbeeld():
         "rem_dicht": uitgegeven >= kosten.GRENS_PER_KLANT_MAAND_EURO,
     }
 
+    pagina = _paginagegevens(webshop_url)
     return render_template(
         "monitoring_details.html" if request.args.get("details") == "ja" else "monitoring.html",
+        t=pagina["t"],
+        paginataal=pagina["taal"],
+        shopify_beheer=pagina["shopify_beheer"],
         webshop_url=webshop_url,
         klant_token=None,
         voorbeeld=True,
@@ -2758,7 +2827,7 @@ def admin_voorbeeld():
         uitvoering=_laatste_uitvoering(webshop_url),
         wijzigingen=db.get_wijzigingen(webshop_url),
         abonnement=True,
-        status_labels={"ok": "goed", "deels": "kan beter", "probleem": "verbeterpunt"},
+        status_labels=_standlabels(pagina["t"]),
     )
 
 

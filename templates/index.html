@@ -658,7 +658,7 @@
         <input type="text" id="scanUrlInput" placeholder="jouwwebshop.nl" aria-label="Website URL">
         <button type="button" id="scanButton">Scan gratis</button>
       </div>
-      <div class="hero-note" id="scanNote">Geen account nodig · eerst je technische cijfer, daarna drie echte koopvragen aan AI</div>
+      <div class="hero-note" id="scanNote">Geen account nodig · eerst je technische cijfer, daarna drie echte koopvragen aan AI{% if gescand %} · al {{ gescand }} webshops gescand{% endif %}</div>
       <div id="scanResult" class="scan-result"></div>
     </div>
 
@@ -688,40 +688,6 @@
           <span class="cijfer-tekst">punten bepalen of AI je shop überhaupt kan vinden, lezen en begrijpen. De meeste shops missen er meerdere zonder het te weten.</span>
         </div>
       </div>
-    </div>
-  </div>
-</section>
-
-<section id="wij-doen-het">
-  <div class="wrap">
-    <div class="voorbeeld-kop">
-      <h2>Je hoeft het niet zelf te doen.</h2>
-      <p>De meeste webshopeigenaren hebben geen tijd om uit te zoeken waar ze een stukje code moeten plakken, en dat hoeft ook niet. Geef ons toegang tot je webshop, dan zetten wij het erin.</p>
-    </div>
-
-    <div class="stappen">
-      <div class="stap">
-        <span class="stap-num">1</span>
-        <h3>Je geeft ons toegang</h3>
-        <p>Op dezelfde manier als je een webshopbureau toegang geeft. Bij Shopify keur je een verzoek goed, bij WooCommerce maak je een gebruiker aan. Kost je twee minuten en je kunt het met een klik weer intrekken.</p>
-      </div>
-      <div class="stap">
-        <span class="stap-num">2</span>
-        <h3>Wij voeren het uit</h3>
-        <p>Wij zetten de vragen en antwoorden erin, schrijven je productinformatie zo op dat AI hem kan lezen, en zetten de technische punten goed. Meestal binnen twee tot vijf werkdagen.</p>
-      </div>
-      <div class="stap">
-        <span class="stap-num">3</span>
-        <h3>Je ziet wat er veranderd is</h3>
-        <p>Je krijgt een overzicht van elke wijziging, met de oude tekst erbij. Bevalt iets je niet, dan zet je het terug. En daarna meten we of je vaker genoemd wordt.</p>
-      </div>
-    </div>
-
-    <div class="toegang">
-      <h3>Wat we wel en niet aanraken</h3>
-      <p><strong>Wel:</strong> je teksten, je productomschrijvingen, je veelgestelde vragen, de beschrijvingen bij je afbeeldingen, en de technische instellingen waarmee AI je site kan lezen.</p>
-      <p><strong>Niet:</strong> je prijzen, je voorraad, je bestellingen, je klantgegevens en je vormgeving. Daar blijven we vanaf.</p>
-      <p>We vragen alleen de rechten die we nodig hebben, en van elke wijziging bewaren we de oude versie. Laat je je site door een bouwer beheren, dan regelen we het met hem in plaats van met jou.</p>
     </div>
   </div>
 </section>
@@ -840,6 +806,40 @@
           <p>Alles overzichtelijk op een eigen pagina waar je altijd op terug kan komen, niet alleen in een mail.</p>
         </div>
       </div>
+    </div>
+  </div>
+</section>
+
+<section id="wij-doen-het">
+  <div class="wrap">
+    <div class="voorbeeld-kop">
+      <h2>Je hoeft het niet zelf te doen.</h2>
+      <p>De meeste webshopeigenaren hebben geen tijd om uit te zoeken waar ze een stukje code moeten plakken, en dat hoeft ook niet. Geef ons toegang tot je webshop, dan zetten wij het erin.</p>
+    </div>
+
+    <div class="stappen">
+      <div class="stap">
+        <span class="stap-num">1</span>
+        <h3>Je geeft ons toegang</h3>
+        <p>Op dezelfde manier als je een webshopbureau toegang geeft. Bij Shopify keur je een verzoek goed, bij WooCommerce maak je een gebruiker aan. Kost je twee minuten en je kunt het met een klik weer intrekken.</p>
+      </div>
+      <div class="stap">
+        <span class="stap-num">2</span>
+        <h3>Wij voeren het uit</h3>
+        <p>Wij zetten de vragen en antwoorden erin, schrijven je productinformatie zo op dat AI hem kan lezen, en zetten de technische punten goed. Meestal binnen twee tot vijf werkdagen.</p>
+      </div>
+      <div class="stap">
+        <span class="stap-num">3</span>
+        <h3>Je ziet wat er veranderd is</h3>
+        <p>Je krijgt een overzicht van elke wijziging, met de oude tekst erbij. Bevalt iets je niet, dan zet je het terug. En daarna meten we of je vaker genoemd wordt.</p>
+      </div>
+    </div>
+
+    <div class="toegang">
+      <h3>Wat we wel en niet aanraken</h3>
+      <p><strong>Wel:</strong> je teksten, je productomschrijvingen, je veelgestelde vragen, de beschrijvingen bij je afbeeldingen, en de technische instellingen waarmee AI je site kan lezen.</p>
+      <p><strong>Niet:</strong> je prijzen, je voorraad, je bestellingen, je klantgegevens en je vormgeving. Daar blijven we vanaf.</p>
+      <p>We vragen alleen de rechten die we nodig hebben, en van elke wijziging bewaren we de oude versie. Laat je je site door een bouwer beheren, dan regelen we het met hem in plaats van met jou.</p>
     </div>
   </div>
 </section>
@@ -1017,7 +1017,12 @@
       </label>
     </div>
     <button class="checkout-submit" id="checkoutSubmit">Doorgaan naar betalen</button>
-    <div class="checkout-note">Je gaat door naar Mollie om veilig te betalen.</div>
+    {# De garantie stond alleen in de voorwaarden en op de uitkomstpagina. Hier
+       staat hij op het moment dat het ertoe doet: iemand die een onbekend
+       bedrijf geld gaat geven en net het vinkje over zijn herroepingsrecht
+       heeft gezet. #}
+    <div class="checkout-note">Je gaat door naar Mollie om veilig te betalen.
+      Levert het je niets op, dan krijg je binnen dertig dagen je geld terug.</div>
   </div>
 </div>
 

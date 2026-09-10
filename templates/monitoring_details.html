@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="{{ paginataal }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alle metingen | Krillo</title>
+<title>{{ t.d_titel }} | Krillo</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -179,41 +179,41 @@
 
 <nav><div class="wrap">
   <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
-  <span class="nav-note">Monitoring actief</span>
+  <span class="nav-note">{{ t.d_nav_actief }}</span>
 </div></nav>
 
 <main>
   <div class="wrap">
-    <div class="eyebrow">Monitoring</div>
+    <div class="eyebrow">{{ t.d_eyebrow }}</div>
     <h1>{{ webshop_url }}</h1>
-    <div class="sub">Deze pagina blijft altijd op hetzelfde adres staan en wordt elke week bijgewerkt.</div>
+    <div class="sub">{{ t.d_sub }}</div>
 
-    <div class="bewaar">Bewaar deze link, bijvoorbeeld als bladwijzer. Je hoeft niet in te loggen, en je vindt hier altijd je nieuwste scan terug.</div>
+    <div class="bewaar">{{ t.d_bewaar }}</div>
 
     <div class="terug">
-      <a href="{% if voorbeeld %}/admin/voorbeeld?key={{ sleutel }}&url={{ webshop_url }}{% else %}/monitoring/{{ klant_token }}{% endif %}">&larr; Terug naar wat je deze week doet</a>
+      <a href="{% if voorbeeld %}/admin/voorbeeld?key={{ sleutel }}&url={{ webshop_url }}{% else %}/monitoring/{{ klant_token }}{% endif %}">&larr; {{ t.d_terug }}</a>
     </div>
 
     {% if laatste %}
     <div class="huidig">
-      <div class="huidig-label">Huidige AI-leesbaarheid</div>
+      <div class="huidig-label">{{ t.d_huidig_label }}</div>
       <div><span class="huidig-score">{{ laatste.score }}</span><span class="huidig-of">/100</span></div>
-      <div class="huidig-uitleg">Hoe goed AI je site kan lezen en begrijpen. Dit is geen kans dat je aanbevolen wordt.</div>
-      <div class="huidig-datum">Laatste scan: {{ laatste.aangemaakt_op.strftime('%d-%m-%Y') }}</div>
+      <div class="huidig-uitleg">{{ t.d_huidig_uitleg }}</div>
+      <div class="huidig-datum">{{ t.d_laatste_scan }}: {{ laatste.aangemaakt_op.strftime('%d-%m-%Y') }}</div>
       {% if verschil is not none %}
         {% if verschil > 0 %}
-        <div class="verschil omhoog">Gestegen met {{ verschil }} punten sinds de vorige scan</div>
+        <div class="verschil omhoog">{{ t.d_gestegen_met }} {{ verschil }} {{ t.d_punten_sinds }}</div>
         {% elif verschil < 0 %}
-        <div class="verschil omlaag">Gedaald met {{ verschil|abs }} punten sinds de vorige scan</div>
+        <div class="verschil omlaag">{{ t.d_gedaald_met }} {{ verschil|abs }} {{ t.d_punten_sinds }}</div>
         {% else %}
-        <div class="verschil gelijk">Gelijk gebleven sinds de vorige scan</div>
+        <div class="verschil gelijk">{{ t.d_gelijk_gebleven }}</div>
         {% endif %}
       {% endif %}
     </div>
 
     {% if verloop|length > 1 %}
     <div class="verloop">
-      <h2>Je scoreverloop</h2>
+      <h2>{{ t.d_verloop_kop }}</h2>
       <div class="grafiek">
         {% for punt in verloop %}
         <div class="balk-wrap">
@@ -229,16 +229,16 @@
 
 
     {% if nieuwe_problemen %}
-    <h2 class="sectie">Nieuw sinds de vorige scan</h2>
+    <h2 class="sectie">{{ t.d_nieuw_kop }}</h2>
     {% for c in nieuwe_problemen %}
     <div class="check">
       <span class="tag {{ c.status }}">{{ status_labels[c.status] }}</span>
-      <div class="check-body"><strong>{{ c.titel }}<span class="nieuw-badge">nieuw</span></strong><span>{{ c.uitleg }}</span></div>
+      <div class="check-body"><strong>{{ c.titel }}<span class="nieuw-badge">{{ t.d_nieuw_badge }}</span></strong><span>{{ c.uitleg }}</span></div>
     </div>
     {% endfor %}
     {% endif %}
 
-    <h2 class="sectie">Alle bevindingen</h2>
+    <h2 class="sectie">{{ t.d_alle_bevindingen }}</h2>
     {% for categorie, items in checks_by_categorie.items() %}
     <div class="categorie-label">{{ categorie }}</div>
     {% for c in items %}
@@ -250,26 +250,25 @@
     {% endfor %}
 
     {% else %}
-    <div class="leeg">Er is nog geen scan uitgevoerd. Je eerste scan verschijnt hier zodra die klaar is.</div>
+    <div class="leeg">{{ t.d_leeg }}</div>
     {% endif %}
 
     {% if vermeldingen %}
     <div class="vermelding">
-      <h2>Word je genoemd als iemand het aan AI vraagt?</h2>
+      <h2>{{ t.d_vermeld_kop }}</h2>
       <div class="kop-uitleg">
-        We stellen elke week {{ vermeldingen.gesteld }} koopvragen die kopers in jouw
-        categorie echt stellen. Deze meting liep via
-        {% for m in vermeldingen.modellen %}{{ m }}{% if not loop.last %}{% if loop.revindex == 2 %} en {% else %}, {% endif %}{% endif %}{% endfor %}.
+        {{ t.d_vermeld_uitleg_a }} {{ vermeldingen.gesteld }} {{ t.d_vermeld_uitleg_b }}
+        {% for m in vermeldingen.modellen %}{{ m }}{% if not loop.last %}{% if loop.revindex == 2 %} {{ t.d_en }} {% else %}, {% endif %}{% endif %}{% endfor %}.
         {% if vermeldingen.modellen|length > 1 %}
-        Zeggen de modellen niet hetzelfde over een vraag, dan tellen we de sterkste uitkomst mee.
+        {{ t.d_vermeld_sterkste }}
         {% endif %}
       </div>
 
       {% if beweging and beweging.melden %}
       <div class="beweging {% if beweging.verschil > 0 or beweging.verschil_aanbevolen > 0 %}omhoog{% elif beweging.verschil < 0 or beweging.verschil_aanbevolen < 0 %}omlaag{% else %}gelijk{% endif %}">
         <strong>
-          {% if beweging.verschil > 0 %}Gestegen{% elif beweging.verschil < 0 %}Gedaald{% elif beweging.verschil_aanbevolen > 0 %}Vaker aanbevolen{% elif beweging.verschil_aanbevolen < 0 %}Minder vaak aanbevolen{% else %}Veranderd{% endif %}
-          sinds de vorige meting: van {{ beweging.toen.genoemd }} naar {{ beweging.nu.genoemd }}
+          {% if beweging.verschil > 0 %}{{ t.d_bew_gestegen }}{% elif beweging.verschil < 0 %}{{ t.d_bew_gedaald }}{% elif beweging.verschil_aanbevolen > 0 %}{{ t.d_bew_vaker }}{% elif beweging.verschil_aanbevolen < 0 %}{{ t.d_bew_minder }}{% else %}{{ t.d_bew_veranderd }}{% endif %}
+          {{ t.d_bew_sinds }} {{ beweging.toen.genoemd }} {{ t.d_bew_naar }} {{ beweging.nu.genoemd }}
         </strong>
         {{ beweging.duiding }}
       </div>
@@ -277,41 +276,39 @@
 
       <div class="tellers drie">
         <div class="teller">
-          <div class="teller-label">Genoemd</div>
-          <div class="teller-num">{{ vermeldingen.genoemd }}<small> van {{ vermeldingen.telbaar }}</small></div>
-          <div class="teller-uitleg">Je winkel komt in het antwoord voor.</div>
+          <div class="teller-label">{{ t.d_teller_genoemd }}</div>
+          <div class="teller-num">{{ vermeldingen.genoemd }}<small> {{ t.d_van }} {{ vermeldingen.telbaar }}</small></div>
+          <div class="teller-uitleg">{{ t.d_genoemd_uitleg }}</div>
         </div>
         <div class="teller">
-          <div class="teller-label">Aanbevolen</div>
-          <div class="teller-num">{{ vermeldingen.aanbevolen }}<small> van {{ vermeldingen.telbaar }}</small></div>
-          <div class="teller-uitleg">Je wordt ook echt aangeraden, niet alleen genoemd.</div>
+          <div class="teller-label">{{ t.d_teller_aanbevolen }}</div>
+          <div class="teller-num">{{ vermeldingen.aanbevolen }}<small> {{ t.d_van }} {{ vermeldingen.telbaar }}</small></div>
+          <div class="teller-uitleg">{{ t.d_aanbevolen_uitleg }}</div>
         </div>
         <div class="teller">
-          <div class="teller-label">Met een product erbij</div>
-          <div class="teller-num">{{ vermeldingen.product_genoemd }}<small> van {{ vermeldingen.genoemd }}</small></div>
-          <div class="teller-uitleg">Er wordt niet alleen naar je winkel verwezen, maar een concreet product van je aangeraden.</div>
+          <div class="teller-label">{{ t.d_teller_product }}</div>
+          <div class="teller-num">{{ vermeldingen.product_genoemd }}<small> {{ t.d_van }} {{ vermeldingen.genoemd }}</small></div>
+          <div class="teller-uitleg">{{ t.d_product_uitleg }}</div>
         </div>
       </div>
 
       {% if vermeldingen.niet_telbaar %}
       <div class="noemer-uitleg">
-        We tellen {{ vermeldingen.telbaar }} van je {{ vermeldingen.gesteld }} vragen mee.
-        Bij {{ vermeldingen.niet_telbaar }} vragen werd er naar een merk of een product gevraagd
-        en niet naar een winkel. In zulke antwoorden komt geen enkele webshop voor, ook de beste niet.
-        Die meetellen zou je cijfer alleen maar mooier of lelijker maken dan het is.
+        {{ t.d_noemer_a }} {{ vermeldingen.telbaar }} {{ t.d_noemer_b }} {{ vermeldingen.gesteld }}
+        {{ t.d_noemer_c }} {{ vermeldingen.niet_telbaar }} {{ t.d_noemer_d }}
       </div>
       {% endif %}
 
       {% if vermeldingen.concurrenten %}
-      <h2 style="margin-top:8px;">Wie er nog meer genoemd worden</h2>
-      <div class="kop-uitleg">Bij dezelfde vragen. Dit zijn de winkels waar je het tegen opneemt.</div>
+      <h2 style="margin-top:8px;">{{ t.d_concurrenten_kop }}</h2>
+      <div class="kop-uitleg">{{ t.d_concurrenten_uitleg }}</div>
       <table class="andere">
-        <tr><td style="font-family:var(--mono); font-size:10.5px; text-transform:uppercase; color:var(--ink-soft);">Winkel</td>
-            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Genoemd</td>
-            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Aanbevolen</td></tr>
+        <tr><td style="font-family:var(--mono); font-size:10.5px; text-transform:uppercase; color:var(--ink-soft);">{{ t.d_kol_winkel }}</td>
+            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">{{ t.d_teller_genoemd }}</td>
+            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">{{ t.d_teller_aanbevolen }}</td></tr>
         {% for c in vermeldingen.concurrenten %}
         <tr class="{% if c.wij %}jij{% endif %}">
-          <td>{{ c.naam }}{% if c.wij %} (jij){% endif %}</td>
+          <td>{{ c.naam }}{% if c.wij %} {{ t.d_jij }}{% endif %}</td>
           <td class="getal">{{ c.genoemd }}</td>
           <td class="getal">{{ c.aanbevolen }}</td>
         </tr>
@@ -319,22 +316,22 @@
       </table>
       {% endif %}
 
-      <h2 style="margin-top:24px;">Per vraag</h2>
-      <div class="kop-uitleg">Het citaat eronder komt letterlijk uit het antwoord van de AI.</div>
+      <h2 style="margin-top:24px;">{{ t.d_per_vraag }}</h2>
+      <div class="kop-uitleg">{{ t.d_per_vraag_uitleg }}</div>
       {% for r in vermeldingen.regels %}
       <div class="vraagregel">
         <div class="vraag">{{ r.vraag }}</div>
         <div>
           {% if r.aanbevolen %}
-          <span class="vlag aanbevolen">aanbevolen</span>
+          <span class="vlag aanbevolen">{{ t.d_vlag_aanbevolen }}</span>
           {% elif r.genoemd %}
-          <span class="vlag genoemd">genoemd</span>
+          <span class="vlag genoemd">{{ t.d_vlag_genoemd }}</span>
           {% else %}
-          <span class="vlag niet">niet genoemd</span>
+          <span class="vlag niet">{{ t.d_vlag_niet }}</span>
           {% endif %}
-          {% if r.positie %}<span class="plek">plek {{ r.positie }} van {{ r.aantal_winkels }}</span>{% endif %}
+          {% if r.positie %}<span class="plek">{{ t.d_plek }} {{ r.positie }} {{ t.d_van }} {{ r.aantal_winkels }}</span>{% endif %}
           {% if r.soort_vermelding in ('product', 'beide') %}
-          <span class="plek">product genoemd</span>
+          <span class="plek">{{ t.d_product_genoemd }}</span>
           {% endif %}
         </div>
         {% if r.bewijs %}<div class="citaat">{{ r.bewijs }}</div>{% endif %}
@@ -342,21 +339,11 @@
       {% endfor %}
 
       <div class="meetuitleg">
-        <strong>Hoe we dit meten.</strong> We stellen de vragen via de programmeerkoppeling
-        van
-        {% for m in vermeldingen.modellen %}{{ m }}{% if not loop.last %}{% if loop.revindex == 2 %} en {% else %}, {% endif %}{% endif %}{% endfor %},
-        zonder er iets omheen te zetten. Dat is een benadering van wat
-        iemand in de app zou zien: daar tellen ook de zoekresultaten van dat moment, de locatie
-        en de geschiedenis van die persoon mee. We tonen daarom aantallen en geen percentages,
-        want die zouden een precisie suggereren die er niet is.<br><br>
-        <strong>Winkel tegenover product.</strong> "Kijk eens bij deze winkel" is iets
-        anders dan "de emaille mokken van deze winkel zijn mooi". Dat tweede levert veel
-        eerder een aankoop op, want de koper weet dan al wat hij zoekt. Daarom tellen we
-        die twee apart.<br><br>
-        <strong>Let op.</strong> Of je genoemd wordt heb je niet helemaal zelf in de hand. Komt
-        een concurrent groot in het nieuws of wordt een AI-model bijgewerkt, dan kan je cijfer
-        veranderen zonder dat je iets fout deed. Daarom laten we zien wie er nog meer genoemd
-        worden, zodat je een daling kan plaatsen.
+        <strong>{{ t.d_meet_kop1 }}</strong> {{ t.d_meet_a }}
+        {% for m in vermeldingen.modellen %}{{ m }}{% if not loop.last %}{% if loop.revindex == 2 %} {{ t.d_en }} {% else %}, {% endif %}{% endif %}{% endfor %},
+        {{ t.d_meet_b }}<br><br>
+        <strong>{{ t.d_meet_kop2 }}</strong> {{ t.d_meet_c }}<br><br>
+        <strong>{{ t.d_meet_kop3 }}</strong> {{ t.d_meet_d }}
       </div>
     </div>
     {% endif %}
@@ -364,69 +351,63 @@
 
     {% if verklaring and (verklaring.blokkades or verklaring.belemmeringen or vermeldingen) %}
     <div class="vermelding">
-      <h2>Wat betekent dit voor je site?</h2>
+      <h2>{{ t.d_verklaring_kop }}</h2>
       <div class="kop-uitleg">
-        We zetten je scan naast je vermeldingen. Wat we op je site kunnen meten noemen we een
-        feit. Wat we vermoeden noemen we een vermoeden. Dat verschil houden we streng, want
-        iets een oorzaak noemen terwijl we het niet gemeten hebben helpt je niet.
+        {{ t.d_verklaring_uitleg }}
       </div>
 
       {% if verklaring.blokkades %}
-      <h2 style="margin-top:8px;">Dit houdt AI aantoonbaar tegen</h2>
+      <h2 style="margin-top:8px;">{{ t.d_blokkades_kop }}</h2>
       {% for b in verklaring.blokkades %}
-      <div class="punt"><span class="soort feit">feit</span><span>{{ b.tekst }}</span></div>
+      <div class="punt"><span class="soort feit">{{ t.d_feit }}</span><span>{{ b.tekst }}</span></div>
       {% endfor %}
       {% endif %}
 
       {% if verklaring.belemmeringen %}
-      <h2 style="margin-top:20px;">Dit maakt je slechter leesbaar</h2>
+      <h2 style="margin-top:20px;">{{ t.d_belemmeringen_kop }}</h2>
       <div class="kop-uitleg">
-        Deze punten helpen AI je site te begrijpen. Of ze bepalen of je genoemd wordt, weten
-        we niet, dus dat beweren we ook niet.
+        {{ t.d_belemmeringen_uitleg }}
       </div>
       {% for b in verklaring.belemmeringen %}
-      <div class="punt"><span class="soort vermoeden">vermoeden</span><span>{{ b.tekst }}</span></div>
+      <div class="punt"><span class="soort vermoeden">{{ t.d_vermoeden }}</span><span>{{ b.tekst }}</span></div>
       {% endfor %}
       {% endif %}
 
-      <h2 style="margin-top:20px;">Wat dit bij elkaar betekent</h2>
+      <h2 style="margin-top:20px;">{{ t.d_conclusie_kop }}</h2>
       <div class="conclusie">{{ verklaring.conclusie }}</div>
     </div>
     {% endif %}
 
     {% if bronnen %}
     <div class="vermelding">
-      <h2>Waar staan de winkels die wel genoemd worden?</h2>
+      <h2>{{ t.d_bronnen_kop }}</h2>
       <div class="kop-uitleg">
-        Het grootste deel van wat AI over een winkel zegt komt niet van die winkel zelf, maar
-        van wat er elders over geschreven wordt. Daarom hebben we jouw koopvragen ook in een
-        gewone zoekmachine gezet en de pagina's die daaruit kwamen nagelopen. Hieronder staat
-        wie er op die pagina's voorkomt en wie niet.
+        {{ t.d_bronnen_uitleg }}
       </div>
 
       <div class="tellers drie">
         <div class="teller">
-          <div class="teller-label">Plekken bekeken</div>
+          <div class="teller-label">{{ t.d_bron_teller_plekken }}</div>
           <div class="teller-num">{{ bronnen.sites }}</div>
-          <div class="teller-uitleg">Websites waar winkels in jouw categorie naast elkaar gezet worden. Je eigen site telt niet mee.</div>
+          <div class="teller-uitleg">{{ t.d_bron_plekken_uitleg }}</div>
         </div>
         <div class="teller">
-          <div class="teller-label">Jij staat erop</div>
-          <div class="teller-num">{{ bronnen.wij_erop }}<small> van {{ bronnen.paginas }}</small></div>
-          <div class="teller-uitleg">Je winkelnaam of een link naar je site komt op de pagina voor.</div>
+          <div class="teller-label">{{ t.d_bron_teller_erop }}</div>
+          <div class="teller-num">{{ bronnen.wij_erop }}<small> {{ t.d_van }} {{ bronnen.paginas }}</small></div>
+          <div class="teller-uitleg">{{ t.d_bron_erop_uitleg }}</div>
         </div>
         <div class="teller">
-          <div class="teller-label">Concurrent wel, jij niet</div>
+          <div class="teller-label">{{ t.d_bron_teller_gemist }}</div>
           <div class="teller-num">{{ bronnen.gemist }}</div>
-          <div class="teller-uitleg">Hier zit het verschil. Deze pagina's bestaan al, je hoeft ze niet te maken.</div>
+          <div class="teller-uitleg">{{ t.d_bron_gemist_uitleg }}</div>
         </div>
       </div>
 
       {% if bronnen.concurrenten %}
-      <h2 style="margin-top:24px;">Op hoeveel van die websites staat wie</h2>
+      <h2 style="margin-top:24px;">{{ t.d_bron_tabel_kop }}</h2>
       <table class="andere">
-        <tr><td style="font-family:var(--mono); font-size:10.5px; text-transform:uppercase; color:var(--ink-soft);">Winkel</td>
-            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">Websites</td></tr>
+        <tr><td style="font-family:var(--mono); font-size:10.5px; text-transform:uppercase; color:var(--ink-soft);">{{ t.d_kol_winkel }}</td>
+            <td class="getal" style="text-transform:uppercase; font-size:10.5px;">{{ t.d_kol_websites }}</td></tr>
         {% for c in bronnen.concurrenten %}
         <tr>
           <td>{{ c.naam }}</td>
@@ -437,57 +418,47 @@
       {% endif %}
 
       {% if bronnen.gemiste_paginas %}
-      <h2 style="margin-top:24px;">De pagina's waar je nog niet op staat</h2>
+      <h2 style="margin-top:24px;">{{ t.d_gemiste_kop }}</h2>
       <div class="kop-uitleg">
-        Op deze pagina's staat wel een winkel die AI noemt, en jij niet. Ze bestaan al en gaan
-        over precies waar jij in handelt.
+        {{ t.d_gemiste_uitleg }}
       </div>
       {% for g in bronnen.gemiste_paginas %}
       <div class="vraagregel">
         <div class="vraag"><a href="{{ g.url }}" target="_blank" rel="noopener nofollow" class="bronlink">{{ g.titel }}</a></div>
         <div class="bronmeta">{{ g.domein }}</div>
-        <div class="bronmeta">hier genoemd: {{ g.concurrenten | join(', ') }}</div>
+        <div class="bronmeta">{{ t.d_hier_genoemd }} {{ g.concurrenten | join(', ') }}</div>
       </div>
       {% endfor %}
       {% endif %}
 
-      <h2 style="margin-top:24px;">Wat dit betekent</h2>
+      <h2 style="margin-top:24px;">{{ t.d_bron_conclusie_kop }}</h2>
       <div class="conclusie">{{ bronnen.conclusie }}</div>
 
       <div class="meetuitleg">
-        <strong>Wat dit wel en niet zegt.</strong> Dit is een feit: op deze pagina's staat die
-        winkel wel en jij niet, en je kan het zelf nakijken door op de link te klikken. Wat we
-        er niet bij beweren is dat je genoemd wordt zodra je er wel op staat. Dat weten we niet
-        en dat meten we niet. We laten zien waar het verschil zit, niet wat het verschil
-        veroorzaakt.<br><br>
-        <strong>Waarom we het zo doen.</strong> We vragen bewust nooit aan een AI-model waarom
-        het een winkel aanraadt. Een model weet dat niet en verzint dan een verklaring die
-        overtuigend klinkt. Daar heb je niets aan. Dit zijn echte pagina's die je zelf kan
-        openen.
+        <strong>{{ t.d_bron_meet_kop1 }}</strong> {{ t.d_bron_meet_a }}<br><br>
+        <strong>{{ t.d_bron_meet_kop2 }}</strong> {{ t.d_bron_meet_b }}
       </div>
     </div>
     {% endif %}
 
     {% if controle and controle.gecontroleerd %}
     <div class="vermelding">
-      <h2>Klopt wat AI over je zegt?</h2>
+      <h2>{{ t.d_controle_kop }}</h2>
       <div class="kop-uitleg">
-        We hebben {{ controle.gecontroleerd }} uitspraken over jouw winkel naast de tekst op je
-        eigen site gelegd. Wordt er iets beweerd dat niet klopt, dan komt een koper met een
-        verkeerde verwachting bij je aan.
+        {{ t.d_controle_a }} {{ controle.gecontroleerd }} {{ t.d_controle_b }}
       </div>
 
       <div class="tellers drie">
         <div class="teller">
-          <div class="teller-label">Klopt</div>
+          <div class="teller-label">{{ t.d_controle_klopt }}</div>
           <div class="teller-num">{{ controle.klopt }}</div>
         </div>
         <div class="teller">
-          <div class="teller-label">Klopt niet</div>
+          <div class="teller-label">{{ t.d_controle_kloptniet }}</div>
           <div class="teller-num">{{ controle.klopt_niet }}</div>
         </div>
         <div class="teller">
-          <div class="teller-label">Niet te controleren</div>
+          <div class="teller-label">{{ t.d_controle_onbekend }}</div>
           <div class="teller-num">{{ controle.onbekend }}</div>
         </div>
       </div>
@@ -495,19 +466,16 @@
       {% if controle.fouten %}
       {% for f in controle.fouten %}
       <div class="fout-regel">
-        <div class="zei">Bij "{{ f.vraag }}" zei AI: "{{ f.uitspraak }}"</div>
-        {% if f.watzegtdesite %}<div class="klopt"><strong>Op je site staat:</strong> {{ f.watzegtdesite }}</div>{% endif %}
+        <div class="zei">{{ t.d_fout_bij }} "{{ f.vraag }}" {{ t.d_fout_zei }} "{{ f.uitspraak }}"</div>
+        {% if f.watzegtdesite %}<div class="klopt"><strong>{{ t.d_fout_site }}</strong> {{ f.watzegtdesite }}</div>{% endif %}
       </div>
       {% endfor %}
       {% else %}
-      <div class="conclusie">Er is niets gevonden dat aantoonbaar niet klopt.</div>
+      <div class="conclusie">{{ t.d_controle_geen_fouten }}</div>
       {% endif %}
 
       <div class="meetuitleg">
-        <strong>Waarom staat er zoveel op "niet te controleren"?</strong> We lezen een paar
-        pagina's van je site, niet je hele webshop. Een uitspraak die we daar niet terugvinden
-        noemen we onbekend en geen fout. Smaakoordelen als "sfeervol" zijn sowieso niet te
-        controleren.
+        <strong>{{ t.d_controle_meet_kop }}</strong> {{ t.d_controle_meet }}
       </div>
     </div>
     {% endif %}
@@ -518,22 +486,21 @@
        betalingsverplichting. #}
     {% if not voorbeeld and abonnement %}
     <div class="opzeg">
-      <strong>Je abonnement</strong>
-      <p>Je betaalt 39 euro per maand, maandelijks opzegbaar. Zeg je op, dan houd je toegang tot het einde van de periode die je al betaald hebt en wordt er daarna niets meer afgeschreven.</p>
-      <button class="opzeg-knop" id="opzegKnop">Mijn abonnement opzeggen</button>
+      <strong>{{ t.abo_kop }}</strong>
+      <p>{{ t.abo_tekst }}</p>
+      <button class="opzeg-knop" id="opzegKnop">{{ t.abo_knop }}</button>
       <div class="opzeg-melding" id="opzegMelding"></div>
     </div>
     {% elif not voorbeeld %}
     <div class="opzeg">
-      <strong>Je hebt eenmalig betaald</strong>
-      <p>Er loopt geen abonnement en er wordt niets van je afgeschreven. Wil je wel
-        blijven meten, dan kan dat voor 39 euro per maand, maandelijks opzegbaar.</p>
-      <a class="opzeg-knop" href="/#prijzen" style="display:inline-block; text-decoration:none;">Bekijk monitoring</a>
+      <strong>{{ t.eenmalig_kop }}</strong>
+      <p>{{ t.d_eenmalig_tekst }}</p>
+      <a class="opzeg-knop" href="/#prijzen" style="display:inline-block; text-decoration:none;">{{ t.eenmalig_knop }}</a>
     </div>
     {% else %}
     <div class="opzeg">
-      <strong>Voorbeeldweergave</strong>
-      <p>Dit is hoe een abonnee zijn eigen pagina ziet. Alleen zichtbaar met de beheersleutel.</p>
+      <strong>{{ t.d_voorbeeld_kop }}</strong>
+      <p>{{ t.d_voorbeeld_tekst }}</p>
     </div>
     {% endif %}
   </div>
@@ -547,28 +514,28 @@
   if(!knop) return;
 
   knop.addEventListener('click', function(){
-    if(!window.confirm('Weet je zeker dat je je monitoring wil opzeggen? Je houdt toegang tot het einde van de al betaalde periode.')) return;
+    if(!window.confirm({{ t.d_opzeg_bevestig|tojson }})) return;
     knop.disabled = true;
-    knop.textContent = 'Bezig met opzeggen...';
+    knop.textContent = {{ t.abo_bezig|tojson }};
     fetch('/api/opzeggen/{{ klant_token }}', {method: 'POST'})
       .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
       .then(function(res){
         if(!res.ok){
           melding.className = 'opzeg-melding fout';
-          melding.textContent = res.data.error || 'Het opzeggen is niet gelukt. Mail hallo@krillo.nl, dan regelen we het.';
+          melding.textContent = res.data.error || {{ t.d_opzeg_mislukt|tojson }};
           knop.disabled = false;
-          knop.textContent = 'Mijn abonnement opzeggen';
+          knop.textContent = {{ t.abo_knop|tojson }};
           return;
         }
         melding.className = 'opzeg-melding goed';
-        melding.textContent = 'Je abonnement is opgezegd. Je krijgt een bevestiging per e-mail. Er wordt niets meer afgeschreven.';
-        knop.textContent = 'Opgezegd';
+        melding.textContent = {{ t.abo_gelukt|tojson }};
+        knop.textContent = {{ t.d_opgezegd|tojson }};
       })
       .catch(function(){
         melding.className = 'opzeg-melding fout';
-        melding.textContent = 'Er ging iets mis. Mail hallo@krillo.nl, dan regelen we het.';
+        melding.textContent = {{ t.d_opzeg_fout|tojson }};
         knop.disabled = false;
-        knop.textContent = 'Mijn abonnement opzeggen';
+        knop.textContent = {{ t.abo_knop|tojson }};
       });
   });
 })();

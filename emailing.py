@@ -670,7 +670,54 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
     return send_email(to_email, "Welkom bij Krillo monitoring", html)
 
 
-def _weekly_en(to_email, webshop_url, score, report_url, vorige_score):
+def _vermeldingenblok(vermeldingen, taal="nl"):
+    """Het cijfer waar een klant echt voor betaalt, bovenaan de wekelijkse mail.
+
+    De mail ging tot nu toe alleen over de technische score. "Je score is nog
+    steeds 51 van 100, er is niets veranderd" is waar, maar het is geen reden om
+    39 euro per maand te blijven betalen. Waar iemand voor betaalt is of AI zijn
+    winkel noemt, en dat stond er niet in.
+
+    Geeft een lege tekst terug als er niets te melden valt. Een blok met nullen
+    erin leest als een slechte uitkomst, terwijl er alleen nog niet gemeten is,
+    en dat is precies het verschil dat een klant niet kan zien."""
+    v = vermeldingen or {}
+    telbaar = v.get("telbaar") or 0
+    if telbaar < 1:
+        return ""
+    genoemd = v.get("genoemd") or 0
+    aanbevolen = v.get("aanbevolen") or 0
+
+    if taal == "en":
+        if genoemd:
+            kern = (f"You were mentioned in <strong>{genoemd} of {telbaar}</strong> "
+                    f"buying questions this week")
+            kern += (f", and actually recommended in {aanbevolen}." if aanbevolen
+                     else ", but not recommended in any of them.")
+        else:
+            kern = (f"You were not mentioned in a single one of the {telbaar} buying "
+                    f"questions this week.")
+        staart = "Your page shows which questions, and what AI said word for word."
+    else:
+        if genoemd:
+            kern = (f"Je bent deze week genoemd bij <strong>{genoemd} van de "
+                    f"{telbaar}</strong> koopvragen")
+            kern += (f", en bij {aanbevolen} ook echt aangeraden." if aanbevolen
+                     else ", maar bij geen enkele ook echt aangeraden.")
+        else:
+            kern = (f"Je bent deze week bij geen van de {telbaar} koopvragen "
+                    f"genoemd.")
+        staart = "Op je pagina zie je bij welke vragen, en wat AI letterlijk zei."
+
+    return (f'<div style="background:#F3F1EA; border-radius:10px; padding:16px 18px; '
+            f'margin-bottom:16px;">'
+            f'<p style="font-size:14.5px; margin:0;">{kern}</p>'
+            f'<p style="font-size:13px; color:#5B5850; margin:6px 0 0;">{staart}</p>'
+            f'</div>')
+
+
+def _weekly_en(to_email, webshop_url, score, report_url, vorige_score,
+               vermeldingen=None):
     """De Engelse tegenhanger van send_weekly_update_email.
 
     Dezelfde drie gevallen in dezelfde volgorde: gedaald, gestegen, gelijk.
@@ -714,17 +761,19 @@ def _weekly_en(to_email, webshop_url, score, report_url, vorige_score):
             Nothing changed this week.</p>
             """
 
-    body = melding + _score_button(report_url, "See your monitoring page")
+    body = (_vermeldingenblok(vermeldingen, "en") + melding
+            + _score_button(report_url, "See your monitoring page"))
     html = _base_html(kop, f"The latest scan for {webshop_url}.", body, taal="en")
     return send_email(to_email, onderwerp, html)
 
 
 def send_weekly_update_email(to_email, webshop_url, scan_result, report_url=None,
-                             vorige_score=None, taal="nl"):
+                             vorige_score=None, taal="nl", vermeldingen=None):
     score = scan_result.get("score", 0)
 
     if taal == "en":
-        return _weekly_en(to_email, webshop_url, score, report_url, vorige_score)
+        return _weekly_en(to_email, webshop_url, score, report_url, vorige_score,
+                          vermeldingen)
 
     if vorige_score is None:
         onderwerp = f"Je wekelijkse Krillo-update ({score}/100)"
@@ -763,7 +812,8 @@ def send_weekly_update_email(to_email, webshop_url, scan_result, report_url=None
             Er is deze week niets veranderd.</p>
             """
 
-    body = melding + _score_button(report_url, "Bekijk je monitoringpagina")
+    body = (_vermeldingenblok(vermeldingen, "nl") + melding
+            + _score_button(report_url, "Bekijk je monitoringpagina"))
     html = _base_html(kop, f"De nieuwste scan voor {webshop_url}.", body)
     return send_email(to_email, onderwerp, html)
 

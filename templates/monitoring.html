@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="{{ paginataal }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 {# De titel in het tabblad hoort hetzelfde te zeggen als de kop. Wie de
    uitvoering kocht las hier ook "wat je deze week doet", en dat is precies
    het huiswerk waarvoor hij betaald heeft om het niet te hoeven doen. #}
-<title>{% if uitvoering and uitvoering.stand != 'opgeleverd' %}We zijn met je webshop bezig{% elif uitvoering and not abonnement %}Wat wij voor je gedaan hebben{% else %}Wat je deze week doet{% endif %} | Krillo</title>
+<title>{% if uitvoering and uitvoering.stand != 'opgeleverd' %}{{ t.titel_bezig }}{% elif uitvoering and not abonnement %}{{ t.titel_gedaan }}{% else %}{{ t.titel_taken }}{% endif %} | Krillo</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -149,11 +149,11 @@
   <div class="wrap">
     <div class="eyebrow">{{ webshop_url }}</div>
     {% if uitvoering and uitvoering.stand != 'opgeleverd' %}
-    <h1>Wij zijn met je webshop bezig</h1>
+    <h1>{{ t.titel_bezig }}</h1>
     {% elif uitvoering and not abonnement %}
-    <h1>Wat wij voor je gedaan hebben</h1>
+    <h1>{{ t.titel_gedaan }}</h1>
     {% else %}
-    <h1>Wat je deze week doet</h1>
+    <h1>{{ t.titel_taken }}</h1>
     {% endif %}
 
     {# Heeft deze klant betaald voor "wij doen het", dan hoort dat bovenaan te
@@ -162,23 +162,20 @@
     {% if uitvoering %}
       {% if uitvoering.stand == 'wacht_op_toegang' %}
       <div class="wij-blok wij-wacht">
-        <strong>We wachten nog op toegang tot je webshop</strong>
-        We kunnen pas beginnen als we in je winkel kunnen. In de mail die je na je
-        betaling kreeg staat precies hoe je dat regelt, het kost je twee minuten.
-        Kwijtgeraakt of loopt het vast? Mail hallo@krillo.nl, dan helpen we je erdoorheen.
+        <strong>{{ t.wacht_kop }}</strong>
+        {{ t.wacht_tekst }}
       </div>
       {% elif uitvoering.stand == 'bezig' %}
       <div class="wij-blok wij-bezig">
-        <strong>We zijn bezig in je webshop</strong>
-        Je hoeft nu even niets te doen. Zodra we klaar zijn krijg je een overzicht van
-        alles wat er veranderd is, met de oude tekst erbij, zodat je alles kunt terugzetten.
+        <strong>{{ t.bezig_kop }}</strong>
+        {{ t.bezig_tekst }}
       </div>
       {% elif uitvoering.stand == 'opgeleverd' %}
       <div class="wij-blok wij-klaar">
-        <strong>Wij hebben je webshop opgeknapt</strong>
-        {% if uitvoering.opgeleverd_op %}Afgerond op {{ uitvoering.opgeleverd_op.strftime('%d-%m-%Y') }}. {% endif %}
-        {% if uitvoering.notitie %}{{ uitvoering.notitie }}{% else %}Je hebt per mail een overzicht gekregen van wat er veranderd is.{% endif %}
-        Hieronder zie je wat er daarna nog open staat, en of je vaker genoemd wordt.
+        <strong>{{ t.klaar_kop }}</strong>
+        {% if uitvoering.opgeleverd_op %}{{ t.klaar_afgerond }} {{ uitvoering.opgeleverd_op.strftime('%d-%m-%Y') }}. {% endif %}
+        {% if uitvoering.notitie %}{{ uitvoering.notitie }}{% else %}{{ t.klaar_standaard }}{% endif %}
+        {{ t.klaar_vervolg }}
       </div>
 
       {# Wat er precies veranderd is, met de oude tekst erbij. Ingeklapt, want
@@ -186,19 +183,18 @@
          terugzetten vindt het hier terug in plaats van in een oude mail. #}
       {% if wijzigingen %}
       <details class="waarom" style="margin-bottom:28px;">
-        <summary>Wat we precies veranderd hebben ({{ wijzigingen|length }})</summary>
+        <summary>{{ t.wijzigingen_kop }} ({{ wijzigingen|length }})</summary>
         <div class="inhoud">
           {% for w in wijzigingen %}
           <p><strong>{{ loop.index }}. {{ w.wat }}</strong>
-          {% if w.waar %}<br>Waar: {{ w.waar }}{% endif %}
-          {% if w.nieuwe_waarde %}<br><br>Wat er nu staat:<br>{{ w.nieuwe_waarde }}{% endif %}
-          <br><br>Wat er stond:<br>
-          {% if w.oude_waarde %}{{ w.oude_waarde }}{% else %}Hier stond nog niets, dit is nieuw toegevoegd.{% endif %}
+          {% if w.waar %}<br>{{ t.wijziging_waar }}: {{ w.waar }}{% endif %}
+          {% if w.nieuwe_waarde %}<br><br>{{ t.wijziging_nu }}:<br>{{ w.nieuwe_waarde }}{% endif %}
+          <br><br>{{ t.wijziging_stond }}:<br>
+          {% if w.oude_waarde %}{{ w.oude_waarde }}{% else %}{{ t.wijziging_leeg }}{% endif %}
           </p>
           {% if not loop.last %}<hr style="border:none; border-top:1px solid var(--line); margin:16px 0;">{% endif %}
           {% endfor %}
-          <p style="margin-top:14px;">Wil je iets terug zoals het was, dan kan dat.
-            Zet het zelf terug met de tekst hierboven, of mail ons en wij doen het.</p>
+          <p style="margin-top:14px;">{{ t.wijziging_terug }}</p>
         </div>
       </details>
       {% endif %}
@@ -208,14 +204,13 @@
     {% if actieplan %}
     <div class="stand">{{ actieplan.kop }}</div>
     {% if laatste and laatste.aangemaakt_op %}
-    <div class="stand-datum">Laatste meting: {{ laatste.aangemaakt_op.strftime('%d-%m-%Y') }}</div>
+    <div class="stand-datum">{{ t.laatste_meting }}: {{ laatste.aangemaakt_op.strftime('%d-%m-%Y') }}</div>
     {% endif %}
 
     {% if not actieplan.acties %}
     <div class="klaar-blok">
-      <strong>Niets te doen deze week</strong>
-      Je site is in orde en op de plekken die we nakeken sta je erbij. We blijven elke week
-      meten en zodra er iets verandert staat het hier.
+      <strong>{{ t.niets_kop }}</strong>
+      {{ t.niets_tekst }}
     </div>
     {% endif %}
 
@@ -229,14 +224,14 @@
 
         {% if a.oplossing %}
         <div class="stap">
-          <div class="stap-label">Neem dit letterlijk over</div>
-          <div class="plak">{{ a.oplossing }}<button class="kopieer" type="button">Kopieer</button></div>
+          <div class="stap-label">{{ t.letterlijk }}</div>
+          <div class="plak">{{ a.oplossing }}<button class="kopieer" type="button">{{ t.kopieer }}</button></div>
         </div>
         {% endif %}
 
         {% if a.links %}
         <div class="stap">
-          <div class="stap-label">Deze pagina's gaat het om</div>
+          <div class="stap-label">{{ t.paginas }}</div>
           <div class="links">
             {% for l in a.links %}
             <div><a href="{{ l.url }}" target="_blank" rel="noopener nofollow">{{ l.titel }}</a>
@@ -247,12 +242,12 @@
         {% endif %}
 
         <div class="stap">
-          <div class="stap-label">{% if a.waar %}Waar zet je dit neer{% else %}Wat je doet{% endif %}</div>
+          <div class="stap-label">{% if a.waar %}{{ t.waar_neerzetten }}{% else %}{{ t.wat_je_doet }}{% endif %}</div>
           <div class="stap-tekst">{{ a.waar or a.hoe }}</div>
         </div>
 
         <details class="waarom">
-          <summary>Waarom deze taak, en hoe weten we dat</summary>
+          <summary>{{ t.waarom }}</summary>
           <div class="inhoud">
             {{ a.waarom }}
             {% if a.oplossing and a.hoe %}<br><br>{{ a.hoe }}{% endif %}
@@ -269,45 +264,52 @@
     {% else %}
     <div class="nietsgemeten">
       {% if verloop and verloop|length > 1 %}
-      <strong>Deze week konden we niets meten</strong>
-      Er is deze ronde geen bruikbare meting uit de AI-modellen gekomen, dus we laten liever
-      niets zien dan een cijfer waar je niets aan hebt. We proberen het bij de volgende ronde
-      opnieuw. Je vorige metingen staan gewoon nog onder "Alle metingen en cijfers".
+      <strong>{{ t.niets_gemeten_kop }}</strong>
+      {{ t.niets_gemeten_tekst }}
       {% elif abonnement %}
-      <strong>De eerste meting loopt nog</strong>
-      We stellen deze week koopvragen aan ChatGPT en Gemini om te zien of jouw winkel genoemd
-      wordt. Zodra dat klaar is staat hier wat je kan doen. Reken op ongeveer een kwartier.
+      <strong>{{ t.eerste_kop }}</strong>
+      {{ t.eerste_tekst }}
       {% else %}
-      <strong>Er is nog niet gemeten</strong>
-      Bij een eenmalige opdracht meten we niet doorlopend. Wil je elke week weten of AI je
-      winkel noemt, dan kan dat met monitoring voor 39 euro per maand.
+      <strong>{{ t.nognietgemeten_kop }}</strong>
+      {{ t.nognietgemeten_tekst }}
       {% endif %}
     </div>
     {% endif %}
 
     <a class="details-link" href="{% if voorbeeld %}/admin/voorbeeld?key={{ sleutel }}&url={{ webshop_url }}&details=ja{% else %}/monitoring/{{ klant_token }}/details{% endif %}">
-      <strong>Alle metingen en cijfers bekijken</strong>
-      <span>Bij welke vragen je genoemd wordt, wat AI letterlijk over je zei, wie je concurrenten
-      zijn en alle dertien controlepunten van je site.</span>
+      <strong>{{ t.details_kop }}</strong>
+      <span>{{ t.details_tekst }}</span>
     </a>
 
     {# BEWUST afhankelijk van of er echt een abonnement loopt. Wie alleen de
        uitvoering van 149 euro kocht las hier "je betaalt 39 euro per maand"
        met een opzegknop eronder, en dat is een onjuiste mededeling over een
        betalingsverplichting. #}
-    {% if not voorbeeld and abonnement %}
+    {# Betaalt deze winkel via Shopify, dan hoort hier GEEN opzegknop van ons te
+       staan. Die knop zegt de incasso bij Mollie op, en die bestaat voor deze
+       winkel niet eens. Een winkelier die erop drukt denkt dat hij geregeld
+       heeft dat er niets meer afgeschreven wordt, terwijl Shopify hem gewoon
+       blijft factureren. Dat is een onjuiste mededeling over een
+       betalingsverplichting, en het is precies waar Shopify een app op afwijst. #}
+    {% if not voorbeeld and shopify_beheer %}
     <div class="opzeg">
-      <strong>Je abonnement</strong>
-      <p>Je betaalt 39 euro per maand, maandelijks opzegbaar. Zeg je op, dan houd je toegang tot het einde van de periode die je al betaald hebt en wordt er daarna niets meer afgeschreven.</p>
-      <button class="opzeg-knop" id="opzegKnop">Mijn abonnement opzeggen</button>
+      <strong>{{ t.shopify_kop }}</strong>
+      <p>{{ t.shopify_tekst }}</p>
+      <a class="opzeg-knop" href="{{ shopify_beheer }}" target="_blank" rel="noopener"
+         style="display:inline-block; text-decoration:none;">{{ t.shopify_knop }}</a>
+    </div>
+    {% elif not voorbeeld and abonnement %}
+    <div class="opzeg">
+      <strong>{{ t.abo_kop }}</strong>
+      <p>{{ t.abo_tekst }}</p>
+      <button class="opzeg-knop" id="opzegKnop">{{ t.abo_knop }}</button>
       <div class="opzeg-melding" id="opzegMelding"></div>
     </div>
     {% elif not voorbeeld %}
     <div class="opzeg">
-      <strong>Je hebt eenmalig betaald</strong>
-      <p>Er loopt geen abonnement en er wordt niets van je afgeschreven. Wil je wel
-        blijven meten, dan kan dat voor 39 euro per maand, maandelijks opzegbaar.</p>
-      <a class="opzeg-knop" href="/#prijzen" style="display:inline-block; text-decoration:none;">Bekijk monitoring</a>
+      <strong>{{ t.eenmalig_kop }}</strong>
+      <p>{{ t.eenmalig_tekst }}</p>
+      <a class="opzeg-knop" href="/#prijzen" style="display:inline-block; text-decoration:none;">{{ t.eenmalig_knop }}</a>
     </div>
     {% else %}
     <div class="opzeg">
@@ -368,7 +370,7 @@ document.querySelectorAll('.kopieer').forEach(function(knop){
   knop.addEventListener('click', function(){
     if(!window.confirm('Weet je zeker dat je je monitoring wil opzeggen? Je houdt toegang tot het einde van de al betaalde periode.')) return;
     knop.disabled = true;
-    knop.textContent = 'Bezig met opzeggen...';
+    knop.textContent = {{ t.abo_bezig|tojson }};
     fetch('/api/opzeggen/{{ klant_token }}', {method: 'POST'})
       .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
       .then(function(res){
@@ -376,18 +378,18 @@ document.querySelectorAll('.kopieer').forEach(function(knop){
           melding.className = 'opzeg-melding fout';
           melding.textContent = res.data.error || 'Het opzeggen is niet gelukt. Mail hallo@krillo.nl, dan regelen we het.';
           knop.disabled = false;
-          knop.textContent = 'Mijn abonnement opzeggen';
+          knop.textContent = {{ t.abo_knop|tojson }};
           return;
         }
         melding.className = 'opzeg-melding goed';
-        melding.textContent = 'Je abonnement is opgezegd. Je krijgt een bevestiging per e-mail. Er wordt niets meer afgeschreven.';
+        melding.textContent = {{ t.abo_gelukt|tojson }};
         knop.textContent = 'Opgezegd';
       })
       .catch(function(){
         melding.className = 'opzeg-melding fout';
         melding.textContent = 'Er ging iets mis. Mail hallo@krillo.nl, dan regelen we het.';
         knop.disabled = false;
-        knop.textContent = 'Mijn abonnement opzeggen';
+        knop.textContent = {{ t.abo_knop|tojson }};
       });
   });
 })();

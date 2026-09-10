@@ -1419,6 +1419,60 @@ def get_shopify_winkels(alleen_actief=True):
         conn.close()
 
 
+def tel_gescande_webshops():
+    """Hoeveel verschillende webshops er ooit gescand zijn.
+
+    Bij nul klanten en nul recensies is dit het enige eerlijke sociale bewijs
+    dat er is: een getal dat al vastligt en dat wij niet verzinnen. Daarom telt
+    hij ECHTE scans en geen bezoeken, en daarom staat hier geen afronding naar
+    boven.
+
+    Geeft 0 terug als het niet lukt. Liever geen getal op de pagina dan een
+    verzonnen getal."""
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(DISTINCT webshop_url) FROM rapporten")
+                rij = cur.fetchone()
+                return int(rij[0]) if rij and rij[0] else 0
+    except Exception as e:
+        print(f"Gescande webshops tellen mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def shopify_winkel_bij_webadres(webshop_url):
+    """De Shopify-winkel die bij dit webadres hoort, of None.
+
+    Nodig omdat de klantpagina moet weten of iemand via Shopify betaalt of via
+    Mollie. Stond dat onderscheid er niet, dan las een winkelier die via Shopify
+    afrekent op zijn eigen pagina dat hij 39 euro per maand via ons betaalt, met
+    een opzegknop die zijn Shopify-abonnement niet eens raakt."""
+    if not webshop_url:
+        return None
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT * FROM shopify_winkels
+                                WHERE webshop_url = %s AND actief
+                                ORDER BY geinstalleerd_op DESC LIMIT 1""",
+                            (webshop_url,))
+                rij = cur.fetchone()
+                return _rij_met_open_sleutels(rij) if rij else None
+    except Exception as e:
+        print(f"Shopify-winkel zoeken mislukt voor {webshop_url}: {e}")
+        return None
+    finally:
+        conn.close()
+
+
 def shopify_verwijderd(winkel):
     """De app is uit deze winkel gehaald.
 

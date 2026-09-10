@@ -40,18 +40,23 @@ nep.zeg_abonnement_op = lambda a, b: {}
 sys.modules["payments"] = nep
 
 import app as krillo
+import paginataal
 env = Environment(loader=FileSystemLoader(os.path.join(MAP, "templates")))
 
 BASIS = dict(webshop_url="https://winkel.nl", klant_token="abc", voorbeeld=False,
              actieplan={"kop": "x", "acties": [], "rest": 0}, laatste=None, verschil=None,
              verloop=[], nieuwe_problemen=[], checks_by_categorie={}, vermeldingen=None,
              controle=None, beweging=None, bronnen=None, verklaring=None, taakstand=None,
-             sleutel="x", status_labels={}, wijzigingen=[])
+             sleutel="x", status_labels={}, wijzigingen=[],
+             # De vaste teksten van de pagina. Sinds de pagina tweetalig is komen
+             # die uit paginataal.py en niet meer uit het sjabloon zelf.
+             t=paginataal.TEKSTEN["nl"], paginataal="nl", shopify_beheer=None)
 
 print("\n== een klant met een abonnement ==")
 h = env.get_template("monitoring.html").render(uitvoering=None, abonnement=True, **BASIS)
 zo("ziet de opzegknop", 'id="opzegKnop"' in h, True)
-zo("en de kop over deze week", "<h1>Wat je deze week doet</h1>" in h, True)
+zo("en de kop over deze week",
+   f"<h1>{paginataal.TEKSTEN['nl']['titel_taken']}</h1>" in h, True)
 
 print("\n== een klant die alleen de uitvoering kocht ==")
 u = {"stand": "opgeleverd", "notitie": None, "opgeleverd_op": None,
