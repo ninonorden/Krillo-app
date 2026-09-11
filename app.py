@@ -46,6 +46,7 @@ import benchmark
 import markt
 import shopify_app
 import shopify_werk
+import toepasmodule
 import shopify_billing
 import benadering
 
@@ -4854,16 +4855,27 @@ def admin_werkbriefje():
     plan = None
     uitvoering = None
     wijzigingen = []
+    stek = toepasmodule.ONBEKEND
     if webshop_url:
         plan = _klantgegevens(webshop_url)["actieplan"]
         uitvoering = _laatste_uitvoering(webshop_url)
         wijzigingen = db.get_wijzigingen(webshop_url)
+
+        # De weg door het beheerscherm van dit ene platform bij elke taak. Zonder
+        # dit staat er bij elke taak "dit pas je aan in de instellingen van je
+        # webshop", en dan zit je alsnog te zoeken in een scherm dat je niet
+        # kent. Bij twee klanten is dat vervelend, bij twintig schaalt het niet.
+        profiel = db.get_winkelprofiel(webshop_url) or {}
+        platform = profiel.get("platform") or (uitvoering or {}).get("platform")
+        stek = toepasmodule.stekker(platform)
+        plan = toepasmodule.verrijk_plan(plan, platform)
 
     return render_template(
         "admin_werkbriefje.html",
         webshop_url=webshop_url,
         plan=plan,
         uitvoering=uitvoering,
+        stekker=stek,
         # Op taak-id, zodat het formulier bij elke taak meteen laat zien wat er
         # al vastgelegd is en je niet twee keer hetzelfde intypt.
         vastgelegd={w["taak_id"]: w for w in wijzigingen},
