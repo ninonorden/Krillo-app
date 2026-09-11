@@ -180,7 +180,8 @@ def init_db():
                         token TEXT PRIMARY KEY,
                         type TEXT NOT NULL,
                         webshop_url TEXT NOT NULL,
-                        email TEXT NOT NULL,
+                        -- Mag leeg zijn: een demo hoort bij geen klant.
+                        email TEXT,
                         score INTEGER NOT NULL,
                         checks JSONB NOT NULL,
                         fixes JSONB,
@@ -190,6 +191,14 @@ def init_db():
                 """)
                 # Voor bestaande installaties: kolom toevoegen als die nog mist.
                 cur.execute("ALTER TABLE rapporten ADD COLUMN IF NOT EXISTS payment_id TEXT;")
+                # Een demo heeft geen e-mailadres, want er is geen klant. De
+                # kolom stond op NOT NULL, dus ELKE poging om een demorapport te
+                # bewaren mislukte, met alleen een regel in de logboeken van
+                # Render. Gevolg: 55 winkels met beoordeelde antwoorden, nul
+                # demorapporten, een lege benchmarkpagina, en geen eigen cijfer
+                # op de homepage. Er is dagenlang voor die metingen betaald
+                # terwijl de uitkomst nergens bewaard werd.
+                cur.execute("ALTER TABLE rapporten ALTER COLUMN email DROP NOT NULL;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS verwerkte_betalingen (
                         payment_id TEXT PRIMARY KEY,

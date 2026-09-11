@@ -3030,8 +3030,17 @@ def _demo_draaien(webshop_url, benchmark_stand=False, vragen=None):
         # Als demo bewaren, niet als scan of monitoring. Daaraan herkennen we
         # later welke winkels demo's zijn, en het houdt ze buiten de cijfers
         # over echte klanten.
-        db.save_report("demo", resultaat["url"], None, resultaat.get("score", 0),
-                       resultaat.get("checks", []))
+        # De uitkomst NAKIJKEN. Dit ging mis en het bleef maandenlang onzichtbaar:
+        # de kolom email stond op NOT NULL terwijl een demo geen klant heeft, dus
+        # elke poging mislukte. Er werd wel gemeten en betaald, maar het rapport
+        # werd nooit bewaard. De benchmarkpagina bleef leeg en niemand kon zien
+        # waarom.
+        if not db.save_report("demo", resultaat["url"], None,
+                              resultaat.get("score", 0),
+                              resultaat.get("checks", [])):
+            _demo_status[webshop_url] = ("mislukt: de meting is gelukt maar het rapport "
+                                         "kon niet bewaard worden")
+            return
         db.zet_platform(resultaat["url"], resultaat.get("platform"))
 
         _meet_en_beoordeel(
