@@ -304,8 +304,15 @@ zo("startpagina meldt het netjes", client.get(f"/shopify?shop={WINKEL}").status_
 os.environ["SHOPIFY_API_SECRET"] = GEHEIM
 
 print("\n== de beheerpagina ==")
-zo("zonder sleutel dicht", client.get("/admin/shopify").status_code, 404)
-zo("met sleutel open", client.get("/admin/shopify?key=testsleutel").status_code, 200)
+# Sinds de beheerpagina's achter een inlogscherm zitten is 302 (doorsturen naar
+# /admin/inloggen) het goede antwoord, en geen 404 meer. En let op: een client
+# die eerder MET sleutel binnenkwam blijft ingelogd, dus voor de dichte kant
+# hoort een VERSE bezoeker gebruikt te worden.
+zo("zonder sleutel dicht",
+   krillo.app.test_client().get("/admin/shopify").status_code, 302)
+zo("met sleutel open",
+   krillo.app.test_client().get("/admin/shopify?key=testsleutel",
+                                follow_redirects=True).status_code, 200)
 
 print("\n== het ene adres voor de drie verplichte privacy-webhooks ==")
 # Dit is het adres dat in shopify.app.toml komt te staan. Alle drie de

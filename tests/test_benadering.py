@@ -294,9 +294,10 @@ zo("zonder link gaat er niets uit",
 
 print("\n== de pagina's ==")
 zo("de beheerpagina is dicht zonder sleutel",
-   client.get("/admin/benadering").status_code, 404)
+   krillo.app.test_client().get("/admin/benadering").status_code, 302)
 zo("en open met sleutel",
-   client.get("/admin/benadering?key=testsleutel").status_code, 200)
+   krillo.app.test_client().get("/admin/benadering?key=testsleutel",
+                               follow_redirects=True).status_code, 200)
 zo("de cron is dicht zonder sleutel",
    client.get("/api/cron/benadering").status_code, 404)
 zo("en open met sleutel",

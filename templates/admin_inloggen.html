@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Inloggen bij Krillo</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --lijn:#E4E2DA;}
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif;
+       display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px;}
+  .kaart{background:#fff; border:1px solid var(--lijn); border-radius:14px;
+         padding:32px 30px; max-width:380px; width:100%;}
+  .logo{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:19px; margin-bottom:18px;}
+  .stip{display:inline-block; width:9px; height:9px; border-radius:50%; background:#D42E22; margin-right:7px;}
+  h1{font-family:'Space Grotesk',sans-serif; font-size:20px; margin-bottom:6px;}
+  p{font-size:13.5px; color:var(--ink-soft); line-height:1.7; margin-bottom:18px;}
+  input{width:100%; font-size:15px; padding:11px 13px; border:1px solid var(--lijn);
+        border-radius:9px; font-family:inherit;}
+  button{width:100%; margin-top:12px; font-size:14.5px; font-weight:600; padding:11px;
+         border:none; border-radius:9px; background:var(--ink); color:#fff; cursor:pointer;}
+  .fout{background:#FFE3E0; color:#8E1F0B; font-size:13.5px; padding:10px 13px;
+        border-radius:9px; margin-bottom:14px;}
+</style>
+</head>
+<body>
+  <div class="kaart">
+    <div class="logo"><span class="stip"></span>Krillo</div>
+    <h1>Beheer</h1>
+    <p>Vul je beheersleutel in. Daarna blijf je ingelogd en hoeft hij niet meer in het
+      webadres te staan.</p>
+    {% if fout %}<div class="fout">{{ fout }}</div>{% endif %}
+    <form method="post">
+      <input type="password" name="sleutel" placeholder="Beheersleutel" autofocus
+             autocomplete="current-password">
+      <button type="submit">Inloggen</button>
+    </form>
+  </div>
+</body>
+</html>

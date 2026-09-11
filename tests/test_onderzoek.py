@@ -107,8 +107,15 @@ zo("noemt GEEN winkelnamen", "geheimewinkel" in p, False)
 zo("legt de methode uit", "per vraag en niet per antwoord" in p, True)
 
 print("\n== de beheerpagina voor de mails ==")
-zo("zonder sleutel dicht", client.get("/admin/onderzoeksmail").status_code, 404)
-zo("met sleutel open", client.get("/admin/onderzoeksmail?key=testsleutel").status_code, 200)
+# Sinds de beheerpagina's achter een inlogscherm zitten is 302 (doorsturen naar
+# /admin/inloggen) het goede antwoord, en geen 404 meer. En let op: een client
+# die eerder MET sleutel binnenkwam blijft ingelogd, dus voor de dichte kant
+# hoort een VERSE bezoeker gebruikt te worden.
+zo("zonder sleutel dicht",
+   krillo.app.test_client().get("/admin/onderzoeksmail").status_code, 302)
+zo("met sleutel open",
+   krillo.app.test_client().get("/admin/onderzoeksmail?key=testsleutel",
+                                follow_redirects=True).status_code, 200)
 
 print("\n== een adres bewaren ==")
 r = client.post("/admin/onderzoeksmail?key=testsleutel",

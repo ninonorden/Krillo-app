@@ -160,12 +160,17 @@ zo("tweede opdracht staat op de lijst", len(db.get_uitvoeringen()), 2)
 zo("mail zonder platform", verstuurd[-1]["platform"], None)
 
 print("\n== de beheerpagina ==")
-r = client.get("/admin/uitvoeringen?key=testsleutel")
+r = client.get("/admin/uitvoeringen?key=testsleutel", follow_redirects=True)
 zo("laadt", r.status_code, 200)
 pagina = r.get_data(as_text=True)
 zo("de wachtende opdracht staat erop", "onbekendplatform.nl" in pagina, True)
 zo("de opgeleverde ook", "winkel.nl" in pagina, True)
-zo("zonder sleutel dicht", client.get("/admin/uitvoeringen").status_code, 404)
+# Sinds de beheerpagina's achter een inlogscherm zitten is 302 (doorsturen naar
+# /admin/inloggen) het goede antwoord, en geen 404 meer. En let op: een client
+# die eerder MET sleutel binnenkwam blijft ingelogd, dus voor de dichte kant
+# hoort een VERSE bezoeker gebruikt te worden.
+zo("zonder sleutel dicht",
+   krillo.app.test_client().get("/admin/uitvoeringen").status_code, 302)
 
 r = client.post("/admin/uitvoeringen?key=testsleutel",
                 data={"id": str(uid), "stand": "bezig", "notitie": "toch nog iets"})

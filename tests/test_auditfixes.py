@@ -211,8 +211,14 @@ zo("een lege niet", krillo._sleutel_klopt("", "testsleutel"), False)
 zo("None niet", krillo._sleutel_klopt(None, "testsleutel"), False)
 zo("een te korte niet", krillo._sleutel_klopt("test", "testsleutel"), False)
 for pad in ("/admin/benadering", "/admin/onderzoeksmail", "/admin/kosten", "/admin/demo"):
-    zo(f"{pad} is dicht zonder sleutel", client.get(pad).status_code, 404)
-    zo(f"{pad} is dicht met de verkeerde", client.get(f"{pad}?key=fout").status_code, 404)
+# Sinds de beheerpagina's achter een inlogscherm zitten is 302 (doorsturen naar
+# /admin/inloggen) het goede antwoord, en geen 404 meer. En let op: een client
+# die eerder MET sleutel binnenkwam blijft ingelogd, dus voor de dichte kant
+# hoort een VERSE bezoeker gebruikt te worden.
+    gast = krillo.app.test_client()
+    zo(f"{pad} stuurt door naar inloggen", gast.get(pad).status_code, 302)
+    zo(f"{pad} ook met een verkeerde sleutel",
+       krillo.app.test_client().get(f"{pad}?key=fout").status_code, 302)
 zo("de cron is dicht met de verkeerde sleutel",
    client.get("/api/cron/benadering?key=fout").status_code, 404)
 

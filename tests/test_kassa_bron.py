@@ -171,15 +171,20 @@ with conn:
         cur.execute("""INSERT INTO gratis_scans (webshop_url, score, gelukt, herkomst)
                        VALUES ('https://x.nl', 60, true, 'webwinkelkeur')""")
 conn.close()
-r = client.get("/admin/bezoekers?key=testsleutel")
+r = client.get("/admin/bezoekers?key=testsleutel", follow_redirects=True)
 zo("pagina laadt", r.status_code, 200)
 pagina = r.get_data(as_text=True)
 zo("de bron staat erop", "webwinkelkeur" in pagina, True)
 zo("de omzet staat erop", "79.00" in pagina, True)
 
 print("\n== zonder sleutel blijft de pagina dicht ==")
-zo("geen sleutel", client.get("/admin/bezoekers").status_code, 404)
-zo("verkeerde sleutel", client.get("/admin/bezoekers?key=fout").status_code, 404)
+# Sinds de beheerpagina's achter een inlogscherm zitten is 302 (doorsturen naar
+# /admin/inloggen) het goede antwoord, en geen 404 meer. En let op: een client
+# die eerder MET sleutel binnenkwam blijft ingelogd, dus voor de dichte kant
+# hoort een VERSE bezoeker gebruikt te worden.
+zo("geen sleutel", krillo.app.test_client().get("/admin/bezoekers").status_code, 302)
+zo("verkeerde sleutel",
+   krillo.app.test_client().get("/admin/bezoekers?key=fout").status_code, 302)
 
 print()
 if fouten:

@@ -74,12 +74,18 @@ WINKEL = "https://voorbeeldwinkel.nl"
 SLEUTEL = "?key=testsleutel&url=voorbeeldwinkel.nl"
 
 print("\n== de pagina's zitten achter de sleutel ==")
-zo("werkbriefje zonder sleutel", client.get("/admin/werkbriefje").status_code, 404)
-zo("werkbriefje verkeerde sleutel", client.get("/admin/werkbriefje?key=fout").status_code, 404)
-zo("oplevering zonder sleutel", client.get("/admin/oplevering").status_code, 404)
+# Sinds de beheerpagina's achter een inlogscherm zitten is 302 het goede
+# antwoord, en geen 404. Voor de dichte kant hoort een VERSE bezoeker gebruikt
+# te worden: een client die eerder met sleutel binnenkwam blijft ingelogd.
+zo("werkbriefje zonder sleutel",
+   krillo.app.test_client().get("/admin/werkbriefje").status_code, 302)
+zo("werkbriefje verkeerde sleutel",
+   krillo.app.test_client().get("/admin/werkbriefje?key=fout").status_code, 302)
+zo("oplevering zonder sleutel",
+   krillo.app.test_client().get("/admin/oplevering").status_code, 302)
 
 print("\n== het werkbriefje toont de taken met de plakteksten ==")
-r = client.get("/admin/werkbriefje" + SLEUTEL)
+r = client.get("/admin/werkbriefje" + SLEUTEL, follow_redirects=True)
 zo("laadt", r.status_code, 200)
 p = r.get_data(as_text=True)
 zo("eerste taak staat erop", "Zet deze vragen en antwoorden op je site" in p, True)

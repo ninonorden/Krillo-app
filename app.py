@@ -22,7 +22,7 @@ from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 
 from flask import (Flask, request, jsonify, render_template, redirect, Response,
-                   has_request_context)
+                   has_request_context, session, url_for)
 import scan_engine
 from scan_engine import run_scan
 import payments
@@ -368,6 +368,54 @@ def _mailtaal(webshop_url):
     except Exception as e:
         print(f"Taal bepalen mislukt voor {webshop_url}: {e}")
         return "nl"
+
+
+# De sleutel waarmee Flask het inlogkoekje ondertekent. Zonder deze regel kan
+# Flask geen sessie bewaren en werkt het inlogscherm niet.
+#
+# Terugval op ADMIN_KEY als SESSIE_SLEUTEL niet gezet is: dan werkt het inloggen
+# meteen, zonder dat er eerst iets in Render bij moet. Een eigen SESSIE_SLEUTEL
+# is netter, want dan hoeft de beheersleutel niet ook nog koekjes te tekenen.
+app.secret_key = (os.environ.get("SESSIE_SLEUTEL")
+                  or os.environ.get("ADMIN_KEY") or "krillo-zonder-sleutel")
+
+# Hoe lang je ingelogd blijft op de beheerpagina's.
+INLOG_DAGEN = int(os.environ.get("INLOG_DAGEN", "14"))
+app.permanent_session_lifetime = timedelta(days=INLOG_DAGEN)
+
+
+def _mag_bij_beheer():
+    """Of deze bezoeker bij de beheerpagina's mag.
+
+    Twee manieren, en dat is met opzet:
+
+    1. Ingelogd via /admin/inloggen. Dan staat er niets in het webadres.
+    2. Met ?key= in het adres, zoals het altijd werkte. Die manier blijft
+       bestaan, want de cron-taken gebruiken hem en jouw bladwijzers ook.
+
+    Wat er wel verandert: komt iemand binnen met ?key=, dan onthouden wij dat in
+    een koekje en sturen wij hem door naar hetzelfde adres ZONDER de sleutel.
+    Daarna staat de sleutel niet meer in de adresbalk, niet in je geschiedenis,
+    niet in een schermafdruk en niet in de logboeken van Render. Dat is het hele
+    punt: de sleutel bestaat nog, hij ligt alleen niet meer overal rond.
+
+    Geeft (mag, doorsturen_naar) terug."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    if not admin_key:
+        return False, None
+    if session.get("beheer") is True:
+        return True, None
+    if _sleutel_klopt(request.args.get("key"), admin_key):
+        session.permanent = True
+        session["beheer"] = True
+        # Alleen doorsturen bij een gewoon bezoek. Een POST doorsturen zou het
+        # formulier weggooien, en een cron-taak heeft geen adresbalk.
+        if request.method == "GET":
+            zonder = {k: v for k, v in request.args.items() if k != "key"}
+            return True, url_for(request.endpoint, **{**(request.view_args or {}),
+                                                      **zonder})
+        return True, None
+    return False, None
 
 
 def _sleutel_klopt(gegeven, verwacht):
@@ -1069,6 +1117,41 @@ def _verwerk_betaling(payment_id, base_url):
             f"{type(e).__name__}: {e}. De betaling staat weer open, dus een volgende "
             f"melding van Mollie probeert het opnieuw. Blijft het misgaan, doe het dan "
             f"met de hand of geef het geld terug.")
+
+
+@app.route("/admin/inloggen", methods=["GET", "POST"])
+def admin_inloggen():
+    """Het inlogscherm voor de beheerpagina's.
+
+    Waarom dit bestaat: de sleutel stond in het webadres van elke beheerpagina.
+    Dat staat dus ook in je browsergeschiedenis, in de logboeken van Render, en
+    op elke schermafdruk die je maakt. Er is er in augustus al een keer een in
+    een schermafdruk in een chat beland. Met nul klanten is dat te overzien, met
+    klanten niet meer.
+
+    De sleutel blijft bestaan en ?key= blijft werken, want de cron-taken
+    gebruiken hem. Wat er verandert: na een keer inloggen hoeft hij nergens meer
+    in het adres, en kom je binnen met ?key=, dan onthouden wij het en halen wij
+    hem meteen uit de adresbalk."""
+    admin_key = os.environ.get("ADMIN_KEY")
+    fout = None
+    if request.method == "POST":
+        if admin_key and _sleutel_klopt((request.form.get("sleutel") or "").strip(),
+                                        admin_key):
+            session.permanent = True
+            session["beheer"] = True
+            return redirect(request.args.get("verder") or "/admin/benadering")
+        # Bewust geen verschil tussen "geen sleutel ingesteld" en "verkeerde
+        # sleutel". Dat verschil vertelt een vreemde iets wat hij niet hoeft te
+        # weten.
+        fout = "Die sleutel klopt niet."
+    return render_template("admin_inloggen.html", fout=fout)
+
+
+@app.route("/admin/uitloggen")
+def admin_uitloggen():
+    session.pop("beheer", None)
+    return redirect("/admin/inloggen")
 
 
 @app.route("/webhooks/mollie", methods=["POST"])
@@ -1883,8 +1966,11 @@ def admin_benadering():
     """De machinekamer van de benadering: de lijst erin, de rem instellen, en
     zien wat er gebeurd is."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "Niet gevonden.", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     melding = None
     if request.method == "POST":
@@ -2158,8 +2244,11 @@ def admin_koopvragen():
     """Nog niet zichtbaar voor klanten. Hiermee kan je per webshop de
     koopvragen laten genereren, beoordelen en ontdubbelen."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     if not webshop_url:
@@ -2255,8 +2344,11 @@ def admin_metingen():
     koopvragen van een webshop. Nog niet zichtbaar voor klanten: het
     beoordelen van die antwoorden is stap 4."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     aanbieders = metingen.beschikbare_aanbieders()
@@ -2968,9 +3060,17 @@ def admin_demo():
     het uit te leggen. Kost ongeveer een euro per winkel, dus het starten
     gebeurt alleen op een knop en nooit vanzelf bij het openen van de pagina."""
     admin_key = os.environ.get("ADMIN_KEY")
-    sleutel = request.form.get("key") if request.method == "POST" else request.args.get("key")
-    if not admin_key or not _sleutel_klopt(sleutel, admin_key):
-        return "", 404
+    # Deze pagina kent ook een sleutel in het FORMULIER, want de knoppen sturen
+    # hem mee. Die manier blijft werken; voor de rest gaat het net als bij de
+    # andere beheerpagina's via het inlogscherm.
+    if request.method == "POST" and _sleutel_klopt(request.form.get("key"), admin_key):
+        session.permanent = True
+        session["beheer"] = True
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     # Meerdere winkels tegelijk mag: gescheiden door een nieuwe regel, een komma
     # of een spatie. Dat is nodig voor een benchmark over tientallen winkels,
@@ -3015,8 +3115,11 @@ def admin_onderzoeksmail():
     tussen een onderzoek en spam, en het is ook de snelste manier om je
     mailadres bij Brevo op een zwarte lijst te krijgen."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "Niet gevonden.", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     melding = None
     if request.method == "POST":
@@ -3165,8 +3268,11 @@ def admin_benchmark():
     winkels staan eronder zodat je kan controleren of een uitschieter klopt,
     maar wat je naar buiten brengt zijn alleen de aantallen."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     regels = db.benchmark_regels()
     cijfers = benchmark.tel_op(regels)
@@ -3190,8 +3296,11 @@ def admin_voorbeeld():
     pas ontstaat bij een betaald abonnement. Zonder deze route kan je niet
     controleren hoe een klant zijn eigen pagina ziet."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     if not webshop_url:
@@ -3257,8 +3366,11 @@ def admin_beoordelingen():
     winkels genoemd worden, of onze winkel erbij staat, en of dat een
     vermelding of een echte aanbeveling was."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     meting_id = request.args.get("meting") or None
@@ -3339,8 +3451,11 @@ def admin_oplossingen():
     Met &opnieuw=ja gooit hij de bewaarde teksten eerst weg, zodat je een
     nieuwe versie kan laten schrijven na een aanpassing aan de opdracht."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     if not webshop_url:
@@ -3400,8 +3515,11 @@ def admin_bronnen():
     dat eerst opgelost worden. Een verkeerde vindplaats is erger dan geen
     vindplaats, want de klant gaat erop af."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     meting_id = request.args.get("meting") or None
@@ -3491,8 +3609,11 @@ def admin_modellen():
     deze sleutel wel mag gebruiken. Mislukken alle metingen bij een aanbieder,
     dan is een verkeerde modelnaam veruit de meest voorkomende oorzaak."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     resultaten = []
     for a in metingen.AANBIEDERS:
@@ -3518,8 +3639,11 @@ def admin_bezoekers():
     Zonder dit lanceer je blind: komt er niemand, of komen ze wel en haken ze
     af? Dat zijn twee verschillende problemen."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     dagen = int(request.args.get("dagen", 30))
     overzicht = db.scanoverzicht(dagen)
@@ -3546,8 +3670,11 @@ def admin_bezoekers():
 @app.route("/admin/kosten")
 def admin_kosten():
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     dagen = int(request.args.get("dagen", 30))
     overzicht = db.kostenoverzicht(dagen)
@@ -3575,8 +3702,11 @@ def admin_kosten():
 @app.route("/admin/bestellingen")
 def admin_bestellingen():
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "Niet gevonden.", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     orders = payments.list_recent_orders()
     return render_template("admin_bestellingen.html", orders=orders)
@@ -3590,8 +3720,11 @@ def admin_uitvoeringen():
     hier staat wie betaald heeft en nog zit te wachten. Een klant die betaalt en
     daarna niets hoort is erger dan een klant die nooit betaalt."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "Niet gevonden.", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     melding = None
     if request.method == "POST":
@@ -4615,8 +4748,11 @@ def shopify_verwijderd():
 def admin_shopify():
     """Welke winkels de app geïnstalleerd hebben. Voor jou, niet voor klanten."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "Niet gevonden.", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
     return render_template(
         "admin_shopify.html",
         winkels=db.get_shopify_winkels(alleen_actief=False),
@@ -4640,8 +4776,11 @@ def admin_werkbriefje():
     terugzetten, en die belofte is alleen waar als het ergens staat. Plak hem
     dus in voordat je iets vervangt, niet erna, want dan is hij weg."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "Niet gevonden.", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     melding = None
@@ -4693,8 +4832,11 @@ def admin_oplevering():
     Bewust een aparte stap en niet automatisch bij "opgeleverd": jij hoort dit
     eerst zelf te lezen voordat het naar een betalende klant gaat."""
     admin_key = os.environ.get("ADMIN_KEY")
-    if not admin_key or not _sleutel_klopt(request.args.get("key"), admin_key):
-        return "Niet gevonden.", 404
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     wijzigingen = db.get_wijzigingen(webshop_url) if webshop_url else []
