@@ -495,9 +495,14 @@ def _draai_zichtbaarheidstest(test_id, webshop_url, email, base_url):
 def _draai_voorproef(test_id, webshop_url):
     """De korte meting die meteen na de gratis scan draait, zonder e-mailadres."""
     try:
+        # Zonder bronanalyse. De voorproef draait bij ELKE gratis scan, ook bij
+        # iemand die alleen even kwam kijken. Daar een zoekmachine en een reeks
+        # paginabezoeken achteraan sturen maakt de goedkoopste stap van de
+        # trechter ineens de duurste. De bronanalyse zit in de volledige gratis
+        # test, waar iemand een e-mailadres voor achterlaat.
         zichtbaarheid.draai(test_id, webshop_url,
                             aantal_vragen=zichtbaarheid.VOORPROEF_VRAGEN,
-                            max_aanbieders=1)
+                            max_aanbieders=1, bronnen_erbij=False)
     except Exception as e:
         print(f"Voorproef mislukt voor {webshop_url}: {e}")
 

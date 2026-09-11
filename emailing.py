@@ -990,6 +990,39 @@ def send_zichtbaarheidstest(to_email, webshop_url, resultaat, zin, site_url=None
             f'<ul style="font-size:14px; line-height:1.6; padding-left:18px;">{namen}</ul>'
         )
 
+    # De bronanalyse. Dit is het deel dat zegt waar het vandaan komt, en het
+    # enige stuk van deze mail waar iemand morgen zelf iets mee kan. Het staat
+    # er alleen als er echt pagina's gevonden zijn.
+    bronblok = ""
+    br = resultaat.get("bronnen") or {}
+    bronpaginas = br.get("gemiste_paginas") or []
+    if bronpaginas:
+        rijen = ""
+        for g in bronpaginas:
+            namen = ", ".join(g.get("concurrenten") or [])
+            rijen += (
+                '<div style="border-left:3px solid #FF4B3E; padding:8px 12px; margin-bottom:10px;">'
+                f'<div style="font-size:14px;">'
+                f'{_html.escape(str(g.get("titel") or g.get("domein") or ""))}</div>'
+                f'<div style="font-size:11.5px; color:#3B3D57; margin-top:3px;">'
+                f'{_html.escape(str(g.get("domein") or ""))}'
+                + (f' &middot; hier staat wel: {_html.escape(namen)}' if namen else "")
+                + '</div></div>'
+            )
+        over = (br.get("gemist") or 0) - len(bronpaginas)
+        rest = ""
+        if over > 0:
+            rest = (f'<p style="font-size:14px; line-height:1.6; color:#3B3D57;">'
+                    f'En nog {over} van dit soort pagina\'s. Ze bestaan al, je hoeft ze '
+                    f'niet te maken.</p>')
+        bronblok = (
+            '<h3 style="font-size:15px; margin:26px 0 8px;">Waar je concurrent wel staat '
+            'en jij niet</h3>'
+            f'<p style="font-size:14px; line-height:1.6; color:#3B3D57;">'
+            f'{_html.escape(str(br.get("conclusie") or ""))}</p>'
+            + rijen + rest
+        )
+
     slot = f"""
     <h3 style="font-size:15px; margin:26px 0 8px;">Wat dit wel en niet is</h3>
     <p style="font-size:14px; line-height:1.6; color:#3B3D57;">
@@ -998,13 +1031,14 @@ def send_zichtbaarheidstest(to_email, webshop_url, resultaat, zin, site_url=None
       elke week meet.
     </p>
     <p style="font-size:14px; line-height:1.6; color:#3B3D57;">
-      We hebben je niet verteld waarom het zo is, en ook niet of wat AI over je zegt klopt.
-      Dat zit in het betaalde deel, samen met dertig vragen per week in plaats van vijf.
+      We hebben je niet verteld wat er op je eigen site aan schort, welke pagina's het nog
+      meer zijn, of wat AI over je zegt klopt. Dat zit in het betaalde deel, samen met
+      dertig vragen per week in plaats van vijf.
     </p>
     """
 
     body = cijfers + '<h3 style="font-size:15px; margin:24px 0 10px;">De vragen</h3>' + regels
-    body += concurrenten + slot
+    body += concurrenten + bronblok + slot
     if site_url:
         body += _score_button(site_url, "Bekijk wat er nog meer mogelijk is")
 

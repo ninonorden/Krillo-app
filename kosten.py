@@ -79,6 +79,25 @@ PRIJZEN = [
         "geldig_vanaf": "2026-08-01",
         "prijsversie": "2026-08",
     },
+    # De naam met "latest" erin. Die staat als modelnaam in de omgeving en kwam
+    # op de kostenpagina binnen als tweeduizend aanroepen zonder bekende prijs,
+    # dus als nul euro. Dat is de gevaarlijkste fout die deze pagina kan maken:
+    # zeggen dat iets niets kost terwijl het wel geld kost, want dan klopt de
+    # dagpot ook niet meer.
+    #
+    # Welk model erachter zit weten wij niet zeker, want Google verschuift dat.
+    # Daarom staat hier bewust de prijs van de duurste flash die wij kennen.
+    # Liever te hoog inschatten en op tijd op de rem, dan te laag en er een
+    # week later achter komen.
+    {
+        "provider": "google",
+        "model": "gemini-flash-latest",
+        "invoer_per_miljoen": 0.68,
+        "uitvoer_per_miljoen": 3.38,
+        "valuta": "EUR",
+        "geldig_vanaf": "2026-08-01",
+        "prijsversie": "2026-08",
+    },
     {
         "provider": "google",
         "model": "gemini-3.5-flash-lite",
