@@ -102,6 +102,24 @@ db.voeg_benaderingen_toe([(WINKEL, "Posttest", "NL", None)])
 db.zet_benadering(WINKEL, stand="gemeten", email="info@postgaatuit-test.nl",
                   afgemeld=False)
 
+# Ook echt beoordeelde antwoorden neerzetten. De ronde ruimt sinds 11 september
+# zelf op: staat een winkel op "gemeten" zonder bruikbare meting, dan gaat hij
+# terug om opnieuw gemeten te worden. Zonder deze regels zou deze test een
+# winkel neerzetten die volgens de database nooit gemeten is.
+_c = db._get_connection()
+with _c.cursor() as _cur:
+    _cur.execute("DELETE FROM beoordelingen WHERE webshop_url = %s", (WINKEL,))
+    for _n in range(krillo.BENADERING_VRAGEN):
+        _cur.execute(
+            """INSERT INTO beoordelingen
+                 (antwoord_id, webshop_url, meting_id, vraag, model,
+                  winkel_kon_genoemd, genoemd, aanbevolen)
+               VALUES (%s, %s, 'test-meting', %s, 'test', true, false, false)
+               ON CONFLICT (antwoord_id) DO NOTHING""",
+            (900000 + _n, WINKEL, f"vraag {_n}"))
+_c.commit()
+_c.close()
+
 # De dure kant vervangen door namaak. Wat hier NIET vervangen wordt is de
 # beslissing of er gemaild mag worden, want dat is precies wat getest wordt.
 verstuurd = []
@@ -142,8 +160,13 @@ krillo._klantgegevens = lambda url: {"vermeldingen": {"telbaar": 4, "genoemd": 0
 verstuurd.clear()
 krillo._benadering_ronde()
 zo("er gaat geen halve uitkomst de deur uit", len(verstuurd), 0)
+# De reden kan op twee plekken staan: bij "mislukt" als de mail hem weigerde, of
+# bij "redenen" als de ronde hem al opgeruimd had voordat het zover kwam. Allebei
+# goed, als het maar ergens staat.
+_v = benadering.rondeverslagen()[0]
 klopt("en de reden staat in het logboek",
-      any("vragen" in m for m in benadering.rondeverslagen()[0]["mislukt"]))
+      any("vragen" in m for m in _v["mislukt"])
+      or any("vragen" in r for r in _v["redenen"]))
 stand = {r["webshop_url"]: r for r in db.get_benaderingen(alleen_niet_afgemeld=False)
          if r["webshop_url"] == KRAP}
 # Sinds 10 september gaat hij terug naar "adres" om opnieuw gemeten te worden.
@@ -185,7 +208,9 @@ klopt("hij staat niet op gemeten",
 print("\n== de trechter na de mail wordt geteld ==")
 # Zonder dit weet je na honderd verstuurde mails alleen dat er honderd
 # verstuurd zijn, en dat zegt niets over waar mensen afhaken.
-T = "https://trechter-posttest.nl"
+# Uniek per keer draaien, anders tellen de bezoeken van de vorige keer mee.
+from datetime import datetime as _dt
+T = f"https://trechter-posttest-{_dt.now().strftime('%H%M%S%f')}.nl"
 db.zet_benadering(T, stand="afgevallen")
 db.voeg_benaderingen_toe([(T, "Trechter", "NL", None)])
 db.zet_benadering(T, stand="gemeten", email="info@trechter-posttest.nl", afgemeld=False)
@@ -209,6 +234,27 @@ sjabloon = open(os.path.join(APP, "templates", "uitkomst.html")).read()
 klopt("de knop gaat via /verder", "/uitkomst/{{ token }}/verder" in sjabloon)
 bron = open(os.path.join(APP, "app.py")).read()
 klopt("en die route bestaat", '"/uitkomst/<token>/verder"' in bron)
+
+print("\n== een onbruikbare meting blijft niet op gemeten staan ==")
+# Op 11 september stonden er 43 winkels op "gemeten" en meldde de pagina "43
+# winkels staan klaar om post te krijgen". Dat was niet waar: allemaal gemeten
+# toen de rem nog na drie vragen afkapte. Elke ronde probeerde er drie, kreeg
+# drie keer nul, en zette er drie terug. Vijftien rondes voor een keer rondgaan.
+ONBRUIKBAAR = "https://onbruikbare-meting-test.nl"
+db.zet_benadering(ONBRUIKBAAR, stand="afgevallen")
+db.voeg_benaderingen_toe([(ONBRUIKBAAR, "Onbruikbaar", "NL", None)])
+db.zet_benadering(ONBRUIKBAAR, stand="gemeten", email="info@onbruikbaar.nl",
+                  afgemeld=False)
+krillo._klantgegevens = lambda url: {"vermeldingen": {"telbaar": 3, "genoemd": 0}}
+verstuurd.clear()
+krillo._benadering_ronde()
+stand = {r["webshop_url"]: r for r in db.get_benaderingen(alleen_niet_afgemeld=False)
+         if r["webshop_url"] == ONBRUIKBAAR}
+zo("hij staat niet meer op gemeten", (stand.get(ONBRUIKBAAR) or {}).get("stand"), "adres")
+klopt("met de reden erbij",
+      "te weinig vragen" in ((stand.get(ONBRUIKBAAR) or {}).get("notitie") or "").lower())
+v = benadering.rondeverslagen()[0]
+klopt("en het logboek meldt het", (v.get("terug_naar_meten") or 0) >= 1)
 
 print("\n== de kostenrem per meting past bij het aantal vragen ==")
 # Hier ging het op 11 september mis en het kostte een dag post. De rem per meting

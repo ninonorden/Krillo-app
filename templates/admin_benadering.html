@@ -187,6 +187,7 @@
         {% if v.gevonden_winkels %}nieuwe winkels gevonden: {{ v.gevonden_winkels }}, {% endif %}
         adressen gevonden: {{ v.adressen.gevonden if v.adressen else 0 }},
         {% if v.opnieuw_opgepakt %}opnieuw opgepakt: {{ v.opnieuw_opgepakt }}, {% endif %}
+        {% if v.terug_naar_meten %}terug om opnieuw te meten: {{ v.terug_naar_meten }}, {% endif %}
         ingepland om te meten: {{ v.ingepland or 0 }},
         doorgezet naar gemeten: {{ v.doorgezet or 0 }},
         gemaild: {{ v.gemaild or 0 }}
