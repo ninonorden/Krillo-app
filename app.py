@@ -1855,7 +1855,8 @@ def _dagbericht_sturen():
         diagnose = benadering.waarom_gaat_er_niets_uit(
             moment_laatste_ronde=benadering.laatste_ronde(),
             meetruimte=dagpot, metingen_bezig=bezig)
-        onderwerp, regels = benadering.dagbericht_tekst(diagnose, dagpot=dagpot)
+        onderwerp, regels = benadering.dagbericht_tekst(
+            diagnose, dagpot=dagpot, trechter=db.trechter_benadering())
         body = "".join(f"<p>{emailing.veilig(r)}</p>" for r in regels)
         if emailing.send_email(ontvanger, onderwerp, body):
             benadering.onthoud_dagbericht()

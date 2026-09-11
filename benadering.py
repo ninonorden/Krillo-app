@@ -313,7 +313,7 @@ def onthoud_dagbericht(vandaag=None):
     db.zet_instelling(DAGBERICHT_SLEUTEL, vandaag)
 
 
-def dagbericht_tekst(diagnose, tellingen=None, dagpot=None):
+def dagbericht_tekst(diagnose, tellingen=None, dagpot=None, trechter=None):
     """Het dagbericht in gewone taal. Geeft (onderwerp, regels) terug.
 
     Bewust dezelfde diagnose als op de beheerpagina, en niet een eigen tekstje
@@ -334,6 +334,34 @@ def dagbericht_tekst(diagnose, tellingen=None, dagpot=None):
     if dagpot and dagpot.get("besteed") is not None:
         regels.append(f"Dagpot voor eigen metingen: {dagpot['besteed']:.2f} van "
                       f"{dagpot['grens']:.2f} euro gebruikt.")
+
+    # De trechter erbij. Dit is het enige getal in het hele bericht dat over
+    # verkopen gaat, en het staat er precies daarom.
+    #
+    # De rest van dit bericht zegt of de machine draait. Dat is nuttig maar het
+    # is niet de vraag. De vraag is of de post iets oplevert, en dat lees je
+    # alleen af aan deze twee getallen. Blijft "geopend" laag, dan ligt het aan
+    # de mail. Is "geopend" hoog en "doorgeklikt" nul, dan ligt het aan de
+    # uitkomstpagina. Zonder die twee zit je te gissen.
+    if trechter and (trechter.get("gemaild") or 0):
+        gemaild = trechter["gemaild"]
+        bekeken = trechter.get("bekeken") or 0
+        door = trechter.get("doorgeklikt") or 0
+        regels.append(
+            f"Wat de post oplevert, sinds het begin: {gemaild} gemaild, "
+            f"{bekeken} openden hun uitkomst, {door} klikten door naar de prijzen.")
+        if gemaild >= 50 and not bekeken:
+            regels.append("Vijftig mails en niemand opende zijn uitkomst. Dat ligt "
+                          "aan de mail zelf, niet aan de pagina erachter.")
+        elif bekeken >= 10 and not door:
+            regels.append("Tien mensen bekeken hun uitkomst en niemand klikte door. "
+                          "Dan ligt het aan de uitkomstpagina.")
+
+    opgegeven = per_stand.get("afgevallen", 0)
+    if opgegeven:
+        regels.append(f"Opgegeven winkels: {opgegeven}. Dat zijn sites die wij niet "
+                      f"konden bereiken of waar AI bij die koopvragen nooit een "
+                      f"winkel noemt. Die kosten geen geld meer.")
     if blokkades:
         regels.append("Wat het tegenhoudt:")
         regels.extend(blokkades)
