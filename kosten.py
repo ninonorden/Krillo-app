@@ -274,6 +274,27 @@ def registreer_vaste_kosten(soort, provider, bedrag, webshop_url=None, email=Non
 # Aan de veilige kant afgerond. Te weinig inplannen kost alleen tijd.
 SCHATTING_METING_EURO = float(os.environ.get("SCHATTING_METING_EURO", "2.50"))
 
+# En apart: wat een meting voor de BENADERING kost.
+#
+# Dit stond hier niet, en dat was sinds 11 september een echte rem waar niemand
+# om gevraagd had. De benadering meet sindsdien zes vragen bij een model in
+# plaats van dertig bij twee, dus ongeveer twintig cent in plaats van twee euro
+# vijftig. Rekende de dagpot met het grote getal, dan zei hij "er passen er nog
+# zes in" terwijl er zestig in pasten, en kwam het volume nooit boven de tien
+# per dag uit, hoe hoog je de pot ook zette.
+#
+# Nog steeds ruim aan de veilige kant afgerond: te weinig inplannen kost alleen
+# tijd, te veel kost halve metingen.
+# 25 cent. Zes vragen bij een model is ongeveer een achtste van een volledige
+# meting van vijftien vragen bij twee modellen, en die kost ongeveer een euro.
+# Dat is dertien cent, plus het bedenken van de koopvragen, dus 25 cent is ruim.
+#
+# LET OP: dit is nog een SCHATTING en geen gemeten feit. Wat het echt kost staat
+# na een dag draaien op /admin/kosten. Klopt het niet, verander dan dit getal en
+# niet de dagpot: dit getal bepaalt alleen hoeveel er per ronde ingepland wordt,
+# de dagpot is de echte rem.
+SCHATTING_BENADERING_EURO = float(os.environ.get("SCHATTING_BENADERING_EURO", "0.25"))
+
 SCHATTING_ONBEKENDE_AANROEP_EURO = float(
     os.environ.get("SCHATTING_ONBEKENDE_AANROEP_EURO", "0.02"))
 
@@ -314,7 +335,7 @@ def ruimte_voor_benadering():
             # Hoeveel metingen er met de rest van de pot nog betaald kunnen
             # worden. Plan er nooit meer in dan dit, anders koop je halve
             # metingen: wel betaald, geen uitkomst.
-            "past_nog": max(0, int((grens - totaal) / SCHATTING_METING_EURO))}
+            "past_nog": max(0, int((grens - totaal) / SCHATTING_BENADERING_EURO))}
 
 
 def mag_doorgaan(webshop_url=None, scan_id=None):
