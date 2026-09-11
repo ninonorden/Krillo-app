@@ -162,6 +162,33 @@ klopt("de toegangsmail gaat ook bij monitoring uit",
 klopt("en een mislukte toegangsmail breekt de betaling niet",
       "Toegangsmail bij monitoring mislukt" in bron)
 
+print("\n== de dagpot rekent met de JUISTE prijs per benadering ==")
+# Dit was een stille rem waar niemand om gevraagd had. De dagpot bepaalt hoeveel
+# metingen er per ronde ingepland mogen worden door de resterende ruimte te delen
+# door wat een meting kost. Bleef dat op 2,50 staan terwijl een benadering er nog
+# maar 0,20 kost, dan zei hij "er passen er nog zes in" terwijl er zestig in
+# pasten, en kwam het volume nooit boven de tien per dag uit, hoe hoog je de pot
+# ook zette.
+import kosten as _kosten  # noqa: E402
+klopt("er is een eigen schatting voor de benadering",
+      hasattr(_kosten, "SCHATTING_BENADERING_EURO"))
+klopt("en die is veel lager dan die voor een volledige klantmeting",
+      _kosten.SCHATTING_BENADERING_EURO < _kosten.SCHATTING_METING_EURO / 3)
+klopt("maar niet nul", _kosten.SCHATTING_BENADERING_EURO > 0)
+# De rekensom die het doel van honderd per dag mogelijk maakt: bij een volle
+# dagpot die helemaal naar de benadering mag, moeten er honderd in passen.
+_past_bij_vol = int(_kosten.GRENS_TOTAAL_DAG_EURO / _kosten.SCHATTING_BENADERING_EURO)
+klopt(f"bij een volle dagpot passen er {_past_bij_vol} benaderingen in, "
+      f"genoeg voor het doel van {benadering.OPBOUW_DOEL}",
+      _past_bij_vol >= benadering.OPBOUW_DOEL)
+# En de waarschuwing die daarbij hoort: DEEL_VOOR_BENADERING bepaalt hoeveel van
+# die pot de benadering echt mag opmaken. Staat die op de helft, dan haal je de
+# honderd niet, hoe goedkoop de meting ook is.
+_echt = int((_kosten.GRENS_TOTAAL_DAG_EURO * _kosten.DEEL_VOOR_BENADERING)
+            / _kosten.SCHATTING_BENADERING_EURO)
+print(f"       (met DEEL_VOOR_BENADERING={_kosten.DEEL_VOOR_BENADERING} zijn dat er "
+      f"in de praktijk {_echt} per dag)")
+
 print()
 if fouten:
     print(f"{len(fouten)} FOUT(EN):")
