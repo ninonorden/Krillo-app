@@ -800,6 +800,34 @@ def _meld_aan_beheer(kop, bericht):
         return False
 
 
+def _meld_nieuwe_klant(soort, webshop_url, email, bedrag, extra=None):
+    """Een bericht naar je eigen adres zodra er iemand betaald heeft.
+
+    Dit ontbrak, en dat is raar als je erover nadenkt: er ging wel een mail uit
+    als er iets MISGING, maar niet als het goed ging. De belangrijkste
+    gebeurtenis van het hele bedrijf, de eerste betalende klant, kwam dus nergens
+    binnen behalve in de mail van Mollie en op een beheerpagina die je zelf moet
+    openen.
+
+    Bij "wij doen het" is dat niet alleen jammer maar ook riskant: daar moet jij
+    binnen een paar dagen echt aan de slag, en de klant zit te wachten. Daarom
+    staat in dit bericht meteen waar je heen moet klikken."""
+    basis = get_base_url()
+    sleutel = (os.environ.get("ADMIN_KEY") or "").strip()
+    achter = f"?key={quote(sleutel)}&url={quote(webshop_url)}" if sleutel else ""
+    regels = [
+        f"<strong>{soort}</strong> voor {webshop_url}",
+        f"Bedrag: {bedrag}",
+        f"E-mailadres: {email}",
+    ]
+    if extra:
+        regels.append(extra)
+    if basis:
+        regels.append(f'<a href="{basis}/admin/werkbriefje{achter}">Naar het werkbriefje</a>')
+        regels.append(f'<a href="{basis}/admin/bestellingen{("?key=" + quote(sleutel)) if sleutel else ""}">Naar de bestellingen</a>')
+    return _meld_aan_beheer(f"Nieuwe klant: {soort}", "<br>".join(regels))
+
+
 def _scan_met_herkansing(webshop_url, pogingen=3):
     """Scant, en probeert het nog twee keer als het misgaat.
 
@@ -965,6 +993,12 @@ def _verwerk_betaling(payment_id, base_url):
             platform = metadata.get("platform")
             if not db.start_uitvoering(payment_id, webshop_url, email, platform):
                 print(f"LET OP: uitvoering voor {webshop_url} staat NIET op de werklijst.")
+            # Meteen een bericht naar het eigen adres. Hier moet een mens aan de
+            # slag, dus dit is het enige product waarbij stilte betekent dat er
+            # niets gebeurt.
+            _meld_nieuwe_klant("Wij doen het", webshop_url, email, "149 euro eenmalig",
+                               extra=(f"Platform: {platform}" if platform else
+                                      "Platform onbekend, kijk zelf even waar hij op draait."))
             klant_token = db.get_or_create_klant(webshop_url, email)
             if not klant_token:
                 # Deze webshop hoort al bij een ander e-mailadres. Wij geven die
@@ -1097,6 +1131,10 @@ def _verwerk_betaling(payment_id, base_url):
                     emailing.send_monitoring_welcome_email(
                         email, webshop_url, scan_result, monitoring_url,
                         taal=_mailtaal(webshop_url))
+                    _meld_nieuwe_klant(
+                        "Monitoring", webshop_url, email, "39 euro per maand",
+                        extra=(f'Zijn pagina: <a href="{monitoring_url}">{monitoring_url}</a>'
+                               if monitoring_url else None))
 
                     # Meteen de eerste meting bij de AI-modellen, niet pas over
                     # een week. Een nieuwe klant die zeven dagen naar een lege
@@ -4555,6 +4593,15 @@ def shopify_api_abonnement():
     # gebruikt. Pas hier, en niet al bij het maken van de link.
     if stand["actief"] and not rij.get("proef_gehad_op"):
         db.markeer_proef_gehad(winkel)
+        # Dit is precies één keer per winkel de eerste keer dat wij een lopend
+        # abonnement zien, dus de goede plek voor een bericht aan onszelf. Bij
+        # Shopify komt er geen melding van Mollie binnen, dus zonder dit zou een
+        # abonnee via de app pas bij de wekelijkse ronde opvallen.
+        _meld_nieuwe_klant(
+            "Monitoring via de Shopify-app", rij.get("webshop_url") or winkel,
+            rij.get("email") or "onbekend, via Shopify",
+            f"{shopify_billing.PLAN_PRIJS} {shopify_billing.PLAN_VALUTA} per maand",
+            extra=f"Winkel in Shopify: {winkel}")
         rij = db.get_shopify_winkel(winkel) or rij
     return jsonify({
         "actief": stand["actief"],
