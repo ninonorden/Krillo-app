@@ -3726,10 +3726,25 @@ def admin_kosten():
         return redirect(doorsturen)
 
     dagen = int(request.args.get("dagen", 30))
+
+    # Eerst de aanroepen bijwerken waarvan de prijs inmiddels wel bekend is.
+    # De prijs wordt vastgelegd op het moment van de aanroep, dus een modelnaam
+    # die er toen niet in stond staat voor altijd op nul euro. Zo bleef de
+    # melding hierboven staan nadat de prijs allang toegevoegd was, en bleef
+    # de dagpot te ruim. Dit is goedkoop: het raakt alleen regels die op
+    # 'onbekend' staan, en zodra die op zijn doet het niets meer.
+    hersteld = db.herstel_onbekende_kosten(kosten.zoek_prijs)
+    if hersteld:
+        print(f"Kostenpagina: {hersteld} aanroepen alsnog van een prijs voorzien.")
+
     overzicht = db.kostenoverzicht(dagen)
     return render_template(
         "admin_kosten.html",
         dagen=dagen,
+        hersteld=hersteld,
+        # Welk model er precies onbekend is. Zonder die naam weet je niet wat je
+        # in kosten.py moet zetten.
+        onbekende_modellen=db.onbekende_modellen(dagen),
         totaal=overzicht["totaal"],
         per_klant=overzicht["per_klant"],
         marges=kosten.marge_per_klant([

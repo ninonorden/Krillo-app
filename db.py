@@ -770,6 +770,94 @@ def bewaar_kostengebeurtenis(gegevens):
         conn.close()
 
 
+def onbekende_modellen(dagen=30):
+    """Welke modelnamen als 'onbekend' geboekt zijn, met hoeveel aanroepen.
+
+    Zonder deze lijst zegt de kostenpagina alleen DAT er aanroepen zonder prijs
+    zijn, en moet je in de logs gaan zoeken welke. Dan voeg je de prijs nooit
+    toe en blijft de dagpot te ruim."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT provider, model, COUNT(*) AS aanroepen,
+                              SUM(COALESCE(invoer_tokens, 0)) AS invoer,
+                              SUM(COALESCE(uitvoer_tokens, 0)) AS uitvoer
+                         FROM kostengebeurtenissen
+                        WHERE kosten_status = 'onbekend'
+                          AND moment >= now() - (%s || ' days')::interval
+                        GROUP BY provider, model
+                        ORDER BY COUNT(*) DESC""",
+                    (str(int(dagen)),),
+                )
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Onbekende modellen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def herstel_onbekende_kosten(prijs_zoeker, dagen=60):
+    """Rekent alsnog de kosten uit van aanroepen die als 'onbekend' geboekt zijn.
+
+    Waarom dit nodig is. De prijs wordt vastgelegd op het moment van de
+    aanroep. Een modelnaam die toen niet in de prijslijst stond is geboekt als
+    onbekend, en dus als nul euro. Voeg je de prijs later toe, dan tellen alleen
+    NIEUWE aanroepen mee en blijven de oude voor altijd op nul staan. Zo bleef
+    de melding op de kostenpagina staan nadat de prijs toegevoegd was, en bleef
+    de dagpot te ruim: de rem dacht dat er minder uitgegeven was dan waar.
+
+    `prijs_zoeker` is `kosten.zoek_prijs`. Dat wordt meegegeven en niet hier
+    geimporteerd, zodat db.py niets van de prijslijst hoeft te weten en dit los
+    te testen is.
+
+    Geeft terug hoeveel regels er bijgewerkt zijn."""
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    bijgewerkt = 0
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT gebeurtenis_id, provider, model, invoer_tokens, uitvoer_tokens
+                         FROM kostengebeurtenissen
+                        WHERE kosten_status = 'onbekend'
+                          AND moment >= now() - (%s || ' days')::interval""",
+                    (str(int(dagen)),),
+                )
+                regels = [dict(r) for r in cur.fetchall()]
+
+                for r in regels:
+                    prijs = prijs_zoeker(r.get("provider"), r.get("model"))
+                    if not prijs:
+                        continue
+                    bedrag = (
+                        (int(r.get("invoer_tokens") or 0) / 1_000_000)
+                        * prijs["invoer_per_miljoen"]
+                        + (int(r.get("uitvoer_tokens") or 0) / 1_000_000)
+                        * prijs["uitvoer_per_miljoen"]
+                    )
+                    cur.execute(
+                        """UPDATE kostengebeurtenissen
+                              SET kosten = %s, kosten_status = 'berekend',
+                                  prijsversie = %s
+                            WHERE gebeurtenis_id = %s""",
+                        (round(bedrag, 6), prijs.get("prijsversie"), r["gebeurtenis_id"]),
+                    )
+                    bijgewerkt += cur.rowcount
+    except Exception as e:
+        print(f"Onbekende kosten herstellen mislukt: {e}")
+        return bijgewerkt
+    finally:
+        conn.close()
+    return bijgewerkt
+
+
 def kosten_per_scan(scan_id):
     return _kosten_optellen("scan_id = %s", (scan_id,))
 
