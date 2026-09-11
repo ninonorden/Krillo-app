@@ -1550,9 +1550,13 @@ def _benadering_ronde():
         # weigerde hem omdat er minstens tien nodig zijn, de ronde zette hem terug
         # op "adres", en de volgende ronde zag "meer dan nul" en zette hem weer op
         # "gemeten". Eeuwig rond, en nooit post.
-        al_gemeten = {scan_engine.normalize_url(w["webshop_url"])
-                      for w in db.get_demo_webshops()
-                      if (w.get("vragen") or 0) >= MINIMUM_VRAGEN_VOOR_POST}
+        # LET OP: dit hangt NIET meer aan het demorapport. Dat rapport werd
+        # maandenlang niet bewaard door een NOT NULL op de kolom email, en
+        # daardoor gold geen enkele meting als bruikbaar terwijl er 55 winkels
+        # met beoordeelde antwoorden stonden. "Bruikbaar" hoort te hangen aan
+        # het enige dat telt: genoeg meegetelde vragen om post te kunnen sturen.
+        al_gemeten = {scan_engine.normalize_url(u)
+                      for u in db.winkels_met_genoeg_vragen(MINIMUM_VRAGEN_VOOR_POST)}
         verslag["gemeten_klaar"] = len(al_gemeten)
         # Opruimen gaat voor de geldcontrole uit, en dat is geen detail. Zolang
         # dit binnen te_meten zat werd er bij een lege dagpot niets vrijgemaakt,
@@ -1639,6 +1643,31 @@ def _benadering_ronde():
                 db.zet_benadering(winkel["webshop_url"], stand="gemeten")
                 doorgezet += 1
         verslag["doorgezet"] = doorgezet
+
+        # En de andere kant op: staat een winkel op "gemeten" terwijl zijn meting
+        # niet bruikbaar is, dan hoort hij daar niet te staan.
+        #
+        # Waarom dit nodig is. Op 11 september stonden er 43 winkels op "gemeten"
+        # en zei de pagina "43 winkels staan klaar om post te krijgen". Dat was
+        # niet waar: die waren allemaal gemeten toen de kostenrem nog na drie
+        # vragen afkapte, en de mail weigert onder de tien. Elke ronde probeerde
+        # er drie, kreeg drie keer nul, en zette er drie terug. Dat zijn vijftien
+        # rondes om de lijst één keer door te komen, en ondertussen stond er een
+        # getal op het scherm dat niets betekende.
+        #
+        # Nu gebeurt het in één keer en klopt de teller meteen.
+        terug = 0
+        for winkel in db.get_benaderingen(stand="gemeten"):
+            if scan_engine.normalize_url(winkel["webshop_url"]) not in al_gemeten:
+                db.zet_benadering(
+                    winkel["webshop_url"], stand="adres",
+                    notitie="Meting haalde te weinig vragen, opnieuw ingepland.")
+                terug += 1
+        verslag["terug_naar_meten"] = terug
+        if terug:
+            verslag["redenen"].append(
+                f"{terug} winkel(s) stonden op 'gemeten' met een meting die te weinig "
+                f"vragen haalde. Die worden opnieuw gemeten.")
     except Exception as e:
         verslag["mislukt"].append(f"meten: {e}")
         print(f"Benadering, meten mislukt: {e}")

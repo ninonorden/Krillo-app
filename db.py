@@ -3361,6 +3361,35 @@ def zet_platform(webshop_url, platform):
         conn.close()
 
 
+def winkels_met_genoeg_vragen(minimum=10):
+    """De winkels waarvan de meting bruikbaar is, als verzameling webadressen.
+
+    Waarom dit los staat van get_demo_webshops: die eist ook een demorapport, en
+    juist dat rapport werd maandenlang niet bewaard door een NOT NULL op de
+    kolom email. Daardoor gold geen enkele meting als bruikbaar, terwijl er 55
+    winkels met beoordeelde antwoorden in de database stonden.
+
+    "Bruikbaar" hoort te hangen aan het enige dat ertoe doet: zijn er genoeg
+    vragen meegeteld om een uitkomst te sturen. Niet aan de vraag of er ergens
+    een rapportregel naast staat."""
+    conn = _get_connection()
+    if conn is None:
+        return set()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT webshop_url FROM beoordelingen
+                                WHERE winkel_kon_genoemd
+                             GROUP BY webshop_url
+                               HAVING COUNT(DISTINCT vraag) >= %s""", (int(minimum),))
+                return {r[0] for r in cur.fetchall()}
+    except Exception as e:
+        print(f"Winkels met genoeg vragen ophalen mislukt: {e}")
+        return set()
+    finally:
+        conn.close()
+
+
 def benchmark_diagnose():
     """Ruwe tellingen om te zien WAAROM de benchmark leeg is.
 
