@@ -697,9 +697,18 @@ def ontclaim_payment(payment_id):
 
 
 def claim_payment(payment_id):
-    """Probeert een betaling als 'in behandeling' te markeren. Geeft True terug
-    als dit de eerste keer is, en False als deze betaling al eerder verwerkt is.
-    Voorkomt dat een herhaalde melding van Mollie een tweede e-mail oplevert."""
+    """Probeert een betaling als 'in behandeling' te markeren.
+
+    Drie mogelijke antwoorden, en het verschil tussen de laatste twee is geld:
+      True  dit is de eerste keer, ga door.
+      False deze betaling is al eerder verwerkt, niets doen.
+      None  wij KONDEN niet claimen (geen database of een fout).
+
+    Dat None stond hier eerst ook op False, en dat is gevaarlijk: de aanroeper
+    las dat als "al verwerkt" en stopte. Een geslaagde betaling verdween dan
+    stilletjes bij een databasestoring, en tegen de tijd dat de database weer
+    werkte was Mollie door zijn herhalingen heen. Betaald, geen klant, geen
+    mail, geen melding."""
     conn = _get_connection()
     if conn is None:
         # Zonder database kunnen we niet vastleggen dat we deze betaling al
@@ -707,7 +716,7 @@ def claim_payment(payment_id):
         # Mollie een tweede factuur, een tweede audit en een tweede mail op.
         # Een gemiste verwerking is te herstellen, een dubbele niet.
         print("Betaling niet geclaimd: geen database. Verwerking overgeslagen.")
-        return False
+        return None
     try:
         with conn:
             with conn.cursor() as cur:
@@ -718,7 +727,7 @@ def claim_payment(payment_id):
                 return cur.rowcount > 0
     except Exception as e:
         print(f"Betaling claimen mislukt, verwerking overgeslagen: {e}")
-        return False
+        return None
     finally:
         conn.close()
 
@@ -1840,8 +1849,13 @@ def zet_uitvoering_stand(uitvoering_id, stand, notitie=None):
 
 
 def maak_factuur(payment_id, email, bedrijfsnaam, omschrijving, bedrag, bron=None):
-    """Legt een factuur vast en geeft het factuurnummer terug. Elk nummer wordt
-    maar één keer uitgegeven, en per betaling kan er maar één factuur bestaan.
+    """Legt een factuur vast en geeft {"factuurnummer": ..., "nieuw": True/False}
+    terug, of None als het niet lukte. Elk nummer wordt maar één keer uitgegeven,
+    en per betaling kan er maar één factuur bestaan.
+
+    Die "nieuw" is er omdat de aanroeper de factuurmail onvoorwaardelijk
+    verstuurde. Bij een mislukte levering komt Mollie meerdere keren langs, en
+    dan kreeg iemand drie keer dezelfde factuur voor iets wat hij niet had.
 
     "bron" is het campagnelabel waarmee deze klant binnenkwam, zoals het uit de
     metadata van Mollie terugkomt. Dit is de enige plek waar omzet en herkomst
@@ -1856,13 +1870,19 @@ def maak_factuur(payment_id, email, bedrijfsnaam, omschrijving, bedrag, bron=Non
                 cur.execute("SELECT factuurnummer FROM facturen WHERE payment_id = %s", (payment_id,))
                 bestaand = cur.fetchone()
                 if bestaand:
-                    return bestaand["factuurnummer"]
+                    # Er bestond al een factuur voor deze betaling. Dat is geen
+                    # fout, maar de aanroeper moet het weten: die verstuurde de
+                    # factuurmail er onvoorwaardelijk achteraan, en bij een
+                    # mislukte levering komt Mollie meerdere keren langs. Dan
+                    # kreeg iemand drie keer dezelfde factuur van 79 euro voor
+                    # iets wat hij nog steeds niet had.
+                    return {"factuurnummer": bestaand["factuurnummer"], "nieuw": False}
                 cur.execute(
                     """INSERT INTO facturen (payment_id, email, bedrijfsnaam, omschrijving, bedrag, bron)
                        VALUES (%s, %s, %s, %s, %s, %s) RETURNING factuurnummer""",
                     (payment_id, email, bedrijfsnaam, omschrijving, bedrag, (bron or None)),
                 )
-                return cur.fetchone()["factuurnummer"]
+                return {"factuurnummer": cur.fetchone()["factuurnummer"], "nieuw": True}
     except Exception as e:
         print(f"Factuur aanmaken mislukt: {e}")
         return None

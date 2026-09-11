@@ -85,7 +85,40 @@ def home():
         print(f"Teller ophalen mislukt: {e}")
         gescand = 0
     return render_template("index.html",
-                           gescand=gescand if gescand >= MINIMUM_VOOR_TELLER else None)
+                           gescand=gescand if gescand >= MINIMUM_VOOR_TELLER else None,
+                           eigen_cijfer=_eigen_benchmarkcijfer())
+
+
+def _eigen_benchmarkcijfer():
+    """Het eigen cijfer over Nederlandse webshops, of None.
+
+    De probleemsectie op de homepage leunt op een Amerikaans onderzoek naar
+    21.000 vermeldingen. Dat is een goed cijfer maar het is niet van ons, het
+    gaat over merken en niet over Nederlandse webshops, en het is precies het
+    soort verwijzing waar de doelgroep overheen leest.
+
+    Zodra wij genoeg winkels zelf gemeten hebben is er een beter cijfer: hoeveel
+    Nederlandse webshops bij koopvragen NOOIT genoemd worden. Dat is van ons, het
+    is controleerbaar, en het is de enige reden om over Krillo te schrijven die
+    geen verkooppraatje is.
+
+    Onder de ondergrens geven wij None terug en blijft het Amerikaanse cijfer
+    staan. Een eigen cijfer over negen winkels is geen onderzoek, en het zo
+    noemen is precies de overpromising waar Krillo van weg wil blijven. Dit gaat
+    dus vanzelf aan zodra het klopt, zonder dat er iemand aan te pas komt."""
+    try:
+        cijfers = benchmark.tel_op(db.benchmark_regels())
+    except Exception as e:
+        print(f"Eigen benchmarkcijfer ophalen mislukt: {e}")
+        return None
+    gemeten = cijfers.get("gemeten") or 0
+    if gemeten < MINIMUM_WINKELS_VOOR_VERGELIJKING:
+        return None
+    nooit = cijfers.get("nooit_genoemd") or 0
+    if not nooit:
+        return None
+    return {"gemeten": gemeten, "nooit": nooit,
+            "deel": round(nooit * 100 / gemeten)}
 
 
 @app.route("/privacybeleid")
@@ -580,6 +613,12 @@ def checkout_audit():
     direct = bool(data.get("directe_uitvoering_akkoord"))
     if not webshop_url or not email:
         return jsonify({"error": "Vul een webshop-URL en e-mailadres in."}), 400
+    # De vorm van het adres controleren. Stond hier niet, alleen bij de gratis
+    # test. Wie zich vertypt betaalde dus 79 euro, Brevo weigerde stilletjes, en
+    # niemand merkte iets: niet de klant, niet wij.
+    if not _EMAIL_VORM.match(email):
+        return jsonify({"error": "Dat e-mailadres klopt niet. Controleer het even, "
+                                 "want hier sturen wij alles naartoe."}), 400
     if not voorwaarden:
         return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
     if not direct:
@@ -613,6 +652,12 @@ def checkout_uitvoering():
     direct = bool(data.get("directe_uitvoering_akkoord"))
     if not webshop_url or not email:
         return jsonify({"error": "Vul een webshop-URL en e-mailadres in."}), 400
+    # De vorm van het adres controleren. Stond hier niet, alleen bij de gratis
+    # test. Wie zich vertypt betaalde dus 79 euro, Brevo weigerde stilletjes, en
+    # niemand merkte iets: niet de klant, niet wij.
+    if not _EMAIL_VORM.match(email):
+        return jsonify({"error": "Dat e-mailadres klopt niet. Controleer het even, "
+                                 "want hier sturen wij alles naartoe."}), 400
     if not voorwaarden:
         return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
     if not direct:
@@ -644,6 +689,9 @@ def checkout_monitoring():
     voorwaarden = bool(data.get("voorwaarden_akkoord"))
     if not email or not webshop_url:
         return jsonify({"error": "Vul een e-mailadres en webshop-URL in."}), 400
+    if not _EMAIL_VORM.match(email):
+        return jsonify({"error": "Dat e-mailadres klopt niet. Controleer het even, "
+                                 "want hier sturen wij alles naartoe."}), 400
     if not voorwaarden:
         return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
 
@@ -677,10 +725,16 @@ def _meld_aan_beheer(kop, bericht):
     """Stuurt een waarschuwing naar het eigen adres.
 
     Alleen voor dingen die stil misgaan en die je moet weten voordat een klant
-    het merkt. Zet BEHEER_EMAIL in Render; staat hij er niet, dan blijft het bij
-    de logs."""
+    het merkt. Zet BEHEERDER_EMAIL in Render; staat hij er niet, dan blijft het
+    bij de logs."""
     print(f"BEHEERMELDING: {kop} | {bericht}")
-    adres = (os.environ.get("BEHEER_EMAIL") or os.environ.get("SMTP_REPLY_TO") or "").strip()
+    # BEHEERDER_EMAIL eerst, want dat is de naam die de rest van de code en de
+    # README gebruiken. Stond hier alleen BEHEER_EMAIL, en dan kwam geen enkele
+    # noodmelding aan bij iemand die netjes BEHEERDER_EMAIL had ingevuld. Precies
+    # de drie meldingen die ertoe doen ("betaald maar niet geleverd",
+    # "abonnement niet aangemaakt") verdwenen daardoor in de logs.
+    adres = (os.environ.get("BEHEERDER_EMAIL") or os.environ.get("BEHEER_EMAIL")
+             or os.environ.get("SMTP_REPLY_TO") or "").strip()
     if not adres:
         return False
     try:
@@ -744,7 +798,18 @@ def _verwerk_betaling(payment_id, base_url):
 
         # Pas nu vastleggen dat wij deze betaling oppakken. Komt Mollie later
         # nog een keer met dezelfde betaling, dan stopt het hier.
-        if not db.claim_payment(payment_id):
+        geclaimd = db.claim_payment(payment_id)
+        if geclaimd is None:
+            # Wij KONDEN niet claimen. Dat is iets anders dan "al verwerkt" en
+            # het hoort een belletje te geven, want dit is het pad waarin iemand
+            # wel betaalt en geen klantrecord krijgt.
+            _meld_aan_beheer(
+                "Betaling niet geclaimd",
+                f"Betaling {payment_id} is binnen, maar wij konden niet vastleggen dat "
+                f"wij hem oppakken (database niet bereikbaar). Er is NIETS geleverd. "
+                f"Controleer deze betaling met de hand in Mollie.")
+            return
+        if not geclaimd:
             print(f"Betaling {payment_id} was al verwerkt, overgeslagen.")
             return
 
@@ -785,8 +850,18 @@ def _verwerk_betaling(payment_id, base_url):
             if bedrag is not None:
                 factuurnummer = db.maak_factuur(payment_id, email, bedrijfsnaam,
                                                 omschrijving, bedrag, bron=bron)
-                if factuurnummer:
-                    emailing.send_factuur_email(email, factuurnummer, omschrijving, bedrag, bedrijfsnaam)
+                if factuurnummer and factuurnummer.get("nieuw"):
+                    # ALLEEN bij een nieuwe factuur mailen. Bij een herhaling van
+                    # Mollie na een mislukte levering kwam dezelfde factuur er
+                    # anders nog een keer uit, voor iets wat de klant nog steeds
+                    # niet gekregen had.
+                    if not emailing.send_factuur_email(
+                            email, factuurnummer["factuurnummer"], omschrijving,
+                            bedrag, bedrijfsnaam):
+                        _meld_aan_beheer(
+                            "Factuur niet verstuurd",
+                            f"De factuur voor betaling {payment_id} ({email}) kon niet "
+                            f"verstuurd worden. De factuur staat wel in de database.")
 
         if payment_type == "uitvoering" and webshop_url and email:
             # Deze opdracht wordt door een mens uitgevoerd, dus het enige wat
@@ -844,7 +919,24 @@ def _verwerk_betaling(payment_id, base_url):
                 # Het antwoord WEL nakijken. Ging dit mis, dan heeft de klant de
                 # eerste maand betaald maar wordt er daarna nooit meer
                 # geincasseerd, en valt hij stilletjes uit de dienst.
-                uitkomst = payments.create_subscription(customer_id) or {}
+                # EERST kijken of er al een abonnement loopt bij deze klant.
+                # Zonder deze controle gebeurde dit: de levering mislukt, de
+                # claim gaat terug, Mollie komt opnieuw langs, en er wordt een
+                # TWEEDE doorlopend abonnement aangemaakt. Dan gaat er elke maand
+                # twee keer 39 euro af, en opzeggen haalt er maar een van de
+                # twee weg. De klant krijgt een bevestiging terwijl er geld af
+                # blijft gaan.
+                bestaand = None
+                try:
+                    bestaand = payments.zoek_abonnement(webshop_url)
+                except Exception as e:
+                    print(f"Nakijken op een bestaand abonnement mislukt: {e}")
+                if bestaand:
+                    print(f"Er loopt al een abonnement voor {webshop_url}, "
+                          f"geen tweede aangemaakt.")
+                    uitkomst = {"id": bestaand.get("subscription_id")}
+                else:
+                    uitkomst = payments.create_subscription(customer_id) or {}
                 if uitkomst.get("error"):
                     print(f"LET OP: doorlopend abonnement NIET aangemaakt voor "
                           f"{webshop_url} ({customer_id}): {uitkomst['error']}")
@@ -884,7 +976,22 @@ def _verwerk_betaling(payment_id, base_url):
                         daemon=True,
                     ).start()
     except Exception as e:
+        # Dit was het gevaarlijkste stukje van het hele bedrijf. De claim staat
+        # op dat moment al vast, dus zonder wat hieronder gebeurt stopt elke
+        # volgende melding van Mollie bij "was al verwerkt" en is de betaling
+        # voorgoed onverwerkbaar. De klant heeft betaald, krijgt niets, en er
+        # gaat nergens een belletje. Nu gaat de claim terug EN krijg jij bericht.
         print(f"Verwerken van betaling {payment_id} mislukt: {e}")
+        try:
+            db.ontclaim_payment(payment_id)
+        except Exception as e2:
+            print(f"Claim terugdraaien mislukt na fout: {e2}")
+        _meld_aan_beheer(
+            "Betaling niet verwerkt",
+            f"Bij betaling {payment_id} ging er iets mis na de betaling: "
+            f"{type(e).__name__}: {e}. De betaling staat weer open, dus een volgende "
+            f"melding van Mollie probeert het opnieuw. Blijft het misgaan, doe het dan "
+            f"met de hand of geef het geld terug.")
 
 
 @app.route("/webhooks/mollie", methods=["POST"])

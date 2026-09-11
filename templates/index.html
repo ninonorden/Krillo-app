@@ -679,10 +679,22 @@
         <p>AI-modellen bepalen wat ze aanbevelen op basis van heel andere signalen dan een gewone zoekmachine. De meeste webshops zijn daar nooit voor ingericht, en merken dat niet, want er komt geen foutmelding als je wordt overgeslagen.</p>
       </div>
       <div class="probleem-cijfers">
+        {# Ons eigen cijfer gaat voor, zodra het er is. Een Nederlands cijfer uit
+           onze eigen metingen is geloofwaardiger voor deze doelgroep dan een
+           Amerikaans onderzoek naar merken, en het is controleerbaar. Onder de
+           ondergrens staat er None in en blijft het onderzoek hieronder staan:
+           een eigen cijfer over negen winkels is geen onderzoek. #}
+        {% if eigen_cijfer %}
+        <div class="cijfer">
+          <span class="cijfer-num">{{ eigen_cijfer.deel }}%</span>
+          <span class="cijfer-tekst">van de {{ eigen_cijfer.gemeten }} Nederlandse webshops die wij zelf maten, werd bij geen enkele koopvraag genoemd door ChatGPT of Gemini. Onze eigen meting, niet die van iemand anders.</span>
+        </div>
+        {% else %}
         <div class="cijfer">
           <span class="cijfer-num">85%</span>
           <span class="cijfer-tekst">van wat AI over een merk zegt komt uit externe bronnen, niet van de eigen website. Onderzoek naar ruim 21.000 vermeldingen in ChatGPT, Claude en Perplexity.</span>
         </div>
+        {% endif %}
         <div class="cijfer">
           <span class="cijfer-num">13</span>
           <span class="cijfer-tekst">punten bepalen of AI je shop überhaupt kan vinden, lezen en begrijpen. De meeste shops missen er meerdere zonder het te weten.</span>
@@ -932,9 +944,15 @@
       {# De garantie hoort hier te staan en niet alleen in de voorwaarden. Dit is
          de plek waar iemand van een bedrijf dat hij niet kent geld moet
          uitgeven, en dat is precies waar de drempel zit. #}
+      {# LET OP: deze regel gaat ALLEEN over de audit. Bij het abonnement geldt
+         iets anders (opzeggen binnen veertien dagen) en bij de uitvoering geldt
+         geen terugbetaling maar terugdraaien. Stond hier eerst een
+         onvoorwaardelijke belofte voor alle drie, en dat is een onjuiste
+         mededeling over een betalingsverplichting. #}
       <p style="font-size:14px; color:var(--ink-soft); margin-top:10px;">
-        <strong>Levert het je niets op, dan krijg je binnen dertig dagen je geld terug.</strong>
-        Zonder uitleg, een mail is genoeg.
+        <strong>Levert de audit je niets op, dan krijg je binnen dertig dagen je geld terug.</strong>
+        Zonder uitleg, een mail is genoeg. Bij het abonnement kun je binnen veertien
+        dagen na je eerste betaling opzeggen en krijg je die maand terug.
       </p>
     </div>
     <div class="price-grid">
@@ -1028,8 +1046,11 @@
        staat hij op het moment dat het ertoe doet: iemand die een onbekend
        bedrijf geld gaat geven en net het vinkje over zijn herroepingsrecht
        heeft gezet. #}
+    {# De regel hieronder wordt per product ingevuld door het script, want de
+       drie producten hebben verschillende voorwaarden. Een vaste zin die dertig
+       dagen geld terug belooft klopt alleen bij de audit. #}
     <div class="checkout-note">Je gaat door naar Mollie om veilig te betalen.
-      Levert het je niets op, dan krijg je binnen dertig dagen je geld terug.</div>
+      <span id="checkoutGarantie"></span></div>
   </div>
 </div>
 
@@ -1554,7 +1575,8 @@
         'Technische code die je direct kan plakken, met uitleg waar het moet',
         'Je productinformatie ook op product- en categoriepagina\'s gecheckt'
       ],
-      delivery: 'Levering: automatisch, direct na betaling ontvang je de audit per e-mail.'
+      delivery: 'Levering: automatisch, direct na betaling ontvang je de audit per e-mail.',
+      garantie: 'Levert de audit je niets op, dan krijg je binnen dertig dagen je geld terug.'
     },
     uitvoering: {
       items: [
@@ -1564,7 +1586,8 @@
         'Bevalt een wijziging je niet, dan draaien wij hem terug',
         'We blijven van je prijzen, voorraad, bestellingen en vormgeving af'
       ],
-      delivery: 'Levering: direct na betaling vragen we je per e-mail om toegang tot je webshop. Zodra we binnen zijn is het meestal binnen 2 tot 5 werkdagen klaar.'
+      delivery: 'Levering: direct na betaling vragen we je per e-mail om toegang tot je webshop. Zodra we binnen zijn is het meestal binnen 2 tot 5 werkdagen klaar.',
+      garantie: 'Bevalt een wijziging je niet, dan draaien wij hem terug als je dat binnen dertig dagen laat weten.'
     },
     monitoring: {
       items: [
@@ -1575,7 +1598,8 @@
         'Bericht als er iets verandert, met erbij of het aan jou lag of aan de markt',
         'Op elk moment op te zeggen, geen minimale looptijd'
       ],
-      delivery: 'Levering: je eerste scan ontvang je direct na aanmelding per e-mail, daarna elke week automatisch een update.'
+      delivery: 'Levering: je eerste scan ontvang je direct na aanmelding per e-mail, daarna elke week automatisch een update.',
+      garantie: 'Zeg je binnen veertien dagen na je eerste betaling op, dan krijg je die maand volledig terug.'
     }
   };
 
@@ -1613,6 +1637,12 @@
     });
     html += '<div class="checkout-delivery">' + content.delivery + '</div>';
     includesBox.innerHTML = html;
+
+    // De regel onder de betaalknop hoort bij dit ene product. Een vaste zin die
+    // dertig dagen geld terug belooft klopt alleen bij de audit, en bij de
+    // andere twee is het een onjuiste mededeling over een betalingsverplichting.
+    var garantieVeld = document.getElementById('checkoutGarantie');
+    if(garantieVeld){ garantieVeld.textContent = content.garantie || ''; }
 
     if(type === 'audit'){
       eyebrow.textContent = 'Volledige audit \u00b7 \u20ac79 eenmalig';

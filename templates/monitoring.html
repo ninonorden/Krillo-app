@@ -142,7 +142,11 @@
 
 <nav><div class="wrap">
   <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
-  <span class="nav-note">{% if voorbeeld %}Voorbeeld{% else %}Monitoring actief{% endif %}</span>
+  {# Alleen "Monitoring actief" als er ECHT een abonnement loopt. Wie alleen
+     de eenmalige uitvoering kocht las hier dat er een maandabonnement liep,
+     terwijl onderaan dezelfde pagina stond dat hij eenmalig betaald had. Een
+     pagina die zichzelf tegenspreekt over geld. #}
+  <span class="nav-note">{% if voorbeeld %}Voorbeeld{% elif abonnement %}{{ t.d_nav_actief }}{% else %}Krillo{% endif %}</span>
 </div></nav>
 
 <main>

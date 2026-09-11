@@ -46,12 +46,20 @@ db.init_db()
 zo("tweede keer ging goed", True, True)
 
 print("\n== een factuur met en zonder bron ==")
-n1 = db.maak_factuur("tr_A", "a@shop.nl", "Shop A", "Audit", 79.00, bron="webwinkelkeur")
-n2 = db.maak_factuur("tr_B", "b@shop.nl", "Shop B", "Audit", 79.00, bron=None)
-n3 = db.maak_factuur("tr_C", "c@shop.nl", "Shop C", "Monitoring", 39.00, bron="webwinkelkeur")
+# maak_factuur geeft nu {"factuurnummer": ..., "nieuw": True/False} terug. Dat
+# "nieuw" is er omdat de factuurmail er onvoorwaardelijk achteraan ging, en bij
+# een mislukte levering komt Mollie meerdere keren langs: dan kreeg iemand drie
+# keer dezelfde factuur voor iets wat hij niet had.
+u1 = db.maak_factuur("tr_A", "a@shop.nl", "Shop A", "Audit", 79.00, bron="webwinkelkeur")
+u2 = db.maak_factuur("tr_B", "b@shop.nl", "Shop B", "Audit", 79.00, bron=None)
+u3 = db.maak_factuur("tr_C", "c@shop.nl", "Shop C", "Monitoring", 39.00, bron="webwinkelkeur")
+n1, n2, n3 = u1["factuurnummer"], u2["factuurnummer"], u3["factuurnummer"]
 zo("drie verschillende factuurnummers", len({n1, n2, n3}), 3)
-zo("dezelfde betaling geeft hetzelfde nummer",
-   db.maak_factuur("tr_A", "a@shop.nl", "Shop A", "Audit", 79.00, bron="anders"), n1)
+zo("alle drie zijn nieuw", [u1["nieuw"], u2["nieuw"], u3["nieuw"]], [True, True, True])
+opnieuw = db.maak_factuur("tr_A", "a@shop.nl", "Shop A", "Audit", 79.00, bron="anders")
+zo("dezelfde betaling geeft hetzelfde nummer", opnieuw["factuurnummer"], n1)
+zo("maar hij is dan NIET nieuw, dus er gaat geen tweede factuurmail uit",
+   opnieuw["nieuw"], False)
 
 conn = db._get_connection()
 with conn:
@@ -86,7 +94,7 @@ zo("scans zonder bron heten rechtstreeks", per_bron["rechtstreeks"]["scans"], 3)
 zo("de factuur zonder bron telt bij rechtstreeks", per_bron["rechtstreeks"]["klanten"], 1)
 
 print("\n== een bron met alleen omzet en geen enkele scan valt niet weg ==")
-db.maak_factuur("tr_D", "d@shop.nl", "Shop D", "Audit", 79.00, bron="becom")
+db.maak_factuur("tr_D", "d@shop.nl", "Shop D", "Audit", 79.00, bron="becom")["factuurnummer"]
 per_bron = {r["bron"]: r for r in db.scanoverzicht(dagen=30)["per_bron"]}
 zo("becom staat er toch in", "becom" in per_bron, True)
 zo("becom heeft nul scans", per_bron["becom"]["scans"], 0)

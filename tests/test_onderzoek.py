@@ -22,6 +22,10 @@ sys.path.insert(0, APP)
 fouten = []
 
 
+def klopt(omschrijving, voorwaarde):
+    return zo(omschrijving, bool(voorwaarde), True)
+
+
 def zo(omschrijving, gekregen, verwacht):
     if gekregen != verwacht:
         fouten.append(f"FOUT: {omschrijving}: kreeg {gekregen!r}, verwacht {verwacht!r}")
@@ -157,9 +161,41 @@ zo("geen link, geen mail",
 zo("geen adres, geen mail",
    emailing.send_onderzoeksmail("", "https://x.nl", "https://k.nl/uitkomst/x"), False)
 
+print("\n== het eigen cijfer op de homepage ==")
+# De probleemsectie leunde op een Amerikaans onderzoek naar merken. Zodra wij
+# genoeg Nederlandse webshops zelf gemeten hebben hoort ons eigen cijfer daar te
+# staan, en daaronder niet. Een eigen cijfer over negen winkels is geen
+# onderzoek, en het zo noemen is precies de overpromising waar Krillo van weg
+# wil blijven.
+import jinja2  # noqa: E402
+import app as _krillo  # noqa: E402
+
+_env = jinja2.Environment(loader=jinja2.FileSystemLoader(
+    os.path.join(APP, "templates")))
+_env.filters.setdefault("urlencode", lambda s: s)
+_index = _env.get_template("index.html")
+
+_zonder = _index.render(gescand=None, eigen_cijfer=None)
+klopt("zonder eigen cijfer blijft het onderzoek staan", "21.000 vermeldingen" in _zonder)
+klopt("en staat ons cijfer er niet", "die wij zelf maten" not in _zonder)
+
+_met = _index.render(gescand=200, eigen_cijfer={"gemeten": 40, "nooit": 26, "deel": 65})
+klopt("met eigen cijfer staat ons cijfer er", "die wij zelf maten" in _met)
+klopt("met het percentage", "65%" in _met)
+klopt("en het aantal winkels", "40 Nederlandse webshops" in _met)
+klopt("het Amerikaanse onderzoek is dan weg", "21.000 vermeldingen" not in _met)
+
+print("\n== de ondergrens is dezelfde als in de mail ==")
+# Twee verschillende ondergrenzen voor hetzelfde woord "onderzoek" is hoe je
+# jezelf tegenspreekt: op de site een onderzoek noemen bij 25 winkels en in de
+# mail bij 40, of andersom.
+klopt("de homepage gebruikt dezelfde grens als de onderzoeksmail",
+      _krillo.MINIMUM_WINKELS_VOOR_VERGELIJKING >= 25)
+
 print()
 if fouten:
-    print("\n".join(fouten))
-    print(f"\n{len(fouten)} FOUTEN")
+    print(f"{len(fouten)} FOUT(EN):")
+    for f in fouten:
+        print(f"  - {f}")
     sys.exit(1)
 print("Alles goed.")
