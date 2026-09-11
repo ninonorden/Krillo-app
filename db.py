@@ -3498,6 +3498,55 @@ def winkels_met_genoeg_vragen(minimum=10):
         conn.close()
 
 
+def intentie_prestaties(minimum=20):
+    """Wat elke soort koopvraag in de praktijk oplevert, over alle winkels heen.
+
+    Dit is het geheugen van de machine. Elke beoordeelde vraag levert een feit
+    op: noemde AI daarin winkels, ja of nee. Dat staat al maanden in de database
+    en er werd niets mee gedaan, dus bedacht Krillo elke week opnieuw dezelfde
+    soorten vragen, ook de soorten waarvan wij inmiddels weten dat er nooit een
+    winkel in het antwoord staat.
+
+    Dat is niet alleen zonde, het is de duurste fout die er was. Een vraag waar
+    AI geen winkel noemt telt niet mee. Haalt een winkel daardoor te weinig
+    meetellende vragen, dan mag er geen post uit, en wordt hij de volgende dag
+    opnieuw gemeten. Betalen voor een meting die per definitie niets oplevert.
+
+    Geeft per intentie terug: hoeveel antwoorden er beoordeeld zijn, hoeveel
+    daarvan meetelden, en het aandeel. Alleen intenties met genoeg antwoorden,
+    want onder de twintig is het toeval."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT COALESCE(intentie, 'onbekend') AS intentie,
+                              COUNT(*) AS antwoorden,
+                              COUNT(*) FILTER (WHERE winkel_kon_genoemd) AS telden_mee,
+                              COUNT(*) FILTER (WHERE genoemd) AS genoemd
+                         FROM beoordelingen
+                        GROUP BY COALESCE(intentie, 'onbekend')
+                       HAVING COUNT(*) >= %s
+                        ORDER BY COUNT(*) FILTER (WHERE winkel_kon_genoemd)::float
+                                 / GREATEST(COUNT(*), 1) DESC""",
+                    (int(minimum),),
+                )
+                uit = []
+                for r in cur.fetchall():
+                    regel = dict(r)
+                    regel["aandeel"] = (int(regel["telden_mee"] or 0)
+                                        / max(int(regel["antwoorden"] or 1), 1))
+                    uit.append(regel)
+                return uit
+    except Exception as e:
+        print(f"Intentieprestaties ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def benchmark_diagnose():
     """Ruwe tellingen om te zien WAAROM de benchmark leeg is.
 

@@ -23,6 +23,7 @@ import anthropic
 import requests
 
 import beoordeling
+import db
 import kosten
 from bs4 import BeautifulSoup
 
@@ -60,6 +61,59 @@ def _get_client():
     if not api_key:
         return None
     return anthropic.Anthropic(api_key=api_key)
+
+
+# Vanaf hoeveel meetellende antwoorden wij een soort vraag zwak noemen.
+# Onder deze grens levert zo'n vraag bij minder dan dit deel van de antwoorden
+# uberhaupt een winkelnaam op, en is hij dus meestal weggegooid geld.
+ZWAK_ONDER = float(os.environ.get("KOOPVRAGEN_ZWAK_ONDER", "0.45"))
+
+# Hoeveel beoordeelde antwoorden er minstens moeten zijn voor wij iets over een
+# soort vraag durven te zeggen. Onder dit aantal is het toeval.
+GENOEG_OM_IETS_TE_ZEGGEN = int(os.environ.get("KOOPVRAGEN_LEERGRENS", "20"))
+
+
+def wat_wij_geleerd_hebben():
+    """Wat de metingen tot nu toe zeggen over welke soort vragen iets opleveren.
+
+    Dit is het stuk waar Krillo van zijn eigen geschiedenis leert in plaats van
+    elke week met een schone lei te beginnen.
+
+    Het werkt zo. Elke beoordeelde vraag levert een feit op: noemde AI daarin
+    winkels, ja of nee. Alleen als er winkels genoemd worden telt een vraag mee,
+    en alleen meetellende vragen leveren een uitkomst op waar post over kan.
+    Sommige soorten vragen, bijvoorbeeld over levertijd of retourbeleid, leveren
+    bijna nooit een winkelnaam op. Die bedenken wij dus steeds opnieuw, meten wij
+    steeds opnieuw, en betalen wij steeds opnieuw, terwijl wij inmiddels weten
+    dat er niets uitkomt.
+
+    Geeft twee dingen terug: een zin voor in de opdracht aan het model, en de
+    ruwe cijfers zodat je op de beheerpagina kunt zien waarop dat gebaseerd is.
+    Zonder dat tweede is het een zwarte doos, en een zwarte doos die zelf zijn
+    gedrag aanpast is precies wat je niet wil."""
+    try:
+        regels = db.intentie_prestaties(GENOEG_OM_IETS_TE_ZEGGEN)
+    except Exception as e:
+        print(f"Leerlus overgeslagen: {e}")
+        return {"zin": "", "regels": []}
+    if not regels:
+        return {"zin": "", "regels": []}
+
+    sterk = [r["intentie"] for r in regels if r["aandeel"] >= ZWAK_ONDER]
+    zwak = [r["intentie"] for r in regels if r["aandeel"] < ZWAK_ONDER]
+    if not zwak:
+        return {"zin": "", "regels": regels}
+
+    zin = (
+        "Wat wij uit eerdere metingen weten, en dit weegt zwaar:\n"
+        f"- Bij vragen van het soort {', '.join(zwak)} noemt AI meestal helemaal "
+        f"geen winkels. Zulke vragen leveren niets op. Bedenk er hooguit een of "
+        f"twee, en alleen als ze echt bij deze winkel horen.\n"
+    )
+    if sterk:
+        zin += (f"- Bij vragen van het soort {', '.join(sterk)} noemt AI wel "
+                f"winkels. Leg daar het zwaartepunt.\n")
+    return {"zin": zin, "regels": regels}
 
 
 def _haal_winkelinfo_op(webshop_url, extra_paginas=None):
@@ -102,6 +156,9 @@ def genereer_koopvragen(webshop_url, extra_paginas=None, aantal=30,
     intentie_uitleg = "\n".join(f"- {naam}: {uitleg}"
                                 for naam, uitleg in intenties(landnaam))
     per_intentie = max(2, aantal // len(INTENTIES))
+    # Wat eerdere metingen ons geleerd hebben over welke soort vragen iets
+    # opleveren. Bij de eerste winkels is dit leeg en verandert er niets.
+    geleerd = wat_wij_geleerd_hebben()["zin"]
 
     prompt = f"""Je helpt bij het meten of een webshop wordt aanbevolen door AI-assistenten.
 
@@ -115,6 +172,7 @@ De webshop:
 Verdeel de vragen over deze soorten koopintenties, ongeveer {per_intentie} per soort:
 {intentie_uitleg}
 
+{geleerd}
 Belangrijke regels:
 - SCHRIJF DE VRAGEN IN HET {taal}. Dat is de taal van de klanten van deze
   winkel, en in die taal worden ze straks aan ChatGPT gesteld. Schrijf ze

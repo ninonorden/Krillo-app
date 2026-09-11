@@ -2392,6 +2392,13 @@ def admin_koopvragen():
         webshop_url=webshop_url,
         status="klaar",
         omschrijving=profiel.get("omschrijving") if profiel else "",
+        # Wat de machine uit alle eerdere metingen geleerd heeft, met de cijfers
+        # erbij. Die cijfers staan hier niet voor de sier: zodra iets zijn eigen
+        # gedrag aanpast op basis van geschiedenis, hoor je te kunnen zien waarop
+        # dat gebaseerd is. Anders is het een zwarte doos die duurder wordt zonder
+        # dat iemand kan nagaan waarom.
+        geleerd=koopvragen.wat_wij_geleerd_hebben(),
+        zwak_onder=koopvragen.ZWAK_ONDER,
         vragen=vragen,
         groepen=groepen,
         dubbelen=len(dubbelingen),
