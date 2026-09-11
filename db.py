@@ -815,6 +815,18 @@ def herstel_onbekende_kosten(prijs_zoeker, dagen=60):
     geimporteerd, zodat db.py niets van de prijslijst hoeft te weten en dit los
     te testen is.
 
+    EEN OPDRACHT PER MODEL, niet een per regel. Dit stond hier eerst als een lus
+    over elke rij apart, en dat heeft de hele site platgelegd. Tweeduizend losse
+    opdrachten naar een database die niet op dezelfde machine staat duurt langer
+    dan de tijdslimiet van de webserver. De opdracht werd dus afgebroken, draaide
+    terug, en begon bij de volgende keer laden weer van voren af aan. Ondertussen
+    zat de werker vast en laadde niets meer, ook de gewone pagina's niet.
+
+    Het rekenwerk gebeurt nu in de database zelf: een UPDATE per modelnaam, dus
+    hoogstens een handjevol opdrachten, en klaar in milliseconden. Rekenen met
+    tokens maal prijs is optellen en vermenigvuldigen, daar is geen Python voor
+    nodig.
+
     Geeft terug hoeveel regels er bijgewerkt zijn."""
     conn = _get_connection()
     if conn is None:
@@ -823,31 +835,39 @@ def herstel_onbekende_kosten(prijs_zoeker, dagen=60):
     try:
         with conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Eerst kijken WELKE modellen er onbekend zijn. Dat zijn er een
+                # paar, niet duizenden.
                 cur.execute(
-                    """SELECT gebeurtenis_id, provider, model, invoer_tokens, uitvoer_tokens
+                    """SELECT provider, model
                          FROM kostengebeurtenissen
                         WHERE kosten_status = 'onbekend'
-                          AND moment >= now() - (%s || ' days')::interval""",
+                          AND moment >= now() - (%s || ' days')::interval
+                        GROUP BY provider, model""",
                     (str(int(dagen)),),
                 )
-                regels = [dict(r) for r in cur.fetchall()]
+                soorten = [dict(r) for r in cur.fetchall()]
 
-                for r in regels:
-                    prijs = prijs_zoeker(r.get("provider"), r.get("model"))
+                for s in soorten:
+                    prijs = prijs_zoeker(s.get("provider"), s.get("model"))
                     if not prijs:
+                        # Nog steeds geen prijs bekend. Die regels blijven staan
+                        # zoals ze staan, en de kostenpagina blijft erover
+                        # klagen. Dat is de bedoeling.
                         continue
-                    bedrag = (
-                        (int(r.get("invoer_tokens") or 0) / 1_000_000)
-                        * prijs["invoer_per_miljoen"]
-                        + (int(r.get("uitvoer_tokens") or 0) / 1_000_000)
-                        * prijs["uitvoer_per_miljoen"]
-                    )
                     cur.execute(
                         """UPDATE kostengebeurtenissen
-                              SET kosten = %s, kosten_status = 'berekend',
+                              SET kosten = ROUND(
+                                      COALESCE(invoer_tokens, 0) / 1000000.0 * %s
+                                    + COALESCE(uitvoer_tokens, 0) / 1000000.0 * %s, 6),
+                                  kosten_status = 'berekend',
                                   prijsversie = %s
-                            WHERE gebeurtenis_id = %s""",
-                        (round(bedrag, 6), prijs.get("prijsversie"), r["gebeurtenis_id"]),
+                            WHERE kosten_status = 'onbekend'
+                              AND provider IS NOT DISTINCT FROM %s
+                              AND model IS NOT DISTINCT FROM %s
+                              AND moment >= now() - (%s || ' days')::interval""",
+                        (prijs["invoer_per_miljoen"], prijs["uitvoer_per_miljoen"],
+                         prijs.get("prijsversie"), s.get("provider"), s.get("model"),
+                         str(int(dagen))),
                     )
                     bijgewerkt += cur.rowcount
     except Exception as e:

@@ -3727,14 +3727,15 @@ def admin_kosten():
 
     dagen = int(request.args.get("dagen", 30))
 
-    # Eerst de aanroepen bijwerken waarvan de prijs inmiddels wel bekend is.
-    # De prijs wordt vastgelegd op het moment van de aanroep, dus een modelnaam
-    # die er toen niet in stond staat voor altijd op nul euro. Zo bleef de
-    # melding hierboven staan nadat de prijs allang toegevoegd was, en bleef
-    # de dagpot te ruim. Dit is goedkoop: het raakt alleen regels die op
-    # 'onbekend' staan, en zodra die op zijn doet het niets meer.
-    hersteld = db.herstel_onbekende_kosten(kosten.zoek_prijs)
-    if hersteld:
+    # Alleen op een knop, nooit vanzelf bij het openen van de pagina.
+    #
+    # Dit stond hier eerst bij elke keer laden, en dat heeft de hele site
+    # platgelegd. Ook nu het snel is blijft het een opdracht die de database
+    # aanpast, en zoiets hoort niet te gebeuren omdat iemand toevallig een
+    # pagina opent. Een verversing in de browser is geen opdracht.
+    hersteld = 0
+    if request.args.get("herstel") == "ja":
+        hersteld = db.herstel_onbekende_kosten(kosten.zoek_prijs)
         print(f"Kostenpagina: {hersteld} aanroepen alsnog van een prijs voorzien.")
 
     overzicht = db.kostenoverzicht(dagen)
