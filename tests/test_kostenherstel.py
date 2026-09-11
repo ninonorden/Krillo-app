@@ -158,7 +158,16 @@ klopt("hun opmaak is ook opgeruimd", "audit-teaser" not in index)
 klopt("er staat wel een weg naar de prijzen", "monitoring-slot" in index)
 # Wat er met opzet moet blijven: het bewijs. Dat was juist de kritiek op het
 # ondernemersforum, dat het te vaag was.
-klopt("het voorbeeldrapport staat er nog", "krillo.nl/rapport" in index)
+klopt("het nagemaakte scherm met de uitslag staat er nog",
+      'class="rapport-demo"' in index)
+# En het is nu de gratis scan, niet de rapportpagina van de audit. Die pagina
+# krijgt niemand meer: een monitoringklant komt op /monitoring/<token>.
+klopt("het is aangekondigd als de gratis scan",
+      "Dit krijg je van de gratis scan" in index)
+klopt("het venster doet niet meer alsof het de auditpagina is",
+      '<span class="rapport-demo-url">krillo.nl/rapport</span>' not in index)
+klopt("en het stukje code zegt erbij dat het niet gratis is",
+      "Niet gratis: dit is wat wij er voor je neerzetten" in index)
 klopt("en het blok over wat wij wel en niet aanraken ook",
       "Wat we wel en niet aanraken" in index)
 

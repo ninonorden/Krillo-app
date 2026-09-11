@@ -734,15 +734,26 @@
 
 <section id="voorbeeld">
   <div class="wrap">
+    {# Dit blok heette "Zo ziet een echt resultaat eruit" en het nagemaakte
+       venster zei krillo.nl/rapport. Dat was de rapportpagina van de audit van
+       79 euro, en dat product bestaat sinds 11 september niet meer. Er stond dus
+       een scherm op de homepage dat geen enkele klant meer krijgt. Een
+       monitoringklant komt op /monitoring/<token>, en dat scherm staat verderop
+       al afgebeeld.
+
+       Wat er nu staat is wel waar: dit is de uitslag van de gratis scan, precies
+       wat een bezoeker ziet als hij bovenaan zijn webadres invult. Dat is ook
+       een beter argument, want het is een belofte die hij binnen een minuut zelf
+       kan controleren in plaats van er een te moeten geloven. #}
     <div class="voorbeeld-kop">
-      <h2>Zo ziet een echt resultaat eruit.</h2>
-      <p>Hieronder een scan van een Nederlandse webshop. De naam laten we weg, de bevindingen zijn onveranderd.</p>
+      <h2>Dit krijg je van de gratis scan.</h2>
+      <p>Een echte scan van een Nederlandse webshop. De naam laten we weg, de bevindingen zijn onveranderd. Dit is wat jij te zien krijgt als je hierboven je webadres invult.</p>
     </div>
 
     <div class="rapport-demo">
       <div class="rapport-demo-balk">
         <span class="stip"></span><span class="stip"></span><span class="stip"></span>
-        <span class="rapport-demo-url">krillo.nl/rapport</span>
+        <span class="rapport-demo-url">krillo.nl</span>
       </div>
       <div class="rapport-demo-body">
         <div class="demo-score">
@@ -782,7 +793,12 @@
         </div>
 
         <div class="demo-fix">
-          <div class="demo-fix-kop">Dit zetten wij er dan voor je neer</div>
+          {# Dit stukje zit met opzet onder de streep in het nagemaakte venster,
+             want het hoort NIET bij de gratis scan. De scan zegt wat er mis is;
+             de oplossing uitschrijven en neerzetten is het betaalde deel. De kop
+             moet dat verschil dus zelf duidelijk maken, anders belooft de
+             gratis scan iets wat hij niet geeft. #}
+          <div class="demo-fix-kop">Niet gratis: dit is wat wij er voor je neerzetten</div>
           <div class="demo-fix-code">&lt;script type="application/ld+json"&gt;
 {
   "@context": "https://schema.org",
