@@ -22,6 +22,7 @@ Wat de gratis test bewust NIET geeft, want daar begint het betaalde product:
 import os
 
 import db
+import bronnen
 import kosten
 import koopvragen
 import metingen
@@ -46,6 +47,26 @@ GRATIS_VRAGEN = int(os.environ.get("GRATIS_VRAGEN", "5"))
 # eerste indruk die klopt.
 VOORPROEF_AAN = os.environ.get("VOORPROEF_AAN", "ja").lower() not in ("nee", "no", "0", "uit")
 VOORPROEF_VRAGEN = int(os.environ.get("VOORPROEF_VRAGEN", "3"))
+
+# De bronanalyse in de gratis test.
+#
+# Waarom dit hier staat. Dit is het sterkste dat Krillo heeft: niet "je wordt
+# niet genoemd", maar "hier staan de pagina's waar je concurrent wel op staat
+# en jij niet, en die pagina's bestaan al". Dat zat tot nu toe volledig achter
+# de betaalmuur. Iemand die de gratis test deed kreeg een cijfer en een
+# probleem, en geen enkele aanwijzing dat wij weten waar het vandaan komt.
+#
+# Wat het kost. Twee zoekopdrachten is ongeveer een cent, plus het ophalen van
+# een stuk of acht pagina's, en dat kost niets bij een AI-aanbieder. Dat is
+# goedkoper dan de vijf vragen die er al voor staan.
+#
+# Wat er met opzet NIET bij zit: de volledige lijst vindplaatsen, de ranglijst
+# per concurrent en het bewaren ervan. De gratis test laat zien DAT die
+# pagina's er zijn en noemt er hoogstens drie. De rest is het betaalde product.
+GRATIS_BRONNEN_AAN = os.environ.get("GRATIS_BRONNEN_AAN", "ja").strip().lower() \
+    not in ("nee", "no", "false", "0", "uit")
+GRATIS_BRONNEN_VRAGEN = int(os.environ.get("GRATIS_BRONNEN_VRAGEN", "2"))
+GRATIS_BRONNEN_PAGINAS = int(os.environ.get("GRATIS_BRONNEN_PAGINAS", "3"))
 
 # Harde rem op de dag. Zonder dit kan een bericht dat goed loopt je in een
 # middag honderden euro's kosten aan mensen die alleen even kwamen kijken.
@@ -95,7 +116,59 @@ def mag_starten():
     return True, None
 
 
-def draai(test_id, webshop_url, aantal_vragen=None, max_aanbieders=None):
+def _bronnen_erbij(webshop_url, beeld, winkelnaam, meting_id):
+    """De bronanalyse voor de gratis test, klein gehouden.
+
+    Geeft None terug zodra er iets niet lukt. Dit onderdeel mag de test nooit
+    laten mislukken: de uitslag is al af op het moment dat dit draait, en een
+    zoekmachine die even dichtzit is geen reden om iemand niets te laten zien.
+    """
+    if not GRATIS_BRONNEN_AAN:
+        return None
+    if not bronnen.beschikbaar():
+        print(f"Bronanalyse in de gratis test overgeslagen: {bronnen.waarom_niet()}")
+        return None
+
+    # Nog een keer langs de rem. De meting hiervoor heeft al geld gekost, dus
+    # de dag kan er tussendoor doorheen zijn.
+    rem = kosten.mag_doorgaan(webshop_url=webshop_url)
+    if not rem["mag"]:
+        print(f"Bronanalyse in de gratis test overgeslagen door de rem: {rem['reden']}")
+        return None
+
+    profiel = db.get_winkelprofiel(webshop_url) or {}
+    m = markt.bepaal(profiel.get("taal"), profiel.get("land"))
+
+    # Minder vragen en minder pagina's dan bij een klant. Tijdelijk, en netjes
+    # terug, want bronnen is een module die iedereen deelt en een betalende
+    # klant hoort de volle analyse te krijgen.
+    was_vragen = bronnen.MAX_VRAGEN_PER_RONDE
+    was_paginas = bronnen.MAX_PAGINAS
+    try:
+        bronnen.MAX_VRAGEN_PER_RONDE = max(1, GRATIS_BRONNEN_VRAGEN)
+        bronnen.MAX_PAGINAS = max(1, GRATIS_BRONNEN_PAGINAS)
+        vindplaatsen = bronnen.analyseer(
+            webshop_url, beeld, winkelnaam=winkelnaam, meting_id=meting_id,
+            land=m["zoek_land"], taal=m["zoek_taal"],
+        )
+    except Exception as e:
+        print(f"Bronanalyse in de gratis test mislukt voor {webshop_url}: {e}")
+        return None
+    finally:
+        bronnen.MAX_VRAGEN_PER_RONDE = was_vragen
+        bronnen.MAX_PAGINAS = was_paginas
+
+    if not vindplaatsen:
+        return None
+    try:
+        return bronnen.vat_samen(vindplaatsen, winkelnaam)
+    except Exception as e:
+        print(f"Bronnen samenvatten mislukt voor {webshop_url}: {e}")
+        return None
+
+
+def draai(test_id, webshop_url, aantal_vragen=None, max_aanbieders=None,
+          bronnen_erbij=True):
     """De hele test voor een winkel. Draait op de achtergrond.
 
     Zet onderweg de status bij, zodat de pagina kan laten zien waar hij is in
@@ -169,7 +242,19 @@ def draai(test_id, webshop_url, aantal_vragen=None, max_aanbieders=None):
             return None
 
         beeld = beoordeling.klantbeeld(webshop_url, beoordelingen)
+
+        # De bronanalyse hierna, met het volledige klantbeeld. Die heeft de
+        # vragen en de concurrenten nodig zoals ze uit de beoordeling komen, en
+        # _inkorten gooit precies die velden weg.
+        bronbeeld = None
+        if bronnen_erbij:
+            db.zet_zichtbaarheidstest(test_id, "kijken waar anderen wel staan",
+                                      meting_id=meting_id)
+            bronbeeld = _bronnen_erbij(webshop_url, beeld, winkelnaam, meting_id)
+
         beeld = _inkorten(beeld)
+        if bronbeeld:
+            beeld["bronnen"] = _bronnen_inkorten(bronbeeld)
         db.zet_zichtbaarheidstest(test_id, "klaar", resultaat=beeld, meting_id=meting_id)
         return beeld
     except Exception as e:
@@ -203,6 +288,37 @@ def _inkorten(beeld):
             }
             for r in (beeld.get("regels") or [])
         ],
+    }
+
+
+def _bronnen_inkorten(samenvatting):
+    """Wat er van de bronanalyse in de gratis uitslag komt.
+
+    Drie pagina's, niet twaalf. Niet uit zuinigheid maar omdat dit het punt is
+    waar het betaalde product begint: wij laten zien dat die plekken bestaan en
+    hoe ze eruitzien, en de volledige lijst plus de uitgeschreven oplossing per
+    pagina is wat je koopt. Wie dit leest weet genoeg om te geloven dat wij het
+    weten, en niet genoeg om het zelf af te maken."""
+    if not samenvatting:
+        return None
+    gemist = [
+        {
+            "titel": g.get("titel") or g.get("domein"),
+            "domein": g.get("domein"),
+            "concurrenten": (g.get("concurrenten") or [])[:4],
+        }
+        for g in (samenvatting.get("gemiste_paginas") or [])[:3]
+    ]
+    return {
+        "paginas": samenvatting.get("paginas") or 0,
+        "sites": samenvatting.get("sites") or 0,
+        "wij_erop": samenvatting.get("wij_erop") or 0,
+        "gemist": samenvatting.get("gemist") or 0,
+        "conclusie": samenvatting.get("conclusie") or "",
+        # Bewust zonder het webadres van de pagina zelf. De domeinnaam staat er
+        # wel, dus je ziet waar het over gaat, maar de directe lijst met
+        # adressen om aan te werken is het betaalde deel.
+        "gemiste_paginas": gemist,
     }
 
 

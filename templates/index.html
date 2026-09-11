@@ -49,7 +49,6 @@
   "areaServed": ["NL", "BE"],
   "offers": [
     {"@type": "Offer", "name": "Gratis scan", "price": "0", "priceCurrency": "EUR"},
-    {"@type": "Offer", "name": "Volledige audit", "price": "79", "priceCurrency": "EUR"},
     {"@type": "Offer", "name": "Wij doen het", "price": "149", "priceCurrency": "EUR"},
     {"@type": "Offer", "name": "Monitoring", "price": "39", "priceCurrency": "EUR"}
   ]
@@ -355,6 +354,10 @@
           border-bottom:1px solid var(--line);}
   .zt-rij:last-child{border-bottom:none;}
   .zt-aantal{font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
+  .zt-bron{padding:10px 13px; font-size:13.5px; border-bottom:1px solid var(--line);}
+  .zt-bron:last-child{border-bottom:none;}
+  .zt-bron strong{display:block; font-weight:600;}
+  .zt-bron-domein{display:block; font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); margin-top:2px;}
   .zt-slot{font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin:16px 0 14px;}
   .zt-meer{border-top:1px solid var(--line); padding-top:16px; margin-top:4px; font-size:13.5px;
            line-height:1.6;}
@@ -968,25 +971,23 @@
         </ul>
         <a class="price-btn ghost" href="#scan">Start gratis</a>
       </div>
-      <div class="price-card">
-        <div class="price-name">Volledige audit</div>
-        <div class="price-amount">€79 <span>eenmalig</span></div>
-        <ul class="price-feats">
-          <li><strong>Je doet het zelf</strong>, wij schrijven het uit</li>
-          <li>Voor elk verbeterpunt een uitgeschreven oplossing</li>
-          <li>Teksten geschreven voor jouw producten, niet uit een sjabloon</li>
-          <li>Technische code die je direct kan plakken, met de route waar het moet, in jouw webshopsysteem</li>
-          <li>Eigen rapportpagina waar je op terug kan komen</li>
-        </ul>
-        <a class="price-btn ghost" href="#scan" id="auditCheckoutBtn">Vraag audit aan</a>
-      </div>
+      {# De losse audit van 79 euro is op 11 september geschrapt als apart
+         product. Waarom: de doelgroep is uitdrukkelijk "zonder technische
+         kennis", en juist bij de audit moest de koper zelf code plakken. Elke
+         koper die dat fout doet mailt ons, en tijd is de schaarste. Vier keuzes
+         op een prijspagina is er bovendien een te veel: wie twijfelt kiest
+         niets.
+
+         Alles wat erin zat blijft bestaan, als onderdeel van "wij doen het". De
+         bestelroute /api/checkout/audit blijft met opzet werken, zodat een oude
+         link of een lopende afspraak niet stukgaat. #}
       <div class="price-card featured">
         <div class="price-badge">Meeste werk uit handen</div>
         <div class="price-name">Wij doen het</div>
         <div class="price-amount">€149 <span>eenmalig</span></div>
         <ul class="price-feats">
           <li><strong>Wij voeren het uit in je webshop</strong>, jij hoeft niets te plakken</li>
-          <li>Alles uit de volledige audit zit erbij</li>
+          <li>Voor elk verbeterpunt een uitgeschreven oplossing, geschreven voor jouw producten</li>
           <li>Werkt op Shopify, WooCommerce, Lightspeed en de meeste andere systemen</li>
           <li>Achteraf een overzicht van elke wijziging, met de oude tekst erbij</li>
           <li>Niet tevreden over een wijziging? Wij draaien hem terug</li>
@@ -1015,8 +1016,8 @@
 <div class="checkout-overlay" id="checkoutOverlay">
   <div class="checkout-modal">
     <button class="checkout-close" id="checkoutClose" aria-label="Sluiten">&times;</button>
-    <div class="checkout-eyebrow" id="checkoutEyebrow">Volledige audit</div>
-    <h3 class="checkout-title" id="checkoutTitle">Waar mogen we de audit op uitvoeren?</h3>
+    <div class="checkout-eyebrow" id="checkoutEyebrow">Wij doen het</div>
+    <h3 class="checkout-title" id="checkoutTitle">Welke webshop gaan we voor je opknappen?</h3>
     <div class="checkout-includes" id="checkoutIncludes"></div>
     <div class="checkout-field">
       <label for="checkoutUrl">Webshop-URL</label>
@@ -1479,6 +1480,30 @@
       html += '</div>';
     }
 
+    // De bronanalyse. Dit is het enige deel van de uitslag dat niet zegt wat er
+    // mis is maar waar het vandaan komt, dus het staat onder de vragen en boven
+    // de vervolgstap. Zit er niets in, dan staat er ook niets: een leeg kopje
+    // "waar je concurrent wel staat" is erger dan geen kopje.
+    var br = r.bronnen;
+    if(br && br.gemiste_paginas && br.gemiste_paginas.length){
+      html += '<div class="scan-categorie-label">Waar je concurrent wel staat en jij niet</div>';
+      html += '<div class="zt-zin">' + veilig(br.conclusie || '') + '</div>';
+      html += '<div class="zt-lijst">';
+      br.gemiste_paginas.forEach(function(g){
+        html += '<div class="zt-bron"><strong>' + veilig(g.titel || g.domein) + '</strong>';
+        html += '<span class="zt-bron-domein">' + veilig(g.domein || '') + '</span>';
+        if(g.concurrenten && g.concurrenten.length){
+          html += '<span class="zt-citaat">hier staat wel: ' + veilig(g.concurrenten.join(', ')) + '</span>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+      if(br.gemist > br.gemiste_paginas.length){
+        html += '<div class="zt-slot">En nog ' + (br.gemist - br.gemiste_paginas.length) +
+                ' van dit soort pagina\'s. Ze bestaan al, je hoeft ze niet te maken.</div>';
+      }
+    }
+
     if(voorproef){
       html += '<div class="zt-slot">Dit waren ' + telbaar + ' vragen aan één model, op één moment. ' +
               'AI-antwoorden wisselen van dag tot dag, dus dit is een momentopname en geen oordeel.</div>';
@@ -1499,8 +1524,8 @@
               '</div>';
     } else {
       html += '<div class="zt-slot">Dit zijn vijf vragen op een moment. AI-antwoorden wisselen van dag tot dag, ' +
-              'dus een losse meting is een momentopname en geen oordeel. We hebben je nog niet verteld waaróm ' +
-              'het zo is, en ook niet of wat AI over je zegt klopt.</div>';
+              'dus een losse meting is een momentopname en geen oordeel. We hebben je nog niet verteld wat er ' +
+              'op je eigen site aan schort, welke pagina\'s het nog meer zijn, of wat AI over je zegt klopt.</div>';
       html += '<a href="#monitoring" class="scan-cta-btn">Zie wat je hieraan kan doen &rarr;</a>';
     }
     html += '</div>';
@@ -1565,7 +1590,9 @@
   var errorBox = document.getElementById('checkoutError');
   var submitBtn = document.getElementById('checkoutSubmit');
   var closeBtn = document.getElementById('checkoutClose');
-  var currentType = 'audit';
+  // Standaard de uitvoering, want de losse audit is geen keuze meer op de
+  // pagina. De audit-tak in dit script blijft bestaan voor oude links.
+  var currentType = 'uitvoering';
 
   var includesContent = {
     audit: {
