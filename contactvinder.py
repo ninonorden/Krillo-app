@@ -14,6 +14,7 @@ een medewerker mag dat in Belgie niet. Een adres met een voornaam erin slaan wij
 dus over, ook als het het enige is dat we vinden.
 """
 
+import os
 import re
 from urllib.parse import urljoin, urlparse
 
@@ -25,11 +26,40 @@ import scan_engine
 # Waar een webwinkel zijn adres neerzet. In deze volgorde, want op de
 # contactpagina staat het adres waar hij post op wil, en in de voettekst van de
 # homepage staat soms het adres van de bouwer.
+# Hoeveel pagina's wij per winkel bekijken voor wij het opgeven.
+#
+# Dit stond op vijf, en dat is te weinig: de homepagina plus vier paden, terwijl
+# het adres vaak pas op de zevende of achtste staat. Tien pagina's kost een paar
+# seconden per winkel en geen cent, en levert winkels op waarvoor de meting
+# anders voor niets betaald was.
+MAX_PAGINAS = int(os.environ.get("CONTACT_MAX_PAGINAS", "10"))
+
+
+# De pagina's waar een mailadres staat, op volgorde van hoe vaak het daar echt
+# staat. Die volgorde doet ertoe, want wij stoppen zodra wij iets gevonden
+# hebben.
+#
+# WAAROM DE JURIDISCHE PAGINA'S HOOG STAAN. Op 12 september stonden er 302
+# winkels op "geen adres" tegenover 108 met een adres: van elke vier gevonden
+# winkels vielen er drie af. De oorzaak was niet dat die winkels geen adres
+# hebben, maar dat wij er maar vijf pagina's per winkel bekeken en de
+# contactpagina vaak een formulier is zonder adres. Een webwinkel is wettelijk
+# verplicht zijn contactgegevens te noemen, en in de praktijk staan die in het
+# privacybeleid en de algemene voorwaarden. Die pagina's bestaan bijna altijd,
+# ze zijn zelden een formulier, en er staat bijna altijd een echt mailadres in.
+#
+# Dit kost geen AI-geld, alleen wat paginabezoeken. Elke winkel die hierdoor
+# wel een adres krijgt, is een winkel waarvoor wij de meting al betaald hebben
+# en die anders weggegooid werd.
 PADEN = [
-    "/pages/contact", "/contact", "/contact-us", "/nl/contact", "/contactez-nous",
-    "/pages/contact-us", "/pages/over-ons", "/over-ons", "/pages/about-us",
-    "/klantenservice", "/pages/klantenservice", "/service", "/algemene-voorwaarden",
-    "/pages/algemene-voorwaarden", "/policies/terms-of-service",
+    "/contact", "/pages/contact", "/contact-us", "/pages/contact-us",
+    "/klantenservice", "/pages/klantenservice", "/nl/contact", "/contactez-nous",
+    "/privacybeleid", "/privacy", "/privacy-policy", "/pages/privacybeleid",
+    "/policies/privacy-policy", "/pages/privacy-policy",
+    "/algemene-voorwaarden", "/voorwaarden", "/pages/algemene-voorwaarden",
+    "/policies/terms-of-service", "/pages/terms-of-service",
+    "/over-ons", "/pages/over-ons", "/pages/about-us", "/about", "/service",
+    "/disclaimer", "/impressum",
 ]
 
 ADRES = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
@@ -128,7 +158,7 @@ def _uit_pagina(html, basis_url, winkeldomein):
     return gevonden
 
 
-def zoek_adres(webshop_url, timeout=12, max_paginas=5):
+def zoek_adres(webshop_url, timeout=12, max_paginas=None):
     """Zoekt het mailadres van deze winkel.
 
     Geeft altijd hetzelfde soort antwoord terug, ook als het niets vond, zodat
@@ -140,6 +170,7 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=5):
        "alles": alle adressen die wij zagen,
        "reden": waarom er niets is, als er niets is}
     """
+    max_paginas = MAX_PAGINAS if max_paginas is None else max_paginas
     url = scan_engine.normalize_url((webshop_url or "").strip())
     winkeldomein = _domein(url)
     leeg = {"adres": None, "algemeen": False, "vandaan": None, "alles": [], "reden": None}
