@@ -116,6 +116,50 @@ mon = open(os.path.join(TEMPLATES, "monitoring.html")).read()
 klopt("Monitoring actief hangt aan een echt abonnement",
       "{% elif abonnement %}{{ t.d_nav_actief }}" in mon)
 
+print("\n== wie 149 euro betaalt krijgt de audit die erbij hoort ==")
+# De prijskaart belooft "Alles uit de volledige audit zit erbij", maar die tak
+# scande niet, bewaarde geen rapport en mat niet. De klantpagina was leeg en er
+# was geen werkbriefje, dus zelfs Nino wist niet wat hij moest doen.
+klopt("er wordt werk klaargezet na een uitvoering",
+      "_uitvoering_voorbereiden" in BRON)
+voorbereiden = BRON[BRON.index("def _uitvoering_voorbereiden"):]
+voorbereiden = voorbereiden[:voorbereiden.index("\ndef _levering_mislukt")]
+klopt("er wordt gescand", "_scan_met_herkansing" in voorbereiden)
+klopt("het rapport wordt bewaard", "db.save_report" in voorbereiden)
+klopt("en er wordt gemeten, want daar hangt het werkbriefje aan",
+      "_meet_en_beoordeel" in voorbereiden)
+klopt("mislukt het, dan krijg jij bericht", "_meld_aan_beheer" in voorbereiden)
+klopt("de toegangsmail wordt nagekeken", "Toegangsmail niet verstuurd" in BRON)
+
+print("\n== de audit valt niet terug op de gratis voorbeeldteksten ==")
+# Anders betaalt iemand 79 euro voor precies de drie voorbeelden die hij een
+# minuut eerder gratis op de homepage zag.
+klopt("bij geen AI-tekst gaat er GEEN mail uit",
+      "had de klant de gratis" in BRON)
+klopt("en de betaling blijft open staan voor een nieuwe poging",
+      'if ai_fixes is None:' in BRON and "_levering_mislukt(" in BRON)
+klopt("de stille terugval is weg",
+      'scan_result.get("voorbeeldfixes", [])' not in BRON)
+
+print("\n== een mislukte meting bij een klant geeft een signaal ==")
+klopt("er gaat bericht uit", "Meting mislukt bij een klant" in BRON)
+klopt("alleen bij een klant, niet bij elke demo", "if klant_token:" in BRON)
+
+print("\n== de bedanktpagina liegt niet meer ==")
+bedankt = open(os.path.join(TEMPLATES, "bedankt.html")).read()
+klopt("het vinkje hangt aan een echte betaling", "{% if gelukt %}" in bedankt)
+klopt("bij een afgebroken betaling staat er geen bedankje",
+      "De betaling is niet afgerond" in BRON)
+betaal = open(os.path.join(APP, "payments.py")).read()
+klopt("het betaalkenmerk gaat mee in de terugkeerlink",
+      "_zet_terugkeerlink_met_kenmerk" in betaal)
+# Alleen de aanroepen tellen, niet de regel waar de functie gedefinieerd wordt.
+zo("voor alle drie de producten",
+   len([r for r in betaal.split("\n")
+        if r.strip().startswith("_zet_terugkeerlink_met_kenmerk(client")]), 3)
+klopt("en als dat mislukt gaat de betaling gewoon door",
+      "Terugkeerlink met kenmerk zetten mislukt" in betaal)
+
 print()
 if fouten:
     print(f"{len(fouten)} FOUT(EN):")

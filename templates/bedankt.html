@@ -58,7 +58,13 @@
 <body>
   <div class="card">
     <div class="logo"><span class="logo-dot"></span>Krillo</div>
-    <div class="check">&#10003;</div>
+    {# Alleen een vinkje als wij ECHT weten dat er betaald is. Weten wij het
+       niet (geen kenmerk in de link, of Mollie even niet bereikbaar), dan een
+       neutraal teken. Een groen vinkje boven een afgebroken betaling laat
+       iemand wachten op een mail die nooit komt. #}
+    {% if gelukt %}<div class="check">&#10003;</div>
+    {% elif gelukt is sameas false %}<div class="check" style="background:#FFE3E0; color:#8E1F0B;">!</div>
+    {% else %}<div class="check" style="background:#F3F1EA; color:#5B5850;">&#8230;</div>{% endif %}
     <h1>{{ title }}</h1>
     <p>{{ message }}</p>
     <div class="note">{{ note }}</div>

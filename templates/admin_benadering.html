@@ -190,6 +190,7 @@
         ingepland om te meten: {{ v.ingepland or 0 }},
         doorgezet naar gemeten: {{ v.doorgezet or 0 }},
         gemaild: {{ v.gemaild or 0 }}
+        {% if v.naar %}<br><span class="klein">naar: {{ v.naar|join(', ') }}</span>{% endif %}
       {% endif %}
       {% for r in v.redenen or [] %}<br><span style="color:#8E1F0B;">{{ r }}</span>{% endfor %}
       {% if v.reden %}<br><span style="color:#8E1F0B;">{{ v.reden }}</span>{% endif %}

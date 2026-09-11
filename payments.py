@@ -60,6 +60,7 @@ def create_audit_payment(base_url, webshop_url, email, bedrijfsnaam=None, bron=N
             "metadata": {"type": "audit", "webshop_url": webshop_url, "email": email,
                          "bedrijfsnaam": bedrijfsnaam, "bron": bron},
         })
+        _zet_terugkeerlink_met_kenmerk(client, payment, base_url, "audit")
         return {"checkout_url": payment.checkout_url, "payment_id": payment.id}
     except (MollieError, Exception) as e:
         return {"error": str(e)}
@@ -86,6 +87,7 @@ def create_uitvoering_payment(base_url, webshop_url, email, bedrijfsnaam=None, b
             "metadata": {"type": "uitvoering", "webshop_url": webshop_url, "email": email,
                          "bedrijfsnaam": bedrijfsnaam, "bron": bron, "platform": platform},
         })
+        _zet_terugkeerlink_met_kenmerk(client, payment, base_url, "uitvoering")
         return {"checkout_url": payment.checkout_url, "payment_id": payment.id}
     except (MollieError, Exception) as e:
         return {"error": str(e)}
@@ -115,6 +117,7 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
                          "customer_id": customer.id, "email": email,
                          "bedrijfsnaam": bedrijfsnaam, "bron": bron},
         })
+        _zet_terugkeerlink_met_kenmerk(client, first_payment, base_url, "monitoring")
         return {"checkout_url": first_payment.checkout_url, "payment_id": first_payment.id, "customer_id": customer.id}
     except (MollieError, Exception) as e:
         return {"error": str(e)}
@@ -172,6 +175,24 @@ def zeg_abonnement_op(customer_id, subscription_id):
     except (MollieError, Exception) as e:
         print(f"Abonnement opzeggen mislukt: {e}")
         return {"error": "Het opzeggen is niet gelukt. Mail hallo@krillo.nl, dan regelen we het handmatig."}
+
+
+def _zet_terugkeerlink_met_kenmerk(client, payment, base_url, soort):
+    """Zet het betaalkenmerk alsnog in de terugkeerlink.
+
+    Waarom in twee stappen: bij het AANMAKEN weten wij het kenmerk nog niet, dus
+    de link kan er niet in. Daardoor kon de bedanktpagina nooit weten of er echt
+    betaald was, en stond er een groen vinkje boven, ook voor iemand die bij zijn
+    bank op annuleren had gedrukt. Die zat te wachten op een mail die nooit kwam.
+
+    Mislukt dit, dan blijft de oude link staan en gedraagt de bedanktpagina zich
+    zoals eerst. Een bijwerking die niet lukt mag nooit een betaling tegenhouden."""
+    try:
+        client.payments.update(
+            payment.id,
+            {"redirectUrl": f"{base_url}/bedankt?type={soort}&ref={payment.id}"})
+    except Exception as e:
+        print(f"Terugkeerlink met kenmerk zetten mislukt voor {payment.id}: {e}")
 
 
 def get_payment_status(payment_id):

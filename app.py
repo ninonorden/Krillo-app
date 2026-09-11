@@ -768,6 +768,44 @@ def _scan_met_herkansing(webshop_url, pogingen=3):
     return laatste
 
 
+def _uitvoering_voorbereiden(payment_id, webshop_url, email, klant_token, base_url):
+    """Zet het werk klaar voor een klant die "wij doen het" gekocht heeft.
+
+    Wat de prijskaart belooft is "alles uit de volledige audit zit erbij". Dat
+    werd niet gedaan: de uitvoering-tak zette de opdracht op de werklijst en
+    vroeg om toegang, en verder gebeurde er niets. Geen scan, geen rapport, geen
+    meting. Daardoor was de klantpagina van iemand die 149 euro betaald had leeg,
+    en stond er op het werkbriefje geen enkele taak.
+
+    Draait op de achtergrond en mag rustig een paar minuten duren: de klant moet
+    eerst toch zelf toegang regelen voordat er iets kan gebeuren."""
+    try:
+        scan_result = _scan_met_herkansing(webshop_url)
+        if "error" in scan_result:
+            _meld_aan_beheer(
+                "Uitvoering: scan mislukt",
+                f"{email} betaalde 149 euro voor {webshop_url}, maar de site is niet te "
+                f"scannen: {scan_result.get('error')}. De opdracht staat wel op de "
+                f"werklijst. Er is dus GEEN werkbriefje. Kijk er met de hand naar.")
+            return
+
+        db.zet_platform(webshop_url, scan_result.get("platform"))
+        db.save_report("monitoring", webshop_url, email, scan_result.get("score", 0),
+                       scan_result.get("checks", []), None, None, klant_token)
+
+        # Dezelfde keten als bij een abonnee, want het werkbriefje leunt op de
+        # meting: zonder vermeldingen is er geen actieplan, en zonder actieplan
+        # weet jij niet wat je in die winkel moet doen.
+        _meet_en_beoordeel(webshop_url, None, klant_token, base_url)
+    except Exception as e:
+        print(f"Uitvoering voorbereiden mislukt voor {webshop_url}: {e}")
+        _meld_aan_beheer(
+            "Uitvoering: voorbereiding mislukt",
+            f"Het klaarzetten van het werk voor {webshop_url} ({email}, 149 euro) ging "
+            f"mis: {type(e).__name__}: {e}. De opdracht staat op de werklijst maar er "
+            f"is geen werkbriefje.")
+
+
 def _levering_mislukt(payment_id, webshop_url, email, soort, reden):
     """Er is betaald maar wij konden niet leveren.
 
@@ -885,7 +923,31 @@ def _verwerk_betaling(payment_id, base_url):
                     f"webshop hoort al bij een ander adres. De klantpagina is NIET "
                     f"gedeeld. Kijk of dit klopt en handel het met de hand af.")
             monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
-            emailing.send_uitvoering_welkom(email, webshop_url, platform, monitoring_url)
+            if not emailing.send_uitvoering_welkom(email, webshop_url, platform,
+                                                   monitoring_url):
+                _meld_aan_beheer(
+                    "Toegangsmail niet verstuurd",
+                    f"{email} betaalde 149 euro voor {webshop_url}, maar de mail met de "
+                    f"vraag om toegang is NIET verstuurd. Zonder die mail kan hij niets "
+                    f"doen en gebeurt er niets. Neem contact op.")
+
+            # En dan het werk waar hij voor betaald heeft klaarzetten.
+            #
+            # Dit ontbrak volledig, en het is precies wat de prijskaart belooft:
+            # "Alles uit de volledige audit zit erbij". Er werd niet gescand,
+            # geen rapport bewaard en niet gemeten. Gevolg: de klantpagina van
+            # iemand die 149 euro betaalde was leeg, en JIJ had geen werkbriefje,
+            # dus je wist niet wat je in zijn winkel moest doen.
+            #
+            # Op de achtergrond, want dit duurt minuten en de klant hoeft er niet
+            # op te wachten: hij moet eerst toch toegang regelen. Mislukt het,
+            # dan krijg jij bericht en staat de opdracht nog steeds op je
+            # werklijst.
+            threading.Thread(
+                target=_uitvoering_voorbereiden,
+                args=(payment_id, webshop_url, email, klant_token, base_url),
+                daemon=True,
+            ).start()
 
         elif payment_type == "audit" and webshop_url and email:
             scan_result = _scan_met_herkansing(webshop_url)
@@ -906,7 +968,22 @@ def _verwerk_betaling(payment_id, base_url):
                 ai_fixes = ai_content.generate_ai_fixes(
                     webshop_url, scan_result.get("checks", []), scan_result.get("gevonden_paginas")
                 )
-                fixes = ai_fixes if ai_fixes is not None else scan_result.get("voorbeeldfixes", [])
+                # NIET stil terugvallen op de gratis sjabloonteksten. Dat deed
+                # hij wel, en dan betaalde iemand 79 euro voor precies de drie
+                # voorbeelden die hij een minuut eerder gratis op de homepage
+                # zag. Lukt het schrijven niet, dan is dat een fout die jij moet
+                # weten, en dan gaat de mail niet uit: de betaling blijft open
+                # staan zodat een volgende melding van Mollie het opnieuw
+                # probeert.
+                if ai_fixes is None:
+                    _levering_mislukt(
+                        payment_id, webshop_url, email, "audit",
+                        "De uitgeschreven oplossingen konden niet gemaakt worden "
+                        "(AI-sleutel ontbreekt of de kostenrem staat dicht). Er is "
+                        "GEEN mail verstuurd, want dan had de klant de gratis "
+                        "voorbeeldteksten gekregen voor 79 euro.")
+                    return
+                fixes = ai_fixes
                 token = db.save_report("audit", webshop_url, email, scan_result.get("score", 0),
                                         scan_result.get("checks", []), fixes, payment_id)
                 report_url = f"{base_url}/rapport/{token}" if token else None
@@ -1505,6 +1582,10 @@ def _benadering_ronde():
                 # een lege kolom en drukte je met de hand nog eens op versturen.
                 db.markeer_onderzoeksmail(winkel["webshop_url"])
                 verslag["gemaild"] += 1
+                # De namen erbij, niet alleen het aantal. "gemaild: 2" laat je
+                # nog steeds raden of het echt gebeurd is en naar wie.
+                verslag.setdefault("naar", []).append(
+                    f"{winkel['webshop_url']} ({winkel['email']})")
             else:
                 verslag["mislukt"].append(
                     f"mail {winkel['webshop_url']}: {str(fout)[:120]}")
@@ -2272,6 +2353,20 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
         reden = samenvatting.get("reden") or "onbekende reden"
         melden(f"mislukt: er is niets gemeten ({reden})")
         print(f"Meting overgeslagen voor {webshop_url}: {reden}")
+        # Gaat dit mis bij een BETALENDE klant, dan moet jij dat weten. Hij las
+        # net in zijn welkomstmail "reken op ongeveer een kwartier", kijkt een
+        # kwartier later, en ziet "er is nog niet gemeten". Voor 39 euro per
+        # maand. Zonder dit bericht kwam dat alleen in de logs van Render.
+        #
+        # Alleen bij een klant, niet bij een demo of de benadering: die hebben
+        # hun eigen logboek en zouden dit tot tientallen berichten per dag maken.
+        if klant_token:
+            _meld_aan_beheer(
+                "Meting mislukt bij een klant",
+                f"De meting voor {webshop_url} ({email}) leverde niets op: {reden}. "
+                f"Deze klant ziet op zijn pagina 'er is nog niet gemeten'. Kijk of de "
+                f"sleutels van de AI-aanbieders werken en of de kostenrem niet dicht "
+                f"staat.")
         return
 
     # Is de ronde halverwege gestopt, dan is dat geen normale ronde. De klant
@@ -4656,9 +4751,34 @@ def bedankt():
     we hier weten welke betaling het was. Staat op de lijst; tot die tijd
     beweren we niets wat we niet weten."""
     checkout_type = request.args.get("type", "audit")
+
+    # Sinds wij het betaalkenmerk in de terugkeerlink zetten kunnen wij hier WEL
+    # nakijken wat er gebeurd is. Lukt dat niet, dan valt hij terug op de oude,
+    # voorzichtige tekst die in beide gevallen waar is.
+    kenmerk = (request.args.get("ref") or "").strip()
+    betaald = None
+    if kenmerk:
+        try:
+            stand = payments.get_payment_status(kenmerk)
+            if stand is not None:
+                betaald = bool(stand.get("is_paid"))
+        except Exception as e:
+            print(f"Betaling natrekken op de bedanktpagina mislukt: {e}")
+
+    if betaald is False:
+        # Afgebroken, mislukt of verlopen. Hier hoort geen vinkje en geen
+        # bedankje. Iemand die bij zijn bank op annuleren drukte zat anders te
+        # wachten op een mail die nooit zou komen.
+        return render_template(
+            "bedankt.html", gelukt=False,
+            title="De betaling is niet afgerond",
+            message=("Er is niets afgeschreven. Dat kan gebeuren: afgebroken, geweigerd "
+                     "door de bank, of verlopen. Je kan het gewoon opnieuw proberen."),
+            note="Loopt het steeds vast? Mail hallo@krillo.nl, dan regelen wij het met de hand.")
+
     if checkout_type == "monitoring":
         return render_template(
-            "bedankt.html",
+            "bedankt.html", gelukt=betaald,
             title="Je betaling is verwerkt door Mollie",
             message=("Is de betaling gelukt, dan is je eerste meting nu onderweg en krijg je "
                      "binnen ongeveer een kwartier een mail met de link naar je eigen pagina. "
@@ -4667,7 +4787,7 @@ def bedankt():
                   "afgerond. Je kan het gewoon opnieuw proberen, of mail hallo@krillo.nl."))
     if checkout_type == "uitvoering":
         return render_template(
-            "bedankt.html",
+            "bedankt.html", gelukt=betaald,
             title="Je betaling is verwerkt door Mollie",
             message=("Is de betaling gelukt, dan staat er binnen enkele minuten een mail voor "
                      "je klaar. Daarin staat precies één ding: hoe je ons toegang geeft tot je "
@@ -4677,7 +4797,7 @@ def bedankt():
                   "dan is de betaling niet afgerond en kan je het opnieuw proberen. Mail "
                   "anders hallo@krillo.nl."))
     return render_template(
-        "bedankt.html",
+        "bedankt.html", gelukt=betaald,
         title="Je betaling is verwerkt door Mollie",
         message=("Is de betaling gelukt, dan gaan we direct aan de slag en ontvang je de "
                  "volledige audit binnen enkele minuten per e-mail."),

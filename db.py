@@ -772,7 +772,16 @@ def kosten_per_klant_deze_maand(webshop_url):
 
 
 def kosten_vandaag():
-    return _kosten_optellen("moment >= date_trunc('day', now())", ())
+    """Wat er vandaag uitgegeven is, met "vandaag" volgens de klok in Nederland.
+
+    Stond hier zonder tijdzone, en dan rekent de database in UTC. Daar begint de
+    dag om 02:00 Nederlandse tijd. Het bericht van 08:00 meldde daardoor al
+    14,39 euro gebruikt, want alles wat er tussen 02:00 en 08:00 gemeten was
+    telde mee terwijl de dag voor jouw gevoel nog moest beginnen. Het getal was
+    niet fout, het sloeg alleen op een andere dag dan die op je klok."""
+    return _kosten_optellen(
+        "moment >= date_trunc('day', now() AT TIME ZONE 'Europe/Amsterdam') "
+        "AT TIME ZONE 'Europe/Amsterdam'", ())
 
 
 def _kosten_optellen(voorwaarde, waarden):
