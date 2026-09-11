@@ -189,6 +189,29 @@ _echt = int((_kosten.GRENS_TOTAAL_DAG_EURO * _kosten.DEEL_VOOR_BENADERING)
 print(f"       (met DEEL_VOOR_BENADERING={_kosten.DEEL_VOOR_BENADERING} zijn dat er "
       f"in de praktijk {_echt} per dag)")
 
+print("\n== het zoeken naar adressen kijkt ver genoeg ==")
+# Op 12 september stonden er 302 winkels op "geen adres" tegenover 108 met een
+# adres: van elke vier gevonden winkels vielen er drie af. Niet omdat die
+# winkels geen adres hebben, maar omdat wij er maar vijf pagina's per winkel
+# bekeken en de contactpagina vaak een formulier is zonder adres.
+#
+# Een webwinkel is wettelijk verplicht contactgegevens te noemen, en in de
+# praktijk staan die in het privacybeleid en de algemene voorwaarden. Die staan
+# nu hoog in de lijst. Dit kost geen AI-geld, alleen paginabezoeken, en elke
+# winkel die hierdoor wel een adres krijgt is een winkel waarvoor de meting al
+# betaald is.
+import contactvinder as _cv  # noqa: E402
+
+klopt("er worden meer dan vijf pagina's bekeken", _cv.MAX_PAGINAS >= 8)
+klopt("de contactpagina staat vooraan", _cv.PADEN[0] in ("/contact", "/pages/contact"))
+for _pad in ("/privacybeleid", "/algemene-voorwaarden", "/klantenservice"):
+    klopt(f"{_pad} staat in de lijst", _pad in _cv.PADEN)
+# De juridische pagina's moeten BINNEN het aantal pagina's vallen dat wij echt
+# bekijken, anders staan ze er wel maar worden ze nooit bereikt.
+_privacy = _cv.PADEN.index("/privacybeleid")
+klopt(f"en het privacybeleid wordt echt bereikt (plek {_privacy + 2} van {_cv.MAX_PAGINAS})",
+      _privacy + 2 <= _cv.MAX_PAGINAS)
+
 print()
 if fouten:
     print(f"{len(fouten)} FOUT(EN):")
