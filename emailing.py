@@ -627,8 +627,15 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
     <p style="font-size:13.5px; color:#3B3D57;">
       This is your baseline. Every week we scan again and you get a message with the new
       standing, and a clear warning if your score has dropped. Your own page shows every week
-      what to do first, with the text ready to use, and it stays at the same address. Keep the
-      link below.
+      what to do first, and we carry it out for you. Afterwards you get an overview of every
+      change with the old text next to it, so you can always put it back. Your page stays at
+      the same address; keep the link below.
+    </p>
+    <p style="font-size:13.5px; color:#3B3D57;">
+      <strong>We need one thing from you: access to your store.</strong> Without access we
+      cannot carry anything out for you. We will send you a separate email about that. If you
+      would rather do it yourself, that is fine too: your page then shows exactly what needs to
+      happen, with the text ready to use and the route through your own admin.
     </p>
     <p style="font-size:13.5px; color:#3B3D57;">
       We are also busy with your first measurement at ChatGPT and Gemini. We come up with thirty
@@ -650,9 +657,18 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
     body = f"""
     <p style="font-size:14.5px;"><strong>Startscore: {score}/100</strong> voor {webshop_url}</p>
     <p style="font-size:13.5px; color:#3B3D57;">
-      Dit is je nulmeting. Elke week scannen we opnieuw en krijg je bericht met de
-      nieuwe stand, en een duidelijke waarschuwing als je score gedaald is. Op je eigen pagina staat elke week wat je als eerste kan doen, met de tekst er kant en klaar bij,
-      die op hetzelfde adres blijft staan. Bewaar de link hieronder.
+      Dit is je nulmeting. Elke week meten we opnieuw, en uit die meting halen wij
+      hoogstens drie dingen die het meeste opleveren. Die voeren wij voor je uit in je
+      webshop, en achteraf krijg je een overzicht van wat er veranderd is met de oude
+      tekst erbij, zodat je alles kunt terugdraaien. Je eigen pagina blijft op hetzelfde
+      adres staan; bewaar de link hieronder.
+    </p>
+    <p style="font-size:13.5px; color:#3B3D57;">
+      <strong>Een ding hebben we van je nodig: toegang tot je webshop.</strong> Zonder
+      toegang kunnen wij niets voor je uitvoeren. We sturen je daar zo een aparte mail
+      over. Wil je het liever zelf doen, dan is dat ook goed: dan staat op je pagina
+      precies wat er moet gebeuren, met de tekst er kant en klaar bij en de route door
+      jouw beheerscherm.
     </p>
     <p style="font-size:13.5px; color:#3B3D57;">
       We zijn nu ook bezig met je eerste meting bij ChatGPT en Gemini. We bedenken dertig

@@ -291,11 +291,11 @@ structuur en inhoud. De gratis scan toont de score en alle bevindingen. Daarnaas
 er een gratis zichtbaarheidstest: die stelt vijf koopvragen aan ChatGPT en Gemini,
 zoals een koper ze zou stellen, en laat zien bij hoeveel vragen de webshop genoemd
 wordt en welke andere winkels er in het antwoord staan. De betaalde
-audit schrijft voor elk verbeterpunt een oplossing uit: herschreven teksten voor de
-producten van die specifieke webshop, en technische code die de eigenaar kan plakken.
-Wil de eigenaar het niet zelf doen, dan voert Krillo de verbeteringen zelf uit in zijn
-webshop, met achteraf een overzicht van elke wijziging en de oude tekst erbij zodat
-alles terug te draaien is. Het monitoring-abonnement meet elke week opnieuw.
+eenmalige opknapbeurt schrijft voor elk verbeterpunt een oplossing uit, toegespitst op de
+producten van die specifieke webshop, en Krillo voert die zelf uit in de winkel, met
+achteraf een overzicht van elke wijziging en de oude tekst erbij zodat alles terug te
+draaien is. Het monitoring-abonnement meet elke week opnieuw en voert de verbeteringen
+ook uit; geeft de eigenaar geen toegang, dan krijgt hij ze kant en klaar om zelf te doen.
 
 ## Voor wie
 Eigenaren van webshops in Nederland en Belgie, zonder marketingbureau en zonder
@@ -306,7 +306,8 @@ door Krillo laten uitvoeren.
 - Gratis scan: 0 euro, geen account nodig
 - Volledige audit: 79 euro eenmalig, alle oplossingen uitgeschreven om zelf te doen
 - Wij doen het: 149 euro eenmalig, Krillo voert de verbeteringen uit in de webshop
-- Monitoring: 39 euro per maand, maandelijks opzegbaar
+- Monitoring: 39 euro per maand, Krillo meet elke week en voert de verbeteringen uit,
+  maandelijks opzegbaar
 
 ## Belangrijke pagina's
 - Homepage, gratis scan en gratis zichtbaarheidstest: https://www.krillo.nl/
@@ -1131,6 +1132,20 @@ def _verwerk_betaling(payment_id, base_url):
                     emailing.send_monitoring_welcome_email(
                         email, webshop_url, scan_result, monitoring_url,
                         taal=_mailtaal(webshop_url))
+                    # En meteen om toegang vragen. Sinds 11 september voeren wij
+                    # de verbeteringen ook bij het abonnement uit, en zonder
+                    # toegang kan dat niet. Dezelfde mail als bij "wij doen het",
+                    # met de stappen voor zijn platform erin.
+                    #
+                    # Mislukt die mail, dan is dat geen ramp: op zijn eigen
+                    # pagina staat dan gewoon wat er moet gebeuren, kant en
+                    # klaar om zelf te doen. Daarom geen alarm hier.
+                    try:
+                        emailing.send_uitvoering_welkom(
+                            email, webshop_url, scan_result.get("platform"),
+                            monitoring_url)
+                    except Exception as e:
+                        print(f"Toegangsmail bij monitoring mislukt voor {webshop_url}: {e}")
                     _meld_nieuwe_klant(
                         "Monitoring", webshop_url, email, "39 euro per maand",
                         extra=(f'Zijn pagina: <a href="{monitoring_url}">{monitoring_url}</a>'
@@ -1617,6 +1632,14 @@ def _benadering_ronde():
         # wat er al op "meten" staat, voordat wij er nieuwe bij zetten.
         verslag["opnieuw_opgepakt"] = _hervat_onderbroken_metingen()
 
+        # Een keer per dag het volume verdubbelen tot het doel bereikt is.
+        # Niet in een keer naar honderd: Gmail en Outlook kijken vooral naar
+        # hoe SNEL je volume oploopt, en een jong domein dat van vijftien
+        # naar honderd springt ziet er precies zo uit als een gekaapt domein.
+        opbouw = benadering.verhoog_volume_stapsgewijs()
+        if opbouw.get("verhoogd"):
+            verslag["volume"] = f"{opbouw['van']} naar {opbouw['naar']} per dag"
+
         # En niet nog meer inplannen zolang er nog werk ligt. Zonder deze rem
         # groeit de lijst sneller dan de werker hem afwerkt, en dan zegt de
         # pagina "65 in meting" terwijl er een voor een gemeten wordt.
@@ -1667,7 +1690,8 @@ def _benadering_ronde():
             # gebeurd is: vijf winkels, elk drie tot vijf keer gemeten.
             benadering.markeer_in_meting(klaar_te_meten)
             erbij = _demo_inplannen(klaar_te_meten, benchmark_stand=True,
-                                    vragen=BENADERING_VRAGEN)
+                                    vragen=BENADERING_VRAGEN,
+                                    aanbieders=BENADERING_AANBIEDERS)
             verslag["ingepland"] = len(klaar_te_meten)
             verslag["winkels"] = [str(u) for u in klaar_te_meten[:5]]
             if not erbij:
@@ -1893,7 +1917,8 @@ def _nu_meten_en_mailen(webshop_url):
         else:
             benadering.markeer_in_meting([webshop_url])
             _demo_draaien(webshop_url, benchmark_stand=True,
-                          vragen=BENADERING_VRAGEN)
+                          vragen=BENADERING_VRAGEN,
+                          aanbieders=BENADERING_AANBIEDERS)
             stand = _demo_status.get(webshop_url) or ""
             if stand.startswith("mislukt"):
                 verslag["redenen"] = [f"De meting is mislukt: {stand[:160]}"]
@@ -1930,14 +1955,45 @@ def _nu_meten_en_mailen(webshop_url):
 # Vijftien en niet elf, omdat niet elke gestelde vraag ook meetelt: een model dat
 # uitvalt of een antwoord dat niets oplevert telt niet mee. Met vijftien houd je
 # marge boven de tien en blijft de meting binnen de schatting van 75 cent.
-BENADERING_VRAGEN = int(os.environ.get("BENADERING_VRAGEN", "15"))
+# Sinds 11 september bewust KLEIN, en dat is een strategische keuze.
+#
+# Een volledige benadering van vijftien vragen aan twee modellen kost ongeveer
+# een euro. Bij vijftien mails per dag is dat vijftien euro; bij de honderd per
+# dag die wij willen zou het honderd euro per dag zijn, drieduizend per maand.
+# Dat gaat niet.
+#
+# De vraag is dan ook niet hoeveel vragen wij KUNNEN stellen, maar hoeveel er
+# nodig zijn om iemand te laten schrikken. Daar zijn er geen vijftien voor
+# nodig. "Wij stelden zes koopvragen aan ChatGPT en bij geen daarvan werd je
+# genoemd" is even hard, zolang er eerlijk zes staat en niet iets vaags.
+#
+# Het geld gaat dus naar achteren in de trechter: de volledige meting met twee
+# modellen en de bronanalyse draait pas als iemand zijn uitkomst OPENT. Zie
+# _volledige_meting_na_klik. Betalen na het signaal in plaats van ervoor.
+BENADERING_VRAGEN = int(os.environ.get("BENADERING_VRAGEN", "6"))
+
+# Hoeveel AI-aanbieders de eerste meting gebruikt. Een is genoeg voor een eerste
+# bericht en halveert de kosten. De volledige meting daarna gebruikt ze allebei.
+BENADERING_AANBIEDERS = int(os.environ.get("BENADERING_AANBIEDERS", "1"))
+
+# Hoeveel vragen de VOLLEDIGE meting stelt, die pas draait als iemand zijn
+# uitkomst opent. Met alle aanbieders, want dan is er iemand die kijkt.
+MEET_VRAGEN_NA_KLIK = int(os.environ.get("MEET_VRAGEN_NA_KLIK", "15"))
 
 # Onder hoeveel meegetelde vragen wij geen post sturen.
 #
-# Tien is de ondergrens waaronder een uitkomst niets zegt. Een winkel die bij 0
-# van de 4 vragen genoemd wordt, kan bij 30 vragen prima drie keer voorkomen.
-# Ongevraagde post met zo'n cijfer erin is niet alleen zwak, hij is misleidend.
-MINIMUM_VRAGEN_VOOR_POST = 10
+# Drie is de ondergrens waaronder een uitkomst niets zegt.
+#
+# Dit stond op tien, passend bij een meting van vijftien vragen. Nu de eerste
+# meting er zes stelt bij een model, hoort deze grens mee omlaag, anders gaat er
+# weer geen post uit. Die twee getallen zitten met een test aan elkaar vast,
+# precies omdat ze in september een maand lang stilletjes alle post tegenhielden.
+#
+# Onder de drie blijft het staan: bij nul of twee meetellende vragen zegt een
+# uitkomst niets en is ongevraagde post met zo'n cijfer erin misleidend. De mail
+# noemt altijd het echte aantal, dus "bij 0 van de 4 koopvragen genoemd", nooit
+# een vaag "wij hebben gemeten".
+MINIMUM_VRAGEN_VOOR_POST = int(os.environ.get("MINIMUM_VRAGEN_VOOR_POST", "3"))
 
 # Vanaf hoeveel gemeten winkels wij onszelf een onderzoek mogen noemen in de
 # vergelijkingsregel. Onder dit aantal laten wij die regel weg.
@@ -2504,7 +2560,8 @@ def _beoordeel_achtergrond(webshop_url, meting_id, winkelnaam):
 
 
 def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
-                       stap=None, max_vragen=None, controleer=True, bronnen_aan=True):
+                       stap=None, max_vragen=None, controleer=True, bronnen_aan=True,
+                       max_aanbieders=None):
     """De hele keten van fase 5 achter elkaar: meten, beoordelen, controleren en
     zo nodig waarschuwen.
 
@@ -2536,7 +2593,8 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
     winkelnaam = _winkelnaam(webshop_url)
 
     melden("vragen stellen aan AI")
-    samenvatting = metingen.meet_webshop(webshop_url, max_vragen=max_vragen) or {}
+    samenvatting = metingen.meet_webshop(webshop_url, max_vragen=max_vragen,
+                                         max_aanbieders=max_aanbieders) or {}
     meting_id = samenvatting.get("meting_id")
     if not meting_id:
         # BEWUST GEEN TERUGVAL op db.laatste_meting_id(). Die stond hier, en
@@ -2996,7 +3054,7 @@ def _hervat_onderbroken_metingen():
         return 0
     benadering.markeer_in_meting(hervatten)
     _demo_inplannen(hervatten, benchmark_stand=True, vragen=BENADERING_VRAGEN,
-                    opnieuw=False)
+                    aanbieders=BENADERING_AANBIEDERS, opnieuw=False)
     print(f"Benadering, onderbroken metingen opnieuw opgepakt: {len(hervatten)}")
     return len(hervatten)
 
@@ -3017,7 +3075,8 @@ def _demo_werker():
             regel = _demo_wachtrij.pop(0)
             url, benchmark_stand = regel[0], regel[1]
             vragen = regel[2] if len(regel) > 2 else None
-        _demo_draaien(url, benchmark_stand, vragen=vragen)
+            aanbieders = regel[3] if len(regel) > 3 else None
+        _demo_draaien(url, benchmark_stand, vragen=vragen, aanbieders=aanbieders)
         _meting_afgerond_melden(url)
 
 
@@ -3081,7 +3140,8 @@ def _meting_afgerond_melden(webshop_url):
         print(f"Uitkomst van de meting bewaren mislukt voor {webshop_url}: {e}")
 
 
-def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False, vragen=None):
+def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False, vragen=None,
+                    aanbieders=None):
     """Zet winkels in de wachtrij en start de werker als die stilstaat.
 
     Geeft terug hoeveel er echt bijgekomen zijn. Een winkel die al in de rij
@@ -3131,7 +3191,7 @@ def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False, vragen=None):
                 continue
             if any(w[0] == url for w in _demo_wachtrij) or bezig:
                 continue
-            _demo_wachtrij.append((url, benchmark_stand, vragen))
+            _demo_wachtrij.append((url, benchmark_stand, vragen, aanbieders))
             _demo_status[url] = "in de wachtrij"
             toegevoegd += 1
         starten = toegevoegd and not _demo_werker_draait[0]
@@ -3147,7 +3207,7 @@ def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False, vragen=None):
 BENCHMARK_VRAGEN = int(os.environ.get("BENCHMARK_VRAGEN", "5"))
 
 
-def _demo_draaien(webshop_url, benchmark_stand=False, vragen=None):
+def _demo_draaien(webshop_url, benchmark_stand=False, vragen=None, aanbieders=None):
     """De hele keten voor een winkel die geen klant is, in één keer.
 
     Bewust dezelfde route als bij een echte klant: eerst de gewone scan, dan
@@ -3185,6 +3245,7 @@ def _demo_draaien(webshop_url, benchmark_stand=False, vragen=None):
             resultaat["url"],
             stap=lambda t: _demo_status.__setitem__(webshop_url, t),
             max_vragen=vragen or (BENCHMARK_VRAGEN if benchmark_stand else None),
+            max_aanbieders=aanbieders,
             controleer=not benchmark_stand,
             # In de benchmarkstand ook de bronanalyse overslaan. Die kost per
             # winkel een paar zoekopdrachten en tientallen paginabezoeken, en
@@ -3350,6 +3411,36 @@ def onderzoek():
     )
 
 
+def _volledige_meting_na_klik(webshop_url):
+    """Draait de volledige meting voor een winkel die zijn uitkomst opende.
+
+    Op de achtergrond, want de bezoeker hoeft daar niet op te wachten: hij ziet
+    de uitkomst van de eerste meting, en de volgende keer dat hij kijkt staat er
+    meer. Precies een keer per winkel, anders kost drie keer verversen drie
+    volledige metingen.
+
+    Valt onder dezelfde dagpot als al het andere. Is die op, dan gebeurt er
+    niets en staat dat in de logs. Dat is geen ramp: de bezoeker heeft zijn
+    uitkomst al."""
+    try:
+        if benadering.volledige_meting_gedaan(webshop_url):
+            return False
+        rem = kosten.mag_doorgaan(webshop_url=webshop_url)
+        if not rem["mag"]:
+            print(f"Volledige meting na klik overgeslagen voor {webshop_url}: {rem['reden']}")
+            return False
+        # Meteen vastleggen, voor de meting begint. Twee bezoekers tegelijk
+        # zouden anders allebei een meting starten.
+        benadering.onthoud_volledige_meting(webshop_url)
+        _demo_inplannen([webshop_url], benchmark_stand=True,
+                        vragen=MEET_VRAGEN_NA_KLIK, opnieuw=True)
+        print(f"Volledige meting gestart na een klik op de uitkomst van {webshop_url}.")
+        return True
+    except Exception as e:
+        print(f"Volledige meting na klik mislukt voor {webshop_url}: {e}")
+        return False
+
+
 @app.route("/uitkomst/<token>")
 def uitkomst(token):
     """De eigen uitkomst van een winkel die wij in de benchmark gemeten hebben.
@@ -3370,6 +3461,14 @@ def uitkomst(token):
     # Alleen tellen dat de pagina geopend is. Zonder dit weet je na honderd
     # verstuurde mails alleen dat er honderd verstuurd zijn.
     db.noteer_uitkomst_bekeken(webshop_url)
+
+    # En nu pas de volledige meting. Dit is het hele idee achter de lichte
+    # eerste meting: iemand die deze pagina opent is de eerste die laat merken
+    # dat hij kijkt, en dat is het moment waarop het de moeite waard wordt om
+    # vijftien vragen bij twee modellen te stellen en de bronnen na te trekken.
+    # Ervoor betalen wij ongeveer twintig cent per winkel, erna ongeveer een
+    # euro, en dan alleen voor de winkels waar iemand achter zit.
+    _volledige_meting_na_klik(webshop_url)
 
     gegevens = _klantgegevens(webshop_url)
     laatste = (db.get_rapporten_voor_webshop(webshop_url) or [None])[0]

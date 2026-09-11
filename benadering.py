@@ -38,12 +38,54 @@ import contactvinder
 import db
 import scan_engine
 
-# De standaarden. Alle drie te veranderen op de beheerpagina zonder dat er een
+# De standaarden. Alle vier te veranderen op de beheerpagina zonder dat er een
 # nieuwe versie van de site voor nodig is.
-STANDAARD_PER_DAG = 15
-STANDAARD_PER_RONDE = 3
-STANDAARD_ADRESSEN_PER_RONDE = 10
-STANDAARD_METINGEN_PER_RONDE = 5
+#
+# WAAROM DIT NIET IN EEN KEER NAAR HONDERD GAAT. Krillo.nl is een jong domein.
+# Gmail en Outlook kijken niet alleen naar hoeveel je stuurt maar vooral naar
+# hoe SNEL dat oploopt. Van vijftien naar honderd op een dag is het patroon van
+# een gekaapt domein, en dan kom je in de spammap terecht. Daar kom je niet meer
+# uit, en je gewone post aan klanten ook niet.
+#
+# De weg omhoog is dus: 25, een dag wachten, 50, een dag wachten, 100. Dat kan
+# met de hand op /admin/benadering, of automatisch met de opbouwregeling
+# hieronder. Verdubbelen per dag is het maximum dat een jong domein aankan.
+STANDAARD_PER_DAG = int(os.environ.get("MAIL_PER_DAG", "25"))
+STANDAARD_PER_RONDE = int(os.environ.get("MAIL_PER_RONDE", "4"))
+STANDAARD_ADRESSEN_PER_RONDE = int(os.environ.get("ADRESSEN_PER_RONDE", "25"))
+STANDAARD_METINGEN_PER_RONDE = int(os.environ.get("METINGEN_PER_RONDE", "8"))
+
+# Waar wij naartoe willen, en hoe snel. Zet OPBOUW_AAN op "nee" om het volume
+# handmatig te blijven zetten.
+OPBOUW_AAN = os.environ.get("OPBOUW_AAN", "ja").strip().lower() not in ("nee", "no", "0", "uit")
+OPBOUW_DOEL = int(os.environ.get("OPBOUW_DOEL", "100"))
+OPBOUW_SLEUTEL = "benadering_volume_verhoogd_op"
+
+
+def verhoog_volume_stapsgewijs():
+    """Verdubbelt het aantal mails per dag, hoogstens een keer per dag.
+
+    Dit bestaat omdat "zet hem op honderd" en "kom niet in de spammap" allebei
+    waar moeten zijn. Een dag tussen elke verdubbeling is wat een jong domein
+    aankan, en het kost je niets: de winkels lopen niet weg.
+
+    Geeft terug wat er gebeurd is, zodat het in het rondeverslag komt."""
+    if not OPBOUW_AAN:
+        return {"verhoogd": False, "reden": "De opbouw staat uit."}
+    nu = instellingen()["per_dag"]
+    if nu >= OPBOUW_DOEL:
+        return {"verhoogd": False, "reden": f"Al op {nu} per dag."}
+    vandaag = (datetime.now(KLOK) if KLOK else datetime.now()).strftime("%Y-%m-%d")
+    if (db.get_instelling(OPBOUW_SLEUTEL) or "") == vandaag:
+        return {"verhoogd": False, "reden": "Vandaag al verhoogd."}
+    nieuw = min(OPBOUW_DOEL, max(nu * 2, nu + 5))
+    db.zet_instelling("mail_per_dag", str(nieuw))
+    # Het aantal per ronde meegroeien, anders haal je de dag nooit vol: er zijn
+    # ongeveer twaalf rondes per dag binnen kantooruren.
+    db.zet_instelling("mail_per_ronde", str(max(2, nieuw // 10)))
+    db.zet_instelling(OPBOUW_SLEUTEL, vandaag)
+    print(f"Benadering, volume verhoogd van {nu} naar {nieuw} mails per dag.")
+    return {"verhoogd": True, "van": nu, "naar": nieuw}
 
 # Buiten deze uren gaat er geen post uit. Een mail die om drie uur 's nachts
 # binnenkomt leest als een machine, en dat is hij ook, maar dat hoeft er niet
@@ -476,6 +518,49 @@ def vergeet_meetpogingen(webshop_url):
             db.zet_instelling(MEETPOGINGEN_SLEUTEL, json.dumps(alles))
         except Exception as e:
             print(f"Meetpogingen opschonen mislukt voor {webshop_url}: {e}")
+
+
+# Winkels waarvoor wij na een klik de volledige meting al gedaan hebben.
+#
+# De eerste meting is met opzet klein: zes vragen bij een model, ongeveer twintig
+# cent. Pas als iemand zijn uitkomst OPENT weten wij dat er iemand kijkt, en dan
+# pas is het de moeite waard om de volledige meting te draaien: vijftien vragen
+# bij twee modellen, met bronanalyse. Betalen na het signaal in plaats van
+# ervoor.
+#
+# Deze lijst voorkomt dat dat bij elke keer verversen opnieuw gebeurt. Zonder dit
+# zou iemand die zijn uitkomst drie keer opent drie volledige metingen kosten.
+VOLLEDIG_SLEUTEL = "benadering_volledig_gemeten"
+
+
+def volledige_meting_gedaan(webshop_url):
+    """Of wij voor deze winkel na een klik al de volledige meting gedraaid hebben."""
+    try:
+        waarde = db.get_instelling(VOLLEDIG_SLEUTEL)
+        lijst = json.loads(str(waarde)) if waarde else []
+        kaal = scan_engine.normalize_url(webshop_url)
+        return kaal in {scan_engine.normalize_url(u) for u in lijst if u}
+    except Exception:
+        # Bij twijfel: zeggen dat het al gebeurd is. Een gemiste meting kost
+        # niets, een dubbele kost geld.
+        return True
+
+
+def onthoud_volledige_meting(webshop_url):
+    """Legt vast dat de volledige meting voor deze winkel gedraaid is."""
+    try:
+        waarde = db.get_instelling(VOLLEDIG_SLEUTEL)
+        lijst = json.loads(str(waarde)) if waarde else []
+        if not isinstance(lijst, list):
+            lijst = []
+        kaal = scan_engine.normalize_url(webshop_url)
+        if kaal not in lijst:
+            lijst.append(kaal)
+        db.zet_instelling(VOLLEDIG_SLEUTEL, json.dumps(lijst[-2000:]))
+        return True
+    except Exception as e:
+        print(f"Volledige meting onthouden mislukt voor {webshop_url}: {e}")
+        return False
 
 
 def mag_nog_een_poging(webshop_url):

@@ -19,7 +19,14 @@ TEKSTEN = {
         # kopregels
         "titel_bezig": "Wij zijn met je webshop bezig",
         "titel_gedaan": "Wat wij voor je gedaan hebben",
-        "titel_taken": "Wat je deze week doet",
+        # Sinds 11 september doet Krillo het werk ook bij het abonnement. Deze
+        # kop moet daarom waar zijn in allebei de gevallen: mét toegang (wij
+        # voeren het uit) en zonder (de klant doet het zelf, kant en klaar).
+        "titel_taken": "Wat er deze week gebeurt",
+        "taken_wij": ("Wij voeren dit voor je uit zodra we in je winkel kunnen. "
+                      "Je krijgt achteraf bericht van wat er veranderd is, met de "
+                      "oude tekst erbij. Doe je het liever zelf, dan staat alles "
+                      "hieronder kant en klaar."),
         "laatste_meting": "Laatste meting",
 
         # wij doen het
@@ -109,7 +116,7 @@ TEKSTEN = {
         "d_sub": "Deze pagina blijft altijd op hetzelfde adres staan en wordt elke week bijgewerkt.",
         "d_bewaar": ("Bewaar deze link, bijvoorbeeld als bladwijzer. Je hoeft niet in te "
                      "loggen, en je vindt hier altijd je nieuwste scan terug."),
-        "d_terug": "Terug naar wat je deze week doet",
+        "d_terug": "Terug naar wat er deze week gebeurt",
 
         # de score bovenaan
         "d_huidig_label": "Huidige AI-leesbaarheid",
@@ -276,7 +283,11 @@ TEKSTEN = {
     "en": {
         "titel_bezig": "We are working on your store",
         "titel_gedaan": "What we did for you",
-        "titel_taken": "What to do this week",
+        "titel_taken": "What happens this week",
+        "taken_wij": ("We carry this out for you as soon as we can get into your "
+                      "store. Afterwards you get a message with what changed and "
+                      "the old text next to it. Prefer to do it yourself? "
+                      "Everything below is ready to use."),
         "laatste_meting": "Last measurement",
 
         "wacht_kop": "We are still waiting for access to your store",
@@ -362,7 +373,7 @@ TEKSTEN = {
         "d_sub": "This page always stays at the same address and is updated every week.",
         "d_bewaar": ("Keep this link, for example as a bookmark. You do not have to log in, "
                      "and you will always find your newest scan here."),
-        "d_terug": "Back to what you do this week",
+        "d_terug": "Back to what happens this week",
 
         "d_huidig_label": "Current AI readability",
         "d_huidig_uitleg": ("How well AI can read and understand your site. This is not a "
