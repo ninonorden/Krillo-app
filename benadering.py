@@ -363,6 +363,17 @@ def onthoud_meetfout(webshop_url, reden):
         print(f"Meetfout bewaren mislukt: {e}")
 
 
+def tel_meetfouten(webshop_url):
+    """Hoe vaak deze winkel al mislukt is, voor zover wij het bewaard hebben.
+
+    Het logboek bewaart de laatste tien fouten, dus dit telt niet verder terug
+    dan dat. Voor de vraag "geven wij deze winkel op" is dat genoeg: drie
+    mislukkingen binnen de laatste tien is ruim voldoende bewijs."""
+    kaal = scan_engine.normalize_url(webshop_url)
+    return len([1 for f in meetfouten()
+                if scan_engine.normalize_url(f.get("winkel")) == kaal])
+
+
 def meetfouten():
     """De laatste mislukte metingen, nieuwste eerst."""
     try:

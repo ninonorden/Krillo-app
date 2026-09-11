@@ -210,6 +210,32 @@ klopt("de knop gaat via /verder", "/uitkomst/{{ token }}/verder" in sjabloon)
 bron = open(os.path.join(APP, "app.py")).read()
 klopt("en die route bestaat", '"/uitkomst/<token>/verder"' in bron)
 
+print("\n== de kostenrem per meting past bij het aantal vragen ==")
+# Hier ging het op 11 september mis en het kostte een dag post. De rem per meting
+# stond op 0,50 euro en 20 aanroepen, passend bij een meting van vijf vragen. De
+# benadering stelt er vijftien en een klant krijgt er dertig, allebei bij twee
+# modellen. De rem kapte elke meting dus af na ongeveer DRIE vragen, en de mail
+# weigert onder de tien. Betaald bij de modellen, nul post, elke ronde opnieuw.
+import kosten     # noqa: E402
+import metingen   # noqa: E402
+
+AANBIEDERS = 2   # ChatGPT en Gemini
+KOSTEN_PER_VRAAG_RUIM = 0.08   # ruim gerekend, per model per vraag
+
+for naam, vragen in (("de benadering", krillo.BENADERING_VRAGEN),
+                     ("een klant", metingen.VRAGEN_PER_RONDE)):
+    nodig_aanroepen = vragen * AANBIEDERS
+    nodig_euro = nodig_aanroepen * KOSTEN_PER_VRAAG_RUIM
+    klopt(f"{naam} ({vragen} vragen) past binnen de aanroepgrens "
+          f"({nodig_aanroepen} van {kosten.GRENS_PER_SCAN_AANROEPEN})",
+          nodig_aanroepen < kosten.GRENS_PER_SCAN_AANROEPEN)
+    klopt(f"{naam} past binnen de kostengrens "
+          f"({nodig_euro:.2f} van {kosten.GRENS_PER_SCAN_EURO:.2f} euro)",
+          nodig_euro < kosten.GRENS_PER_SCAN_EURO)
+
+klopt("en de grens per klant per maand kan vier rondes betalen",
+      kosten.GRENS_PER_KLANT_MAAND_EURO >= kosten.GRENS_PER_SCAN_EURO)
+
 print("\n== de schatting per meting is niet te laag ==")
 # Staat dit getal te laag, dan plant de ronde meer metingen in dan er betaald
 # kunnen worden, worden ze halverwege afgekapt, en heb je betaald voor niets.

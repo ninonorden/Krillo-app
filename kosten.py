@@ -101,8 +101,25 @@ PRIJZEN = [
 
 # Grenzen. Bewust ruim ingesteld: ze zijn bedoeld om ontsporingen te vangen,
 # niet om normaal gebruik in de weg te zitten.
-GRENS_PER_SCAN_EURO = float(os.environ.get("GRENS_PER_SCAN_EURO", "0.50"))
-GRENS_PER_SCAN_AANROEPEN = int(os.environ.get("GRENS_PER_SCAN_AANROEPEN", "20"))
+#
+# LET OP, hier ging het op 11 september mis, en het kostte een dag post.
+#
+# Deze twee getallen stonden op 0,50 euro en 20 aanroepen. Dat paste prima bij
+# een meting van vijf vragen. Sinds de benadering er vijftien stelt en een klant
+# er dertig krijgt, past het niet meer: vijftien vragen bij twee modellen zijn
+# dertig aanroepen en ongeveer twee en een halve euro. De rem kapte elke meting
+# dus af na ongeveer DRIE vragen. In het logboek stond daarna netjes "er zijn
+# maar 3 vragen meegeteld, dat is te weinig voor een uitkomst", en er ging geen
+# post uit. Betaald bij de modellen, niets geleverd, elke ronde opnieuw.
+#
+# Wat er nu staat past bij de grootste meting die Krillo echt doet: dertig
+# vragen bij twee modellen. De dagpot van 25 euro blijft er gewoon overheen
+# liggen, dus de bovengrens van wat een dag kan kosten verandert niet.
+#
+# Een test knoopt deze getallen aan MEET_VRAGEN_PER_RONDE vast, zodat ze elkaar
+# niet nog een keer stilletjes kunnen tegenspreken.
+GRENS_PER_SCAN_EURO = float(os.environ.get("GRENS_PER_SCAN_EURO", "6.00"))
+GRENS_PER_SCAN_AANROEPEN = int(os.environ.get("GRENS_PER_SCAN_AANROEPEN", "90"))
 GRENS_PER_KLANT_MAAND_EURO = float(os.environ.get("GRENS_PER_KLANT_MAAND_EURO", "10.00"))
 GRENS_TOTAAL_DAG_EURO = float(os.environ.get("GRENS_TOTAAL_DAG_EURO", "25.00"))
 MAX_POGINGEN = int(os.environ.get("MAX_POGINGEN", "3"))

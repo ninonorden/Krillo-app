@@ -2667,6 +2667,11 @@ _demo_slot = threading.Lock()
 _demo_werker_draait = [False]
 
 
+# Na hoeveel mislukte metingen wij een winkel laten vallen. Een site die drie
+# keer niet te bereiken is, is er gewoon niet, en elke volgende poging kost een
+# plek in de rij en een stukje dagpot.
+MISLUKT_GENOEG = int(os.environ.get("MISLUKT_GENOEG", "3"))
+
 # Vanaf hoeveel wachtende metingen een ronde er geen nieuwe meer bij zet.
 WACHTRIJ_VOL = int(os.environ.get("WACHTRIJ_VOL", "5"))
 
@@ -2748,7 +2753,19 @@ def _meting_afgerond_melden(webshop_url):
         if rij is None:
             return  # geen winkel van de benadering, dus niets te melden
         if stand.startswith("mislukt"):
-            db.zet_benadering(rij["webshop_url"], stand="adres", notitie=stand[:400])
+            # Hoe vaak deze winkel al mislukt is. Zonder dit blijft een winkel
+            # die gewoon niet bestaat elk uur opnieuw aan de beurt komen: in het
+            # logboek van 11 september stond woefwinkel.be acht keer op een dag,
+            # steeds met "we konden deze website niet bereiken". Elke poging
+            # bezet een plek in de rij van winkels die het wel doen.
+            pogingen = benadering.tel_meetfouten(rij["webshop_url"]) + 1
+            if pogingen >= MISLUKT_GENOEG:
+                db.zet_benadering(
+                    rij["webshop_url"], stand="afgevallen",
+                    notitie=f"Na {pogingen} pogingen niet te meten: {stand[:300]}")
+                print(f"Benadering, {webshop_url} afgevallen na {pogingen} pogingen.")
+            else:
+                db.zet_benadering(rij["webshop_url"], stand="adres", notitie=stand[:400])
             benadering.onthoud_meetfout(rij["webshop_url"], stand)
             print(f"Benadering, meting mislukt voor {webshop_url}: {stand[:160]}")
         elif stand == "klaar":
