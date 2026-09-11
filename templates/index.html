@@ -194,6 +194,11 @@
     font-size:13px; color:var(--ink-soft); margin-bottom:16px;
     display:flex; align-items:center; gap:8px; flex-wrap:wrap;
   }
+  .scan-goed{margin-top:14px; border:1px solid var(--line); border-radius:10px;
+             background:var(--paper-raised); padding:2px 14px;}
+  .scan-goed summary{cursor:pointer; font-size:13px; color:var(--ink-soft); padding:10px 0;
+                     font-family:var(--mono);}
+  .scan-goed[open] summary{border-bottom:1px solid var(--line); margin-bottom:6px;}
   .scan-cta{
     margin-top:24px; padding:20px; border-radius:12px;
     background:var(--ink); color:var(--paper);
@@ -274,30 +279,10 @@
   .checkout-submit:disabled{opacity:0.6; cursor:default;}
   .checkout-note{font-size:12px; color:var(--ink-soft); text-align:center; margin-top:14px; font-family:var(--mono);}
 
-  .fix-preview{
-    border:1px solid var(--line); border-radius:10px; padding:14px 16px;
-    margin-bottom:10px; background:var(--paper-raised);
-  }
-  .fix-preview-title{font-family:var(--disp); font-weight:600; font-size:13.5px; margin-bottom:10px;}
-  .fix-preview-row{display:flex; gap:10px; align-items:flex-start; margin-bottom:6px;}
-  .fix-preview-row:last-child{margin-bottom:0;}
-  .fix-preview-label{
-    font-family:var(--mono); font-size:10px; text-transform:uppercase; padding:3px 8px;
-    border-radius:5px; flex-shrink:0; margin-top:1px; width:64px; text-align:center;
-  }
-  .fix-preview-label.voor{background:var(--coral-dim); color:#993C1D;}
-  .fix-preview-label.na{background:var(--teal-dim); color:#085041;}
-  .fix-preview-text{font-size:13px; color:var(--ink-soft); line-height:1.5;}
-  .fix-preview-code{font-family:var(--mono); font-size:11.5px; background:var(--paper); padding:8px 10px; border-radius:6px; display:block; white-space:pre-wrap;}
-  .fix-preview-blurred{
-    position:relative; filter:blur(4.5px); user-select:none; pointer-events:none;
-    max-height:60px; overflow:hidden;
-  }
-  .fix-preview-lock{
-    font-family:var(--mono); font-size:11px; color:var(--ink-soft);
-    margin-top:8px; display:flex; align-items:center; gap:6px;
-  }
-  .fix-preview-lock .dot{width:5px; height:5px; border-radius:50%; background:var(--coral); flex-shrink:0;}
+  /* De opmaak voor de vervaagde voorbeeldoplossingen is weg. Die hoorde bij
+     de audit van 79 euro, en dat product bestaat sinds 11 september niet
+     meer. Dode opmaak laten staan is hoe een pagina langzaam onleesbaar
+     wordt voor de volgende die eraan werkt. */
   .scan-result-score{
     display:flex; align-items:center; gap:14px; margin-bottom:14px;
   }
@@ -449,10 +434,15 @@
   .toegang p{font-size:14px; color:var(--ink-soft); line-height:1.7; margin-bottom:10px;}
   .toegang p:last-child{margin-bottom:0;}
   .toegang strong{color:var(--ink);}
-  .price-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:18px;}
+  /* Drie kaarten, niet vier. Stond hier nog repeat(4,1fr) van toen de audit er
+     nog bij zat: drie kaarten kregen daardoor elk een kwart van de breedte en
+     rechts bleef een kwart leeg. Dat is waarom ze er dun en gedrongen uitzagen
+     en waarom elke zin over vier regels brak. */
+  .price-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:22px;
+              align-items:stretch; max-width:1040px; margin:0 auto;}
   .price-card{
     background:var(--paper-raised); border:1px solid var(--line); border-radius:16px;
-    padding:30px 26px; display:flex; flex-direction:column; gap:18px;
+    padding:34px 30px; display:flex; flex-direction:column; gap:20px;
   }
   .price-card.featured{border:2px solid var(--ink); position:relative;}
   .price-badge{
@@ -546,9 +536,17 @@
   .prijzen-kop p{font-size:16px; color:var(--ink-soft); margin-top:14px;}
   .price-amount{font-family:var(--disp); font-weight:700; font-size:32px;}
   .price-amount span{font-family:var(--body); font-weight:400; font-size:14px; color:var(--ink-soft);}
-  .price-feats{list-style:none; display:flex; flex-direction:column; gap:9px; font-size:13.5px; color:var(--ink-soft);}
-  .price-feats li{display:flex; gap:8px;}
-  .price-feats li::before{content:'-'; color:var(--teal); flex-shrink:0;}
+  /* De regels in een kaart zijn gewone tekst, geen flexrij.
+     Dit was de lelijkste fout op de hele pagina. Met display:flex op de li werd
+     elk kind een eigen kolom, dus een <strong> midden in een zin kreeg zijn
+     eigen smalle kolom en de rest van de zin ernaast. "Wij voeren het uit in je
+     webshop, jij hoeft niets te plakken" las daardoor als twee losse stukken
+     naast elkaar. Nu loopt de zin gewoon door en staat het streepje ernaast. */
+  .price-feats{list-style:none; display:flex; flex-direction:column; gap:11px;
+               font-size:14px; line-height:1.6; color:var(--ink-soft);}
+  .price-feats li{position:relative; padding-left:17px;}
+  .price-feats li::before{content:'-'; color:var(--teal); position:absolute; left:0; top:0;}
+  .price-feats li strong{color:var(--ink); font-weight:600;}
   .price-btn{
     margin-top:auto; padding:12px; border-radius:10px; text-align:center;
     font-weight:600; font-size:14px; text-decoration:none; border:1.5px solid var(--ink);
@@ -947,15 +945,17 @@
       {# De garantie hoort hier te staan en niet alleen in de voorwaarden. Dit is
          de plek waar iemand van een bedrijf dat hij niet kent geld moet
          uitgeven, en dat is precies waar de drempel zit. #}
-      {# LET OP: deze regel gaat ALLEEN over de audit. Bij het abonnement geldt
-         iets anders (opzeggen binnen veertien dagen) en bij de uitvoering geldt
-         geen terugbetaling maar terugdraaien. Stond hier eerst een
-         onvoorwaardelijke belofte voor alle drie, en dat is een onjuiste
-         mededeling over een betalingsverplichting. #}
+      {# LET OP: per product geldt iets anders, en dat hoort er zo te staan.
+         Stond hier eerst een onvoorwaardelijke belofte van dertig dagen geld
+         terug voor alle producten, en dat gold alleen voor de audit. Dat is een
+         onjuiste mededeling over een betalingsverplichting.
+
+         De audit bestaat sinds 11 september niet meer, dus de zin die daarover
+         ging is hier weg. Wat er nu staat is wat wij echt doen. #}
       <p style="font-size:14px; color:var(--ink-soft); margin-top:10px;">
-        <strong>Levert de audit je niets op, dan krijg je binnen dertig dagen je geld terug.</strong>
-        Zonder uitleg, een mail is genoeg. Bij het abonnement kun je binnen veertien
-        dagen na je eerste betaling opzeggen en krijg je die maand terug.
+        <strong>Niet tevreden over een wijziging die wij maakten? Wij draaien hem terug.</strong>
+        Bij het abonnement kun je binnen veertien dagen na je eerste betaling opzeggen
+        en krijg je die maand terug.
       </p>
     </div>
     <div class="price-grid">
@@ -963,10 +963,9 @@
         <div class="price-name">Gratis scan</div>
         <div class="price-amount">€0</div>
         <ul class="price-feats">
-          <li>Je score binnen een minuut</li>
           <li><strong>3 koopvragen aan AI</strong>, meteen, zonder iets in te vullen</li>
-          <li>Vul je mailadres in voor 5 vragen aan ChatGPT én Gemini, met citaten</li>
-          <li>Alle 13 technische controlepunten met uitleg</li>
+          <li>Je score op 13 technische punten, binnen een minuut</li>
+          <li>Mailadres erbij? Dan 5 vragen aan ChatGPT én Gemini, met citaten</li>
           <li>Geen account, geen betaalgegevens</li>
         </ul>
         <a class="price-btn ghost" href="#scan">Start gratis</a>
@@ -987,10 +986,9 @@
         <div class="price-amount">€149 <span>eenmalig</span></div>
         <ul class="price-feats">
           <li><strong>Wij voeren het uit in je webshop</strong>, jij hoeft niets te plakken</li>
-          <li>Voor elk verbeterpunt een uitgeschreven oplossing, geschreven voor jouw producten</li>
+          <li>Voor elk verbeterpunt een oplossing, geschreven voor jouw producten</li>
           <li>Werkt op Shopify, WooCommerce, Lightspeed en de meeste andere systemen</li>
-          <li>Achteraf een overzicht van elke wijziging, met de oude tekst erbij</li>
-          <li>Niet tevreden over een wijziging? Wij draaien hem terug</li>
+          <li>Achteraf elke wijziging op een rij, en wij draaien terug wat je niet bevalt</li>
           <li>Meestal binnen 2 tot 5 werkdagen klaar</li>
         </ul>
         <a class="price-btn solid" href="#scan" id="uitvoeringCheckoutBtn">Laat het ons doen</a>
@@ -1000,11 +998,9 @@
         <div class="price-amount">€39 <span>/maand</span></div>
         <ul class="price-feats">
           <li><strong>Elke week hoogstens drie taken</strong>, op volgorde van wat het meeste oplevert</li>
-          <li><strong>De tekst er kant en klaar bij</strong>, geschreven over jouw producten, met een kopieerknop en de route waar je het plakt</li>
-          <li>De echte pagina's waar je concurrent wel op staat en jij niet, met de link erbij</li>
-          <li>30 koopvragen per week aan ChatGPT en Gemini, met per vraag het citaat waarop het oordeel rust</li>
-          <li>Bericht als er iets verandert, met de duiding of het aan jou lag of aan de markt</li>
-          <li>Alle cijfers en de 13 technische punten achter één link, voor als je ze wil zien</li>
+          <li><strong>De tekst er kant en klaar bij</strong>, met een kopieerknop en de route waar je hem plakt</li>
+          <li>De pagina's waar je concurrent wel op staat en jij niet, met de link erbij</li>
+          <li>30 koopvragen per week aan ChatGPT en Gemini, met het citaat erbij</li>
           <li>Maandelijks opzegbaar, geen looptijd</li>
         </ul>
         <a class="price-btn ghost" href="#scan" id="monitoringCheckoutBtn">Start abonnement</a>
@@ -1240,37 +1236,51 @@
       byCategorie[cat].push(check);
     });
 
-    categorieVolgorde.forEach(function(cat){
-      if(!byCategorie[cat]) return;
-      html += '<div class="scan-categorie-label">' + (categorieLabels[cat] || cat) + '</div>';
-      byCategorie[cat].forEach(function(check){
+    // Alleen de punten die NIET goed staan uitgeschreven. Wat goed is krijgt
+    // één regel, en wie het toch wil zien klapt het open.
+    //
+    // Dit stond eerst allemaal open: dertien punten met bij elk een alinea
+    // uitleg, ook bij de acht die gewoon goed waren. Dat leest als een muur,
+    // en het is precies het deel dat er niet toe doet. Wie hier komt wil weten
+    // wat er mis is, niet lezen dat zijn robots.txt in orde is.
+    var teDoen = data.checks.filter(function(c){ return c.status !== 'goed'; });
+    var goed = data.checks.filter(function(c){ return c.status === 'goed'; });
+
+    if(teDoen.length){
+      html += '<div class="scan-categorie-label">Wat er beter kan</div>';
+      teDoen.forEach(function(check){
         html += '<div class="scan-check">';
         html += '<span class="tag ' + check.status + '">' + statusLabels[check.status] + '</span>';
         html += '<div class="scan-check-body"><strong>' + check.titel + '</strong><span>' + check.uitleg + '</span></div>';
         html += '</div>';
       });
-    });
+    }
 
-    var issueCount = data.checks.filter(function(c){ return c.status === 'probleem' || c.status === 'deels'; }).length;
-    var totalCount = data.checks.length;
-
-    if(data.voorbeeldfixes && data.voorbeeldfixes.length > 0){
-      html += '<div class="scan-categorie-label">Wat de audit voor je oplost</div>';
-      data.voorbeeldfixes.forEach(function(fix){
-        html += '<div class="fix-preview">';
-        html += '<div class="fix-preview-title">' + fix.titel + '</div>';
-        html += '<div class="fix-preview-row"><span class="fix-preview-label voor">nu</span><span class="fix-preview-text">' + fix.voor + '</span></div>';
-        html += '<div class="fix-preview-row"><span class="fix-preview-label na">na de audit</span><span class="fix-preview-text fix-preview-code fix-preview-blurred">' + fix.na.replace(/\n/g, '<br>') + '</span></div>';
-        html += '<div class="fix-preview-lock"><span class="dot"></span>De volledige oplossing zit in de audit</div>';
+    if(goed.length){
+      html += '<details class="scan-goed"><summary>' + goed.length + ' van de ' +
+              data.checks.length + ' punten staan goed</summary>';
+      goed.forEach(function(check){
+        html += '<div class="scan-check">';
+        html += '<span class="tag goed">' + statusLabels.goed + '</span>';
+        html += '<div class="scan-check-body"><strong>' + check.titel + '</strong><span>' + check.uitleg + '</span></div>';
         html += '</div>';
       });
+      html += '</details>';
     }
+
+    var issueCount = teDoen.length;
+    var totalCount = data.checks.length;
+
+    // Het blok met vervaagde voorbeeldoplossingen is eruit. Dat verkocht de
+    // audit van 79 euro, en die bestaat niet meer. Een pagina die nog steeds
+    // "de volledige oplossing zit in de audit" zegt, verwijst naar iets wat
+    // niet meer te koop is.
 
     if(issueCount > 0){
       html += '<div class="scan-cta">';
       html += '<div class="scan-cta-text"><strong>' + issueCount + ' van de ' + totalCount + ' punten kunnen beter.</strong> ';
-      html += 'De audit schrijft voor elk punt de oplossing uit: herschreven teksten voor jouw producten, en technische code die je direct kan plakken.</div>';
-      html += '<a href="#prijzen" class="scan-cta-btn">Bekijk de volledige audit &rarr;</a>';
+      html += 'Wij zetten ze voor je recht en schrijven de teksten voor jouw producten.</div>';
+      html += '<a href="#prijzen" class="scan-cta-btn">Laat het ons doen &rarr;</a>';
       html += '</div>';
     } else {
       html += '<div class="scan-cta scan-cta-good">';
@@ -1608,7 +1618,7 @@
     uitvoering: {
       items: [
         'Wij voeren de verbeteringen uit in je webshop, jij hoeft niets te plakken',
-        'Alles uit de volledige audit zit erbij',
+        'Voor elk verbeterpunt een oplossing, geschreven voor jouw producten',
         'Achteraf een overzicht van elke wijziging, met de oude tekst erbij',
         'Bevalt een wijziging je niet, dan draaien wij hem terug',
         'We blijven van je prijzen, voorraad, bestellingen en vormgeving af'

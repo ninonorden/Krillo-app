@@ -50,10 +50,29 @@
   <h1>Kosten</h1>
   <div class="sub">Laatste {{ dagen }} dagen</div>
 
+  {% if hersteld %}
+  <div class="waarschuwing" style="background:var(--teal-dim); color:#04322B;">
+    <strong>{{ hersteld }} eerdere aanroepen alsnog doorgerekend</strong>
+    Die stonden op nul euro omdat het model destijds niet in de prijslijst stond. De prijs
+    staat er inmiddels wel in, dus ze tellen nu mee. Het totaal hieronder is daardoor hoger
+    dan gisteren, en dat is goed nieuws: het klopt nu.
+  </div>
+  {% endif %}
+
   {% if totaal and totaal.onbekende_prijs %}
   <div class="waarschuwing">
     <strong>{{ totaal.onbekende_prijs }} aanroepen zonder bekende prijs</strong>
-    Er is een model gebruikt dat niet in de prijslijst staat. Die kosten zijn niet meegeteld, dus het werkelijke bedrag ligt hoger. Voeg het model toe in kosten.py.
+    Er is een model gebruikt dat niet in de prijslijst staat. Die kosten zijn niet meegeteld,
+    dus het werkelijke bedrag ligt hoger. Zet deze modellen in kosten.py, in PRIJZEN:
+    {% if onbekende_modellen %}
+    <ul style="margin:8px 0 0 18px;">
+      {% for m in onbekende_modellen %}
+      <li><code>{{ m.provider }} / {{ m.model or 'geen modelnaam' }}</code>,
+        {{ m.aanroepen }} aanroepen, {{ '{:,}'.format(m.invoer or 0).replace(',', '.') }} in
+        en {{ '{:,}'.format(m.uitvoer or 0).replace(',', '.') }} uit</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
   </div>
   {% endif %}
 
