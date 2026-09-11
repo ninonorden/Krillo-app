@@ -63,7 +63,15 @@
   <div class="waarschuwing">
     <strong>{{ totaal.onbekende_prijs }} aanroepen zonder bekende prijs</strong>
     Er is een model gebruikt dat niet in de prijslijst staat. Die kosten zijn niet meegeteld,
-    dus het werkelijke bedrag ligt hoger. Zet deze modellen in kosten.py, in PRIJZEN:
+    dus het werkelijke bedrag ligt hoger.
+    <div style="margin-top:10px;">
+      <a href="/admin/kosten?dagen={{ dagen }}&herstel=ja"
+         style="display:inline-block; padding:8px 14px; border-radius:8px; background:var(--ink);
+                color:#fff; text-decoration:none; font-size:13px;">Reken ze alsnog door</a>
+      <span style="font-size:12.5px; color:#7A4E00; margin-left:8px;">
+        Werkt alleen voor modellen die inmiddels wel in de prijslijst staan.</span>
+    </div>
+    Staat een model hieronder er nog niet in, zet het dan in kosten.py, in PRIJZEN:
     {% if onbekende_modellen %}
     <ul style="margin:8px 0 0 18px;">
       {% for m in onbekende_modellen %}

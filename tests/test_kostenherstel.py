@@ -106,10 +106,25 @@ eigen2 = [r for r in (regels2.get("per_klant") or [])
 zo("het bedrag staat stil", float(eigen2[0]["kosten"]) if eigen2 else 0, gekregen)
 klopt("en er valt niets meer te herstellen voor dit model", nogmaals >= 0)
 
-print("\n== de kostenpagina doet dit uit zichzelf ==")
+print("\n== het herstellen gebeurt NOOIT vanzelf bij het openen van de pagina ==")
+# Dit is de fout die de hele site heeft platgelegd: een opdracht die de
+# database aanpast, uitgevoerd bij elke keer dat iemand de pagina opende.
 app_tekst = lees("app.py")
-klopt("de pagina herstelt voor hij rekent",
-      "db.herstel_onbekende_kosten(kosten.zoek_prijs)" in app_tekst)
+begin = app_tekst.find("def admin_kosten")
+stuk = app_tekst[begin:begin + 1600]
+klopt("de pagina kent de herstelknop", "db.herstel_onbekende_kosten(kosten.zoek_prijs)" in stuk)
+klopt("maar doet het alleen op een knop", 'request.args.get("herstel")' in stuk)
+klopt("en er staat een knop op de pagina", "herstel=ja" in lees("templates/admin_kosten.html"))
+
+print("\n== en het gaat in een handvol opdrachten, niet duizenden ==")
+# Een opdracht per rij naar een database die niet op dezelfde machine staat
+# duurt langer dan de tijdslimiet van de webserver. Dan breekt hij af, draait
+# terug, en begint bij de volgende keer opnieuw.
+dbtekst = lees("db.py")
+start = dbtekst.find("def herstel_onbekende_kosten")
+functie = dbtekst[start:dbtekst.find("\ndef ", start + 10)]
+klopt("het rekenen gebeurt in de database zelf", "invoer_tokens, 0) / 1000000.0" in functie)
+klopt("en het groepeert per model", "GROUP BY provider, model" in functie)
 klopt("en laat zien welk model het is", "onbekende_modellen=db.onbekende_modellen" in app_tekst)
 pagina = lees("templates/admin_kosten.html")
 klopt("de namen komen op het scherm", "m.model" in pagina)
