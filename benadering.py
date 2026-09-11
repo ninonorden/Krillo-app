@@ -384,6 +384,77 @@ def meetfouten():
         return []
 
 
+# Hoe vaak wij een winkel opnieuw meten voordat wij hem opgeven.
+#
+# Waarom dit er is, en dit is de duurste les van 11 september. Een winkel kan om
+# twee heel verschillende redenen geen bruikbare uitkomst opleveren:
+#
+# 1. De meting ging stuk. De site was niet bereikbaar, of een model gaf niets
+#    terug. Opnieuw proberen heeft dan zin, want morgen kan het wel lukken.
+# 2. De meting ging prima, maar AI noemde bij die koopvragen geen enkele winkel.
+#    Dan tellen er te weinig vragen mee, en dat is geen storing maar een
+#    eigenschap van die markt. Opnieuw meten levert morgen precies hetzelfde op,
+#    en kost wel weer een paar euro.
+#
+# Krillo behandelde die twee hetzelfde: terug op de lijst, morgen opnieuw. Zo
+# kwamen winkels als terra-cotta.be elke dag terug, kostten elke keer geld, en
+# werden elke keer opnieuw geweigerd voor de mail. Deze teller zet daar een rem
+# op: na dit aantal pogingen valt een winkel af, met de reden erbij.
+MEETPOGINGEN_SLEUTEL = "benadering_meetpogingen"
+MAX_MEETPOGINGEN = int(os.environ.get("MAX_MEETPOGINGEN", "3"))
+
+
+def _meetpogingen_alles():
+    try:
+        waarde = db.get_instelling(MEETPOGINGEN_SLEUTEL)
+        uit = json.loads(str(waarde)) if waarde else {}
+        return uit if isinstance(uit, dict) else {}
+    except Exception:
+        return {}
+
+
+def meetpogingen(webshop_url):
+    """Hoe vaak wij deze winkel al zonder bruikbare uitkomst gemeten hebben.
+
+    Anders dan tel_meetfouten telt dit niet uit een logboek van tien regels maar
+    uit een eigen teller per winkel, die blijft staan. Een logboek van tien is
+    te kort: bij vijftien metingen per dag is de vorige poging er allang uit
+    gerold en begint het tellen weer bij nul. Dat is precies waarom woefwinkel.be
+    op een dag acht keer geprobeerd is terwijl hij na drie keer had moeten
+    afvallen."""
+    return int(_meetpogingen_alles().get(scan_engine.normalize_url(webshop_url), 0))
+
+
+def tel_meetpoging(webshop_url):
+    """Telt er een poging bij op en geeft de nieuwe stand terug."""
+    kaal = scan_engine.normalize_url(webshop_url)
+    alles = _meetpogingen_alles()
+    alles[kaal] = int(alles.get(kaal, 0)) + 1
+    try:
+        db.zet_instelling(MEETPOGINGEN_SLEUTEL, json.dumps(alles))
+    except Exception as e:
+        print(f"Meetpoging bewaren mislukt voor {webshop_url}: {e}")
+    return alles[kaal]
+
+
+def vergeet_meetpogingen(webshop_url):
+    """Zet de teller terug. Doen zodra een winkel wel een bruikbare meting had:
+    vanaf dat moment is de geschiedenis niet meer interessant."""
+    kaal = scan_engine.normalize_url(webshop_url)
+    alles = _meetpogingen_alles()
+    if kaal in alles:
+        alles.pop(kaal, None)
+        try:
+            db.zet_instelling(MEETPOGINGEN_SLEUTEL, json.dumps(alles))
+        except Exception as e:
+            print(f"Meetpogingen opschonen mislukt voor {webshop_url}: {e}")
+
+
+def mag_nog_een_poging(webshop_url):
+    """Of deze winkel nog een meting waard is."""
+    return meetpogingen(webshop_url) < MAX_MEETPOGINGEN
+
+
 def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
                              metingen_bezig=0):
     """Vertelt in gewone taal waarom er op dit moment geen post uitgaat.

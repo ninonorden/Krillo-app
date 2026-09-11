@@ -1663,13 +1663,35 @@ def _benadering_ronde():
         #
         # Nu gebeurt het in één keer en klopt de teller meteen.
         terug = 0
+        opgegeven = 0
         for winkel in db.get_benaderingen(stand="gemeten"):
-            if scan_engine.normalize_url(winkel["webshop_url"]) not in al_gemeten:
+            if scan_engine.normalize_url(winkel["webshop_url"]) in al_gemeten:
+                # Deze had wel genoeg vragen. Teller schoon, want de
+                # geschiedenis doet er niet meer toe.
+                benadering.vergeet_meetpogingen(winkel["webshop_url"])
+                continue
+            # Hoe vaak hebben wij het bij deze winkel al geprobeerd? Dit is de
+            # rem die er niet was. Zonder deze telling kwam dezelfde winkel elke
+            # dag terug, kostte elke dag geld, en werd elke dag opnieuw
+            # geweigerd voor de mail. Dat is geen storing die overgaat: bij
+            # sommige winkels noemt AI bij die koopvragen gewoon nooit een
+            # winkel, en dan is er morgen ook niets te melden.
+            poging = benadering.tel_meetpoging(winkel["webshop_url"])
+            if poging >= benadering.MAX_MEETPOGINGEN:
                 db.zet_benadering(
-                    winkel["webshop_url"], stand="adres",
-                    notitie="Meting haalde te weinig vragen, opnieuw ingepland.")
-                terug += 1
+                    winkel["webshop_url"], stand="afgevallen",
+                    notitie=(f"Na {poging} metingen nog steeds te weinig vragen waar "
+                             f"AI een winkel noemt. Hier valt geen eerlijke uitkomst "
+                             f"over te sturen, dus wij stoppen ermee."))
+                opgegeven += 1
+                continue
+            db.zet_benadering(
+                winkel["webshop_url"], stand="adres",
+                notitie=(f"Meting haalde te weinig vragen, opnieuw ingepland "
+                         f"(poging {poging} van {benadering.MAX_MEETPOGINGEN})."))
+            terug += 1
         verslag["terug_naar_meten"] = terug
+        verslag["opgegeven"] = opgegeven
         if terug:
             verslag["redenen"].append(
                 f"{terug} winkel(s) stonden op 'gemeten' met een meting die te weinig "
@@ -2966,21 +2988,38 @@ def _meting_afgerond_melden(webshop_url):
     hij is al mislukt."""
     stand = _demo_status.get(webshop_url) or ""
     try:
+        # Zoeken over de HELE lijst, niet alleen bij wat op "meten" staat.
+        #
+        # Dat was een gat waar geld doorheen liep. Werd een winkel tijdens zijn
+        # meting door de opruimronde teruggezet op "adres", dan stond hij bij
+        # het afronden niet meer op "meten", vond deze functie hem niet, en gaf
+        # hij op. De mislukking werd dus nooit geteld en de winkel kwam de
+        # volgende ronde gewoon weer aan de beurt. Zo kon dezelfde onbereikbare
+        # site acht keer op een dag geprobeerd worden.
+        kaal = scan_engine.normalize_url(webshop_url)
         rij = None
-        for r in db.get_benaderingen(stand="meten"):
-            if scan_engine.normalize_url(r["webshop_url"]) == \
-                    scan_engine.normalize_url(webshop_url):
+        for r in db.get_benaderingen(alleen_niet_afgemeld=False):
+            if scan_engine.normalize_url(r["webshop_url"]) == kaal:
                 rij = r
                 break
         if rij is None:
             return  # geen winkel van de benadering, dus niets te melden
+        if (rij.get("stand") or "") == "afgevallen":
+            # Al opgegeven. Niets meer doen, en zeker niet terugzetten op
+            # "adres", want dan begint het hele rondje opnieuw.
+            return
         if stand.startswith("mislukt"):
             # Hoe vaak deze winkel al mislukt is. Zonder dit blijft een winkel
             # die gewoon niet bestaat elk uur opnieuw aan de beurt komen: in het
             # logboek van 11 september stond woefwinkel.be acht keer op een dag,
             # steeds met "we konden deze website niet bereiken". Elke poging
             # bezet een plek in de rij van winkels die het wel doen.
-            pogingen = benadering.tel_meetfouten(rij["webshop_url"]) + 1
+            #
+            # Dit telde eerst uit het foutenlogboek, en dat bewaart maar tien
+            # regels. Bij vijftien metingen per dag is de vorige poging daar
+            # allang uit gerold, begint het tellen weer bij nul, en valt een
+            # winkel dus nooit af. Daarom nu een eigen teller die blijft staan.
+            pogingen = benadering.tel_meetpoging(rij["webshop_url"])
             if pogingen >= MISLUKT_GENOEG:
                 db.zet_benadering(
                     rij["webshop_url"], stand="afgevallen",
@@ -3016,10 +3055,28 @@ def _demo_inplannen(urls, benchmark_stand=False, opnieuw=False, vragen=None):
         except Exception as e:
             print(f"Kon niet nakijken welke demo's al gedaan zijn: {e}")
 
+    # De laatste sluis: wie opgegeven is, komt er niet meer in.
+    #
+    # Dit staat hier expres dubbel. Er zijn drie wegen naar de wachtrij (de
+    # gewone ronde, het hervatten van onderbroken metingen, en de beheerpagina)
+    # en het is een kwestie van tijd voor er een vierde bij komt. Een winkel die
+    # afgevallen is hoort via geen enkele weg nog geld te kosten.
+    opgegeven = set()
+    try:
+        opgegeven = {scan_engine.normalize_url(w["webshop_url"])
+                     for w in db.get_benaderingen(stand="afgevallen",
+                                                  alleen_niet_afgemeld=False)}
+    except Exception as e:
+        print(f"Kon de afgevallen winkels niet ophalen: {e}")
+
     toegevoegd = 0
     overgeslagen = 0
     with _demo_slot:
         for url in urls:
+            if scan_engine.normalize_url(url) in opgegeven:
+                overgeslagen += 1
+                print(f"Meting overgeslagen: {url} is al afgevallen.")
+                continue
             huidig = _demo_status.get(url, "")
             bezig = huidig and huidig != "klaar" and not huidig.startswith("mislukt")
             if url in al_gedaan:
