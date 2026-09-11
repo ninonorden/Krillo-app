@@ -74,18 +74,31 @@ klopt(f"benadering meet {krillo.BENADERING_VRAGEN} vragen, mail eist minstens "
       krillo.BENADERING_VRAGEN > krillo.MINIMUM_VRAGEN_VOOR_POST)
 klopt("en er zit marge op, want niet elke vraag telt mee",
       krillo.BENADERING_VRAGEN >= krillo.MINIMUM_VRAGEN_VOOR_POST + 3)
-klopt("de benchmarkstand alleen is niet genoeg voor post",
-      krillo.BENCHMARK_VRAGEN < krillo.MINIMUM_VRAGEN_VOOR_POST)
+# De eerste meting is sinds 11 september met opzet klein: zes vragen bij een
+# model in plaats van vijftien bij twee, zodat er honderd per dag in plaats van
+# vijftien in hetzelfde dagbudget passen. De ondergrens voor de mail ging mee
+# omlaag, anders gaat er weer geen post uit.
+klopt("de eerste meting is klein genoeg om honderd per dag te doen",
+      krillo.BENADERING_VRAGEN <= 8)
+klopt("en gebruikt een aanbieder, niet allebei",
+      krillo.BENADERING_AANBIEDERS == 1)
+klopt("maar niet zo klein dat een uitkomst niets meer zegt",
+      krillo.MINIMUM_VRAGEN_VOOR_POST >= 3)
+klopt("de volledige meting na een klik is wel groot",
+      krillo.MEET_VRAGEN_NA_KLIK >= 12)
 
 print("\n== het aantal vragen komt echt bij de meting aan ==")
 # Niet de bedoeling nameten maar de doorgifte: gaat het getal door de wachtrij
 # heen tot bij de meting. Daar zat de fout, dus daar moet de test op staan.
 gezien = {}
 echte_draaien = krillo._demo_draaien
-krillo._demo_draaien = lambda url, benchmark_stand=False, vragen=None: gezien.update(
-    {"url": url, "benchmark": benchmark_stand, "vragen": vragen})
+krillo._demo_draaien = (
+    lambda url, benchmark_stand=False, vragen=None, aanbieders=None: gezien.update(
+        {"url": url, "benchmark": benchmark_stand, "vragen": vragen,
+         "aanbieders": aanbieders}))
 krillo._demo_inplannen(["https://doorgiftest.nl"], benchmark_stand=True,
-                       vragen=krillo.BENADERING_VRAGEN, opnieuw=True)
+                       vragen=krillo.BENADERING_VRAGEN,
+                       aanbieders=krillo.BENADERING_AANBIEDERS, opnieuw=True)
 import time  # noqa: E402
 for _ in range(50):
     if gezien:
@@ -93,6 +106,10 @@ for _ in range(50):
     time.sleep(0.1)
 zo("de meting krijgt het aantal vragen mee", gezien.get("vragen"),
    krillo.BENADERING_VRAGEN)
+# En het aantal aanbieders ook. Zonder deze doorgifte meet de benadering stil
+# bij twee modellen door en is de hele besparing weg.
+zo("en het aantal aanbieders ook", gezien.get("aanbieders"),
+   krillo.BENADERING_AANBIEDERS)
 krillo._demo_draaien = echte_draaien
 
 print("\n== een hele ronde levert een verstuurde mail op ==")

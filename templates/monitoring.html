@@ -136,6 +136,9 @@
   }
   a:focus-visible, button:focus-visible, summary:focus-visible{
     outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;}
+  .taken-wij{font-size:14px; line-height:1.65; color:var(--ink-soft);
+             background:var(--paper-raised); border:1px solid var(--line);
+             border-radius:10px; padding:14px 16px; margin:12px 0 4px;}
 </style>
 </head>
 <body>
@@ -158,6 +161,14 @@
     <h1>{{ t.titel_gedaan }}</h1>
     {% else %}
     <h1>{{ t.titel_taken }}</h1>
+    {# Sinds 11 september voeren wij het werk ook bij het abonnement uit. Deze
+       regel hoort er dus bij zodra iemand een abonnement heeft en er geen
+       losse opdracht loopt: zonder die regel leest de pagina nog steeds als
+       een lijst huiswerk, terwijl de klant er juist voor betaalt dat wij het
+       doen. #}
+    {% if abonnement and not uitvoering %}
+    <p class="taken-wij">{{ t.taken_wij }}</p>
+    {% endif %}
     {% endif %}
 
     {# Heeft deze klant betaald voor "wij doen het", dan hoort dat bovenaan te

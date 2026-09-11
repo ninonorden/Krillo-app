@@ -33,12 +33,19 @@ import scan_engine
 
 # Zoeken kost geld, dus met een rem erop. Vier zoekopdrachten per ronde is
 # ongeveer twee cent en levert bij genoeg branches tientallen winkels per dag.
-ZOEKOPDRACHTEN_PER_RONDE = int(os.environ.get("VINDER_ZOEKOPDRACHTEN", "4"))
+ZOEKOPDRACHTEN_PER_RONDE = int(os.environ.get("VINDER_ZOEKOPDRACHTEN", "8"))
 
 # Onder hoeveel winkels zonder adres wij op zoek gaan naar nieuwe. Zolang er nog
 # genoeg te doen is hoeft er niets bij: dan geef je geld uit aan namen die weken
 # blijven liggen.
-VOORRAAD_ONDERGRENS = int(os.environ.get("VINDER_ONDERGRENS", "40"))
+# Mee omhoog met het mailvolume. Bij honderd mails per dag en ongeveer de helft
+# van de winkels zonder algemeen mailadres heb je tweehonderd nieuwe winkels per
+# dag nodig. Blijft deze grens op veertig staan, dan zoekt de machine pas als de
+# lijst al leeg is, en dan staat de post een dag stil.
+#
+# Tweehonderd is ruim een dag voorraad. Zoeken kost ongeveer een halve cent per
+# opdracht, dus ruim zoeken is veel goedkoper dan stilstaan.
+VOORRAAD_ONDERGRENS = int(os.environ.get("VINDER_ONDERGRENS", "250"))
 
 # Waar wij zoeken. Nederland en Belgie, want daar mag zakelijke post naar het
 # algemene adres van een bedrijf.
