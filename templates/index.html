@@ -397,18 +397,10 @@
   /* HOW IT WORKS */
 
   /* SCORE MOCKUP */
-  .audit-teaser{
-    background:var(--ink); border-radius:16px; padding:32px; margin-top:20px; color:var(--paper);
-  }
-  .audit-teaser-head{margin-bottom:24px;}
-  .audit-teaser-badge{
-    font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.06em;
-    background:var(--coral); color:#fff; padding:4px 10px; border-radius:100px; display:inline-block; margin-bottom:12px;
-  }
-  .audit-teaser h3{font-family:var(--disp); font-weight:700; font-size:22px; letter-spacing:-0.01em;}
-  .audit-teaser-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px 28px;}
-  .audit-teaser-item strong{display:block; font-family:var(--disp); font-size:15px; margin-bottom:5px;}
-  .audit-teaser-item p{font-size:13.5px; color:#B9BBD4; line-height:1.6;}
+  /* De opmaak van de twee tekstblokken onder het voorbeeldrapport en onder
+     het monitoringoverzicht is weg. Die blokken zelf zijn op 11 september
+     geschrapt omdat ze de prijskaarten woord voor woord herhaalden. Dode
+     opmaak laten staan is hoe een sjabloon onleesbaar wordt. */
   .score-num{font-family:var(--disp); font-weight:700; font-size:44px;}
   .score-of{font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
 
@@ -530,6 +522,11 @@
   .taak-demo-uitleg{font-size:13.5px; color:var(--ink-soft); line-height:1.6;}
   .taken-demo-voet{font-size:12.5px; color:var(--ink-soft); border-top:1px solid var(--line);
                    margin-top:8px; padding-top:16px; line-height:1.6;}
+  /* Eén regel naar de prijzen, in plaats van zes stukjes die de prijskaart
+     herhalen. Wie tot hier gelezen heeft wil geen samenvatting meer, die wil
+     weten wat het kost. */
+  .monitoring-slot{margin-top:28px; font-size:15px; color:var(--ink-soft); line-height:1.7;}
+  .monitoring-slot a{font-weight:600; color:var(--ink); white-space:nowrap;}
 
   /* --- Prijzen --- */
   .prijzen-kop{max-width:580px; margin-bottom:44px;}
@@ -597,7 +594,6 @@
     .hero-grid{grid-template-columns:1fr;}
     h1{font-size:38px;}
     .price-grid{grid-template-columns:1fr;}
-      .audit-teaser-grid{grid-template-columns:1fr;}
     .navlinks{display:none;}
     .footer-top{grid-template-columns:1fr 1fr; gap:28px 20px;}
     .footer-bottom{flex-direction:column; gap:10px; align-items:flex-start;}
@@ -612,7 +608,6 @@
     .rapport-demo-body{padding:16px;}
     .demo-fix-code{font-size:10.5px; padding:12px 14px;}
     .demo-regel{flex-direction:column; gap:6px;}
-    .audit-teaser{padding:24px 20px;}
     .checkout-modal{padding:26px 22px;}
     .price-card{padding:26px 22px;}
   }
@@ -654,7 +649,12 @@
     <div>
       <div class="eyebrow">Voor Nederlandse &amp; Belgische webshops</div>
       <h1>Noemt ChatGPT jouw webshop? Zo niet, <em>dan doen wij het werk.</em></h1>
-      <p class="hero-sub">Steeds meer kopers vragen het gewoon aan ChatGPT of Gemini. Wij stellen die koopvragen echt en laten zien of jouw winkel in het antwoord staat. Daarna hoef je zelf niets uit te zoeken: geef ons toegang tot je webshop en wij zetten het erin. Je krijgt achteraf te zien wat er veranderd is, en je kunt alles terugdraaien. Begin gratis, zonder account.</p>
+      {# Twee zinnen, niet vijf. Hier stond ook nog het hele verhaal over toegang
+         geven en terugdraaien. Dat is een sterk verhaal, maar het is het antwoord
+         op een vraag die de bezoeker op deze plek nog niet gesteld heeft: hij
+         weet nog niet eens of hij een probleem heeft. Dat verhaal staat verderop
+         twee keer, op de plek waar het wel gevraagd wordt. #}
+      <p class="hero-sub">Steeds meer kopers vragen het gewoon aan ChatGPT of Gemini. Wij stellen die koopvragen echt en laten zien of jouw winkel in het antwoord staat. Staat hij er niet bij, dan lossen wij het voor je op.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="jouwwebshop.nl" aria-label="Website URL">
         <button type="button" id="scanButton">Scan gratis</button>
@@ -797,29 +797,12 @@
       </div>
     </div>
 
-    <div class="audit-teaser">
-      <div class="audit-teaser-head">
-        <h3>Wat wij hiermee doen</h3>
-      </div>
-      <div class="audit-teaser-grid">
-        <div class="audit-teaser-item">
-          <strong>Herschreven teksten</strong>
-          <p>Titel, omschrijving en veelgestelde vragen, geschreven voor jouw producten en jouw sector, niet uit een sjabloon.</p>
-        </div>
-        <div class="audit-teaser-item">
-          <strong>Wij zetten het er zelf in</strong>
-          <p>Bij "wij doen het" plaatsen wij de teksten en de techniek in je winkel. Jij hoeft niets te plakken.</p>
-        </div>
-        <div class="audit-teaser-item">
-          <strong>Meerdere pagina's meegenomen</strong>
-          <p>Voor je productinformatie kijken we ook op je product- en categoriepagina's, niet alleen op je homepage.</p>
-        </div>
-        <div class="audit-teaser-item">
-          <strong>Elke wijziging terug te draaien</strong>
-          <p>Achteraf zie je op je eigen pagina wat er veranderd is, met de oude tekst erbij. Bevalt iets niet, dan zetten wij het terug.</p>
-        </div>
-      </div>
-    </div>
+    {# Hier stond een blok met vier stukjes tekst over wat wij met de
+       gevonden punten doen. Weggehaald op 11 september. Niet omdat het onwaar
+       was, maar omdat het woord voor woord hetzelfde zei als de sectie die er
+       direct onder staat, en als de prijskaart van 149 euro verderop. Drie keer hetzelfde argument binnen een halve pagina maakt geen
+       van de drie sterker. Het voorbeeldrapport hierboven blijft staan: dat is
+       het enige bewijs op deze pagina dat er iets concreets uitkomt. #}
   </div>
 </section>
 
@@ -852,7 +835,7 @@
       <h3>Wat we wel en niet aanraken</h3>
       <p><strong>Wel:</strong> je teksten, je productomschrijvingen, je veelgestelde vragen, de beschrijvingen bij je afbeeldingen, en de technische instellingen waarmee AI je site kan lezen.</p>
       <p><strong>Niet:</strong> je prijzen, je voorraad, je bestellingen, je klantgegevens en je vormgeving. Daar blijven we vanaf.</p>
-      <p>We vragen alleen de rechten die we nodig hebben, en van elke wijziging bewaren we de oude versie. Laat je je site door een bouwer beheren, dan regelen we het met hem in plaats van met jou.</p>
+      <p>We vragen alleen de rechten die we nodig hebben en bewaren van elke wijziging de oude versie.</p>
     </div>
   </div>
 </section>
@@ -861,11 +844,10 @@
   <div class="wrap">
     <div class="voorbeeld-kop">
       <h2>En met monitoring krijg je elke week een lijstje.</h2>
-      <p>Geen dashboard vol cijfers waar je een specialist bij nodig hebt. Hoogstens drie dingen die je zelf kan doen, met de tekst er kant en klaar bij.</p>
-      {# Deze regel hoort hier net zo hard als bij het auditvoorbeeld hierboven.
-         Het scherm eronder is nagemaakt, niet de pagina van een bestaande
-         klant, en zonder die vermelding leest het als het tegenovergestelde. #}
-      <p>Het scherm hieronder is een voorbeeld dat wij nagemaakt hebben om te laten zien hoe het eruitziet. Het zijn niet de cijfers van een bestaande klant.</p>
+      {# Twee alinea's samengevoegd tot een. De vermelding dat dit scherm
+         nagemaakt is moet blijven staan, want zonder die regel leest het als de
+         pagina van een bestaande klant. Maar hij hoeft geen eigen alinea. #}
+      <p>Geen dashboard vol cijfers waar je een specialist bij nodig hebt. Hoogstens drie dingen die je zelf kan doen, met de tekst er kant en klaar bij. Het scherm hieronder is nagemaakt om te laten zien hoe dat eruitziet; het zijn niet de cijfers van een bestaande klant.</p>
     </div>
 
     <div class="rapport-demo">
@@ -903,36 +885,15 @@
       </div>
     </div>
 
-    <div class="audit-teaser">
-      <div class="audit-teaser-head">
-        <h3>Wat je bij monitoring krijgt</h3>
-      </div>
-      <div class="audit-teaser-grid">
-        <div class="audit-teaser-item">
-          <strong>Elke week hoogstens drie taken</strong>
-          <p>Op volgorde van wat het meeste oplevert. Twaalf verbeterpunten is hetzelfde als nul, want daar begint niemand aan.</p>
-        </div>
-        <div class="audit-teaser-item">
-          <strong>De tekst er kant en klaar bij</strong>
-          <p>Niet "schrijf een vraag-en-antwoordpagina", maar de vragen en antwoorden zelf, over jouw producten, met een kopieerknop.</p>
-        </div>
-        <div class="audit-teaser-item">
-          <strong>Waar je concurrent wel staat en jij niet</strong>
-          <p>We zetten jouw koopvragen in een zoekmachine en lopen de gevonden pagina's na. Je krijgt de echte adressen, die je zelf kan openen.</p>
-        </div>
-        <div class="audit-teaser-item">
-          <strong>Wat AI verkeerd over je zegt</strong>
-          <p>We leggen elke uitspraak over jouw winkel naast de tekst op je site. Klopt er iets niet, dan hoor je het en weet je wat je moet aanpassen.</p>
-        </div>
-        <div class="audit-teaser-item">
-          <strong>30 koopvragen per week</strong>
-          <p>Aan ChatGPT en Gemini, in de woorden van een echte koper. Met per vraag het citaat waar het oordeel op rust.</p>
-        </div>
-        <div class="audit-teaser-item">
-          <strong>Bericht als er iets verandert</strong>
-          <p>Alleen als er echt iets te melden is, met de duiding erbij of het aan jou lag of aan de markt.</p>
-        </div>
-      </div>
+    {# Hier stonden zes stukjes tekst die opsomden wat het abonnement geeft.
+       Weggehaald op 11 september. Ze zeiden bijna woordelijk hetzelfde als de
+       prijskaart monitoring, en die staat een halve pagina lager mét de prijs
+       ernaast. Het nagemaakte takenoverzicht hierboven laat beter zien wat dit
+       is dan zes alinea's eronder: je ziet in één oogopslag dat het drie taken
+       zijn en geen dashboard. #}
+    <div class="monitoring-slot">
+      Wat je precies krijgt en wat het kost staat hieronder bij de prijzen.
+      <a href="#prijzen">Bekijk monitoring &rarr;</a>
     </div>
   </div>
 </section>

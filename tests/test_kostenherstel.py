@@ -147,6 +147,21 @@ print("\n== de uitslag is korter geworden ==")
 klopt("wat goed staat zit ingeklapt", 'class="scan-goed"' in index)
 klopt("en de verbeterpunten staan wel open", "Wat er beter kan" in index)
 
+print("\n== de homepage herhaalt zichzelf niet meer ==")
+# Drie blokken zeiden hetzelfde als de prijskaarten. Die zijn weg. Dit bewaakt
+# dat ze niet terugsluipen, en dat het bewijs dat wel werkt blijft staan.
+klopt("het dubbele blok onder het voorbeeldrapport is weg",
+      "Wat wij hiermee doen" not in index)
+klopt("de zes stukjes onder het monitoringoverzicht zijn weg",
+      "Wat je bij monitoring krijgt" not in index)
+klopt("hun opmaak is ook opgeruimd", "audit-teaser" not in index)
+klopt("er staat wel een weg naar de prijzen", "monitoring-slot" in index)
+# Wat er met opzet moet blijven: het bewijs. Dat was juist de kritiek op het
+# ondernemersforum, dat het te vaag was.
+klopt("het voorbeeldrapport staat er nog", "krillo.nl/rapport" in index)
+klopt("en het blok over wat wij wel en niet aanraken ook",
+      "Wat we wel en niet aanraken" in index)
+
 print("\n== de prijskaarten ==")
 klopt("drie kolommen, niet vier", "grid-template-columns:repeat(3,1fr)" in index)
 klopt("de regels zijn geen flexrij meer met kolommen per woord",
