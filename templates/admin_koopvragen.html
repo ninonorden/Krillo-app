@@ -77,6 +77,43 @@
   </div>
   {% endif %}
 
+  {# Wat de machine uit alle eerdere metingen geleerd heeft. Dit staat er niet
+     als versiering: vanaf het moment dat Krillo zijn eigen opdracht aanpast op
+     basis van geschiedenis, hoor je te kunnen zien waarop dat gebaseerd is en
+     hoeveel antwoorden eronder liggen. Anders is het een zwarte doos. #}
+  {% if geleerd and geleerd.regels %}
+  <div class="profiel">
+    <div class="profiel-label">Wat wij uit eerdere metingen geleerd hebben</div>
+    <table style="width:100%; border-collapse:collapse; font-size:13.5px; margin-top:8px;">
+      <tr style="text-align:left; color:#6B6D85;">
+        <th style="padding:4px 0;">Soort vraag</th>
+        <th>Beoordeelde antwoorden</th>
+        <th>Daarvan telden mee</th>
+        <th>Aandeel</th>
+      </tr>
+      {% for r in geleerd.regels %}
+      <tr style="border-top:1px solid #E4E2DA;">
+        <td style="padding:5px 0;">{{ r.intentie }}</td>
+        <td>{{ r.antwoorden }}</td>
+        <td>{{ r.telden_mee }}</td>
+        <td{% if r.aandeel < zwak_onder %} style="color:#B3261E; font-weight:600;"{% endif %}>
+          {{ (r.aandeel * 100) | round | int }}%</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p style="font-size:13px; color:#6B6D85; margin-top:10px;">
+      Een vraag telt alleen mee als AI in dat antwoord winkels noemt. Soorten onder
+      {{ (zwak_onder * 100) | round | int }}% staan rood: die leveren meestal niets op.
+      Bij het bedenken van nieuwe vragen krijgt het model dit mee, zodat het er
+      hooguit een of twee van maakt in plaats van vijf.
+    </p>
+    {% if geleerd.zin %}
+    <pre style="font-size:12.5px; white-space:pre-wrap; background:#F6F5F1; padding:10px 12px;
+                border-radius:8px; margin-top:8px;">{{ geleerd.zin }}</pre>
+    {% endif %}
+  </div>
+  {% endif %}
+
   {% if aanvullen_bezig %}
   <div class="waarschuwing">
     <strong>De weggevallen vragen worden nu aangevuld</strong>
