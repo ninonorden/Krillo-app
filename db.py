@@ -3352,6 +3352,49 @@ def zet_platform(webshop_url, platform):
         conn.close()
 
 
+def benchmark_diagnose():
+    """Ruwe tellingen om te zien WAAROM de benchmark leeg is.
+
+    Dit bestaat omdat de benaderpagina 45 gemeten winkels meldde terwijl de
+    benchmarkpagina "er is nog geen enkele demo gedraaid" liet zien. Die twee
+    kunnen niet allebei waar zijn, en zonder deze cijfers is van buitenaf niet te
+    zien welke van de twee liegt. Een lege pagina is geen antwoord.
+
+    Elk getal apart, want het verschil tussen "geen rapport" en "wel een rapport
+    maar geen beoordelingen" wijst naar een heel andere oorzaak."""
+    leeg = {"demorapporten": 0, "winkels_met_demo": 0, "winkels_met_beoordelingen": 0,
+            "winkels_genoeg_vragen": 0, "rapporten_totaal": 0, "soorten": []}
+    conn = _get_connection()
+    if conn is None:
+        return leeg
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT COUNT(*) AS n FROM rapporten WHERE type = 'demo'")
+                leeg["demorapporten"] = cur.fetchone()["n"]
+                cur.execute("SELECT COUNT(DISTINCT webshop_url) AS n FROM rapporten "
+                            "WHERE type = 'demo'")
+                leeg["winkels_met_demo"] = cur.fetchone()["n"]
+                cur.execute("SELECT COUNT(*) AS n FROM rapporten")
+                leeg["rapporten_totaal"] = cur.fetchone()["n"]
+                cur.execute("SELECT type, COUNT(*) AS n FROM rapporten "
+                            "GROUP BY type ORDER BY n DESC")
+                leeg["soorten"] = [(r["type"], r["n"]) for r in cur.fetchall()]
+                cur.execute("SELECT COUNT(DISTINCT webshop_url) AS n FROM beoordelingen")
+                leeg["winkels_met_beoordelingen"] = cur.fetchone()["n"]
+                cur.execute("""SELECT COUNT(*) AS n FROM (
+                                 SELECT webshop_url FROM beoordelingen
+                                  GROUP BY webshop_url
+                                 HAVING COUNT(DISTINCT vraag) >= 10) x""")
+                leeg["winkels_genoeg_vragen"] = cur.fetchone()["n"]
+                return leeg
+    except Exception as e:
+        print(f"Benchmarkdiagnose mislukt: {e}")
+        return leeg
+    finally:
+        conn.close()
+
+
 def benchmark_regels():
     """Eén regel per winkel waarvoor een demo gedraaid is.
 

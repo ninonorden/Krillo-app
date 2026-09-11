@@ -73,6 +73,25 @@
   <h1>Benchmark</h1>
   <div class="sub">Alle winkels waarvoor een demo gedraaid is</div>
 
+  {# De ruwe tellingen, altijd zichtbaar. Twee schermen die elkaar tegenspreken
+     zonder dat je kunt zien welke van de twee liegt is het ergste wat een
+     beheerpagina kan doen. #}
+  {% if diagnose %}
+  <div class="kaart" style="margin-bottom:16px;">
+    <div class="uitleg" style="font-size:13px;">
+      <b>Wat er in de database staat.</b>
+      Demorapporten: <b>{{ diagnose.demorapporten }}</b> (over {{ diagnose.winkels_met_demo }} winkels).
+      Winkels met beoordeelde antwoorden: <b>{{ diagnose.winkels_met_beoordelingen }}</b>,
+      waarvan <b>{{ diagnose.winkels_genoeg_vragen }}</b> met minstens tien vragen.
+      Rapporten in totaal: {{ diagnose.rapporten_totaal }}{% if diagnose.soorten %}
+      ({% for soort, aantal in diagnose.soorten %}{{ soort }}: {{ aantal }}{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}.
+      <br><span style="font-family:var(--mono,monospace); font-size:11px;">
+      Staat hier nul demorapporten terwijl de benaderpagina wel gemeten winkels telt,
+      dan is de meting wel gedraaid maar het rapport niet bewaard.</span>
+    </div>
+  </div>
+  {% endif %}
+
   {% if not regels %}
   <div class="leeg-blok">
     Er is nog geen enkele demo gedraaid.<br>

@@ -3279,6 +3279,11 @@ def admin_benchmark():
     platforms = benchmark.per_platform(regels)
     return render_template(
         "admin_benchmark.html",
+        # Ruwe tellingen erbij. Zonder deze stond er alleen "er is nog geen
+        # enkele demo gedraaid", terwijl de benaderpagina 45 gemeten winkels
+        # meldde. Twee schermen die elkaar tegenspreken zonder dat je kunt zien
+        # welke van de twee liegt.
+        diagnose=db.benchmark_diagnose(),
         regels=regels,
         c=cijfers,
         platforms=platforms,
