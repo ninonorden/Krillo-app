@@ -86,10 +86,58 @@ klopt("geen adres betekent gewoon stoppen", "if not adres:" in stuk)
 klopt("en het staat altijd in de logs", "BEHEERMELDING:" in stuk)
 klopt("een mislukte mail laat de betaling met rust", "except Exception" in stuk)
 
+# ---------------------------------------------------------------------------
+# Het dagbericht
+# ---------------------------------------------------------------------------
+# Dit bericht ging alleen over de machine: hoeveel er gemaild is en of er iets
+# in de weg staat. Nuttig, maar het is niet de vraag. De vraag is of die post
+# iets oplevert, en dat lees je alleen af aan hoeveel mensen hun uitkomst
+# openden en doorklikten. Zonder die twee getallen in het dagbericht moet je
+# elke dag zelf een beheerpagina opendoen om te zien of het werkt.
+import os as _os  # noqa: E402
+import sys as _sys  # noqa: E402
+
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from pad import APP as _APP  # noqa: E402
+_sys.path.insert(0, _APP)
+import benadering  # noqa: E402
+
+print("\n== het dagbericht vertelt of de post iets oplevert ==")
+TEL = {"totaal": 100, "vandaag_gemaild": 8,
+       "per_stand": {"gemeten": 15, "adres": 71, "meten": 7, "afgevallen": 9}}
+_, regels = benadering.dagbericht_tekst(
+    [], tellingen=TEL, dagpot={"besteed": 12.21, "grens": 40.0},
+    trechter={"gemaild": 8, "bekeken": 2, "doorgeklikt": 1})
+tekst = " ".join(regels)
+klopt("de trechter staat erin", "8 gemaild" in tekst and "2 openden" in tekst)
+klopt("en de doorklik ook", "1 klikten door" in tekst)
+klopt("de opgegeven winkels staan erbij", "Opgegeven winkels: 9" in tekst)
+klopt("met de uitleg dat die geen geld meer kosten", "kosten geen geld meer" in tekst)
+
+print("\n== en het zegt waar het aan ligt zodra dat te zeggen valt ==")
+_, regels = benadering.dagbericht_tekst(
+    [], tellingen=TEL, trechter={"gemaild": 60, "bekeken": 0, "doorgeklikt": 0})
+klopt("zestig mails en niemand opende: dat ligt aan de mail",
+      any("ligt aan de mail zelf" in r for r in regels))
+_, regels = benadering.dagbericht_tekst(
+    [], tellingen=TEL, trechter={"gemaild": 60, "bekeken": 14, "doorgeklikt": 0})
+klopt("wel geopend en niet doorgeklikt: dat ligt aan de pagina",
+      any("ligt het aan de uitkomstpagina" in r for r in regels))
+
+print("\n== zonder cijfers geen loze regels ==")
+# Bij nul verstuurde mails is "0 van de 0 openden" geen informatie maar ruis.
+_, regels = benadering.dagbericht_tekst([], tellingen={"per_stand": {}},
+                                        trechter={"gemaild": 0, "bekeken": 0,
+                                                  "doorgeklikt": 0})
+klopt("geen trechterregel bij nul mails",
+      not any("openden hun uitkomst" in r for r in regels))
+klopt("en geen regel over opgegeven winkels als het er nul zijn",
+      not any("Opgegeven winkels" in r for r in regels))
+
 print()
 if fouten:
     print(f"{len(fouten)} FOUT(EN):")
     for f in fouten:
         print(f"  - {f}")
-    sys.exit(1)
+    _sys.exit(1)
 print("Alles goed.")
