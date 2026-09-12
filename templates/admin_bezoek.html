@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bezoek | Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:900px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:13.5px; font-family:var(--mono); margin-bottom:28px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:17px; margin:32px 0 12px;}
+
+  .cijfers{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line);
+           border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:10px;}
+  .cijfer{background:var(--paper-raised); padding:20px;}
+  .cijfer-label{font-family:var(--mono); font-size:10px; text-transform:uppercase;
+                letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px;}
+  .cijfer-num{font-family:var(--disp); font-weight:700; font-size:26px;}
+  .cijfer-num small{font-size:14px; font-weight:500; color:var(--ink-soft);}
+  .duiding{font-size:13.5px; color:var(--ink-soft); margin-bottom:28px;}
+
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase;
+     color:var(--ink-soft); padding:11px 14px; border-bottom:1px solid var(--line); background:var(--paper);}
+  td{padding:11px 14px; font-size:13.5px; border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  td.getal{text-align:right; font-family:var(--mono); font-size:12.5px;}
+  td.pad{font-family:var(--mono); font-size:12.5px;}
+
+  .grafiek{display:flex; gap:5px; align-items:flex-end; height:130px; background:var(--paper-raised);
+           border:1px solid var(--line); border-radius:12px; padding:18px; overflow-x:auto;}
+  .balk-wrap{flex:1; min-width:16px; display:flex; flex-direction:column; align-items:center; gap:5px;}
+  .balk{width:100%; background:var(--coral); border-radius:3px 3px 0 0; min-height:3px;}
+  .balk-num{font-family:var(--mono); font-size:10px; color:var(--ink-soft);}
+  .balk-dag{font-family:var(--mono); font-size:9px; color:var(--ink-soft); white-space:nowrap;}
+
+  .trechter{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+            padding:20px 22px; margin-bottom:8px;}
+  .stap{display:flex; align-items:center; gap:14px; padding:9px 0; border-bottom:1px solid var(--line);}
+  .stap:last-child{border-bottom:none;}
+  .stap-naam{flex:0 0 190px; font-size:13.5px;}
+  .stap-balk{flex:1; height:10px; background:var(--paper); border-radius:5px; overflow:hidden;}
+  .stap-vul{height:100%; background:var(--teal); border-radius:5px;}
+  .stap-num{flex:0 0 130px; text-align:right; font-family:var(--mono); font-size:12.5px; color:var(--ink-soft);}
+
+  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+        padding:32px; text-align:center; color:var(--ink-soft);}
+  .acties{display:flex; gap:10px; flex-wrap:wrap; margin-top:28px;}
+  .knop{padding:10px 18px; border-radius:8px; font-size:13.5px; font-weight:600;
+        border:1.5px solid var(--line); color:var(--ink); background:var(--paper-raised);
+        text-decoration:none; display:inline-block; font-family:var(--disp);}
+  .voetnoot{font-size:12.5px; color:var(--ink-soft); margin-top:32px; line-height:1.7;
+            border-top:1px solid var(--line); padding-top:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Bezoek aan de site</h1>
+  <div class="sub">Laatste {{ dagen }} dagen</div>
+
+  {% if not bezoeken %}
+  <div class="leeg">
+    Er is in deze periode nog geen bezoek geteld.<br>
+    Deze teller is op 12 september aangezet, dus alles van daarvoor ontbreekt.
+  </div>
+  {% else %}
+
+  <div class="cijfers">
+    <div class="cijfer">
+      <div class="cijfer-label">Bezoeken</div>
+      <div class="cijfer-num">{{ totaal.bezoeken }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Verschillende mensen</div>
+      <div class="cijfer-num">{{ totaal.bezoekers }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Pagina's per bezoeker</div>
+      <div class="cijfer-num">
+        {% if totaal.bezoekers %}{{ '%.1f'|format(totaal.bezoeken / totaal.bezoekers) }}{% else %}-{% endif %}
+      </div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Gratis scans</div>
+      <div class="cijfer-num">{{ scans }}</div>
+    </div>
+  </div>
+  <div class="duiding">
+    "Verschillende mensen" is het getal dat telt. Tien bezoeken van één persoon zegt niets,
+    tien mensen die één keer keken wel. Blijft "pagina's per bezoeker" rond de 1 hangen, dan
+    komen mensen binnen en gaan meteen weer weg, en dan ligt het aan de pagina waar ze
+    binnenkomen.
+  </div>
+
+  <h2>De trechter</h2>
+  <div class="trechter">
+    {% set breedste = totaal.bezoekers or 1 %}
+    <div class="stap">
+      <div class="stap-naam">Op de site geweest</div>
+      <div class="stap-balk"><div class="stap-vul" style="width:100%"></div></div>
+      <div class="stap-num">{{ totaal.bezoekers }}</div>
+    </div>
+    <div class="stap">
+      <div class="stap-naam">Gratis scan gedaan</div>
+      <div class="stap-balk">
+        <div class="stap-vul" style="width:{{ (scans / breedste * 100) | round(0,'common') | int if scans <= breedste else 100 }}%"></div>
+      </div>
+      <div class="stap-num">
+        {{ scans }}{% if totaal.bezoekers and scans %} &middot; 1 op {{ (totaal.bezoekers / scans) | round(0,'common') | int }}{% endif %}
+      </div>
+    </div>
+    <div class="stap">
+      <div class="stap-naam">Betaald</div>
+      <div class="stap-balk">
+        <div class="stap-vul" style="width:{{ (betaald / breedste * 100) | round(0,'common') | int if betaald <= breedste else 100 }}%"></div>
+      </div>
+      <div class="stap-num">{{ betaald }}</div>
+    </div>
+  </div>
+  <div class="duiding">
+    Hier zie je welke stap klemt. Weinig bezoek en een goede doorloop is een ander probleem
+    dan veel bezoek dat niets doet. Het eerste los je op met meer mensen naar de site brengen,
+    het tweede met een betere pagina.
+  </div>
+
+  <h2>Bezoek per dag</h2>
+  {% set hoogste = (per_dag | map(attribute='bezoeken') | max) or 1 %}
+  <div class="grafiek">
+    {% for punt in per_dag | reverse %}
+    <div class="balk-wrap">
+      <div class="balk-num">{{ punt.bezoeken }}</div>
+      <div class="balk" style="height:{{ (punt.bezoeken / hoogste * 80) | round(0,'ceil') | int + 3 }}px;"></div>
+      <div class="balk-dag">{{ punt.dag.strftime('%d-%m') }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h2>Welke pagina's</h2>
+  <table>
+    <tr><th>Pagina</th><th style="text-align:right">Bezoeken</th><th style="text-align:right">Mensen</th></tr>
+    {% for r in per_pagina %}
+    <tr>
+      <td class="pad">{{ r.pad }}</td>
+      <td class="getal">{{ r.bezoeken }}</td>
+      <td class="getal">{{ r.bezoekers }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Waar komen ze vandaan</h2>
+  <table>
+    <tr><th>Bron</th><th style="text-align:right">Bezoeken</th><th style="text-align:right">Mensen</th></tr>
+    {% for r in per_herkomst %}
+    <tr>
+      <td>{{ r.herkomst }}</td>
+      <td class="getal">{{ r.bezoeken }}</td>
+      <td class="getal">{{ r.bezoekers }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Waarmee kijken ze</h2>
+  <table>
+    <tr><th>Apparaat</th><th style="text-align:right">Bezoeken</th></tr>
+    {% for r in per_apparaat %}
+    <tr>
+      <td>{{ r.apparaat }}</td>
+      <td class="getal">{{ r.bezoeken }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <div class="acties">
+    <a class="knop" href="?dagen=7">7 dagen</a>
+    <a class="knop" href="?dagen=30">30 dagen</a>
+    <a class="knop" href="?dagen=90">90 dagen</a>
+    <a class="knop" href="/admin/bezoekers">Naar de scans</a>
+    <a class="knop" href="/admin/benadering">Naar de benadering</a>
+    <a class="knop" href="/admin/kosten">Naar de kosten</a>
+  </div>
+
+  <div class="voetnoot">
+    <strong>Wat er per bezoek wordt vastgelegd.</strong> De pagina, het tijdstip, waar de
+    bezoeker vandaan kwam en of het een telefoon of een computer was. Geen IP-adres, geen
+    koekje, geen Google, geen enkele andere partij. Daarom staat er ook geen cookiemelding op
+    de site: die is alleen nodig als je iets op het apparaat van de bezoeker zet, en dat doen
+    wij niet.<br><br>
+    <strong>Hoe "verschillende mensen" dan geteld wordt.</strong> Het IP-adres en de
+    browsernaam gaan samen met de datum van vandaag en onze eigen sleutel door een
+    eenrichtingsfunctie. Wat er in de database komt is een code van zestien tekens waar niets
+    uit terug te rekenen is, en die morgen anders is voor dezelfde persoon. Iemand die
+    vandaag en morgen langskomt telt dus als twee, en dat is precies de prijs die je betaalt
+    voor het niet volgen van mensen.<br><br>
+    <strong>Wat er niet in staat.</strong> Beheerpagina's, plaatjes, en alles wat zich meldt
+    als bot of crawler. Zonder dat laatste is de helft van je cijfers Google die je eigen link
+    ophaalt, en dan lijkt het druk terwijl er niemand is.<br><br>
+    <strong>Wil je weten welk bericht werkt</strong>, zet dan achter je link
+    <span style="font-family:var(--mono);">?utm_source=linkedin</span> of een andere naam die je
+    zelf kiest. Die komt hier terug onder "waar komen ze vandaan".
+  </div>
+</div>
+</body>
+</html>
