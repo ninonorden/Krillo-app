@@ -127,8 +127,13 @@ index = lees("templates/index.html")
 klopt("de kop belooft niet meer een lijstje",
       "En met monitoring krijg je elke week een lijstje" not in index)
 klopt("maar dat wij het bijhouden", "En daarna houden wij het voor je bij" in index)
-klopt("de prijskaart zegt dat wij het uitvoeren",
-      "Wij voeren elke maand de verbeteringen uit" in index)
+# Per week en niet per maand. Op de regel eronder stond al "hoogstens drie
+# dingen per week", en de keten draait wekelijks, dus "elke maand" was een
+# tweede tempo voor hetzelfde werk.
+klopt("de prijskaart zegt dat wij het uitvoeren, en in het goede tempo",
+      "Wij voeren elke week de verbeteringen uit" in index)
+klopt("en niet in twee tempo's tegelijk",
+      "Wij voeren elke maand de verbeteringen uit" not in index)
 klopt("en is eerlijk over wat er gebeurt zonder toegang",
       "Geen toegang? Dan krijg je alles kant en klaar om zelf te doen" in index)
 klopt("het nagemaakte scherm toont wat er gedaan is",
