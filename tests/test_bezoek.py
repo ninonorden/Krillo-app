@@ -115,6 +115,12 @@ telt_niet("een niet bestaande pagina telt niet", lambda: klant.get(
     "/bestaat-niet-12345", headers=MENS))
 telt_niet("en een POST al helemaal niet", lambda: klant.post(
     "/api/scan", json={"url": "x"}, headers=MENS))
+# Onze eigen wakhoud-taak haalt dit pad elk uur op. Op de eerste dag leverde dat
+# 16 van de 27 "bezoeken" op, allemaal van dezelfde niet bestaande bezoeker. Een
+# teller die voor de helft uit je eigen machines bestaat is erger dan geen
+# teller, want je gaat conclusies trekken uit ruis.
+telt_niet("onze eigen wakhoud-taak telt niet mee", lambda: klant.get(
+    "/wakker", headers=MENS))
 
 print("\n== dezelfde bezoeker wordt binnen een dag herkend ==")
 leeg_de_tabel()
@@ -187,6 +193,17 @@ klopt("en de uitleg dat er geen koekje gebruikt wordt",
       "geen koekje" in tekst or "geen cookiemelding" in tekst)
 klopt("de trechter van bezoek naar scan naar betaling staat erop",
       "Gratis scan gedaan" in tekst and "Betaald" in tekst)
+
+# De trechter vergeleek bezoek van vandaag met scans van dertig dagen. Er stond
+# toen "26 · 1 op 0" op het scherm: meer scans dan bezoekers, en een deling die
+# op nul uitkwam. Een trechter waarin de tweede stap groter is dan de eerste is
+# geen trechter, en "1 op 0" is geen getal.
+klopt("geen onzinverhouding op het scherm", "1 op 0" not in tekst)
+klopt("en de pagina zegt erbij over welke periode de trechter telt",
+      "De bezoekersteller staat pas sinds" in tekst or "trechterdagen" not in tekst)
+klopt("geen balk die buiten zijn kader loopt",
+      not any(int(b.split("%")[0]) > 100
+              for b in tekst.split("stap-vul\" style=\"width:")[1:]))
 
 print("\n== zonder inloggen kom je er niet in ==")
 kaal = krillo.app.test_client()

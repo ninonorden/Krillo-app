@@ -108,25 +108,31 @@
 
   <h2>De trechter</h2>
   <div class="trechter">
-    {% set breedste = totaal.bezoekers or 1 %}
+    {# Alle balken schalen op het grootste getal, niet op het bovenste. Zou je op
+       het bovenste schalen, dan loopt een stap die groter is dan de vorige uit
+       beeld en lijkt hij precies even groot als de stap erboven. #}
+    {% set breedste = [totaal.bezoekers or 0, scans, betaald] | max or 1 %}
     <div class="stap">
       <div class="stap-naam">Op de site geweest</div>
-      <div class="stap-balk"><div class="stap-vul" style="width:100%"></div></div>
+      <div class="stap-balk">
+        <div class="stap-vul" style="width:{{ ((totaal.bezoekers or 0) / breedste * 100) | round(0,'common') | int }}%"></div>
+      </div>
       <div class="stap-num">{{ totaal.bezoekers }}</div>
     </div>
     <div class="stap">
       <div class="stap-naam">Gratis scan gedaan</div>
       <div class="stap-balk">
-        <div class="stap-vul" style="width:{{ (scans / breedste * 100) | round(0,'common') | int if scans <= breedste else 100 }}%"></div>
+        <div class="stap-vul" style="width:{{ (scans / breedste * 100) | round(0,'common') | int }}%"></div>
       </div>
       <div class="stap-num">
-        {{ scans }}{% if totaal.bezoekers and scans %} &middot; 1 op {{ (totaal.bezoekers / scans) | round(0,'common') | int }}{% endif %}
+        {{ scans }}{% if scans and totaal.bezoekers and totaal.bezoekers >= scans %}
+        &middot; 1 op {{ (totaal.bezoekers / scans) | round(0,'common') | int }}{% endif %}
       </div>
     </div>
     <div class="stap">
       <div class="stap-naam">Betaald</div>
       <div class="stap-balk">
-        <div class="stap-vul" style="width:{{ (betaald / breedste * 100) | round(0,'common') | int if betaald <= breedste else 100 }}%"></div>
+        <div class="stap-vul" style="width:{{ (betaald / breedste * 100) | round(0,'common') | int }}%"></div>
       </div>
       <div class="stap-num">{{ betaald }}</div>
     </div>
@@ -135,6 +141,14 @@
     Hier zie je welke stap klemt. Weinig bezoek en een goede doorloop is een ander probleem
     dan veel bezoek dat niets doet. Het eerste los je op met meer mensen naar de site brengen,
     het tweede met een betere pagina.
+    {% if trechterdagen < dagen %}
+    <br><br>
+    <strong>Let op bij deze trechter.</strong> De bezoekersteller staat pas sinds
+    {{ sinds.strftime('%-d %B') if sinds else 'kort' }} aan, dus alle drie de stappen tellen hier
+    over {{ trechterdagen }} dag{{ '' if trechterdagen == 1 else 'en' }} en niet over {{ dagen }}.
+    De scans en betalingen van daarvoor staan er dus niet in. Dat is met opzet: een trechter waarin
+    de tweede stap over een langere periode telt dan de eerste, laat een doorloop zien die er niet is.
+    {% endif %}
   </div>
 
   <h2>Bezoek per dag</h2>
