@@ -212,6 +212,65 @@ _privacy = _cv.PADEN.index("/privacybeleid")
 klopt(f"en het privacybeleid wordt echt bereikt (plek {_privacy + 2} van {_cv.MAX_PAGINAS})",
       _privacy + 2 <= _cv.MAX_PAGINAS)
 
+print("\n== winkels zonder adres krijgen een tweede kans ==")
+# Op 12 september stonden er 476 winkels op "geen adres" tegen 157 met een
+# adres. Driekwart van alles wat de vinder oplevert werd dus weggegooid, en dat
+# zijn winkels waarvoor al betaald is om ze te vinden.
+#
+# Het zoeken is die nacht verbeterd (tien pagina's in plaats van vijf, en de
+# juridische pagina's hoog in de lijst), maar zoek_adressen kijkt alleen naar
+# winkels op "nieuw". Voor die 476 was de verbetering dus voor niets. Deze
+# herkansing geeft ze alsnog een kans, precies een keer per winkel.
+import contactvinder as _cv2  # noqa: E402
+
+_UNIEK = os.urandom(4).hex()
+_MET = f"https://herkans-wel-{_UNIEK}.nl"
+_ZONDER = f"https://herkans-niet-{_UNIEK}.nl"
+for _u in (_MET, _ZONDER):
+    db.voeg_benaderingen_toe([(_u, "Herkanstest", "NL", None)])
+    db.zet_benadering(_u, stand="geen_adres", notitie="Niets gevonden.")
+
+_echt_zoeken = _cv2.zoek_adres
+_gezien = []
+
+
+def _nep_zoek(url, **kw):
+    _gezien.append(url)
+    if _MET in url:
+        return {"adres": "info@herkans.nl", "algemeen": True,
+                "vandaan": "privacybeleid", "alles": [], "reden": None}
+    return {"adres": None, "algemeen": False, "vandaan": None, "alles": [],
+            "reden": "Niets gevonden."}
+
+
+_cv2.zoek_adres = _nep_zoek
+benadering.contactvinder.zoek_adres = _nep_zoek
+_uit = benadering.herkans_adressen(hoeveel=50)
+klopt("er zijn winkels opnieuw bekeken", _uit["bekeken"] >= 2)
+klopt("en er is er minstens een gevonden", _uit["gevonden"] >= 1)
+
+_standen = {r["webshop_url"]: r["stand"]
+            for r in db.get_benaderingen(alleen_niet_afgemeld=False)}
+zo("de winkel met een adres staat nu op 'adres'", _standen.get(_MET), "adres")
+zo("die zonder blijft op 'geen_adres'", _standen.get(_ZONDER), "geen_adres")
+
+print("\n== maar precies een keer, niet elke ronde opnieuw ==")
+# Zonder deze rem loopt elke ronde dezelfde honderden winkels opnieuw langs.
+# Dat is niet netjes tegenover die winkels en het levert niets op.
+_voor = len(_gezien)
+benadering.herkans_adressen(hoeveel=50)
+_nieuw_bekeken = [u for u in _gezien[_voor:] if _ZONDER in u]
+zo("dezelfde winkel wordt niet nog eens bekeken", _nieuw_bekeken, [])
+
+_cv2.zoek_adres = _echt_zoeken
+benadering.contactvinder.zoek_adres = _echt_zoeken
+
+print("\n== en de ronde doet het uit zichzelf ==")
+_bron = lees("app.py")
+klopt("de ronde roept de herkansing aan", "benadering.herkans_adressen()" in _bron)
+klopt("en zet het in het verslag", 'verslag["herkansing"]' in _bron)
+klopt("een fout daarin legt de ronde niet stil", "adressen herkansen" in _bron)
+
 print()
 if fouten:
     print(f"{len(fouten)} FOUT(EN):")
