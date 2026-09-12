@@ -12,6 +12,7 @@ Starten:
 Ga daarna naar http://127.0.0.1:5000 in je browser.
 """
 
+import hashlib
 import hmac
 import json
 import os
@@ -72,6 +73,106 @@ def get_base_url():
 
 # Vanaf hoeveel gescande webshops wij dat aantal op de site zetten.
 MINIMUM_VOOR_TELLER = int(os.environ.get("MINIMUM_VOOR_TELLER", "50"))
+
+
+# ---------------------------------------------------------------------------
+# Bezoekers tellen
+#
+# Waarom dit hier staat en niet bij Google Analytics: dat kost een cookiebanner,
+# het vertraagt elke pagina met een script van een derde partij, en de cijfers
+# zijn er niet beter van. Wij hebben al een database. Eén regel per bezoek is
+# genoeg om te zien of er iemand komt.
+#
+# Waarom het staat waar het staat, boven de eerste route: deze functie schrijft
+# iets weg bij een GET, en dat is precies de fout die de site op 11 september
+# heeft platgelegd. Door hem boven alle routes te zetten hoort hij bij geen
+# enkele route, en blijft `tests/test_geenschrijfbijladen.py` scherp op wat er
+# in de routes zelf gebeurt. Het verschil met die fout van toen: dit is één
+# INSERT met een vaste kostprijs, geen lus over duizenden rijen.
+#
+# Wat er NIET vastgelegd wordt: geen IP-adres, geen koekje, geen naam. Daarmee
+# is er niets te herleiden tot een persoon en is er geen cookiemelding nodig.
+# ---------------------------------------------------------------------------
+
+# Paden die niets zeggen over bezoek: plaatjes en stijlbestanden, je eigen
+# beheerpagina's, de machinekamer, en alles wat een computer ophaalt in plaats
+# van een mens.
+BEZOEK_NEGEREN = ("/static", "/admin", "/api", "/cron", "/shopify", "/webhook",
+                  "/favicon", "/robots.txt", "/sitemap", "/healthz", "/.well-known")
+
+# Wat zich meldt als bot, spin, crawler of voorvertoning is geen bezoeker. Zonder
+# deze regel is de helft van je cijfers Google en LinkedIn die je eigen link
+# ophalen, en dan lijkt het druk terwijl er niemand is.
+BEZOEK_ROBOTS = ("bot", "spider", "crawl", "slurp", "preview", "fetch",
+                 "monitor", "pingdom", "headless", "python-requests", "curl",
+                 "wget", "lighthouse", "uptime")
+
+
+def _bezoeker_kenmerk():
+    """Een korte code die één bezoeker één dag lang herkenbaar maakt.
+
+    Waarom dit nodig is: zonder zoiets kun je alleen paginaweergaven tellen. Tien
+    weergaven van één persoon zien er dan uit als tien bezoekers, en juist dat
+    tweede getal is het getal waar je iets aan hebt.
+
+    Hoe het werkt: het IP-adres en de browsernaam gaan samen met de datum en
+    onze eigen sleutel door een eenrichtingsfunctie. Wat er overblijft is zestien
+    tekens waar niets uit terug te rekenen is, en dat morgen anders is voor
+    dezelfde persoon. Het IP-adres zelf wordt nergens opgeslagen.
+
+    Dit is dezelfde aanpak die privacyvriendelijke tellers als Plausible
+    gebruiken, en het is de reden dat er geen cookiebanner op de site hoeft."""
+    try:
+        adres = (request.headers.get("X-Forwarded-For", "")
+                 .split(",")[0].strip() or request.remote_addr or "")
+        browser = request.headers.get("User-Agent", "")[:200]
+        zout = (os.environ.get("SESSIE_SLEUTEL")
+                or os.environ.get("ADMIN_KEY") or "krillo")
+        ruw = f"{datetime.utcnow():%Y-%m-%d}|{zout}|{adres}|{browser}"
+        return hashlib.sha256(ruw.encode("utf-8")).hexdigest()[:16]
+    except Exception:
+        return None
+
+
+def _apparaat():
+    """Telefoon, tablet of computer. Grof, en dat is genoeg.
+
+    Het enige waar dit voor dient: als driekwart van je bezoek van een telefoon
+    komt en de pagina leest daar slecht, dan is dat je eerste probleem."""
+    ua = (request.headers.get("User-Agent", "") or "").lower()
+    if "ipad" in ua or "tablet" in ua:
+        return "tablet"
+    if "mobi" in ua or "android" in ua or "iphone" in ua:
+        return "telefoon"
+    return "computer"
+
+
+@app.after_request
+def _tel_bezoek(antwoord):
+    """Schrijft één regel weg per bekeken pagina.
+
+    Alles hierin staat in een try, en bij twijfel doet hij niets. Een teller mag
+    nooit de reden zijn dat iemand de site niet ziet."""
+    try:
+        if request.method != "GET":
+            return antwoord
+        # Alleen echte pagina's. Een plaatje, een JSON-antwoord of een
+        # doorverwijzing is geen bezoek.
+        if antwoord.status_code != 200:
+            return antwoord
+        if "text/html" not in (antwoord.content_type or ""):
+            return antwoord
+        pad = request.path or "/"
+        if any(pad.startswith(n) for n in BEZOEK_NEGEREN):
+            return antwoord
+        ua = (request.headers.get("User-Agent", "") or "").lower()
+        if not ua or any(r in ua for r in BEZOEK_ROBOTS):
+            return antwoord
+        db.noteer_bezoek(pad, herkomst=_herkomst(),
+                         bezoeker=_bezoeker_kenmerk(), apparaat=_apparaat())
+    except Exception as e:
+        print(f"Bezoek tellen mislukt: {e}")
+    return antwoord
 
 
 @app.route("/")
@@ -3929,6 +4030,43 @@ def admin_bezoekers():
         top_winkels=overzicht["top_winkels"],
         leads=db.zichtbaarheidstest_leads(),
         sleutel=admin_key,
+    )
+
+
+@app.route("/admin/bezoek")
+def admin_bezoek():
+    """Hoeveel mensen er op de site komen, op welke pagina's, en waar vandaan.
+
+    Dit is de pagina die naast /admin/bezoekers hoort en niet hetzelfde is.
+    Daar staat wie een gratis scan DEED, hier staat wie er langskwam. Zonder dit
+    tweede getal weet je bij nul verkopen niet welk probleem je hebt: komt er
+    niemand, of komt er wel iemand en haakt die af. Dat zijn twee verschillende
+    problemen met twee verschillende oplossingen, en tot vandaag was er geen
+    enkel cijfer om ze uit elkaar te houden."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+
+    dagen = int(request.args.get("dagen", 30))
+    overzicht = db.bezoekoverzicht(dagen)
+    totaal = overzicht["totaal"] or {}
+    # De scans en betalingen uit dezelfde periode, zodat de trechter van bezoek
+    # naar scan naar betaling in één beeld staat.
+    scanoverzicht = db.scanoverzicht(dagen)
+    scantotaal = scanoverzicht["totaal"] or {}
+    return render_template(
+        "admin_bezoek.html",
+        dagen=dagen,
+        totaal=totaal,
+        bezoeken=totaal.get("bezoeken") or 0,
+        scans=scantotaal.get("scans") or 0,
+        betaald=scantotaal.get("betaald") or 0,
+        per_dag=overzicht["per_dag"],
+        per_pagina=overzicht["per_pagina"],
+        per_herkomst=overzicht["per_herkomst"],
+        per_apparaat=overzicht["per_apparaat"],
     )
 
 

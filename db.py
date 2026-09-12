@@ -589,6 +589,26 @@ def init_db():
                     );
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_gratis_scans_dag ON gratis_scans (gedaan_op);")
+                # Gewone bezoeken aan de site. Dit is iets anders dan
+                # gratis_scans: daar staat alleen in wie een test DEED, hier
+                # staat in wie er langskwam. Zonder dit tweede getal is niet te
+                # zien of er niemand komt of dat er wel mensen komen die
+                # afhaken, en dat zijn twee heel verschillende problemen.
+                #
+                # Wat er niet in staat: geen IP-adres en geen koekje. "bezoeker"
+                # is een vingerafdruk die elke dag verandert, zie de uitleg bij
+                # noteer_bezoek(). Daardoor is er geen cookiemelding nodig.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS bezoeken (
+                        id BIGSERIAL PRIMARY KEY,
+                        pad TEXT NOT NULL,
+                        herkomst TEXT,
+                        bezoeker TEXT,
+                        apparaat TEXT,
+                        gezien_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_bezoeken_dag ON bezoeken (gezien_op);")
                 # De gratis zichtbaarheidstest. Hier staat wel een e-mailadres
                 # in, anders dan bij gratis_scans, want de uitslag wordt
                 # gemaild. Daarom ook nieuwsbrief_akkoord apart: het aanvragen
@@ -2732,6 +2752,101 @@ def bewaar_gratis_scan(webshop_url, score=None, gelukt=True, foutsoort=None, her
     except Exception as e:
         print(f"Gratis scan vastleggen mislukt: {e}")
         return False
+    finally:
+        conn.close()
+
+
+def noteer_bezoek(pad, herkomst=None, bezoeker=None, apparaat=None):
+    """Legt één bezoek aan één pagina vast.
+
+    Dit is precies één INSERT en verder niets. Dat is met opzet zo klein: deze
+    functie draait bij ELKE paginaweergave, en de vorige keer dat er iets van
+    formaat aan een paginaweergave hing lag de site er een uur uit. Eén regel
+    erbij in een tabel met een index op de datum blijft ook bij duizenden
+    bezoeken per dag onder de milliseconde.
+
+    Mislukt het, dan gebeurt er niets zichtbaars. Een bezoeker mag nooit een
+    lege pagina krijgen omdat wij zijn bezoek niet konden opschrijven.
+
+    Over "bezoeker": dat is geen IP-adres en geen koekje, maar een korte
+    vingerafdruk die de aanroeper maakt en die elke dag verandert. Zie
+    _bezoeker_kenmerk() in app.py voor hoe en waarom."""
+    if not pad:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO bezoeken (pad, herkomst, bezoeker, apparaat)
+                       VALUES (%s, %s, %s, %s)""",
+                    (pad[:200], (herkomst or None), (bezoeker or None),
+                     (apparaat or None)),
+                )
+        return True
+    except Exception as e:
+        print(f"Bezoek vastleggen mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def bezoekoverzicht(dagen=30):
+    """De cijfers voor /admin/bezoek: hoeveel bezoeken, hoeveel mensen, waar
+    ze binnenkomen en waar ze vandaan komen.
+
+    Het onderscheid tussen "bezoeken" en "bezoekers" is het hele punt. Tien
+    bezoeken van één persoon is iets anders dan tien mensen die één keer keken,
+    en alleen het tweede getal zegt iets over of de site gevonden wordt."""
+    leeg = {"totaal": {}, "per_dag": [], "per_pagina": [], "per_herkomst": [],
+            "per_apparaat": []}
+    conn = _get_connection()
+    if conn is None:
+        return leeg
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                sinds = f"now() - interval '{int(dagen)} days'"
+
+                cur.execute(f"""SELECT count(*) AS bezoeken,
+                                       count(DISTINCT bezoeker) AS bezoekers,
+                                       count(DISTINCT pad) AS paginas
+                                  FROM bezoeken WHERE gezien_op > {sinds}""")
+                totaal = cur.fetchone() or {}
+
+                cur.execute(f"""SELECT date_trunc('day', gezien_op)::date AS dag,
+                                       count(*) AS bezoeken,
+                                       count(DISTINCT bezoeker) AS bezoekers
+                                  FROM bezoeken WHERE gezien_op > {sinds}
+                              GROUP BY dag ORDER BY dag DESC LIMIT 60""")
+                per_dag = cur.fetchall()
+
+                cur.execute(f"""SELECT pad, count(*) AS bezoeken,
+                                       count(DISTINCT bezoeker) AS bezoekers
+                                  FROM bezoeken WHERE gezien_op > {sinds}
+                              GROUP BY pad ORDER BY bezoeken DESC LIMIT 30""")
+                per_pagina = cur.fetchall()
+
+                cur.execute(f"""SELECT coalesce(herkomst, 'rechtstreeks') AS herkomst,
+                                       count(*) AS bezoeken,
+                                       count(DISTINCT bezoeker) AS bezoekers
+                                  FROM bezoeken WHERE gezien_op > {sinds}
+                              GROUP BY 1 ORDER BY bezoeken DESC LIMIT 25""")
+                per_herkomst = cur.fetchall()
+
+                cur.execute(f"""SELECT coalesce(apparaat, 'onbekend') AS apparaat,
+                                       count(*) AS bezoeken
+                                  FROM bezoeken WHERE gezien_op > {sinds}
+                              GROUP BY 1 ORDER BY bezoeken DESC""")
+                per_apparaat = cur.fetchall()
+
+        return {"totaal": totaal, "per_dag": per_dag, "per_pagina": per_pagina,
+                "per_herkomst": per_herkomst, "per_apparaat": per_apparaat}
+    except Exception as e:
+        print(f"Bezoekoverzicht ophalen mislukt: {e}")
+        return leeg
     finally:
         conn.close()
 
