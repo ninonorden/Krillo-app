@@ -144,6 +144,83 @@ def zoek_adressen(hoeveel=None):
     return gedaan
 
 
+# Winkels waarvan wij het adres al een keer OPNIEUW gezocht hebben met de
+# verbeterde zoeker. Zonder deze lijst zou elke ronde dezelfde honderden winkels
+# opnieuw langslopen, en dat is niet netjes tegenover die winkels en zonde van
+# de tijd.
+HERKANSING_SLEUTEL = "benadering_adres_herkansing"
+
+# Hoeveel oude winkels wij per ronde een tweede kans geven. Dit kost geen
+# AI-geld, alleen paginabezoeken, dus het mag ruim.
+HERKANSINGEN_PER_RONDE = int(os.environ.get("ADRES_HERKANSINGEN_PER_RONDE", "20"))
+
+
+def _herkanst_alles():
+    try:
+        waarde = db.get_instelling(HERKANSING_SLEUTEL)
+        uit = json.loads(str(waarde)) if waarde else []
+        return set(uit) if isinstance(uit, list) else set()
+    except Exception:
+        return set()
+
+
+def _onthoud_herkansing(kale_urls):
+    try:
+        alles = _herkanst_alles() | set(kale_urls)
+        # Aflopend begrenzen, anders groeit dit veld eindeloos. De oudste vallen
+        # eruit, en die zijn allang behandeld.
+        db.zet_instelling(HERKANSING_SLEUTEL, json.dumps(sorted(alles)[-5000:]))
+    except Exception as e:
+        print(f"Herkansing onthouden mislukt: {e}")
+
+
+def herkans_adressen(hoeveel=None):
+    """Zoekt nog een keer naar het mailadres van winkels die eerder afvielen.
+
+    Waarom dit bestaat. Op 12 september stonden er 476 winkels op "geen adres"
+    tegenover 157 met een adres. Die 476 zijn winkels waarvoor wij al betaald
+    hebben om ze te vinden, en die wij weggooien. Het zoeken is die nacht
+    verbeterd: het kijkt nu tien pagina's in plaats van vijf, en het privacybeleid
+    en de algemene voorwaarden staan hoog in de lijst, want daar staat wettelijk
+    verplicht een contactadres.
+
+    Maar zoek_adressen kijkt alleen naar winkels op "nieuw". De winkels die al
+    op "geen_adres" stonden werden dus nooit opnieuw geprobeerd, en die
+    verbetering was voor hen voor niets. Deze functie geeft ze alsnog die kans,
+    precies een keer per winkel.
+
+    Kost geen AI-geld, alleen paginabezoeken."""
+    hoeveel = hoeveel if hoeveel is not None else HERKANSINGEN_PER_RONDE
+    if hoeveel < 1:
+        return {"bekeken": 0, "gevonden": 0}
+
+    gehad = _herkanst_alles()
+    gedaan = {"bekeken": 0, "gevonden": 0}
+    behandeld = []
+    for winkel in db.get_benaderingen(stand="geen_adres", limiet=hoeveel * 6):
+        if gedaan["bekeken"] >= hoeveel:
+            break
+        url = winkel["webshop_url"]
+        kaal = scan_engine.normalize_url(url)
+        if kaal in gehad:
+            continue
+        behandeld.append(kaal)
+        gedaan["bekeken"] += 1
+        try:
+            uitkomst = contactvinder.zoek_adres(url)
+        except Exception as e:
+            print(f"Herkansing adres zoeken mislukt voor {url}: {e}")
+            continue
+        if uitkomst.get("adres"):
+            db.zet_benadering(url, stand="adres", email=uitkomst["adres"],
+                              email_bron=uitkomst.get("vandaan"),
+                              notitie="Adres alsnog gevonden bij de tweede poging.")
+            gedaan["gevonden"] += 1
+    if behandeld:
+        _onthoud_herkansing(behandeld)
+    return gedaan
+
+
 # ------------------------------------------------------------------ 2. meten
 
 # Hoe lang een meting mag duren voordat wij hem als vastgelopen beschouwen.

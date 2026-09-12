@@ -1593,6 +1593,20 @@ def _benadering_ronde():
         print(f"Benadering, adressen zoeken mislukt: {e}")
 
     try:
+        # En de winkels die eerder afvielen nog een keer, met de verbeterde
+        # zoeker. Op 12 september stonden er 476 op "geen adres" tegen 157 met
+        # een adres: driekwart van alles wat de vinder oplevert werd weggegooid.
+        # Die winkels hebben bijna allemaal wel een adres, het stond alleen niet
+        # op de eerste vijf pagina's die wij bekeken. Kost geen AI-geld.
+        herkansing = benadering.herkans_adressen()
+        if herkansing.get("bekeken"):
+            verslag["herkansing"] = herkansing
+            print(f"Benadering, tweede kans op een adres: {herkansing}")
+    except Exception as e:
+        verslag["mislukt"].append(f"adressen herkansen: {e}")
+        print(f"Benadering, herkansing mislukt: {e}")
+
+    try:
         # Aan beide kanten door dezelfde schrijfwijze halen voordat wij
         # vergelijken.
         #
