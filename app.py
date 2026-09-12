@@ -1708,6 +1708,21 @@ def _benadering_ronde():
         print(f"Benadering, herkansing mislukt: {e}")
 
     try:
+        # Winkels die geklikt hebben maar geen meting kregen omdat de dagpot op
+        # was. Die staan vooraan in de rij: iemand die op zijn uitkomst klikt is
+        # het beste wat er die dag gebeurt, en in de mail is hem een grotere
+        # meting beloofd.
+        wachtenden = benadering.wachtenden_op_volledige_meting()
+        for url in wachtenden:
+            if _volledige_meting_na_klik(url):
+                verslag["ingehaald"] = verslag.get("ingehaald", 0) + 1
+        if wachtenden:
+            print(f"Benadering, uitgestelde metingen opgepakt: {wachtenden}")
+    except Exception as e:
+        verslag["mislukt"].append(f"uitgestelde metingen: {e}")
+        print(f"Benadering, uitgestelde metingen mislukt: {e}")
+
+    try:
         # Aan beide kanten door dezelfde schrijfwijze halen voordat wij
         # vergelijken.
         #
@@ -2237,6 +2252,11 @@ def afmelden(token):
         if request.method == "POST":
             return "", 500
         return render_template("afgemeld.html", gelukt=False), 500
+
+    # Wie zich afmeldt hoort ook niet meer in de rij te staan voor een
+    # uitgestelde meting. Anders betalen wij morgen nog 2,50 euro aan een winkel
+    # die net gezegd heeft dat hij niets meer van ons wil.
+    benadering.haal_van_wachtlijst(webshop_url)
 
     if request.method == "POST":
         return "", 200
@@ -3557,7 +3577,17 @@ def _volledige_meting_na_klik(webshop_url):
             return False
         rem = kosten.mag_doorgaan(webshop_url=webshop_url)
         if not rem["mag"]:
-            print(f"Volledige meting na klik overgeslagen voor {webshop_url}: {rem['reden']}")
+            # NIET zomaar overslaan. Dit was een stil gat: in de mail staat dat
+            # er meteen een grotere meting overheen gaat zodra je je pagina
+            # opent, en was het geld voor die dag op, dan gebeurde er niets en
+            # kwam deze winkel er ook nooit meer langs. De belofte was dan
+            # gewoon niet waar en niemand die het zag.
+            #
+            # Iemand die klikt is bovendien het beste wat er die dag gebeurt.
+            # Juist aan hem hoort de dure meting besteed te worden, desnoods een
+            # dag later.
+            print(f"Volledige meting na klik uitgesteld voor {webshop_url}: {rem['reden']}")
+            benadering.zet_op_wachtlijst_volledige_meting(webshop_url)
             return False
         # Meteen vastleggen, voor de meting begint. Twee bezoekers tegelijk
         # zouden anders allebei een meting starten.

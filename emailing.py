@@ -761,10 +761,10 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
     <p style="font-size:14.5px;"><strong>Starting score: {score}/100</strong> for {webshop_url}</p>
     <p style="font-size:13.5px; color:#3B3D57;">
       This is your baseline. Every week we scan again and you get a message with the new
-      standing, and a clear warning if your score has dropped. Your own page shows every week
-      what to do first, and we carry it out for you. Afterwards you get an overview of every
-      change with the old text next to it, so you can always put it back. Your page stays at
-      the same address; keep the link below.
+      standing, and a clear warning if your score has dropped. From that measurement we pick
+      at most three things a week that gain you the most, and we carry those out in your store
+      for you. Afterwards you get an overview of every change with the old text next to it, so
+      you can always put it back. Your page stays at the same address; keep the link below.
     </p>
     <p style="font-size:13.5px; color:#3B3D57;">
       <strong>We need one thing from you: access to your store.</strong> Without access we

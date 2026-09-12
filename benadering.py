@@ -640,6 +640,82 @@ def onthoud_volledige_meting(webshop_url):
         return False
 
 
+# Winkels die op hun uitkomstpagina geklikt hebben terwijl de dagpot leeg was.
+#
+# Waarom deze lijst bestaat. In de onderzoeksmail staat: open je pagina, dan
+# gaat er meteen een grotere meting overheen. Was het geld voor die dag op op
+# het moment dat iemand klikte, dan gebeurde er niets EN kwam hij er nooit meer
+# langs, want de kostenrem zit voor de plek waar wij onthouden dat het nog moet.
+# De belofte in de mail was dan gewoon niet waar, en dat merkte niemand.
+#
+# Nu komt zo iemand hier terecht en pakt de eerstvolgende ronde met geld hem
+# alsnog op. Hij heeft dan geklikt, dus hij is precies het soort winkel waar
+# een dure meting aan besteed hoort te worden.
+WACHT_VOLLEDIG_SLEUTEL = "benadering_wacht_volledige_meting"
+
+# Hoeveel wachtende winkels een ronde er hoogstens uit haalt. Een volledige
+# meting kost ongeveer 2,50 euro, dus twee per ronde is bij een dagpot van 25
+# euro al ruim: bij meer zou een ochtend met veel klikken de hele dagpot
+# opmaken en zou er niets meer overblijven voor nieuwe winkels.
+WACHTENDEN_PER_RONDE = int(os.environ.get("WACHTENDEN_PER_RONDE", "2"))
+
+
+def _wachtlijst():
+    try:
+        waarde = db.get_instelling(WACHT_VOLLEDIG_SLEUTEL)
+        lijst = json.loads(str(waarde)) if waarde else []
+        return [u for u in lijst if u] if isinstance(lijst, list) else []
+    except Exception:
+        return []
+
+
+def zet_op_wachtlijst_volledige_meting(webshop_url):
+    """Deze winkel klikte, maar er was geen geld. Bewaren voor later."""
+    try:
+        kaal = scan_engine.normalize_url(webshop_url)
+        lijst = _wachtlijst()
+        if kaal in lijst:
+            return False
+        lijst.append(kaal)
+        db.zet_instelling(WACHT_VOLLEDIG_SLEUTEL, json.dumps(lijst[-500:]))
+        print(f"{webshop_url} wacht op een volledige meting: de dagpot was op.")
+        return True
+    except Exception as e:
+        print(f"Op de wachtlijst zetten mislukt voor {webshop_url}: {e}")
+        return False
+
+
+def wachtenden_op_volledige_meting(hoeveel=None):
+    """De winkels die deze ronde alsnog een volledige meting krijgen.
+
+    Haalt ze meteen van de lijst af. Lukt de meting daarna niet, dan zet
+    _volledige_meting_na_klik ze er vanzelf weer op, want die loopt opnieuw
+    tegen dezelfde lege dagpot aan. Zo kan een winkel nooit blijven rondzingen
+    in een ronde die hem elke keer opnieuw probeert."""
+    hoeveel = WACHTENDEN_PER_RONDE if hoeveel is None else hoeveel
+    lijst = _wachtlijst()
+    if not lijst or hoeveel <= 0:
+        return []
+    nu, rest = lijst[:hoeveel], lijst[hoeveel:]
+    try:
+        db.zet_instelling(WACHT_VOLLEDIG_SLEUTEL, json.dumps(rest))
+    except Exception as e:
+        print(f"Wachtlijst bijwerken mislukt: {e}")
+        return []
+    return nu
+
+
+def haal_van_wachtlijst(webshop_url):
+    """Van de lijst af zonder hem te meten. Voor een winkel die zich afmeldt."""
+    try:
+        kaal = scan_engine.normalize_url(webshop_url)
+        lijst = [u for u in _wachtlijst() if u != kaal]
+        db.zet_instelling(WACHT_VOLLEDIG_SLEUTEL, json.dumps(lijst))
+        return True
+    except Exception:
+        return False
+
+
 def mag_nog_een_poging(webshop_url):
     """Of deze winkel nog een meting waard is."""
     return meetpogingen(webshop_url) < MAX_MEETPOGINGEN
