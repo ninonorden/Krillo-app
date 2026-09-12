@@ -533,29 +533,52 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
     g = BEDRIJFSGEGEVENS
     afzender = os.environ.get("SMTP_FROM_EMAIL", "hallo@krillo.nl")
 
-    # Het cijfer in een eigen kader. Dat is het enige opvallende element in deze
-    # mail, en dat is met opzet: wat opvalt moet zijn eigen uitkomst zijn, niet
-    # onze knop. Een mail die eruitziet als een rapport wordt anders gelezen dan
-    # een mail die eruitziet als een aanbieding.
+    # WAT ER IN HET KADER STAAT, EN WAAROM DAT OP 12 SEPTEMBER VERANDERD IS.
+    #
+    # Brevo laat zien dat 45 procent van de ontvangers deze mail OPENT. Dat is
+    # voor koude zakelijke post uitstekend, en er zijn nul spamklachten. Maar van
+    # die 45 procent klikt maar 8 procent door naar zijn uitkomst.
+    #
+    # De mail komt dus aan, wordt gelezen, en dan gebeurt er niets. Dat wijst
+    # niet op de aflevering en niet op de onderwerpregel, maar op de inhoud. En
+    # de oorzaak lag voor de hand zodra je hem opschreef: er stond "genoemd bij
+    # 0 van de 5 vragen", en daarmee was het verhaal uit. Wie het antwoord al
+    # heeft, klikt niet meer.
+    #
+    # Wat er nu staat is hetzelfde feit, van de andere kant bekeken: niet dat
+    # jij ontbrak, maar dat er WEL iemand anders uitkwam. Dat is precies even
+    # waar, het is scherper, en het roept de vraag op die alleen de pagina
+    # beantwoordt: wie dan.
+    gemist = None
     if genoemd is not None and telbaar:
-        kader = f"""
+        gemist = max(0, telbaar - genoemd)
+
+    if gemist:
+        if genoemd == 0:
+            kop = (f"Bij alle {telbaar} koopvragen kwam er een andere winkel uit, "
+                   f"en {winkel} niet")
+        else:
+            kop = (f"Bij {gemist} van de {telbaar} koopvragen kwam er een andere "
+                   f"winkel uit, en {winkel} niet")
+        onder = f"Genoemd bij {genoemd} van de {telbaar} vragen{vergelijking_regel}"
+    elif genoemd is not None and telbaar:
+        kop = f"{winkel} werd bij alle {telbaar} koopvragen genoemd"
+        onder = ("Genoemd worden is niet hetzelfde als aanbevolen worden. Dat "
+                 "verschil staat op je pagina.")
+    else:
+        kop = f"We hebben {winkel} meegenomen in de meting"
+        onder = ""
+
+    kader = f"""
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
              style="border:1px solid #E4E2DA; border-radius:10px; margin:22px 0;">
         <tr><td style="padding:20px 22px;">
           <div style="font-size:12px; color:#3B3D57; letter-spacing:.04em;
-                      text-transform:uppercase; margin-bottom:6px;">Jouw uitkomst</div>
-          <div style="font-size:26px; font-weight:700; color:#12142B; line-height:1.25;">
-            Genoemd bij {genoemd} van de {telbaar} vragen</div>
-          <div style="font-size:13.5px; color:#3B3D57; margin-top:6px;">
-            {winkel}{vergelijking_regel}</div>
+                      text-transform:uppercase; margin-bottom:8px;">Jouw uitkomst</div>
+          <div style="font-size:21px; font-weight:700; color:#12142B; line-height:1.35;">
+            {kop}</div>
+          {f'<div style="font-size:13.5px; color:#3B3D57; margin-top:8px;">{onder}</div>' if onder else ''}
         </td></tr>
-      </table>"""
-    else:
-        kader = f"""
-      <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
-             style="border:1px solid #E4E2DA; border-radius:10px; margin:22px 0;">
-        <tr><td style="padding:20px 22px; font-size:15px; color:#12142B;">
-          We hebben {winkel} meegenomen in de meting.</td></tr>
       </table>"""
 
     # De knop is donkergrijs en niet felrood, en er staat onder waar hij heen
@@ -585,15 +608,16 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
           {kader}
 
           <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 6px;">
-            Op je eigen pagina staat bij welke vragen dat was, welke winkels er bij
-            diezelfde vragen wel uitkwamen, en wat daarvan aan jouw kant de oorzaak is.
-            Je hoeft nergens voor in te loggen en er wordt niets gevraagd.</p>
+            Welke winkels dat waren en bij welke vragen, staat op je eigen pagina.
+            Open je hem, dan meten we meteen door met vijftien vragen aan twee
+            modellen, dus er komt daarna nog meer bij te staan. Je hoeft nergens
+            voor in te loggen en er wordt niets gevraagd.</p>
 
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
             <tr><td style="background:#12142B; border-radius:8px;">
               <a href="{uitkomst_url}" style="display:inline-block; padding:13px 26px;
                  color:#FFFFFF; text-decoration:none; font-size:14.5px; font-weight:600;">
-                Bekijk je uitkomst</a>
+                Bekijk welke winkels er wel uitkwamen</a>
             </td></tr>
           </table>
           <p style="font-size:12.5px; color:#6B6D85; margin:0 0 4px;">

@@ -285,15 +285,21 @@ SCHATTING_METING_EURO = float(os.environ.get("SCHATTING_METING_EURO", "2.50"))
 #
 # Nog steeds ruim aan de veilige kant afgerond: te weinig inplannen kost alleen
 # tijd, te veel kost halve metingen.
-# 25 cent. Zes vragen bij een model is ongeveer een achtste van een volledige
-# meting van vijftien vragen bij twee modellen, en die kost ongeveer een euro.
-# Dat is dertien cent, plus het bedenken van de koopvragen, dus 25 cent is ruim.
+# 15 cent, en dat is sinds 12 september een GEMETEN bedrag en geen schatting.
 #
-# LET OP: dit is nog een SCHATTING en geen gemeten feit. Wat het echt kost staat
-# na een dag draaien op /admin/kosten. Klopt het niet, verander dan dit getal en
-# niet de dagpot: dit getal bepaalt alleen hoeveel er per ronde ingepland wordt,
-# de dagpot is de echte rem.
-SCHATTING_BENADERING_EURO = float(os.environ.get("SCHATTING_BENADERING_EURO", "0.25"))
+# Hoe het gemeten is: in de nacht van 11 op 12 september draaiden acht rondes
+# van vijf benaderingen, dus veertig metingen, en om 08:04 stond de dagpot op
+# 5,86 euro. Dat is 14,7 cent per meting, afgerond 15.
+#
+# Het stond op 25 cent, en dat was mijn schatting van de avond ervoor. Te hoog
+# schatten is hier niet veilig maar juist remmend: dit getal bepaalt hoeveel
+# metingen er per ronde ingepland worden, dus een te hoog getal betekent te
+# weinig post. Met 15 cent passen er bij een dagpot van 25 euro ruim
+# honderdzestig benaderingen per dag in, en het doel is er honderd.
+#
+# Verandert er iets aan de meting (meer vragen, een tweede model, een duurder
+# model), dan hoort dit getal mee te veranderen. Het staat op /admin/kosten.
+SCHATTING_BENADERING_EURO = float(os.environ.get("SCHATTING_BENADERING_EURO", "0.15"))
 
 SCHATTING_ONBEKENDE_AANROEP_EURO = float(
     os.environ.get("SCHATTING_ONBEKENDE_AANROEP_EURO", "0.02"))
