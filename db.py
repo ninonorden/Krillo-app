@@ -2810,9 +2810,16 @@ def bezoekoverzicht(dagen=30):
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 sinds = f"now() - interval '{int(dagen)} days'"
 
+                # "eerste" is het moment waarop deze teller voor het eerst iets
+                # zag. Dat is nodig om eerlijk te kunnen vergelijken: de scans
+                # en de betalingen bestaan al maanden, het bezoek pas sinds de
+                # teller aanstond. Zonder dat getal zet je negen bezoekers van
+                # vandaag naast zesentwintig scans van een maand en komt er
+                # onzin uit de trechter.
                 cur.execute(f"""SELECT count(*) AS bezoeken,
                                        count(DISTINCT bezoeker) AS bezoekers,
-                                       count(DISTINCT pad) AS paginas
+                                       count(DISTINCT pad) AS paginas,
+                                       min(gezien_op) AS eerste
                                   FROM bezoeken WHERE gezien_op > {sinds}""")
                 totaal = cur.fetchone() or {}
 

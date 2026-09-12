@@ -97,8 +97,15 @@ MINIMUM_VOOR_TELLER = int(os.environ.get("MINIMUM_VOOR_TELLER", "50"))
 # Paden die niets zeggen over bezoek: plaatjes en stijlbestanden, je eigen
 # beheerpagina's, de machinekamer, en alles wat een computer ophaalt in plaats
 # van een mens.
-BEZOEK_NEGEREN = ("/static", "/admin", "/api", "/cron", "/shopify", "/webhook",
-                  "/favicon", "/robots.txt", "/sitemap", "/healthz", "/.well-known")
+#
+# /wakker staat er bij sinds de eerste dag dat de teller aanstond. Die wordt elk
+# uur door onze eigen taak opgehaald om Render wakker te houden, en dat leverde
+# meteen 16 van de 27 "bezoeken" op, allemaal van dezelfde niet bestaande
+# bezoeker. Een teller die voor de helft uit je eigen machines bestaat is erger
+# dan geen teller, want je gaat conclusies trekken uit ruis.
+BEZOEK_NEGEREN = ("/static", "/admin", "/api", "/cron", "/wakker", "/shopify",
+                  "/webhook", "/favicon", "/robots.txt", "/sitemap", "/healthz",
+                  "/.well-known")
 
 # Wat zich meldt als bot, spin, crawler of voorvertoning is geen bezoeker. Zonder
 # deze regel is de helft van je cijfers Google en LinkedIn die je eigen link
@@ -4097,13 +4104,24 @@ def admin_bezoek():
     dagen = int(request.args.get("dagen", 30))
     overzicht = db.bezoekoverzicht(dagen)
     totaal = overzicht["totaal"] or {}
-    # De scans en betalingen uit dezelfde periode, zodat de trechter van bezoek
-    # naar scan naar betaling in één beeld staat.
-    scanoverzicht = db.scanoverzicht(dagen)
-    scantotaal = scanoverzicht["totaal"] or {}
+
+    # De trechter over DEZELFDE periode als het bezoek, en niet over dertig
+    # dagen. De scans en de betalingen bestaan al maanden, de bezoekersteller
+    # staat pas sinds 12 september aan. Werden die twee over een verschillende
+    # periode geteld, dan stond er negen bezoekers naast zesentwintig scans en
+    # rekende de pagina daar vrolijk "1 op 0" uit. Een trechter waar de tweede
+    # stap groter is dan de eerste is geen trechter.
+    eerste = totaal.get("eerste")
+    trechterdagen = dagen
+    if eerste:
+        gemeten = (datetime.now(timezone.utc) - eerste).days + 1
+        trechterdagen = max(1, min(dagen, gemeten))
+    scantotaal = (db.scanoverzicht(trechterdagen)["totaal"] or {})
     return render_template(
         "admin_bezoek.html",
         dagen=dagen,
+        trechterdagen=trechterdagen,
+        sinds=eerste,
         totaal=totaal,
         bezoeken=totaal.get("bezoeken") or 0,
         scans=scantotaal.get("scans") or 0,
