@@ -449,3 +449,60 @@ def klantbeeld(webshop_url, beoordelingen):
         "modellen": modellen,
         "regels": sorted(telbaar, key=lambda r: (-r["sterkte"], r["vraag"])),
     }
+
+
+def voorbeeldvraag(webshop_url, beoordelingen):
+    """Eén echte vraag uit de meting, met de winkels die eruit kwamen.
+
+    Waarvoor dit dient. In de onderzoeksmail stond het woord "koopvragen", en dat
+    is ons woord, niet dat van de ontvanger. Wie het leest moet eerst raden wat er
+    gemeten is, en raden kost precies de twee seconden die zo'n mail krijgt. De
+    oplossing is niet uitleggen wat een koopvraag is, maar er gewoon een laten
+    zien: iedereen die ooit iets aan ChatGPT gevraagd heeft snapt dat beeld
+    meteen.
+
+    Welke vraag we kiezen, en waarom die. We nemen één ANTWOORD, dus één vraag aan
+    één model, en wel het antwoord waarin de meeste andere winkels genoemd
+    werden. Dat is de vraag waar het gemis het grootst is: er kwamen vijf winkels
+    uit en jij was er geen van. Een vraag met één winkel in het antwoord is veel
+    magerder bewijs.
+
+    Bewust één antwoord en niet de winkels van beide modellen bij elkaar
+    geveegd. Dan zou er in de mail "ChatGPT antwoordde met acht winkels" staan
+    terwijl ChatGPT er vier noemde en Gemini de andere vier. Dat is niet waar, en
+    het is precies het soort kleine onwaarheid waar een ongevraagde mail op
+    afgerekend wordt.
+
+    Geeft None terug als er niets bruikbaars is: geen enkele vraag waarbij de
+    winkel ontbrak, of overal minder dan twee andere winkels. De mail valt dan
+    terug op de tekst zonder voorbeeld."""
+    import scan_engine
+
+    beste = None
+    for b in beoordelingen:
+        vraag = (b.get("vraag") or "").strip()
+        if not vraag or not b.get("winkel_kon_genoemd"):
+            continue
+        # Alleen antwoorden waar de winkel ZELF niet in stond. Een voorbeeld
+        # waarin hij wel genoemd wordt zegt het tegenovergestelde van wat de
+        # mail betoogt.
+        if b.get("genoemd"):
+            continue
+        namen = []
+        gezien = set()
+        for w in (b.get("winkels") or []):
+            naam = (w.get("naam") or "").strip()
+            if not naam or naam.lower() in gezien:
+                continue
+            if scan_engine.is_eigen_winkel(webshop_url, naam):
+                continue
+            gezien.add(naam.lower())
+            namen.append(naam)
+        # Onder de twee namen is het geen lijstje meer en oogt het als een
+        # toevallige uitschieter in plaats van een patroon.
+        if len(namen) < 2:
+            continue
+        if beste is None or len(namen) > len(beste["winkels"]):
+            beste = {"vraag": vraag, "winkels": namen,
+                     "aantal": len(namen), "model": toonnaam(b.get("model"))}
+    return beste

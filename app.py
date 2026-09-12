@@ -2161,12 +2161,27 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None):
         # laten wij die regel gewoon weg; de mail werkt ook zonder.
         genoeg = (c.get("gemeten") or 0) >= MINIMUM_WINKELS_VOOR_VERGELIJKING
         basis = get_base_url()
+
+        # Een echte vraag uit de meting, met de winkels die eruit kwamen. Dit is
+        # wat het woord "koopvragen" uit de mail haalt: je legt niet uit wat we
+        # gemeten hebben, je laat het zien.
+        #
+        # De twee getallen over de vervolgmeting gaan in hetzelfde pakketje mee,
+        # zodat de mail belooft wat er straks echt gebeurt. Het aantal modellen
+        # komt uit de sleutels die in Render staan, niet uit een zin die ooit is
+        # opgeschreven: staat er maar een sleutel, dan zegt de mail geen twee.
+        voorbeeld = beoordeling.voorbeeldvraag(
+            webshop_url, [dict(b) for b in db.get_beoordelingen(webshop_url)]) or {}
+        voorbeeld["na_klik_vragen"] = MEET_VRAGEN_NA_KLIK
+        voorbeeld["na_klik_modellen"] = len(metingen.beschikbare_aanbieders())
+
         gelukt = emailing.send_onderzoeksmail(
             email, webshop_url, f"{basis}/uitkomst/{token}",
             genoemd=v.get("genoemd"), telbaar=v.get("telbaar"),
             nooit_genoemd=c.get("nooit_genoemd") if genoeg else None,
             gemeten=c.get("gemeten") if genoeg else None,
-            afmeld_url=f"{basis}/afmelden/{token}", land=land)
+            afmeld_url=f"{basis}/afmelden/{token}", land=land,
+            voorbeeld=voorbeeld)
         return bool(gelukt), None if gelukt else "Verzenden mislukt, kijk in de logs."
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"[:200]
