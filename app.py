@@ -4104,17 +4104,27 @@ def admin_categorieen():
     if doorsturen:
         return redirect(doorsturen)
 
-    verslag = None
+    # Het indelen gebeurt op een EIGEN DRAAD en niet in dit verzoek. Bij 975
+    # winkels zijn dat vierentwintig aanroepen van samen tien minuten, en
+    # gunicorn kapt na twee minuten af. Op 13 september leverde dat twee
+    # storingen op en moest de server herstart worden. Dezelfde fout als met de
+    # kostenpagina op 11 september: lang werk aan een verzoek hangen.
+    bericht = None
     if request.method == "POST":
         hoeveel = int(request.form.get("hoeveel") or 0) or None
         opnieuw = request.form.get("opnieuw") == "ja"
-        verslag = categorieen.deel_alles_in(hoeveel=hoeveel, opnieuw=opnieuw)
-        print(f"Winkels indelen: {verslag}")
+        if categorieen.start_indelen(hoeveel=hoeveel, opnieuw=opnieuw):
+            bericht = ("Het indelen is gestart en draait op de achtergrond. Ververs deze "
+                       "pagina over een minuut of twee om te zien hoe ver hij is. Je kunt "
+                       "het tabblad gerust sluiten, hij gaat gewoon door.")
+        else:
+            bericht = "Het indelen loopt al. Ververs de pagina om te zien hoe ver hij is."
 
     tel = categorieen.telling()
     return render_template(
         "admin_categorieen.html",
-        verslag=verslag,
+        bericht=bericht,
+        stand=categorieen.stand(),
         tel=tel,
         besparing=categorieen.besparing(tel),
         naam_van=categorieen.naam_van,

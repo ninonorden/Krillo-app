@@ -66,74 +66,99 @@ MINIMUM_VOOR_INDEX = int(os.environ.get("CATEGORIE_MINIMUM", "10"))
 #
 # Een categorie erbij is een regel in deze lijst. Een categorie eraf is NIET
 # zomaar een regel weg: winkels die erin zaten moeten dan opnieuw ingedeeld.
+# Elke categorie is (slug, naam, ouder). De ouder is waar deze categorie in
+# oprolt zolang hij te klein is voor een eigen ranglijst.
+#
+# WAAROM DIE OUDER ER IS. Bij de eerste echte indeling op 13 september bleek de
+# staart te dun: huidverzorging 1 winkel, make-up 1, watersport 1. Zulke
+# categorieen halen de tien nooit en vielen daarmee uit de index, terwijl de
+# winkels erin prima meetbaar zijn.
+#
+# Nu rolt een te kleine categorie op in zijn ouder. "Make-up" met een winkel
+# telt dan mee in "Cosmetica en verzorging". Groeit make-up later door naar
+# tien of meer, dan staat hij vanzelf op eigen benen. Zo hoeft er nooit iemand
+# opnieuw ingedeeld te worden als de markt verandert: de indeling blijft fijn,
+# alleen de RANGLIJST wordt zo grof als nodig.
+#
+# De regel in een zin: fijn indelen, grof publiceren, en vanzelf splitsen zodra
+# er genoeg winkels zijn.
 CATEGORIEEN = [
-    ("kleding-dames", "Dameskleding"),
-    ("kleding-heren", "Herenkleding"),
-    ("kleding-kinderen", "Kinderkleding"),
-    ("kleding-duurzaam", "Duurzame en biologische kleding"),
-    ("schoenen", "Schoenen"),
-    ("sieraden", "Sieraden"),
-    ("horloges", "Horloges"),
-    ("tassen-lederwaren", "Tassen en lederwaren"),
-    ("wonen-interieur", "Wonen en interieur"),
-    ("meubels", "Meubels"),
-    ("verlichting", "Verlichting"),
-    ("beddengoed-textiel", "Beddengoed en woontextiel"),
-    ("woondecoratie", "Woondecoratie en accessoires"),
-    ("kunst-posters", "Kunst en posters"),
-    ("keuken-servies", "Servies en tafelgerei"),
-    ("kookgerei", "Pannen en kookgerei"),
-    ("koffie-thee", "Koffie en thee"),
-    ("delicatessen", "Delicatessen en speciaalzaken"),
-    ("wijn-drank", "Wijn en sterke drank"),
-    ("chocolade-snoep", "Chocolade en snoep"),
-    ("babyspullen", "Babyspullen en verzorging"),
-    ("speelgoed", "Speelgoed"),
-    ("speelgoed-educatief", "Educatief en houten speelgoed"),
-    ("kraamcadeaus", "Kraamcadeaus en gepersonaliseerde cadeaus"),
-    ("sport-fitness", "Sport en fitness"),
-    ("hardlopen", "Hardlopen"),
-    ("wielrennen", "Wielrennen en fietskleding"),
-    ("outdoor-kamperen", "Outdoor en kamperen"),
-    ("watersport", "Watersport"),
-    ("yoga", "Yoga en pilates"),
-    ("elektronica", "Elektronica algemeen"),
-    ("audio", "Audio en koptelefoons"),
-    ("computers-accessoires", "Computers en accessoires"),
-    ("telefoon-accessoires", "Telefoonhoesjes en accessoires"),
-    ("gaming", "Gaming"),
-    ("slim-huis", "Slimme huis en domotica"),
-    ("cosmetica-natuurlijk", "Natuurlijke cosmetica"),
-    ("huidverzorging", "Huidverzorging"),
-    ("haarverzorging", "Haarverzorging"),
-    ("parfum", "Parfum"),
-    ("makeup", "Make-up"),
-    ("scheren-baard", "Scheren en baardverzorging"),
-    ("supplementen", "Supplementen en gezondheid"),
-    ("medische-hulpmiddelen", "Medische hulpmiddelen en hulpmiddelen thuis"),
-    ("hond", "Hondenbenodigdheden"),
-    ("kat", "Kattenbenodigdheden"),
-    ("dieren-overig", "Overige dierbenodigdheden"),
-    ("kamerplanten", "Kamerplanten"),
-    ("tuin", "Tuin en buitenleven"),
-    ("zaden-bloembollen", "Zaden en bloembollen"),
-    ("hobby-knutselen", "Hobby en knutselen"),
-    ("breien-haken", "Breien, haken en stoffen"),
-    ("schrijfwaren-kantoor", "Schrijfwaren en kantoor"),
-    ("boeken", "Boeken"),
-    ("muziekinstrumenten", "Muziekinstrumenten"),
-    ("gereedschap", "Gereedschap en klussen"),
-    ("auto-accessoires", "Auto-accessoires"),
-    ("fietsonderdelen", "Fietsen en onderdelen"),
-    ("zerowaste", "Duurzaam en zero waste"),
-    ("feestartikelen", "Feestartikelen"),
-    ("reizen-bagage", "Reizen en bagage"),
-    ("erotiek", "Erotiek"),
-    ("overig", "Overig, doet niet mee aan de index"),
+    ("kleding", "Kleding algemeen", None),
+    ("kleding-dames", "Dameskleding", "kleding"),
+    ("kleding-heren", "Herenkleding", "kleding"),
+    ("kleding-kinderen", "Kinderkleding", "kleding"),
+    ("kleding-duurzaam", "Duurzame en biologische kleding", "kleding"),
+    ("schoenen", "Schoenen", None),
+    ("sieraden", "Sieraden", None),
+    ("horloges", "Horloges", "sieraden"),
+    ("tassen-lederwaren", "Tassen en lederwaren", None),
+    ("wonen-interieur", "Wonen en interieur", None),
+    ("meubels", "Meubels", "wonen-interieur"),
+    ("verlichting", "Verlichting", None),
+    ("beddengoed-textiel", "Beddengoed en woontextiel", "wonen-interieur"),
+    ("woondecoratie", "Woondecoratie en accessoires", "wonen-interieur"),
+    ("kunst-posters", "Kunst en posters", "wonen-interieur"),
+    ("keuken-servies", "Servies en tafelgerei", None),
+    ("kookgerei", "Pannen en kookgerei", "keuken-servies"),
+    ("koffie-thee", "Koffie en thee", None),
+    ("delicatessen", "Delicatessen en speciaalzaken", None),
+    ("wijn-drank", "Wijn en sterke drank", "delicatessen"),
+    ("chocolade-snoep", "Chocolade en snoep", "delicatessen"),
+    ("babyspullen", "Babyspullen en verzorging", None),
+    ("kraamcadeaus", "Kraamcadeaus en gepersonaliseerde cadeaus", "babyspullen"),
+    ("speelgoed", "Speelgoed", None),
+    ("speelgoed-educatief", "Educatief en houten speelgoed", "speelgoed"),
+    ("sport-fitness", "Sport en fitness", None),
+    ("hardlopen", "Hardlopen", "sport-fitness"),
+    ("yoga", "Yoga en pilates", "sport-fitness"),
+    ("watersport", "Watersport", "sport-fitness"),
+    ("outdoor-kamperen", "Outdoor en kamperen", None),
+    ("fietsonderdelen", "Fietsen en onderdelen", None),
+    ("wielrennen", "Wielrennen en fietskleding", "fietsonderdelen"),
+    ("elektronica", "Elektronica algemeen", None),
+    ("audio", "Audio en koptelefoons", None),
+    ("computers-accessoires", "Computers en accessoires", "elektronica"),
+    ("telefoon-accessoires", "Telefoonhoesjes en accessoires", "elektronica"),
+    ("gaming", "Gaming", "elektronica"),
+    ("slim-huis", "Slimme huis en domotica", "elektronica"),
+    ("cosmetica", "Cosmetica en verzorging", None),
+    ("cosmetica-natuurlijk", "Natuurlijke cosmetica", "cosmetica"),
+    ("huidverzorging", "Huidverzorging", "cosmetica"),
+    ("haarverzorging", "Haarverzorging", "cosmetica"),
+    ("parfum", "Parfum", "cosmetica"),
+    ("makeup", "Make-up", "cosmetica"),
+    ("scheren-baard", "Scheren en baardverzorging", "cosmetica"),
+    ("supplementen", "Supplementen en gezondheid", None),
+    ("medische-hulpmiddelen", "Medische hulpmiddelen en hulpmiddelen thuis", "supplementen"),
+    ("dieren-overig", "Dierbenodigdheden", None),
+    ("hond", "Hondenbenodigdheden", "dieren-overig"),
+    ("kat", "Kattenbenodigdheden", "dieren-overig"),
+    ("kamerplanten", "Kamerplanten", None),
+    ("tuin", "Tuin en buitenleven", None),
+    ("zaden-bloembollen", "Zaden en bloembollen", "tuin"),
+    ("hobby-knutselen", "Hobby en knutselen", None),
+    ("breien-haken", "Breien, haken en stoffen", "hobby-knutselen"),
+    ("schrijfwaren-kantoor", "Schrijfwaren en kantoor", None),
+    ("boeken", "Boeken", None),
+    ("muziekinstrumenten", "Muziekinstrumenten", "hobby-knutselen"),
+    ("gereedschap", "Gereedschap en klussen", None),
+    ("auto-accessoires", "Auto-accessoires", None),
+    ("zerowaste", "Duurzaam en zero waste", None),
+    ("feestartikelen", "Feestartikelen", None),
+    ("reizen-bagage", "Reizen en bagage", None),
+    ("erotiek", "Erotiek", None),
+    ("overig", "Overig, doet niet mee aan de index", None),
 ]
 
-GELDIG = {slug for slug, _ in CATEGORIEEN}
-NAMEN = dict(CATEGORIEEN)
+# Zodra een categorie hier boven komt, is hij groot genoeg om gesplitst te
+# worden in zijn kinderen. Dan wordt een ranglijst van honderd winkels weer
+# nietszeggend en hebben de fijnere categorieen meer waarde.
+SPLITS_BOVEN = int(os.environ.get("CATEGORIE_SPLITS_BOVEN", "40"))
+
+OUDER = {slug: ouder for slug, _, ouder in CATEGORIEEN}
+
+GELDIG = {slug for slug, _, _ in CATEGORIEEN}
+NAMEN = {slug: naam for slug, naam, _ in CATEGORIEEN}
 
 
 def naam_van(slug):
@@ -149,7 +174,7 @@ def _client():
 
 
 def _prompt(winkels):
-    lijst = "\n".join(f"- {slug}: {naam}" for slug, naam in CATEGORIEEN)
+    lijst = "\n".join(f"- {slug}: {naam}" for slug, naam, _ in CATEGORIEEN)
     regels = []
     for w in winkels:
         stukken = [w["webshop_url"]]
@@ -260,36 +285,69 @@ def deel_alles_in(hoeveel=None, opnieuw=False):
     return verslag
 
 
+def rol_op(rijen):
+    """Rolt te kleine categorieen op in hun ouder.
+
+    Dit is de kern van "fijn indelen, grof publiceren". Een categorie met een
+    winkel is geen ranglijst, maar de winkel erin is wel meetbaar. Door hem in
+    zijn ouder te laten meetellen doet hij gewoon mee, en zodra zijn eigen
+    categorie tien winkels heeft staat die op eigen benen.
+
+    Geeft een lijst terug van {categorie, aantal, met_adres, opgerold_uit}."""
+    tel = {r["categorie"]: dict(r, opgerold_uit=[]) for r in rijen
+           if r["categorie"] and r["categorie"] != "overig"}
+
+    # Van klein naar groot, zodat een kind eerst in zijn ouder valt en die
+    # ouder daarna zelf nog kan doorrollen als hij ook te klein blijft.
+    for slug in sorted(tel, key=lambda s: tel[s]["aantal"]):
+        regel = tel.get(slug)
+        if not regel or regel["aantal"] >= MINIMUM_VOOR_INDEX:
+            continue
+        ouder = OUDER.get(slug)
+        if not ouder:
+            continue
+        doel = tel.setdefault(ouder, {"categorie": ouder, "aantal": 0,
+                                      "met_adres": 0, "opgerold_uit": []})
+        doel["aantal"] += regel["aantal"]
+        doel["met_adres"] = (doel.get("met_adres") or 0) + (regel.get("met_adres") or 0)
+        doel["opgerold_uit"] = doel["opgerold_uit"] + [slug] + regel["opgerold_uit"]
+        del tel[slug]
+
+    return sorted(tel.values(), key=lambda r: -r["aantal"])
+
+
 def telling():
     """De cijfers waarop de go of no-go rust.
 
     De vraag is niet hoeveel categorieen er zijn, maar hoeveel WINKELS er in een
-    categorie zitten die groot genoeg is om een ranglijst van te maken. Een
-    indeling met tachtig categorieen van drie winkels is een mislukking, ook al
-    ziet de lijst er netjes uit."""
+    ranglijst zitten die groot genoeg is om iets te betekenen. Een indeling met
+    tachtig categorieen van drie winkels is een mislukking, ook al ziet de lijst
+    er netjes uit."""
     rijen = db.categorie_telling()
     totaal = sum(r["aantal"] for r in rijen)
     zonder = next((r["aantal"] for r in rijen if not r["categorie"]), 0)
     overig = next((r["aantal"] for r in rijen if r["categorie"] == "overig"), 0)
-    echte = [r for r in rijen if r["categorie"] and r["categorie"] != "overig"]
-    bruikbaar = [r for r in echte if r["aantal"] >= MINIMUM_VOOR_INDEX]
+    ingedeeld = sum(r["aantal"] for r in rijen
+                    if r["categorie"] and r["categorie"] != "overig")
+
+    na_oprollen = rol_op(rijen)
+    bruikbaar = [r for r in na_oprollen if r["aantal"] >= MINIMUM_VOOR_INDEX]
     in_bruikbaar = sum(r["aantal"] for r in bruikbaar)
-    ingedeeld = sum(r["aantal"] for r in echte)
+    te_splitsen = [r for r in bruikbaar if r["aantal"] > SPLITS_BOVEN and r["opgerold_uit"]]
 
     return {
         "totaal": totaal,
         "zonder_categorie": zonder,
         "overig": overig,
         "ingedeeld": ingedeeld,
-        "categorieen": len(echte),
+        "categorieen": len(na_oprollen),
         "bruikbare_categorieen": len(bruikbaar),
         "winkels_in_bruikbare": in_bruikbaar,
         "aandeel_bruikbaar": round(in_bruikbaar / ingedeeld * 100) if ingedeeld else 0,
-        "gemiddeld_per_categorie": round(ingedeeld / len(echte), 1) if echte else 0,
+        "gemiddeld_per_categorie": round(ingedeeld / len(na_oprollen), 1) if na_oprollen else 0,
         "minimum": MINIMUM_VOOR_INDEX,
-        "rijen": sorted(echte, key=lambda r: -r["aantal"]),
-        # Het slagingscriterium, hier en niet op het scherm, zodat er maar een
-        # plek is waar het staat.
+        "rijen": na_oprollen,
+        "te_splitsen": te_splitsen,
         "geslaagd": bool(ingedeeld) and (in_bruikbaar / ingedeeld) >= 0.5,
     }
 
@@ -310,3 +368,75 @@ def besparing(telling_uitkomst, per_meting_euro=2.50):
         "ronde_nieuw": round(nieuw, 2),
         "factor": round(oud / nieuw) if nieuw else 0,
     }
+
+
+# ---------------------------------------------------------------------------
+# Het indelen op de achtergrond
+#
+# WAAROM DIT ER IS, EN WAT ER OP 13 SEPTEMBER MISGING.
+#
+# De eerste versie deed het indelen tijdens het verzoek zelf. Bij 975 winkels
+# zijn dat vierentwintig aanroepen achter elkaar, en die duren samen tien
+# minuten. Gunicorn kapt na twee minuten af, dus de werker werd afgeschoten, de
+# pagina gaf een storing, en er was maar een deel ingedeeld. Nino moest vier
+# keer klikken en twee keer de server herstarten.
+#
+# Dat is precies dezelfde fout als op 11 september met de kostenpagina: lang
+# werk aan een verzoek hangen. De regel die daaruit volgt en die vanaf nu voor
+# alles geldt: WERK DAT LANGER DUURT DAN EEN SECONDE OF TIEN HOORT OP EEN EIGEN
+# DRAAD, en de pagina laat alleen zien hoe ver het is.
+# ---------------------------------------------------------------------------
+import threading
+
+_stand = {"bezig": False, "gedaan": 0, "totaal": 0, "aanroepen": 0,
+          "overgeslagen": 0, "klaar_op": None, "fout": None}
+_slot = threading.Lock()
+
+
+def stand():
+    """Hoe ver het indelen is. Voor de beheerpagina."""
+    return dict(_stand)
+
+
+def _werk(hoeveel, opnieuw):
+    try:
+        winkels = db.winkels_zonder_categorie(hoeveel, opnieuw=opnieuw)
+        _stand["totaal"] = len(winkels)
+        for begin in range(0, len(winkels), PER_AANROEP):
+            groep = winkels[begin:begin + PER_AANROEP]
+            uitkomst = deel_in(groep)
+            _stand["aanroepen"] += 1
+            for w in groep:
+                slug = uitkomst.get(w["webshop_url"])
+                if slug:
+                    db.zet_categorie(w["webshop_url"], slug)
+                    _stand["gedaan"] += 1
+                else:
+                    _stand["overgeslagen"] += 1
+            if not uitkomst:
+                # Geen uitkomst betekent een lege sleutel, een storing of de
+                # kostenrem. Doorgaan kost dan alleen geld en levert niets op.
+                _stand["fout"] = ("Het model gaf niets terug. Gestopt. Kijk of de "
+                                  "dagpot op is of er een storing is.")
+                break
+    except Exception as e:
+        _stand["fout"] = f"{type(e).__name__}: {e}"[:200]
+        print(f"Indelen op de achtergrond mislukt: {e}")
+    finally:
+        _stand["bezig"] = False
+        _stand["klaar_op"] = time.time()
+        print(f"Indelen klaar: {_stand}")
+
+
+def start_indelen(hoeveel=None, opnieuw=False):
+    """Start het indelen op een eigen draad. Geeft terug of hij gestart is.
+
+    Twee keer starten kan niet: dan zou dezelfde winkel twee keer ingedeeld
+    worden en twee keer betaald."""
+    with _slot:
+        if _stand["bezig"]:
+            return False
+        _stand.update({"bezig": True, "gedaan": 0, "totaal": 0, "aanroepen": 0,
+                       "overgeslagen": 0, "klaar_op": None, "fout": None})
+    threading.Thread(target=_werk, args=(hoeveel, opnieuw), daemon=True).start()
+    return True
