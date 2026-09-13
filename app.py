@@ -50,6 +50,7 @@ import shopify_werk
 import toepasmodule
 import shopify_billing
 import benadering
+import categorieen
 
 app = Flask(__name__)
 db.init_db()
@@ -4082,6 +4083,42 @@ def admin_bezoekers():
         top_winkels=overzicht["top_winkels"],
         leads=db.zichtbaarheidstest_leads(),
         sleutel=admin_key,
+    )
+
+
+@app.route("/admin/categorieen", methods=["GET", "POST"])
+def admin_categorieen():
+    """Winkels indelen in categorieen, en tellen of dat genoeg oplevert.
+
+    Dit is de pagina waarop de hele ombouw naar de index staat of valt. Meten
+    per categorie is alleen goedkoper als er genoeg winkels per categorie zijn:
+    bij vijftig winkels per categorie is de besparing vijftigvoudig, bij drie is
+    er geen besparing en deugt het plan niet.
+
+    Het indelen zit met opzet op een POST, dus achter een knop. Het kost geld en
+    het schrijft in de database, en dat mag nooit gebeuren doordat iemand een
+    pagina opent of ververst. Dat is de les van 11 september."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+
+    verslag = None
+    if request.method == "POST":
+        hoeveel = int(request.form.get("hoeveel") or 0) or None
+        opnieuw = request.form.get("opnieuw") == "ja"
+        verslag = categorieen.deel_alles_in(hoeveel=hoeveel, opnieuw=opnieuw)
+        print(f"Winkels indelen: {verslag}")
+
+    tel = categorieen.telling()
+    return render_template(
+        "admin_categorieen.html",
+        verslag=verslag,
+        tel=tel,
+        besparing=categorieen.besparing(tel),
+        naam_van=categorieen.naam_van,
+        aantal_categorieen=len(categorieen.CATEGORIEEN) - 1,
     )
 
 

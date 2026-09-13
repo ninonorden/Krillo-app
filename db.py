@@ -332,6 +332,18 @@ def init_db():
                 # ofwel eeuwig hangen ofwel wordt hij eeuwig opnieuw betaald.
                 cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS meting_gestart_op TIMESTAMPTZ;")
+                # De categorie waarin deze winkel valt. Dit is de kolom waar de
+                # hele ombouw op rust: vanaf hier wordt er per categorie gemeten
+                # in plaats van per winkel, en dat scheelt een factor vijftig in
+                # de meetkosten. Zie categorieen.py voor de vaste lijst.
+                #
+                # Bewust een kolom erbij en geen aparte tabel: een winkel zit in
+                # precies een categorie, en een tabel voor een een-op-eenrelatie
+                # maakt elke query onnodig ingewikkeld.
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS categorie TEXT;")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_benadering_categorie "
+                            "ON benadering (categorie);")
                 # De trechter na de mail. Zonder deze drie kolommen weet je na
                 # honderd verstuurde mails alleen dat er honderd verstuurd zijn,
                 # en dat is precies niets. Wat je wilt weten is: hoeveel mensen
@@ -4237,6 +4249,109 @@ def get_koppelingen():
                 return [dict(r) for r in cur.fetchall()]
     except Exception as e:
         print(f"Koppelingen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def zet_categorie(webshop_url, categorie):
+    """Legt de categorie van een winkel vast.
+
+    Een winkel hoort in precies een categorie. Verandert de indeling later, dan
+    overschrijft deze functie de oude waarde; er wordt geen geschiedenis
+    bijgehouden, want de vorige indeling zegt niets over de markt en alles over
+    onze eigen aannames."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET categorie = %s, bijgewerkt_op = now() "
+                            "WHERE webshop_url = %s", (categorie, webshop_url))
+        return True
+    except Exception as e:
+        print(f"Categorie vastleggen mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def winkels_zonder_categorie(hoeveel=None, opnieuw=False):
+    """De winkels die nog ingedeeld moeten worden, met alles wat de indeler
+    nodig heeft: de naam, de branche waarin wij hem vonden, en de omschrijving
+    die bij het bedenken van de koopvragen gemaakt is.
+
+    Die omschrijving is het waardevolste veld: daar staat in wat de winkel
+    volgens zijn eigen pagina's verkoopt. Bestaat hij niet, dan valt de indeler
+    terug op de branche en de naam, en dat is meestal genoeg voor een grove
+    indeling.
+
+    Met opnieuw=True komen ook de al ingedeelde winkels terug. Dat is nodig als
+    de categorielijst verandert."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                waar = "" if opnieuw else "WHERE b.categorie IS NULL"
+                grens = " LIMIT %s" if hoeveel else ""
+                cur.execute(f"""
+                    SELECT b.webshop_url, b.naam, b.branche, b.land, w.omschrijving
+                      FROM benadering b
+                 LEFT JOIN winkelprofielen w ON w.webshop_url = b.webshop_url
+                      {waar}
+                  ORDER BY b.toegevoegd_op, b.webshop_url{grens}
+                """, (hoeveel,) if hoeveel else None)
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Winkels zonder categorie ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def categorie_telling():
+    """Hoeveel winkels er per categorie zijn, inclusief de winkels die er nog
+    geen hebben. Dit is de telling waarop de go of no-go van de hele ombouw
+    rust."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT categorie, count(*) AS aantal,
+                                      count(*) FILTER (WHERE email IS NOT NULL) AS met_adres
+                                 FROM benadering
+                                WHERE afgemeld = FALSE
+                             GROUP BY categorie
+                             ORDER BY count(*) DESC""")
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Categorietelling mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def winkels_in_categorie(categorie, limiet=200):
+    """De winkels van een categorie. Voor de beheerpagina en straks voor de
+    openbare ranglijst."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT webshop_url, naam, land, stand, email
+                                 FROM benadering
+                                WHERE categorie = %s AND afgemeld = FALSE
+                             ORDER BY webshop_url LIMIT %s""", (categorie, limiet))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Winkels in categorie ophalen mislukt: {e}")
         return []
     finally:
         conn.close()
