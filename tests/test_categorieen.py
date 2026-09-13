@@ -68,7 +68,7 @@ def winkel(nr, categorie=None, email=None):
 print("\n== de vaste lijst zelf ==")
 klopt("er zijn genoeg categorieen om zinnig in te delen", len(categorieen.CATEGORIEEN) >= 40)
 klopt("er is een 'overig' voor twijfelgevallen", "overig" in categorieen.GELDIG)
-slugs = [s for s, _ in categorieen.CATEGORIEEN]
+slugs = [s for s, _, _ in categorieen.CATEGORIEEN]
 zo("geen dubbele slugs", len(slugs), len(set(slugs)))
 klopt("elke slug heeft een leesbare naam",
       all(categorieen.naam_van(s) and categorieen.naam_van(s) != s for s in slugs))
@@ -105,6 +105,31 @@ rijen = {r["categorie"]: r["aantal"] for r in tel["rijen"]}
 zo("twaalf in servies", rijen.get("keuken-servies"), 12)
 zo("drie in erotiek", rijen.get("erotiek"), 3)
 
+print("\n== te kleine categorieen rollen op in hun ouder ==")
+# Dit is wat er op 13 september bijkwam. De staart was te dun: huidverzorging 1
+# winkel, make-up 1, watersport 1. Die halen de tien nooit en vielen daarmee uit
+# de index, terwijl de winkels erin prima meetbaar zijn.
+leeg_de_lijst()
+for i in range(300, 308):
+    winkel(i, "cosmetica")          # 8, op zichzelf te klein
+winkel(310, "makeup")               # 1
+winkel(311, "huidverzorging")       # 1
+winkel(312, "parfum")               # 1
+tel = categorieen.telling()
+na = {r["categorie"]: r for r in tel["rijen"]}
+zo("de drie kleintjes zijn opgegaan in cosmetica", na["cosmetica"]["aantal"], 11)
+klopt("make-up staat niet meer los", "makeup" not in na)
+klopt("en er staat bij waar hij uit is opgerold",
+      "makeup" in na["cosmetica"]["opgerold_uit"])
+zo("daarmee is alles bruikbaar", tel["aandeel_bruikbaar"], 100)
+
+# Een categorie zonder ouder die te klein blijft, blijft gewoon te klein staan.
+leeg_de_lijst()
+winkel(400, "erotiek")
+tel = categorieen.telling()
+zo("zonder ouder blijft hij los staan", tel["rijen"][0]["categorie"], "erotiek")
+zo("en telt hij niet als bruikbaar", tel["bruikbare_categorieen"], 0)
+
 print("\n== een verzonnen categorie wordt niet overgenomen ==")
 # Dit is de belangrijkste controle van dit bestand. Zou een verzonnen slug er
 # wel in komen, dan ontstaat er een openbare ranglijst die nergens op slaat.
@@ -112,6 +137,46 @@ nep = [{"webshop_url": "https://test-catX.nl", "naam": "Test"}]
 echt = categorieen.deel_in
 categorieen._client = lambda: None
 zo("zonder sleutel wordt er niets ingedeeld", categorieen.deel_in(nep), {})
+
+print("\n== indelen draait op de achtergrond, niet in het verzoek ==")
+# Op 13 september hing het indelen aan het verzoek zelf. Vierentwintig aanroepen
+# van samen tien minuten, terwijl gunicorn na twee minuten afkapt: twee
+# storingen en een herstart van de server. Dezelfde fout als op 11 september
+# met de kostenpagina. Vandaar een eigen draad, en een stand die de pagina toont.
+import time as _tijd  # noqa: E402
+
+leeg_de_lijst()
+nep_winkels = [{"webshop_url": f"https://test-cat{n}.nl", "naam": f"Test {n}",
+                "branche": "test", "land": "NL", "omschrijving": None}
+               for n in (500, 501, 502)]
+for w in nep_winkels:
+    db.voeg_benadering_toe(w["webshop_url"], naam=w["naam"], land="NL", branche="test")
+
+echte_lijst = db.winkels_zonder_categorie
+echte_deel = categorieen.deel_in
+db.winkels_zonder_categorie = lambda hoeveel=None, opnieuw=False: list(nep_winkels)
+categorieen.deel_in = lambda groep: {g["webshop_url"]: "keuken-servies" for g in groep}
+try:
+    klopt("hij start", categorieen.start_indelen())
+    klopt("en meldt zich als bezig", categorieen.stand()["bezig"] or
+          categorieen.stand()["klaar_op"] is not None)
+    klopt("twee keer starten kan niet zolang hij loopt",
+          categorieen.stand()["bezig"] is False or categorieen.start_indelen() is False)
+    for _ in range(100):
+        if not categorieen.stand()["bezig"]:
+            break
+        _tijd.sleep(0.05)
+    stand = categorieen.stand()
+    zo("alle drie zijn ingedeeld", stand["gedaan"], 3)
+    zo("zonder fouten", stand["fout"], None)
+    klopt("en er staat een eindtijd", stand["klaar_op"] is not None)
+    zo("de winkels staan echt in de database",
+       len([w for w in db.winkels_in_categorie("keuken-servies")
+            if w["webshop_url"].startswith("https://test-cat5")]), 3)
+finally:
+    db.winkels_zonder_categorie = echte_lijst
+    categorieen.deel_in = echte_deel
+    leeg_de_lijst()
 
 print("\n== indelen zit achter een knop, niet achter het laden van een pagina ==")
 bron = lees("app.py")
@@ -121,7 +186,8 @@ einde = blok.find("\n@app.route")
 blok = blok[:einde] if einde > 0 else blok
 klopt("de route accepteert POST", 'methods=["GET", "POST"]' in bron[max(0, i - 120):i])
 klopt("indelen gebeurt alleen op een POST", 'request.method == "POST"' in blok)
-zo("precies een aanroep naar de indeler", blok.count("deel_alles_in"), 1)
+zo("precies een aanroep naar de indeler", blok.count("start_indelen"), 1)
+klopt("en niet de blokkerende versie", "deel_alles_in" not in blok)
 klopt("de telling zelf schrijft niets", "telling()" in blok)
 
 print("\n== de pagina laadt en zegt wat er te zien is ==")

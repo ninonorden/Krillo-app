@@ -72,11 +72,21 @@
   <h1>Winkels indelen in categorieen</h1>
   <div class="sub">De go of no-go voor de hele ombouw naar de index</div>
 
-  {% if verslag %}
+  {% if bericht %}
+  <div class="verslag">{{ bericht }}</div>
+  {% endif %}
+
+  {% if stand.bezig %}
+  <div class="verslag" style="background:var(--teal-dim);">
+    BEZIG: {{ stand.gedaan }} van {{ stand.totaal }} ingedeeld,
+    {{ stand.aanroepen }} aanroepen gedaan.<br>
+    Ververs deze pagina over een minuut. Het tabblad mag dicht, hij draait door.
+  </div>
+  {% elif stand.klaar_op %}
   <div class="verslag">
-    Bekeken: {{ verslag.bekeken }} &middot; ingedeeld: {{ verslag.ingedeeld }} &middot;
-    overgeslagen: {{ verslag.overgeslagen }} &middot; aanroepen: {{ verslag.aanroepen }}
-    {% if verslag.gestopt %}<br>GESTOPT: {{ verslag.gestopt }}{% endif %}
+    KLAAR: {{ stand.gedaan }} ingedeeld, {{ stand.overgeslagen }} overgeslagen,
+    {{ stand.aanroepen }} aanroepen.
+    {% if stand.fout %}<br>LET OP: {{ stand.fout }}{% endif %}
   </div>
   {% endif %}
 
@@ -139,7 +149,8 @@
     <label style="margin-top:12px;">
       <input type="checkbox" name="opnieuw" value="ja"> Ook winkels die al ingedeeld zijn opnieuw bekijken
       (nodig als de categorielijst veranderd is)</label>
-    <button class="knop" type="submit">Deel de winkels in</button>
+    <button class="knop" type="submit" {% if stand.bezig %}disabled{% endif %}>
+      {% if stand.bezig %}Bezig met indelen{% else %}Deel de winkels in{% endif %}</button>
   </form>
 
   {% if tel.rijen %}
@@ -154,7 +165,13 @@
     </tr>
     {% for r in tel.rijen %}
     <tr {% if r.aantal < tel.minimum %}class="klein"{% endif %}>
-      <td>{{ naam_van(r.categorie) }}</td>
+      <td>{{ naam_van(r.categorie) }}
+        {% if r.opgerold_uit %}
+        <div style="font-size:11.5px; color:var(--ink-soft); margin-top:2px;">
+          inclusief {{ r.opgerold_uit | length }} kleine categorie{{ '' if r.opgerold_uit|length == 1 else 'en' }}:
+          {{ r.opgerold_uit | map('replace', '-', ' ') | join(', ') }}</div>
+        {% endif %}
+      </td>
       <td style="width:34%">
         <div class="balk {% if r.aantal < tel.minimum %}dun{% endif %}"
              style="width:{{ (r.aantal / grootste * 100) | round(0,'common') | int }}%"></div>
@@ -174,6 +191,12 @@
   </div>
 
   <div class="voetnoot">
+    <strong>Kleine categorieen rollen op in hun ouder.</strong> Een categorie met een winkel is
+    geen ranglijst, maar die winkel is wel meetbaar. Make-up met een winkel telt daarom mee in
+    "Cosmetica en verzorging". Groeit make-up door naar {{ tel.minimum }} winkels, dan staat hij
+    vanzelf op eigen benen. Fijn indelen, grof publiceren, en vanzelf splitsen zodra er genoeg
+    winkels zijn. Daardoor hoeft er nooit iemand opnieuw ingedeeld te worden als de markt
+    verandert.<br><br>
     <strong>Waarom deze pagina bestaat.</strong> Krillo meet nu per winkel: dertig koopvragen per
     klant per week, ongeveer tien euro per klant per maand. Daarmee groeien de kosten even hard
     als de omzet en loopt het bedrijf vast rond de tienduizend euro. Meten per categorie stelt
