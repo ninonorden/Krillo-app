@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Categorieen | Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:900px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:13.5px; font-family:var(--mono); margin-bottom:28px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:17px; margin:32px 0 12px;}
+  p{font-size:14px; color:var(--ink-soft); margin-bottom:12px;}
+
+  .oordeel{border-radius:12px; padding:22px 24px; margin-bottom:26px; border:1px solid var(--line);}
+  .oordeel.ja{background:var(--teal-dim); border-color:var(--teal);}
+  .oordeel.nee{background:var(--coral-dim); border-color:var(--coral);}
+  .oordeel.leeg{background:var(--paper-raised);}
+  .oordeel-kop{font-family:var(--disp); font-weight:700; font-size:20px; margin-bottom:8px;}
+  .oordeel p{color:var(--ink); margin-bottom:0;}
+
+  .cijfers{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line);
+           border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:10px;}
+  @media (max-width:640px){ .cijfers{grid-template-columns:repeat(2,1fr);} }
+  .cijfer{background:var(--paper-raised); padding:20px;}
+  .cijfer-label{font-family:var(--mono); font-size:10px; text-transform:uppercase;
+                letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px;}
+  .cijfer-num{font-family:var(--disp); font-weight:700; font-size:26px;}
+  .cijfer-num small{font-size:14px; font-weight:500; color:var(--ink-soft);}
+
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase;
+     color:var(--ink-soft); padding:11px 14px; border-bottom:1px solid var(--line); background:var(--paper);}
+  td{padding:10px 14px; font-size:13.5px; border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  td.getal{text-align:right; font-family:var(--mono); font-size:12.5px;}
+  tr.klein td{color:var(--ink-soft);}
+  .balk{height:8px; background:var(--teal); border-radius:4px; min-width:3px;}
+  .balk.dun{background:var(--line);}
+
+  form{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+       padding:20px 22px; margin-bottom:26px;}
+  label{display:block; font-size:13.5px; margin-bottom:10px;}
+  input[type=number]{font-family:var(--mono); font-size:13.5px; padding:7px 10px;
+                     border:1.5px solid var(--line); border-radius:7px; width:110px;}
+  .knop{padding:11px 20px; border-radius:8px; font-size:14px; font-weight:600;
+        border:none; color:#fff; background:var(--ink); font-family:var(--disp); cursor:pointer;}
+  .knop.licht{background:var(--paper-raised); color:var(--ink); border:1.5px solid var(--line);}
+  .acties{display:flex; gap:10px; flex-wrap:wrap; margin-top:28px;}
+  a.knop{text-decoration:none; display:inline-block;}
+  .voetnoot{font-size:12.5px; color:var(--ink-soft); margin-top:32px; line-height:1.7;
+            border-top:1px solid var(--line); padding-top:16px;}
+  .verslag{background:var(--amber-dim); border:1px solid var(--line); border-radius:10px;
+           padding:14px 16px; font-size:13.5px; margin-bottom:22px; font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Winkels indelen in categorieen</h1>
+  <div class="sub">De go of no-go voor de hele ombouw naar de index</div>
+
+  {% if verslag %}
+  <div class="verslag">
+    Bekeken: {{ verslag.bekeken }} &middot; ingedeeld: {{ verslag.ingedeeld }} &middot;
+    overgeslagen: {{ verslag.overgeslagen }} &middot; aanroepen: {{ verslag.aanroepen }}
+    {% if verslag.gestopt %}<br>GESTOPT: {{ verslag.gestopt }}{% endif %}
+  </div>
+  {% endif %}
+
+  {% if not tel.ingedeeld %}
+  <div class="oordeel leeg">
+    <div class="oordeel-kop">Er is nog niets ingedeeld</div>
+    <p>Druk hieronder op de knop. De eerste keer duurt dat een paar minuten en het kost
+      ongeveer veertig cent voor achthonderd winkels, want er gaan er veertig tegelijk in
+      een aanroep.</p>
+  </div>
+  {% elif tel.geslaagd %}
+  <div class="oordeel ja">
+    <div class="oordeel-kop">Geslaagd. De ombouw kan door.</div>
+    <p>{{ tel.aandeel_bruikbaar }} procent van de ingedeelde winkels zit in een categorie met
+      {{ tel.minimum }} of meer winkels. Het criterium was 50 procent. Meten per categorie is
+      hier ongeveer {{ besparing.factor }} keer goedkoper dan meten per winkel:
+      &euro; {{ '%.2f'|format(besparing.ronde_nieuw) }} per ronde in plaats van
+      &euro; {{ '%.2f'|format(besparing.ronde_oud) }}.</p>
+  </div>
+  {% else %}
+  <div class="oordeel nee">
+    <div class="oordeel-kop">Nog niet geslaagd</div>
+    <p>Maar {{ tel.aandeel_bruikbaar }} procent van de winkels zit in een categorie met
+      {{ tel.minimum }} of meer winkels, en dat moet minstens 50 procent zijn. Twee oorzaken
+      zijn mogelijk: de categorieen zijn te fijn opgedeeld, of er zijn simpelweg nog te weinig
+      winkels gevonden. Het tweede is het waarschijnlijkst en lost zichzelf op zodra de
+      winkelvinder doordraait. Kijk in de tabel hieronder welke van de twee het is.</p>
+  </div>
+  {% endif %}
+
+  <div class="cijfers">
+    <div class="cijfer">
+      <div class="cijfer-label">Winkels totaal</div>
+      <div class="cijfer-num">{{ tel.totaal }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Ingedeeld</div>
+      <div class="cijfer-num">{{ tel.ingedeeld }}<small> / {{ tel.totaal }}</small></div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">Categorieen in gebruik</div>
+      <div class="cijfer-num">{{ tel.categorieen }}<small> van {{ aantal_categorieen }}</small></div>
+    </div>
+    <div class="cijfer">
+      <div class="cijfer-label">In een bruikbare categorie</div>
+      <div class="cijfer-num">{{ tel.aandeel_bruikbaar }}%</div>
+    </div>
+  </div>
+  <p>
+    Een categorie is bruikbaar vanaf {{ tel.minimum }} winkels. Daaronder is een ranglijst geen
+    ranglijst en levert een openbare pagina meer kwaad dan goed op bij Google. Gemiddeld
+    {{ tel.gemiddeld_per_categorie }} winkels per categorie.
+    {% if tel.zonder_categorie %}Nog {{ tel.zonder_categorie }} winkels zonder categorie.{% endif %}
+    {% if tel.overig %}{{ tel.overig }} winkels staan op "overig" en doen niet mee.{% endif %}
+  </p>
+
+  <form method="post">
+    <label>Hoeveel winkels indelen (leeg is allemaal)
+      <input type="number" name="hoeveel" min="0" max="5000" placeholder="alles"></label>
+    <label style="margin-top:12px;">
+      <input type="checkbox" name="opnieuw" value="ja"> Ook winkels die al ingedeeld zijn opnieuw bekijken
+      (nodig als de categorielijst veranderd is)</label>
+    <button class="knop" type="submit">Deel de winkels in</button>
+  </form>
+
+  {% if tel.rijen %}
+  <h2>Winkels per categorie</h2>
+  {% set grootste = tel.rijen[0].aantal or 1 %}
+  <table>
+    <tr>
+      <th>Categorie</th><th></th>
+      <th style="text-align:right">Winkels</th>
+      <th style="text-align:right">Met adres</th>
+      <th style="text-align:right">Bruikbaar</th>
+    </tr>
+    {% for r in tel.rijen %}
+    <tr {% if r.aantal < tel.minimum %}class="klein"{% endif %}>
+      <td>{{ naam_van(r.categorie) }}</td>
+      <td style="width:34%">
+        <div class="balk {% if r.aantal < tel.minimum %}dun{% endif %}"
+             style="width:{{ (r.aantal / grootste * 100) | round(0,'common') | int }}%"></div>
+      </td>
+      <td class="getal">{{ r.aantal }}</td>
+      <td class="getal">{{ r.met_adres }}</td>
+      <td class="getal">{% if r.aantal >= tel.minimum %}ja{% else %}te klein{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <div class="acties">
+    <a class="knop licht" href="/admin/benadering">Naar de benadering</a>
+    <a class="knop licht" href="/admin/kosten">Naar de kosten</a>
+    <a class="knop licht" href="/admin/bezoek">Naar het bezoek</a>
+  </div>
+
+  <div class="voetnoot">
+    <strong>Waarom deze pagina bestaat.</strong> Krillo meet nu per winkel: dertig koopvragen per
+    klant per week, ongeveer tien euro per klant per maand. Daarmee groeien de kosten even hard
+    als de omzet en loopt het bedrijf vast rond de tienduizend euro. Meten per categorie stelt
+    dezelfde vraag een keer en scoort alle winkels in die categorie tegelijk.<br><br>
+    <strong>Waarom een vaste categorielijst.</strong> Laat je het model zelf een categorie
+    verzinnen, dan krijgt bijna elke winkel zijn eigen categorie en is het hele voordeel weg.
+    De lijst staat in categorieen.py en telt {{ aantal_categorieen }} categorieen plus "overig".<br><br>
+    <strong>Waarom "overig" bestaat.</strong> Een winkel in de verkeerde categorie krijgt een
+    positie in een ranglijst waar hij niet thuishoort, en dan ben je in een keer het vertrouwen
+    kwijt dat een goede meting opbouwt. Liever geen uitspraak dan een verzonnen uitspraak.<br><br>
+    <strong>Kosten.</strong> Veertig winkels per aanroep, ongeveer twee cent per aanroep. De hele
+    lijst indelen kost minder dan een euro en gebeurt eenmalig per winkel.
+  </div>
+</div>
+</body>
+</html>
