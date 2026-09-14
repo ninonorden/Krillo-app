@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ranglijst | Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
+    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
+    --teal:#1FB6A4; --teal-tekst:#0F7A70; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;}
+  .wrap{max-width:900px; margin:0 auto; padding:44px 24px 88px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:6px;}
+  .sub{color:var(--ink-soft); font-size:13.5px; font-family:var(--mono); margin-bottom:28px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:17px; margin:32px 0 12px;}
+  p{font-size:14px; color:var(--ink-soft); margin-bottom:12px;}
+
+  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
+        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase;
+     color:var(--ink-soft); padding:11px 14px; border-bottom:1px solid var(--line); background:var(--paper);}
+  td{padding:10px 14px; font-size:13.5px; border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  td.getal{text-align:right; font-family:var(--mono); font-size:12.5px;}
+  td.pos{font-family:var(--disp); font-weight:700; font-size:15px; width:52px;}
+  .op{color:var(--teal-tekst); font-family:var(--mono); font-size:11.5px;}
+  .af{color:var(--coral-tekst); font-family:var(--mono); font-size:11.5px;}
+  .nul{color:var(--ink-soft); font-family:var(--mono); font-size:11.5px;}
+  tr.leeg td{color:var(--ink-soft);}
+
+  form{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+       padding:20px 22px; margin-bottom:22px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;}
+  label{font-size:12.5px; color:var(--ink-soft); display:block; margin-bottom:5px;}
+  select, input[type=number]{font-family:var(--mono); font-size:13.5px; padding:8px 10px;
+        border:1.5px solid var(--line); border-radius:7px; background:var(--paper-raised); color:var(--ink);}
+  select{min-width:230px;}
+  .knop{padding:10px 20px; border-radius:8px; font-size:14px; font-weight:600;
+        border:none; color:#fff; background:var(--ink); font-family:var(--disp); cursor:pointer;}
+  .knop.licht{background:var(--paper-raised); color:var(--ink); border:1.5px solid var(--line);
+              text-decoration:none; display:inline-block;}
+  .acties{display:flex; gap:10px; flex-wrap:wrap; margin-top:28px;}
+  .verslag{background:var(--amber-dim); border:1px solid var(--line); border-radius:10px;
+           padding:14px 16px; font-size:13.5px; margin-bottom:22px; font-family:var(--mono);}
+  .voetnoot{font-size:12.5px; color:var(--ink-soft); margin-top:32px; line-height:1.7;
+            border-top:1px solid var(--line); padding-top:16px;}
+  .vraaglijst{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+              padding:16px 18px; font-size:13.5px;}
+  .vraaglijst li{margin:0 0 6px 18px;}
+  .intentie{font-family:var(--mono); font-size:10.5px; color:var(--ink-soft);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ranglijst per categorie</h1>
+  <div class="sub">Een vraag, alle winkels tegelijk gescoord</div>
+
+  {% if bericht %}<div class="verslag">{{ bericht }}</div>{% endif %}
+
+  {% if stand.bezig %}
+  <div class="verslag" style="background:var(--teal-dim);">
+    BEZIG met {{ naam_van(stand.categorie) }}: vraag {{ stand.vraag_nu }} van
+    {{ stand.vragen_totaal }}, {{ stand.antwoorden }} antwoorden binnen,
+    {{ stand.mislukt }} mislukt.<br>
+    Ververs over een paar minuten. Het tabblad mag dicht.
+  </div>
+  {% elif stand.klaar_op %}
+  <div class="verslag">
+    KLAAR: {{ stand.antwoorden }} antwoorden, {{ stand.mislukt }} mislukt.
+    {% if stand.fout %}<br>LET OP: {{ stand.fout }}{% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post">
+    <div>
+      <label>Categorie</label>
+      <select name="categorie" onchange="this.form.submit()">
+        {% for c in categorieen_lijst %}
+        <option value="{{ c.categorie }}" {% if c.categorie == gekozen %}selected{% endif %}>
+          {{ naam_van(c.categorie) }} ({{ c.aantal }} winkels)</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Aantal vragen (leeg is alle 30)</label>
+      <input type="number" name="vragen" min="1" max="30" placeholder="30" style="width:110px;">
+    </div>
+    <button class="knop" type="submit" {% if stand.bezig %}disabled{% endif %}>
+      {% if stand.bezig %}Bezig met meten{% else %}Meet deze categorie{% endif %}</button>
+  </form>
+
+  {% if ranglijst and ranglijst.rijen %}
+  <h2>{{ naam_van(gekozen) }}</h2>
+  <p>
+    {{ ranglijst.rijen | length }} winkels, gemeten op {{ ranglijst.telbaar }} koopvragen waarin
+    er echt een webshop genoemd kon worden. Aanbevolen weegt zwaarder dan genoemd: in een rij
+    staan is iets anders dan aangeraden worden.
+  </p>
+  <table>
+    <tr>
+      <th>#</th><th>Webshop</th>
+      <th style="text-align:right">Genoemd</th>
+      <th style="text-align:right">Aanbevolen</th>
+      <th style="text-align:right">Deze ronde</th>
+    </tr>
+    {% for r in ranglijst.rijen %}
+    <tr {% if not r.genoemd %}class="leeg"{% endif %}>
+      <td class="pos">{{ r.positie }}</td>
+      <td>{{ r.naam or r.webshop_url }}</td>
+      <td class="getal">{{ r.genoemd }} / {{ r.telbaar }}</td>
+      <td class="getal">{{ r.aanbevolen }}</td>
+      <td class="getal">
+        {% if r.vorige_positie and r.vorige_positie > r.positie %}
+        <span class="op">+{{ r.vorige_positie - r.positie }}</span>
+        {% elif r.vorige_positie and r.vorige_positie < r.positie %}
+        <span class="af">&minus;{{ r.positie - r.vorige_positie }}</span>
+        {% elif r.vorige_positie %}<span class="nul">0</span>
+        {% else %}<span class="nul">nieuw</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% elif gekozen %}
+  <p>Deze categorie is nog niet gemeten. Druk op de knop hierboven.</p>
+  {% endif %}
+
+  {% if vragen %}
+  <h2>De koopvragen van deze categorie</h2>
+  <div class="vraaglijst">
+    <ol>
+      {% for v in vragen %}
+      <li>{{ v.vraag }} <span class="intentie">[{{ v.intentie }}]</span></li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+
+  <div class="acties">
+    <a class="knop licht" href="/admin/categorieen">Naar de indeling</a>
+    <a class="knop licht" href="/admin/kosten">Naar de kosten</a>
+    <a class="knop licht" href="/admin/benadering">Naar de benadering</a>
+  </div>
+
+  <div class="voetnoot">
+    <strong>Waarom dit goedkoper is.</strong> De vraag wordt een keer gesteld en het antwoord
+    een keer gelezen. Dat dure werk is winkelonafhankelijk: er staat een lijst winkels in het
+    antwoord, en welke daarvan van ons zijn is daarna gewoon vergelijken in de database. Bij
+    veertig winkels in een categorie is dat dus veertig keer goedkoper, en bij duizend winkels
+    duizend keer.<br><br>
+    <strong>Waarom niet elke vraag meetelt.</strong> Vraagt iemand naar een merk of naar
+    algemene informatie, dan komt daar geen enkele webshop in voor, ook de beste niet. Die
+    vragen laten we buiten de telling, want anders maak je elk cijfer mooier of lelijker dan
+    het is. Daarom staat er "genoemd bij x van de {{ ranglijst.telbaar if ranglijst else 0 }}"
+    en niet "van de 30".<br><br>
+    <strong>Elk antwoord wordt volledig bewaard.</strong> Dat is de historie waarmee je over
+    een jaar kunt laten zien hoe AI-antwoorden verschoven zijn. Dat kan niemand met
+    terugwerkende kracht namaken, en het is op termijn het waardevolste dat dit bedrijf heeft.
+  </div>
+</div>
+</body>
+</html>
