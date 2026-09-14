@@ -51,6 +51,7 @@ import toepasmodule
 import shopify_billing
 import benadering
 import categorieen
+import categoriemeting
 
 app = Flask(__name__)
 db.init_db()
@@ -4129,6 +4130,50 @@ def admin_categorieen():
         besparing=categorieen.besparing(tel),
         naam_van=categorieen.naam_van,
         aantal_categorieen=len(categorieen.CATEGORIEEN) - 1,
+    )
+
+
+@app.route("/admin/ranglijst", methods=["GET", "POST"])
+def admin_ranglijst():
+    """Een categorie meten en de ranglijst bekijken.
+
+    Dit is de eerste plek waar de nieuwe opzet zichtbaar wordt: een koopvraag
+    wordt EEN keer gesteld en alle winkels in die categorie worden er tegelijk
+    op gescoord. Wat eruit komt is geen cijfer maar een positie, en dat is wat
+    er straks in de mail en op de openbare pagina staat.
+
+    Meten gebeurt op een eigen draad. Dertig vragen aan twee modellen duurt een
+    minuut of tien; aan een verzoek hangen levert een storing op, en die fout is
+    op 11 en 13 september allebei al gemaakt."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+
+    tel = categorieen.telling()
+    bruikbaar = [r for r in tel["rijen"] if r["aantal"] >= tel["minimum"]]
+    gekozen = request.values.get("categorie") or (bruikbaar[0]["categorie"] if bruikbaar else None)
+
+    bericht = None
+    if request.method == "POST" and gekozen:
+        vragen = int(request.form.get("vragen") or 0) or None
+        if categoriemeting.start_meting(gekozen, max_vragen=vragen):
+            bericht = (f"De meting van {categorieen.naam_van(gekozen)} is gestart en draait op "
+                       f"de achtergrond. Ververs deze pagina over een paar minuten. Het tabblad "
+                       f"mag dicht.")
+        else:
+            bericht = "Er loopt al een meting. Ververs de pagina om te zien hoe ver hij is."
+
+    return render_template(
+        "admin_ranglijst.html",
+        bericht=bericht,
+        stand=categoriemeting.stand(),
+        categorieen_lijst=bruikbaar,
+        gekozen=gekozen,
+        naam_van=categorieen.naam_van,
+        ranglijst=db.laatste_ranglijst(gekozen) if gekozen else None,
+        vragen=db.categorie_vragen(gekozen) if gekozen else [],
     )
 
 

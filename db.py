@@ -344,6 +344,74 @@ def init_db():
                             "ADD COLUMN IF NOT EXISTS categorie TEXT;")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_benadering_categorie "
                             "ON benadering (categorie);")
+                # ---------------------------------------------------------
+                # De categoriemeting. Dit is het hart van de nieuwe opzet:
+                # een koopvraag wordt EEN keer gesteld en scoort alle winkels
+                # in die categorie tegelijk.
+                #
+                # categorie_vragen  : de dertig koopvragen per categorie
+                # categorie_rondes  : een meetronde, met wanneer en hoeveel
+                # categorie_antwoorden: elk volledig antwoord, bewaard
+                # categorie_uitkomsten: per winkel per ronde zijn positie
+                #
+                # Die antwoorden bewaren is geen luxe. Het is de historie die
+                # niemand met terugwerkende kracht kan namaken, en over twee
+                # jaar de belangrijkste bezitting van dit bedrijf.
+                # ---------------------------------------------------------
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS categorie_vragen (
+                        id SERIAL PRIMARY KEY,
+                        categorie TEXT NOT NULL,
+                        vraag TEXT NOT NULL,
+                        intentie TEXT,
+                        actief BOOLEAN NOT NULL DEFAULT TRUE,
+                        aangemaakt_op TIMESTAMPTZ DEFAULT now(),
+                        UNIQUE (categorie, vraag)
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS categorie_rondes (
+                        id SERIAL PRIMARY KEY,
+                        categorie TEXT NOT NULL,
+                        vragen INTEGER,
+                        winkels INTEGER,
+                        telbaar INTEGER,
+                        gestart_op TIMESTAMPTZ DEFAULT now(),
+                        afgerond_op TIMESTAMPTZ
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS categorie_antwoorden (
+                        id BIGSERIAL PRIMARY KEY,
+                        ronde INTEGER NOT NULL,
+                        categorie TEXT NOT NULL,
+                        vraag TEXT NOT NULL,
+                        model TEXT,
+                        antwoord TEXT,
+                        winkel_kon_genoemd BOOLEAN,
+                        genoemde_winkels JSONB,
+                        gemeten_op TIMESTAMPTZ DEFAULT now()
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS categorie_uitkomsten (
+                        id BIGSERIAL PRIMARY KEY,
+                        ronde INTEGER NOT NULL,
+                        categorie TEXT NOT NULL,
+                        webshop_url TEXT NOT NULL,
+                        positie INTEGER,
+                        genoemd INTEGER NOT NULL DEFAULT 0,
+                        aanbevolen INTEGER NOT NULL DEFAULT 0,
+                        beste_positie INTEGER,
+                        telbaar INTEGER,
+                        gemeten_op TIMESTAMPTZ DEFAULT now(),
+                        UNIQUE (ronde, webshop_url)
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_cat_uitkomst "
+                            "ON categorie_uitkomsten (categorie, ronde);")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_cat_uitkomst_winkel "
+                            "ON categorie_uitkomsten (webshop_url, gemeten_op DESC);")
                 # De trechter na de mail. Zonder deze drie kolommen weet je na
                 # honderd verstuurde mails alleen dat er honderd verstuurd zijn,
                 # en dat is precies niets. Wat je wilt weten is: hoeveel mensen
@@ -4353,5 +4421,219 @@ def winkels_in_categorie(categorie, limiet=200):
     except Exception as e:
         print(f"Winkels in categorie ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# De categoriemeting
+# ---------------------------------------------------------------------------
+
+def winkels_in_categorie_met_kinderen(categorie):
+    """De winkels van een categorie, inclusief de kleine categorieen die
+    erin oprollen.
+
+    Zonder dit zou "Cosmetica en verzorging" alleen de winkels bevatten die
+    letterlijk op cosmetica staan, en niet de make-up- en parfumwinkels die er
+    op de ranglijst wel bij horen. Dan klopt de positie niet met wat er op het
+    scherm staat."""
+    import categorieen
+    kinderen = [slug for slug, ouder in categorieen.OUDER.items() if ouder == categorie]
+    slugs = [categorie] + kinderen
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT webshop_url, naam, land, categorie, email
+                                 FROM benadering
+                                WHERE categorie = ANY(%s) AND afgemeld = FALSE
+                             ORDER BY webshop_url""", (slugs,))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Winkels van categorie ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def bewaar_categorie_vragen(categorie, vragen):
+    """Bewaart de koopvragen van een categorie. Bestaande vragen blijven staan."""
+    conn = _get_connection()
+    if conn is None or not vragen:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                execute_values(cur, """
+                    INSERT INTO categorie_vragen (categorie, vraag, intentie)
+                    VALUES %s ON CONFLICT (categorie, vraag) DO NOTHING
+                """, [(categorie, v["vraag"], v.get("intentie")) for v in vragen])
+                return cur.rowcount
+    except Exception as e:
+        print(f"Categorievragen bewaren mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def categorie_vragen(categorie, alleen_actief=True):
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                waar = " AND actief = TRUE" if alleen_actief else ""
+                cur.execute(f"""SELECT vraag, intentie FROM categorie_vragen
+                                 WHERE categorie = %s{waar} ORDER BY id""", (categorie,))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Categorievragen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def start_categorie_ronde(categorie, vragen, winkels):
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""INSERT INTO categorie_rondes (categorie, vragen, winkels)
+                               VALUES (%s, %s, %s) RETURNING id""",
+                            (categorie, vragen, winkels))
+                return cur.fetchone()[0]
+    except Exception as e:
+        print(f"Categorieronde starten mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def bewaar_categorie_antwoord(ronde, categorie, vraag, model, antwoord, genoemde):
+    """Bewaart een volledig antwoord plus wat eruit gelezen is.
+
+    Het volledige antwoord bewaren is het punt: dat is de historie waarmee je
+    over een jaar kunt laten zien hoe AI-antwoorden verschoven zijn, en dat kan
+    niemand achteraf nog nameten."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO categorie_antwoorden
+                        (ronde, categorie, vraag, model, antwoord,
+                         winkel_kon_genoemd, genoemde_winkels)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    (ronde, categorie, vraag, model, antwoord,
+                     bool(genoemde.get("winkel_kon_genoemd")),
+                     json.dumps(genoemde)))
+        return True
+    except Exception as e:
+        print(f"Categorie-antwoord bewaren mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def bewaar_categorie_uitkomsten(ronde, categorie, rangen, telbaar):
+    """Schrijft de hele ranglijst in een keer weg, en sluit de ronde af.
+
+    In EEN opdracht en niet per winkel. Bij veertig winkels is dat het verschil
+    tussen veertig databaseopdrachten en een, en bij duizend winkels het
+    verschil tussen werkend en stuk."""
+    conn = _get_connection()
+    if conn is None or not rangen:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                execute_values(cur, """
+                    INSERT INTO categorie_uitkomsten
+                        (ronde, categorie, webshop_url, positie, genoemd,
+                         aanbevolen, beste_positie, telbaar)
+                    VALUES %s
+                    ON CONFLICT (ronde, webshop_url) DO UPDATE SET
+                        positie = EXCLUDED.positie,
+                        genoemd = EXCLUDED.genoemd,
+                        aanbevolen = EXCLUDED.aanbevolen,
+                        beste_positie = EXCLUDED.beste_positie,
+                        telbaar = EXCLUDED.telbaar
+                """, [(ronde, categorie, r["webshop_url"], r["positie"], r["genoemd"],
+                       r["aanbevolen"], r.get("beste_positie"), telbaar) for r in rangen])
+                cur.execute("""UPDATE categorie_rondes
+                                  SET afgerond_op = now(), telbaar = %s
+                                WHERE id = %s""", (telbaar, ronde))
+        return True
+    except Exception as e:
+        print(f"Categorie-uitkomsten bewaren mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def laatste_ranglijst(categorie, limiet=200):
+    """De nieuwste ranglijst van een categorie, met de naam van elke winkel en
+    de beweging ten opzichte van de ronde ervoor."""
+    conn = _get_connection()
+    if conn is None:
+        return {"ronde": None, "telbaar": 0, "rijen": []}
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT id FROM categorie_rondes
+                                WHERE categorie = %s AND afgerond_op IS NOT NULL
+                             ORDER BY id DESC LIMIT 2""", (categorie,))
+                rondes = [r["id"] for r in cur.fetchall()]
+                if not rondes:
+                    return {"ronde": None, "telbaar": 0, "rijen": []}
+                nu, vorige = rondes[0], (rondes[1] if len(rondes) > 1 else None)
+
+                cur.execute("""
+                    SELECT u.webshop_url, u.positie, u.genoemd, u.aanbevolen,
+                           u.telbaar, b.naam, v.positie AS vorige_positie
+                      FROM categorie_uitkomsten u
+                 LEFT JOIN benadering b ON b.webshop_url = u.webshop_url
+                 LEFT JOIN categorie_uitkomsten v
+                        ON v.webshop_url = u.webshop_url AND v.ronde = %s
+                     WHERE u.ronde = %s
+                  ORDER BY u.positie LIMIT %s""", (vorige, nu, limiet))
+                rijen = [dict(r) for r in cur.fetchall()]
+        return {"ronde": nu, "telbaar": (rijen[0]["telbaar"] if rijen else 0),
+                "rijen": rijen}
+    except Exception as e:
+        print(f"Ranglijst ophalen mislukt: {e}")
+        return {"ronde": None, "telbaar": 0, "rijen": []}
+    finally:
+        conn.close()
+
+
+def positie_van_winkel(webshop_url):
+    """De nieuwste positie van een winkel, voor zijn eigen pagina en de mail."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT u.categorie, u.positie, u.genoemd, u.aanbevolen, u.telbaar,
+                           u.gemeten_op,
+                           (SELECT count(*) FROM categorie_uitkomsten x
+                             WHERE x.ronde = u.ronde) AS van
+                      FROM categorie_uitkomsten u
+                     WHERE u.webshop_url = %s
+                  ORDER BY u.gemeten_op DESC LIMIT 1""", (webshop_url,))
+                rij = cur.fetchone()
+                return dict(rij) if rij else None
+    except Exception as e:
+        print(f"Positie ophalen mislukt: {e}")
+        return None
     finally:
         conn.close()
