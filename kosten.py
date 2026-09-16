@@ -345,10 +345,22 @@ def ruimte_voor_benadering():
 
 
 # Wat een hele categoriemeting ongeveer kost: dertig vragen aan twee modellen,
-# plus het lezen van zestig antwoorden. Geschat op de meting van 14 september,
-# met het dure leesmodel. Gaat het lezen naar een goedkoper model, dan zakt dit
-# hard, en dan hoort dit getal mee omlaag.
-SCHATTING_CATEGORIE_EURO = float(os.environ.get("SCHATTING_CATEGORIE_EURO", "2.50"))
+# plus het lezen van zestig antwoorden.
+#
+# Op 14 september was dit 2,50 euro, met het dure model als lezer. Op
+# 16 september gaf de vergelijking groen licht voor gpt-5.6-luna als lezer:
+# honderd procent overeenstemming over welke van onze winkels in een antwoord
+# staan, en honderd procent over welke vragen meetellen. Dat model is ongeveer
+# vijftien keer goedkoper per woord.
+#
+# Het lezen was ruwweg zestig procent van die 2,50. Blijft over: het stellen
+# van de vragen, want dat kunnen wij niet goedkoper maken; dat is juist wat wij
+# meten. Vandaar deze schatting van 1,20.
+#
+# DIT IS EEN SCHATTING EN GEEN METING. Na de eerstvolgende echte categoriemeting
+# staat het werkelijke bedrag op /admin/kosten, en dan hoort dit getal daarheen
+# bijgesteld te worden.
+SCHATTING_CATEGORIE_EURO = float(os.environ.get("SCHATTING_CATEGORIE_EURO", "1.20"))
 
 
 def ruimte_vandaag():
