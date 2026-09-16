@@ -95,7 +95,43 @@
     </div>
     <button class="knop" type="submit" {% if stand.bezig %}disabled{% endif %}>
       {% if stand.bezig %}Bezig met meten{% else %}Meet deze categorie{% endif %}</button>
+    <button class="knop licht" type="submit" name="actie" value="vergelijk"
+            style="cursor:pointer;" {% if vergelijking.bezig %}disabled{% endif %}>
+      {% if vergelijking.bezig %}Bezig met vergelijken{% else %}Test het goedkope leesmodel{% endif %}</button>
   </form>
+
+  {% if vergelijking.bezig %}
+  <div class="verslag" style="background:var(--teal-dim);">
+    BEZIG met vergelijken, op antwoorden die al bewaard zijn. Er wordt geen enkele vraag
+    opnieuw gesteld. Ververs over een minuut.
+  </div>
+  {% elif vergelijking.uitkomst %}
+  {% set v = vergelijking.uitkomst %}
+  <div class="verslag" {% if v.mag_over %}style="background:var(--teal-dim);"{% endif %}>
+    {% if v.fout %}{{ v.fout }}
+    {% else %}
+    {{ v.goedkoop }} naast {{ v.duur }}, op {{ v.bekeken }} bewaarde antwoorden.<br>
+    Eens over meetellen: {{ (v.aandeel_meetellen * 100) | round(1) }}% (grens 95%).<br>
+    Eens over welke winkels: {{ (v.aandeel_winkels * 100) | round(1) }}% (grens 90%).<br>
+    {% if v.mag_over %}GROEN LICHT. Het goedkope model mag het leeswerk overnemen.
+    {% else %}NIET OVERSTAPPEN. Het goedkope model ziet te vaak iets anders.{% endif %}
+    {% if v.mislukt %}<br>{{ v.mislukt }} mislukt.{% endif %}
+    {% endif %}
+  </div>
+  {% if v.verschillen %}
+  <div class="vraaglijst" style="margin-bottom:22px;">
+    <strong style="font-family:var(--disp); font-size:14px;">Waar ze van elkaar afweken</strong>
+    <ul style="margin-top:8px; list-style:none;">
+      {% for verschil in v.verschillen %}
+      <li style="margin:0 0 10px;">{{ verschil.vraag }}<br>
+        <span class="intentie">alleen goedkoop zag: {{ verschil.alleen_goedkoop | join(", ") or "niets" }}</span><br>
+        <span class="intentie">alleen duur zag: {{ verschil.alleen_duur | join(", ") or "niets" }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% endif %}
 
   {% if ranglijst and ranglijst.rijen %}
   <h2>{{ naam_van(gekozen) }}</h2>
