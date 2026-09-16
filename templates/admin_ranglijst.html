@@ -95,6 +95,14 @@
     </div>
     <button class="knop" type="submit" {% if stand.bezig %}disabled{% endif %}>
       {% if stand.bezig %}Bezig met meten{% else %}Meet deze categorie{% endif %}</button>
+    <div>
+      <label>Leesmodel om te testen</label>
+      <select name="kandidaat" style="min-width:230px;">
+        {% for k in kandidaten %}
+        <option value="{{ k.model }}">{{ k.toonnaam }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <button class="knop licht" type="submit" name="actie" value="vergelijk"
             style="cursor:pointer;" {% if vergelijking.bezig %}disabled{% endif %}>
       {% if vergelijking.bezig %}Bezig met vergelijken{% else %}Test het goedkope leesmodel{% endif %}</button>
@@ -121,7 +129,11 @@
     {% else %}
     {{ v.goedkoop }} naast {{ v.duur }}, op {{ v.bekeken }} bewaarde antwoorden.<br>
     Eens over meetellen: {{ (v.aandeel_meetellen * 100) | round(1) }}% (grens 95%).<br>
-    Eens over welke winkels: {{ (v.aandeel_winkels * 100) | round(1) }}% (grens 90%).<br>
+    <strong>Eens over ONZE winkels: {{ (v.aandeel_onze_winkels * 100) | round(1) }}%
+    (grens 90%).</strong> Dit is het cijfer dat telt, want alleen onze winkels krijgen
+    een positie.<br>
+    Eens over alle namen in het antwoord: {{ (v.aandeel_winkels * 100) | round(1) }}%.
+    Telt niet mee: een winkel die niet van ons is verandert niemands positie.<br>
     {% if v.mag_over %}GROEN LICHT. Het goedkope model mag het leeswerk overnemen.
     {% else %}NIET OVERSTAPPEN. Het goedkope model ziet te vaak iets anders.{% endif %}
     {% if v.mislukt %}<br>{{ v.mislukt }} mislukt.{% endif %}
@@ -132,9 +144,11 @@
     <strong style="font-family:var(--disp); font-size:14px;">Waar ze van elkaar afweken</strong>
     <ul style="margin-top:8px; list-style:none;">
       {% for verschil in v.verschillen %}
-      <li style="margin:0 0 10px;">{{ verschil.vraag }}<br>
-        <span class="intentie">alleen goedkoop zag: {{ verschil.alleen_goedkoop | join(", ") or "niets" }}</span><br>
-        <span class="intentie">alleen duur zag: {{ verschil.alleen_duur | join(", ") or "niets" }}</span>
+      <li style="margin:0 0 12px;">{{ verschil.vraag }}<br>
+        <span class="intentie">onze winkels alleen bij goedkoop: {{ verschil.alleen_goedkoop | join(", ") or "geen" }}</span><br>
+        <span class="intentie">onze winkels alleen bij duur: {{ verschil.alleen_duur | join(", ") or "geen" }}</span><br>
+        <span class="intentie">overige namen alleen bij goedkoop: {{ verschil.namen_alleen_goedkoop | join(", ") or "geen" }}</span><br>
+        <span class="intentie">overige namen alleen bij duur: {{ verschil.namen_alleen_duur | join(", ") or "geen" }}</span>
       </li>
       {% endfor %}
     </ul>

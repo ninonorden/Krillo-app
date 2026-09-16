@@ -4219,7 +4219,10 @@ def admin_ranglijst():
         # Geen enkele vraag wordt opnieuw gesteld, maar het zijn wel twintig
         # leesopdrachten en dat is te lang voor een verzoek. Dus op een eigen
         # draad, net als het meten zelf.
-        if categoriemeting.start_vergelijking(gekozen, aantal=10):
+        gekozen_model = (request.form.get("kandidaat") or "").strip()
+        kandidaat = next((k for k in categoriemeting.KANDIDATEN
+                          if k["model"] == gekozen_model), None)
+        if categoriemeting.start_vergelijking(gekozen, aantal=10, kandidaat=kandidaat):
             bericht = ("De vergelijking is gestart. Ververs deze pagina over een minuut, "
                        "dan staat eronder hoe vaak het goedkope model hetzelfde zag als "
                        "het dure.")
@@ -4244,6 +4247,7 @@ def admin_ranglijst():
         ranglijst=db.laatste_ranglijst(gekozen) if gekozen else None,
         vragen=db.categorie_vragen(gekozen) if gekozen else [],
         vergelijking=categoriemeting.vergelijkstand(),
+        kandidaten=categoriemeting.KANDIDATEN,
     )
 
 

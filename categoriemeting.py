@@ -222,6 +222,18 @@ LEES_MODEL = os.environ.get("LEES_MODEL", MODEL)
 KANDIDAAT_PROVIDER = os.environ.get("LEES_KANDIDAAT_PROVIDER", "openai")
 KANDIDAAT_MODEL = os.environ.get("LEES_KANDIDAAT_MODEL", "gpt-5.6-luna")
 
+# De modellen die het leeswerk zouden kunnen overnemen, van goedkoop naar duur.
+# De prijzen staan in kosten.py; deze lijst is er zodat je ze kunt uitproberen
+# zonder nieuwe versie. Wat er uitkomt bepaalt of de hele index vijftien euro
+# kost of achtenzeventig.
+KANDIDATEN = [
+    {"provider": "google", "model": "gemini-2.5-flash-lite", "toonnaam": "Gemini flash-lite (goedkoopst)"},
+    {"provider": "openai", "model": "gpt-5.6-luna", "toonnaam": "GPT luna"},
+    {"provider": "google", "model": "gemini-3.5-flash-lite", "toonnaam": "Gemini 3.5 flash-lite"},
+    {"provider": "openai", "model": "gpt-5.4-mini", "toonnaam": "GPT mini"},
+    {"provider": "google", "model": "gemini-3.7-flash", "toonnaam": "Gemini flash"},
+]
+
 SLEUTELS = {"openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY"}
 
@@ -326,10 +338,18 @@ def vergelijk_lezers(categorie, aantal=20, goedkoop=None, duur=None):
     gesteld: de antwoorden van de laatste ronde staan er nog, en alleen het
     lezen wordt overgedaan. Twintig antwoorden kost een paar cent.
 
-    Waar het op aankomt is niet of de twee modellen exact dezelfde lijst geven,
-    maar of ze het eens zijn over de twee dingen die in de ranglijst terechtkomen:
-    telt deze vraag mee, en welke winkels staan erin. Een naam meer of minder in
-    een antwoord dat toch niet meetelt verandert niemands positie."""
+    WAT ER GEMETEN WORDT, EN WAAROM DAT NIET DE HELE NAMENLIJST IS.
+
+    Op 16 september gaf de eerste vergelijking 100 procent over meetellen en
+    60 procent over de namenlijst. Dat leek afkeuren, maar het meet te streng.
+    Ziet het ene model vijf winkels en het andere dezelfde vijf plus een
+    zesde die niet van ons is, dan zijn de namenlijsten ongelijk terwijl er in
+    onze ranglijst geen letter verandert.
+
+    Wat er wel toe doet: de winkels die in ONZE lijst staan. Alleen die krijgen
+    een positie, en alleen daar kan een klant iets door verliezen. Daarom wordt
+    het groene licht op dat cijfer gebaseerd, en staat het cijfer over de hele
+    namenlijst er alleen als achtergrond bij."""
     goedkoop = goedkoop or {"provider": KANDIDAAT_PROVIDER, "model": KANDIDAAT_MODEL}
     duur = duur or {"provider": "anthropic", "model": MODEL}
     if (goedkoop["provider"], goedkoop["model"]) == (duur["provider"], duur["model"]):
@@ -340,10 +360,14 @@ def vergelijk_lezers(categorie, aantal=20, goedkoop=None, duur=None):
     rijen = db.bewaarde_antwoorden(categorie, aantal)
     uit = {"categorie": categorie, "bekeken": 0, "mislukt": 0,
            "eens_over_meetellen": 0, "eens_over_winkels": 0,
+           "eens_over_onze_winkels": 0,
            "goedkoop": goedkoop["model"], "duur": duur["model"], "verschillen": []}
     if not rijen:
         uit["fout"] = f"Geen bewaarde antwoorden voor {categorie}."
         return uit
+
+    # De winkels van deze categorie, want alleen die kunnen een positie krijgen.
+    onze_winkels = db.winkels_in_categorie_met_kinderen(categorie)
 
     for rij in rijen:
         prompt = _leesprompt(rij["vraag"], rij["antwoord"])
@@ -365,22 +389,37 @@ def vergelijk_lezers(categorie, aantal=20, goedkoop=None, duur=None):
                    for w in b.get("winkels", []) if (w.get("naam") or "").strip()}
         if namen_a == namen_b:
             uit["eens_over_winkels"] += 1
+
+        # Het cijfer dat telt: zijn ze het eens over ONZE winkels. Alleen die
+        # komen in de ranglijst en alleen daar kan iemand een positie door
+        # verliezen.
+        onze_a = {u for u, hoe in koppel_aan_winkels(a, onze_winkels).items()
+                  if hoe["genoemd"]}
+        onze_b = {u for u, hoe in koppel_aan_winkels(b, onze_winkels).items()
+                  if hoe["genoemd"]}
+        if onze_a == onze_b:
+            uit["eens_over_onze_winkels"] += 1
         elif len(uit["verschillen"]) < 5:
             uit["verschillen"].append({
                 "vraag": rij["vraag"],
-                "alleen_goedkoop": sorted(namen_a - namen_b),
-                "alleen_duur": sorted(namen_b - namen_a),
+                "alleen_goedkoop": sorted(onze_a - onze_b),
+                "alleen_duur": sorted(onze_b - onze_a),
+                "namen_alleen_goedkoop": sorted(namen_a - namen_b),
+                "namen_alleen_duur": sorted(namen_b - namen_a),
             })
 
     if uit["bekeken"]:
         uit["aandeel_meetellen"] = round(uit["eens_over_meetellen"] / uit["bekeken"], 3)
         uit["aandeel_winkels"] = round(uit["eens_over_winkels"] / uit["bekeken"], 3)
-        # De grens. Onder de negentig procent overeenstemming over welke winkels
-        # er in een antwoord staan, gaat een klant een positie verliezen die hij
-        # niet verloren heeft. Dan is het goedkope model niet goed genoeg,
-        # hoeveel het ook scheelt.
+        uit["aandeel_onze_winkels"] = round(
+            uit["eens_over_onze_winkels"] / uit["bekeken"], 3)
+        # De grens. Onder de negentig procent overeenstemming over ONZE winkels
+        # gaat er een klant een positie verliezen die hij niet verloren heeft.
+        # Dan is het goedkope model niet goed genoeg, hoeveel het ook scheelt.
+        # Het cijfer over de hele namenlijst staat er wel bij, maar telt niet
+        # mee: een extra winkel die niet van ons is verandert geen positie.
         uit["mag_over"] = (uit["aandeel_meetellen"] >= 0.95
-                           and uit["aandeel_winkels"] >= 0.90)
+                           and uit["aandeel_onze_winkels"] >= 0.90)
     return uit
 
 
@@ -392,9 +431,10 @@ def vergelijkstand():
     return dict(_vgl_stand)
 
 
-def _vgl_werk(categorie, aantal):
+def _vgl_werk(categorie, aantal, kandidaat=None):
     try:
-        _vgl_stand["uitkomst"] = vergelijk_lezers(categorie, aantal=aantal)
+        _vgl_stand["uitkomst"] = vergelijk_lezers(categorie, aantal=aantal,
+                                                  goedkoop=kandidaat)
     except Exception as e:
         _vgl_stand["fout"] = f"{type(e).__name__}: {e}"[:200]
         print(f"Vergelijking mislukt voor {categorie}: {e}")
@@ -402,7 +442,7 @@ def _vgl_werk(categorie, aantal):
         _vgl_stand["bezig"] = False
 
 
-def start_vergelijking(categorie, aantal=10):
+def start_vergelijking(categorie, aantal=10, kandidaat=None):
     """Start de vergelijking van de twee leesmodellen op een eigen draad.
 
     Tien antwoorden door twee modellen is twintig leesopdrachten. Dat past niet
@@ -413,7 +453,8 @@ def start_vergelijking(categorie, aantal=10):
             return False
         _vgl_stand.update({"bezig": True, "categorie": categorie,
                            "uitkomst": None, "fout": None})
-    threading.Thread(target=_vgl_werk, args=(categorie, aantal), daemon=True).start()
+    threading.Thread(target=_vgl_werk, args=(categorie, aantal, kandidaat),
+                     daemon=True).start()
     return True
 
 
