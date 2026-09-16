@@ -105,10 +105,19 @@
     BEZIG met vergelijken, op antwoorden die al bewaard zijn. Er wordt geen enkele vraag
     opnieuw gesteld. Ververs over een minuut.
   </div>
+  {% elif vergelijking.fout %}
+  <div class="verslag" style="background:var(--coral-dim);">
+    De vergelijking is stukgelopen: {{ vergelijking.fout }}<br>
+    Er is niets veranderd aan de meting. Probeer het opnieuw of stuur mij deze regel.
+  </div>
   {% elif vergelijking.uitkomst %}
   {% set v = vergelijking.uitkomst %}
   <div class="verslag" {% if v.mag_over %}style="background:var(--teal-dim);"{% endif %}>
     {% if v.fout %}{{ v.fout }}
+    {% elif not v.bekeken %}
+    Geen enkel antwoord kon gelezen worden: {{ v.mislukt }} mislukt. Meestal betekent dat
+    dat het kandidaatmodel {{ v.goedkoop }} niet bestaat onder die naam, of dat de sleutel
+    er niet bij kan. Er is niets veranderd aan de meting.
     {% else %}
     {{ v.goedkoop }} naast {{ v.duur }}, op {{ v.bekeken }} bewaarde antwoorden.<br>
     Eens over meetellen: {{ (v.aandeel_meetellen * 100) | round(1) }}% (grens 95%).<br>
