@@ -591,13 +591,31 @@ def rol_ketens_op(telling, winkels):
 # Een hele categorie meten
 # ---------------------------------------------------------------------------
 
-_stand = {"bezig": False, "categorie": None, "vraag_nu": 0, "vragen_totaal": 0,
-          "antwoorden": 0, "mislukt": 0, "klaar_op": None, "fout": None}
+# Na deze tijd geldt een meting als vastgelopen en mag er opnieuw gestart
+# worden. Een volledige meting is dertig vragen aan twee modellen; twintig
+# minuten is normaal, drie kwartier niet meer.
+METING_VASTGELOPEN_NA = int(os.environ.get("METING_VASTGELOPEN_NA", "2700"))
+
+_stand = {"bezig": False, "categorie": None, "stap": None,
+          "vraag_nu": 0, "vragen_totaal": 0, "antwoorden": 0, "mislukt": 0,
+          "gestart_op": None, "klaar_op": None, "fout": None}
 _slot = threading.Lock()
 
 
 def stand():
-    return dict(_stand)
+    """De stand van de meting, met stap en verstreken tijd.
+
+    "vraag 0 van 0" zei niets, want voordat er een vraag gesteld kan worden
+    moeten de koopvragen van een categorie eerst bedacht worden, en dat is zelf
+    ook een modelaanroep van een minuut of wat. Nu staat er wat hij doet."""
+    uit = dict(_stand)
+    if uit["gestart_op"]:
+        verstreken = int(time.time() - uit["gestart_op"])
+        uit["verstreken_sec"] = verstreken
+        uit["verstreken"] = (f"{verstreken} seconden" if verstreken < 60
+                             else f"{verstreken // 60} minuten")
+        uit["vastgelopen"] = uit["bezig"] and verstreken > METING_VASTGELOPEN_NA
+    return uit
 
 
 def meet_categorie(slug, max_vragen=None):
@@ -606,12 +624,18 @@ def meet_categorie(slug, max_vragen=None):
     Draait op de aanroepende draad. De beheerpagina start hem via
     start_meting() op een eigen draad, want dit duurt minuten en dat hoort nooit
     aan een verzoek te hangen."""
+    _stand["stap"] = "winkels ophalen"
     winkels = db.winkels_in_categorie_met_kinderen(slug)
     if not winkels:
         return {"fout": f"Geen winkels in {slug}."}
 
+    _stand["stap"] = "koopvragen ophalen"
     vragen = db.categorie_vragen(slug)
     if not vragen:
+        # Dit is een modelaanroep van een minuut of wat, en tot 16 september
+        # stond er ondertussen "vraag 0 van 0" op het scherm. Dat leest als
+        # vastgelopen terwijl er gewoon gewerkt wordt.
+        _stand["stap"] = "dertig koopvragen bedenken voor deze categorie"
         nieuw = bedenk_vragen(slug)
         if not nieuw:
             return {"fout": "Er konden geen vragen bedacht worden."}
@@ -620,12 +644,14 @@ def meet_categorie(slug, max_vragen=None):
     if max_vragen:
         vragen = vragen[:max_vragen]
 
+    _stand["stap"] = "modellen nakijken"
     aanbieders = metingen.beschikbare_aanbieders()
     if not aanbieders:
         return {"fout": "Geen enkele AI-sleutel gevonden."}
 
     ronde = db.start_categorie_ronde(slug, len(vragen), len(winkels))
-    _stand.update({"vragen_totaal": len(vragen) * len(aanbieders), "vraag_nu": 0})
+    _stand.update({"vragen_totaal": len(vragen) * len(aanbieders), "vraag_nu": 0,
+                   "stap": "vragen stellen en antwoorden lezen"})
 
     # Per winkel bijhouden bij hoeveel vragen hij genoemd en aanbevolen werd.
     telling = {w["webshop_url"]: {"genoemd": set(), "aanbevolen": set(),
@@ -722,9 +748,13 @@ def start_meting(slug, max_vragen=None):
     september allebei gemaakt en hoeft geen derde keer."""
     with _slot:
         if _stand["bezig"]:
-            return False
-        _stand.update({"bezig": True, "categorie": slug, "vraag_nu": 0,
-                       "vragen_totaal": 0, "antwoorden": 0, "mislukt": 0,
+            begon = _stand.get("gestart_op") or 0
+            if time.time() - begon < METING_VASTGELOPEN_NA:
+                return False
+            print("Vorige meting lijkt vastgelopen, er wordt opnieuw gestart.")
+        _stand.update({"bezig": True, "categorie": slug, "stap": "starten",
+                       "vraag_nu": 0, "vragen_totaal": 0, "antwoorden": 0,
+                       "mislukt": 0, "gestart_op": time.time(),
                        "klaar_op": None, "fout": None})
     threading.Thread(target=_werk, args=(slug, max_vragen), daemon=True).start()
     return True

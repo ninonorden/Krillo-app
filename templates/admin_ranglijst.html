@@ -66,15 +66,27 @@
   {% if bericht %}<div class="verslag">{{ bericht }}</div>{% endif %}
 
   {% if stand.bezig %}
-  <div class="verslag" style="background:var(--teal-dim);">
-    BEZIG met {{ naam_van(stand.categorie) }}: vraag {{ stand.vraag_nu }} van
-    {{ stand.vragen_totaal }}, {{ stand.antwoorden }} antwoorden binnen,
-    {{ stand.mislukt }} mislukt.<br>
-    Ververs over een paar minuten. Het tabblad mag dicht.
+  <div class="verslag" style="background:{% if stand.vastgelopen %}var(--coral-dim){% else %}var(--teal-dim){% endif %};">
+    {% if stand.vastgelopen %}
+    VASTGELOPEN. {{ naam_van(stand.categorie) }} staat al {{ stand.verstreken }} op
+    "{{ stand.stap }}". Dat duurt te lang. Druk gerust opnieuw op de knop.
+    {% else %}
+    BEZIG met {{ naam_van(stand.categorie) }}, sinds {{ stand.verstreken }}.<br>
+    Nu: {{ stand.stap }}.<br>
+    {% if stand.vragen_totaal %}
+    Vraag {{ stand.vraag_nu }} van {{ stand.vragen_totaal }},
+    {{ stand.antwoorden }} antwoorden binnen, {{ stand.mislukt }} mislukt.
+    {% else %}
+    De teller begint zodra de koopvragen klaarstaan. Een categorie die nog nooit
+    gemeten is moet die eerst krijgen, en dat duurt een minuut of wat.
+    {% endif %}<br>
+    Ververs deze pagina om bij te werken. Het tabblad mag dicht.
+    {% endif %}
   </div>
   {% elif stand.klaar_op %}
   <div class="verslag">
     KLAAR: {{ stand.antwoorden }} antwoorden, {{ stand.mislukt }} mislukt.
+    {% if stand.verstreken %} Duurde {{ stand.verstreken }}.{% endif %}
     {% if stand.fout %}<br>LET OP: {{ stand.fout }}{% endif %}
   </div>
   {% endif %}
@@ -93,25 +105,8 @@
       <label>Aantal vragen (leeg is alle 30)</label>
       <input type="number" name="vragen" min="1" max="30" placeholder="30" style="width:110px;">
     </div>
-    <button class="knop" type="submit" {% if stand.bezig %}disabled{% endif %}>
+    <button class="knop" type="submit" {% if stand.bezig and not stand.vastgelopen %}disabled{% endif %}>
       {% if stand.bezig %}Bezig met meten{% else %}Meet deze categorie{% endif %}</button>
-    <div>
-      <label>Leesmodel om te testen</label>
-      <select name="kandidaat" style="min-width:230px;">
-        {% for k in kandidaten %}
-        <option value="{{ k.model }}">{{ k.toonnaam }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label>of typ zelf een modelnaam</label>
-      <input type="text" name="eigen_model" placeholder="gemini-2.0-flash"
-             style="font-family:var(--mono); font-size:13.5px; padding:8px 10px;
-                    border:1.5px solid var(--line); border-radius:7px; width:230px;">
-    </div>
-    <button class="knop licht" type="submit" name="actie" value="vergelijk"
-            style="cursor:pointer;" {% if vergelijking.bezig and not vergelijking.vastgelopen %}disabled{% endif %}>
-      {% if vergelijking.bezig %}Bezig met vergelijken{% else %}Test het goedkope leesmodel{% endif %}</button>
   </form>
 
   {% if vergelijking.bezig %}
@@ -222,6 +217,36 @@
     </ol>
   </div>
   {% endif %}
+
+  <details style="margin-top:34px;">
+    <summary style="cursor:pointer; font-family:var(--disp); font-weight:600; font-size:15px;">
+      Een ander leesmodel uitproberen</summary>
+    <p style="margin-top:10px;">Alleen nodig als je wilt kijken of een goedkoper model
+      hetzelfde ziet. Er wordt geen enkele vraag opnieuw gesteld, alleen opnieuw gelezen
+      uit antwoorden die al bewaard zijn. Kost een paar cent.
+      Op <a href="/admin/modellen">/admin/modellen</a> staan de namen die jouw sleutels
+      echt mogen gebruiken.</p>
+    <form method="post">
+      <input type="hidden" name="categorie" value="{{ gekozen }}">
+      <div>
+        <label>Uit de lijst</label>
+        <select name="kandidaat" style="min-width:230px;">
+          {% for k in kandidaten %}
+          <option value="{{ k.model }}">{{ k.toonnaam }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>of typ zelf een modelnaam</label>
+        <input type="text" name="eigen_model" placeholder="gpt-5-nano"
+               style="font-family:var(--mono); font-size:13.5px; padding:8px 10px;
+                      border:1.5px solid var(--line); border-radius:7px; width:230px;">
+      </div>
+      <button class="knop licht" type="submit" name="actie" value="vergelijk"
+              style="cursor:pointer;" {% if vergelijking.bezig and not vergelijking.vastgelopen %}disabled{% endif %}>
+        {% if vergelijking.bezig %}Bezig met vergelijken{% else %}Vergelijk met het huidige model{% endif %}</button>
+    </form>
+  </details>
 
   <div class="acties">
     <a class="knop licht" href="/admin/categorieen">Naar de indeling</a>
