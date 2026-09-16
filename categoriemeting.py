@@ -226,6 +226,34 @@ KANDIDAAT_MODEL = os.environ.get("LEES_KANDIDAAT_MODEL", "gpt-5.6-luna")
 # De prijzen staan in kosten.py; deze lijst is er zodat je ze kunt uitproberen
 # zonder nieuwe versie. Wat er uitkomt bepaalt of de hele index vijftien euro
 # kost of achtenzeventig.
+def kandidaat_uit_naam(naam):
+    """Maakt van een modelnaam een aanbieder, zodat je hem zelf kunt intypen.
+
+    Waarom dit moet kunnen: op 16 september mislukten alle tien de leespogingen
+    met gemini-2.5-flash-lite. Die naam had ik uit mijn hoofd opgeschreven en
+    hij bestaat niet onder deze sleutel. Modelnamen veranderen per aanbieder en
+    per account, dus een vaste lijst in de code loopt altijd achter.
+
+    Op /admin/modellen staan de namen die deze sleutels echt mogen gebruiken.
+    Daar kopieer je er een vandaan en die typ je hier in."""
+    naam = (naam or "").strip()
+    if not naam:
+        return None
+    if ":" in naam:
+        provider, model = naam.split(":", 1)
+        return {"provider": provider.strip().lower(), "model": model.strip()}
+    kort = naam.lower()
+    if kort.startswith("gpt") or kort.startswith("o1") or kort.startswith("o3"):
+        provider = "openai"
+    elif kort.startswith("gemini"):
+        provider = "google"
+    elif kort.startswith("claude"):
+        provider = "anthropic"
+    else:
+        return None
+    return {"provider": provider, "model": naam}
+
+
 KANDIDATEN = [
     {"provider": "google", "model": "gemini-2.5-flash-lite", "toonnaam": "Gemini flash-lite (goedkoopst)"},
     {"provider": "openai", "model": "gpt-5.6-luna", "toonnaam": "GPT luna"},

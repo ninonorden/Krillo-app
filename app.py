@@ -4219,9 +4219,14 @@ def admin_ranglijst():
         # Geen enkele vraag wordt opnieuw gesteld, maar het zijn wel twintig
         # leesopdrachten en dat is te lang voor een verzoek. Dus op een eigen
         # draad, net als het meten zelf.
-        gekozen_model = (request.form.get("kandidaat") or "").strip()
-        kandidaat = next((k for k in categoriemeting.KANDIDATEN
-                          if k["model"] == gekozen_model), None)
+        # Een zelf ingetypte naam wint van de keuzelijst. Modelnamen verschillen
+        # per aanbieder en per account, en op /admin/modellen staat wat deze
+        # sleutels echt mogen gebruiken.
+        kandidaat = categoriemeting.kandidaat_uit_naam(request.form.get("eigen_model"))
+        if kandidaat is None:
+            gekozen_model = (request.form.get("kandidaat") or "").strip()
+            kandidaat = next((k for k in categoriemeting.KANDIDATEN
+                              if k["model"] == gekozen_model), None)
         if categoriemeting.start_vergelijking(gekozen, aantal=10, kandidaat=kandidaat):
             bericht = ("De vergelijking is gestart. Ververs deze pagina over een minuut, "
                        "dan staat eronder hoe vaak het goedkope model hetzelfde zag als "
