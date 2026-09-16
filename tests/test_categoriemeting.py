@@ -193,6 +193,32 @@ zo("via start_meting en niet rechtstreeks", blok.count("start_meting"), 1)
 klopt("meet_categorie wordt niet in het verzoek aangeroepen",
       "meet_categorie(" not in blok)
 
+print("\n== de meting zegt bij welke stap hij is ==")
+# Op 16 september stond er tien minuten "vraag 0 van 0". Dat leest als
+# vastgelopen, terwijl hij de dertig koopvragen van een nieuwe categorie aan
+# het bedenken was. Een stap zonder teller moet dus zijn naam noemen.
+import time as _t  # noqa: E402
+categoriemeting._stand.update({"bezig": True, "categorie": CAT,
+                               "stap": "dertig koopvragen bedenken voor deze categorie",
+                               "vraag_nu": 0, "vragen_totaal": 0,
+                               "gestart_op": _t.time() - 120})
+st = categoriemeting.stand()
+klopt("er staat een stap bij", st["stap"])
+klopt("en hoe lang hij bezig is", "minuten" in st["verstreken"])
+klopt("na twee minuten is hij niet vastgelopen", st["vastgelopen"] is False)
+categoriemeting._stand["gestart_op"] = _t.time() - (categoriemeting.METING_VASTGELOPEN_NA + 60)
+klopt("maar na de grens wel", categoriemeting.stand()["vastgelopen"])
+klopt("en dan mag je opnieuw starten",
+      categoriemeting.start_meting("bestaat-niet", max_vragen=1) is True)
+_t.sleep(0.5)
+categoriemeting._stand.update({"bezig": False, "gestart_op": None, "stap": None})
+
+bron_sjabloon = open(os.path.join(APP, "templates", "admin_ranglijst.html")).read()
+klopt("de pagina toont de stap", "stand.stap" in bron_sjabloon)
+klopt("en meldt een vastgelopen meting", "stand.vastgelopen" in bron_sjabloon)
+klopt("het testen van leesmodellen staat uit de weg",
+      "<details" in bron_sjabloon)
+
 print("\n== de beheerpagina laadt ==")
 import app as krillo  # noqa: E402
 
