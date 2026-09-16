@@ -204,10 +204,16 @@ try:
 
     print("\n== een leesfout telt als mislukt, niet als niets gevonden ==")
     categoriemeting._lees_met = lambda a, p: None
+    categoriemeting._laatste_leesfout = "gemini-test: tokengrens bereikt"
     uit = categoriemeting.vergelijk_lezers(CAT, aantal=3)
     zo("niets bekeken", uit["bekeken"], 0)
     zo("drie keer mislukt", uit["mislukt"], 3)
     klopt("en geen groen licht op basis van nul metingen", "mag_over" not in uit)
+    # Zonder de echte reden sta je te raden, en dat kostte op 16 september een
+    # halve middag. De fout moet dus mee terug naar het scherm.
+    klopt("de echte reden staat erbij",
+          "tokengrens bereikt" in " ".join(uit["leesfouten"]))
+    zo("en niet honderd keer dezelfde regel", len(uit["leesfouten"]), 1)
 finally:
     categoriemeting._lees_met = echte_lees
 
@@ -256,6 +262,47 @@ klopt("een lege invoer levert niets op",
 klopt("en een naam die nergens op lijkt ook niet",
       categoriemeting.kandidaat_uit_naam("zomaar-iets") is None)
 klopt("en het beslissende cijfer staat erop", "aandeel_onze_winkels" in sjabloon)
+
+print("\n== de vergelijking laat zien hoe ver hij is ==")
+# Op 16 september stond er tien minuten lang alleen "bezig met vergelijken".
+# Een scherm dat alleen "bezig" zegt is niet te onderscheiden van een scherm
+# dat vastzit, en dan ga je op knoppen drukken die geld kosten.
+import time as _t  # noqa: E402
+categoriemeting._vgl_stand.update({"bezig": True, "nu": 3, "totaal": 6,
+                                   "gestart_op": _t.time() - 90})
+st = categoriemeting.vergelijkstand()
+zo("hij weet bij welk antwoord hij is", st["nu"], 3)
+zo("en hoeveel er in totaal zijn", st["totaal"], 6)
+klopt("en hoe lang hij bezig is", "minuten" in st["verstreken"])
+klopt("na anderhalve minuut is hij nog niet vastgelopen", st["vastgelopen"] is False)
+
+categoriemeting._vgl_stand["gestart_op"] = _t.time() - (categoriemeting.VASTGELOPEN_NA_SECONDEN + 60)
+klopt("maar na de grens wel", categoriemeting.vergelijkstand()["vastgelopen"])
+klopt("en dan mag je opnieuw beginnen",
+      categoriemeting.start_vergelijking("bestaat-niet", aantal=1) is True)
+_t.sleep(0.4)
+categoriemeting._vgl_stand.update({"bezig": False, "gestart_op": None,
+                                   "nu": 0, "totaal": 0})
+
+print("\n== een vergelijking die te lang duurt wordt afgekapt ==")
+echte_max = categoriemeting.MAX_VERGELIJK_SECONDEN
+echte_lees2 = categoriemeting._lees_met
+try:
+    categoriemeting.MAX_VERGELIJK_SECONDEN = 0
+    categoriemeting._lees_met = lambda a, p: {"winkel_kon_genoemd": True,
+                                              "winkels": [], "aanbevolen": []}
+    uit = categoriemeting.vergelijk_lezers(CAT, aantal=3)
+    zo("er is niets bekeken", uit["bekeken"], 0)
+    klopt("en er staat waarom hij stopte", "afgekapt" in uit)
+finally:
+    categoriemeting.MAX_VERGELIJK_SECONDEN = echte_max
+    categoriemeting._lees_met = echte_lees2
+
+sjabloon2 = open(os.path.join(APP, "templates", "admin_ranglijst.html")).read()
+klopt("de pagina toont de voortgang", "vergelijking.nu" in sjabloon2)
+klopt("en meldt het als hij vastloopt", "vergelijking.vastgelopen" in sjabloon2)
+klopt("en de knop gaat dan weer van slot",
+      "not vergelijking.vastgelopen" in sjabloon2)
 
 print("\n== zonder bewaarde antwoorden zegt hij dat gewoon ==")
 uit = categoriemeting.vergelijk_lezers("bestaat-niet", aantal=3)
