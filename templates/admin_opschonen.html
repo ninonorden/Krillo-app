@@ -63,10 +63,16 @@
 
   {% if stand.bezig %}
   <div class="verslag" style="background:var(--teal-dim);">
-    BEZIG: {{ stand.stap }}. {{ stand.zonder_adres }} zonder adres,
-    {{ stand.samengevoegd }} samengevoegd, {{ stand.merken }} merken,
-    {{ stand.aanroepen }} aanroepen.<br>
-    Ververs over een paar minuten. Het tabblad mag dicht.
+    BEZIG met: {{ stand.stap }}<br>
+    {% if stand.aanroepen_totaal %}
+    Groep {{ stand.aanroepen }} van {{ stand.aanroepen_totaal }}, dus
+    {{ (stand.aanroepen * 100 // stand.aanroepen_totaal) }}% klaar.<br>
+    {% endif %}
+    {{ stand.totaal }} winkels in behandeling: {{ stand.zonder_adres }} zonder adres,
+    {{ stand.samengevoegd }} samengevoegd, {{ stand.merken }} merken gevonden.<br>
+    Bezig sinds {{ stand.verstreken }}.{% if stand.resterend %}
+    Nog ongeveer {{ stand.resterend }} te gaan.{% endif %}<br>
+    Ververs deze pagina om bij te werken. Het tabblad mag dicht, hij gaat door.
   </div>
   {% elif stand.klaar_op %}
   <div class="verslag">
@@ -92,6 +98,32 @@
     <button class="knop" type="submit" {% if stand.bezig %}disabled{% endif %}>
       {% if stand.bezig %}Bezig met opschonen{% else %}Schoon de lijst op{% endif %}</button>
   </form>
+
+  <h2>Het onderhoud, dat dit vanzelf doet</h2>
+  <div class="uitleg">
+    {% if onderhoudstand.bezig %}
+    <p><b>Er loopt nu een onderhoudsronde:</b> {{ onderhoudstand.stap }}.</p>
+    {% endif %}
+    <p>Elke nacht draait er een ronde die drie dingen doet, in deze volgorde:
+       nieuwe winkels indelen, nieuwe winkels opschonen, en één categorie meten
+       die aan de beurt is. Hoogstens één, want een ronde die alles doet wat er
+       ligt, kost op een dag met driehonderd nieuwe winkels ineens driehonderd euro.</p>
+    <p><b>Nu in de wachtrij:</b> {{ nog_op_te_schonen }} winkels nog op te schonen,
+       {{ wachtrij | length }} categorieën aan een meting toe.
+       {% if wachtrij %}Eerstvolgende: {{ wachtrij[0].categorie }}
+       ({{ wachtrij[0].aantal }} winkels,
+       {% if wachtrij[0].laatst_gemeten %}laatst gemeten {{ wachtrij[0].laatst_gemeten.strftime("%d-%m-%Y") }}{% else %}nog nooit gemeten{% endif %}).{% endif %}</p>
+    <p>Een categorie wordt opnieuw gemeten als de vorige meting langer dan
+       {{ vervalt_na }} dagen geleden is. Er hoeft dus niemand bij te houden wat
+       er aan de beurt is: wie het langst wacht, is het eerst.</p>
+    {% if onderhoudstand.laatste_verslag %}
+    <p><b>Laatste ronde:</b> {{ onderhoudstand.laatste_verslag.begonnen }}.
+       {% if onderhoudstand.laatste_verslag.meten.gemeten %}
+       Gemeten: {% for m in onderhoudstand.laatste_verslag.meten.gemeten %}{{ m.categorie }}{% if not loop.last %}, {% endif %}{% endfor %}.
+       {% else %}Geen categorie gemeten.{% endif %}</p>
+    {% endif %}
+    {% if onderhoudstand.fout %}<p><b>Let op:</b> {{ onderhoudstand.fout }}</p>{% endif %}
+  </div>
 
   <h2>Wat hier gebeurt, en waarom</h2>
   <div class="uitleg">
