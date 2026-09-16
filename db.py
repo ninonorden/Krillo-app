@@ -344,6 +344,27 @@ def init_db():
                             "ADD COLUMN IF NOT EXISTS categorie TEXT;")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_benadering_categorie "
                             "ON benadering (categorie);")
+                # Opschoonkolommen, toegevoegd 16 september. De eerste echte
+                # ranglijst liet drie fouten zien die alledrie blokkerend zijn
+                # zodra zo'n lijst openbaar wordt. Zie opschonen.py.
+                #
+                # soort     : winkel, merk of geen-adres. Alleen "winkel" komt in
+                #             de openbare ranglijst. Een merk als Brabantia hoort
+                #             niet in een lijst van webshops, en een regel zonder
+                #             webadres kan nooit aan een AI-antwoord gekoppeld
+                #             worden en zou dus eeuwig onterecht nul scoren.
+                # hoort_bij : het hoofdadres van de keten. cookinglife.be wijst
+                #             naar cookinglife.nl. De meting herkent nog steeds
+                #             beide adressen, maar telt ze bij elkaar op, zodat
+                #             dezelfde winkel niet twee plekken in de top tien
+                #             bezet houdt.
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS soort TEXT "
+                            "NOT NULL DEFAULT 'winkel';")
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS hoort_bij TEXT;")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_benadering_soort "
+                            "ON benadering (soort);")
                 # ---------------------------------------------------------
                 # De categoriemeting. Dit is het hart van de nieuwe opzet:
                 # een koopvraag wordt EEN keer gesteld en scoort alle winkels
@@ -4446,7 +4467,8 @@ def winkels_in_categorie_met_kinderen(categorie):
     try:
         with conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("""SELECT webshop_url, naam, land, categorie, email
+                cur.execute("""SELECT webshop_url, naam, land, categorie, email,
+                                      soort, hoort_bij
                                  FROM benadering
                                 WHERE categorie = ANY(%s) AND afgemeld = FALSE
                              ORDER BY webshop_url""", (slugs,))
@@ -4454,6 +4476,122 @@ def winkels_in_categorie_met_kinderen(categorie):
     except Exception as e:
         print(f"Winkels van categorie ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+def bewaarde_antwoorden(categorie, limiet=20):
+    """De bewaarde antwoorden van de laatste ronde van een categorie.
+
+    Hiermee kun je een goedkoper leesmodel naast het dure leggen zonder ook maar
+    een vraag opnieuw te stellen. Het dure deel van een meting is al betaald en
+    staat er nog; alleen het lezen wordt overgedaan."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT vraag, model, antwoord, winkel_kon_genoemd, genoemde_winkels
+                      FROM categorie_antwoorden
+                     WHERE categorie = %s
+                       AND ronde = (SELECT max(ronde) FROM categorie_antwoorden
+                                     WHERE categorie = %s)
+                     ORDER BY id
+                     LIMIT %s""", (categorie, categorie, limiet))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Bewaarde antwoorden ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def alle_benaderingen_kaal(limiet=None):
+    """Elke winkel met alleen wat het opschonen nodig heeft.
+
+    Bewust een kale query: het opschonen loopt over de hele lijst en heeft
+    alleen adres, naam en de huidige soort nodig. De rest ophalen zou bij
+    duizenden winkels onnodig geheugen kosten."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                vraag = ("SELECT webshop_url, naam, land, soort, hoort_bij "
+                         "FROM benadering ORDER BY webshop_url")
+                if limiet:
+                    vraag += " LIMIT %s"
+                    cur.execute(vraag, (limiet,))
+                else:
+                    cur.execute(vraag)
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Winkels ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def zet_soort(webshop_url, soort):
+    """Zet vast of dit een winkel, een merk of een regel zonder adres is."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET soort = %s, bijgewerkt_op = now() "
+                            "WHERE webshop_url = %s", (soort, webshop_url))
+        return True
+    except Exception as e:
+        print(f"Soort zetten mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def zet_hoort_bij(webshop_url, hoofd_url):
+    """Koppelt een adres aan het hoofdadres van zijn keten."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET hoort_bij = %s, bijgewerkt_op = now() "
+                            "WHERE webshop_url = %s", (hoofd_url, webshop_url))
+        return True
+    except Exception as e:
+        print(f"Hoort_bij zetten mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def opschoonstand():
+    """Hoeveel winkels, merken, adresloze regels en samengevoegde adressen."""
+    conn = _get_connection()
+    if conn is None:
+        return {}
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT count(*) AS totaal,
+                           count(*) FILTER (WHERE soort = 'winkel')     AS winkels,
+                           count(*) FILTER (WHERE soort = 'merk')       AS merken,
+                           count(*) FILTER (WHERE soort = 'geen-adres') AS zonder_adres,
+                           count(*) FILTER (WHERE hoort_bij IS NOT NULL
+                                              AND hoort_bij <> webshop_url) AS samengevoegd
+                      FROM benadering
+                     WHERE afgemeld = FALSE""")
+                return dict(cur.fetchone() or {})
+    except Exception as e:
+        print(f"Opschoonstand ophalen mislukt: {e}")
+        return {}
     finally:
         conn.close()
 

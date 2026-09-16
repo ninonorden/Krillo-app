@@ -52,6 +52,7 @@ import shopify_billing
 import benadering
 import categorieen
 import categoriemeting
+import opschonen
 
 app = Flask(__name__)
 db.init_db()
@@ -4133,6 +4134,42 @@ def admin_categorieen():
     )
 
 
+@app.route("/admin/opschonen", methods=["GET", "POST"])
+def admin_opschonen():
+    """De winkellijst opschonen voordat er een ranglijst openbaar gaat.
+
+    Drie dingen worden hier vastgezet: welke regels geen webadres hebben, welke
+    adressen van dezelfde keten zijn, en wat een merk is in plaats van een
+    winkel. Zie opschonen.py voor waarom die drie, en de eerste echte ranglijst
+    van 14 september voor wat er misgaat als je het niet doet.
+
+    Achter een POST, want het kost geld en het schrijft in de database. Op een
+    eigen draad, want het zijn tientallen modelaanroepen en gunicorn kapt na
+    twee minuten af."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+
+    bericht = None
+    if request.method == "POST":
+        hoeveel = int(request.form.get("hoeveel") or 0) or None
+        if opschonen.start_opschonen(hoeveel=hoeveel):
+            bericht = ("Het opschonen is gestart en draait op de achtergrond. Ververs "
+                       "deze pagina over een minuut of twee. Je kunt het tabblad "
+                       "gerust sluiten, hij gaat gewoon door.")
+        else:
+            bericht = "Het opschonen loopt al. Ververs de pagina om te zien hoe ver hij is."
+
+    return render_template(
+        "admin_opschonen.html",
+        bericht=bericht,
+        stand=opschonen.stand(),
+        tel=db.opschoonstand(),
+    )
+
+
 @app.route("/admin/ranglijst", methods=["GET", "POST"])
 def admin_ranglijst():
     """Een categorie meten en de ranglijst bekijken.
@@ -4156,7 +4193,18 @@ def admin_ranglijst():
     gekozen = request.values.get("categorie") or (bruikbaar[0]["categorie"] if bruikbaar else None)
 
     bericht = None
-    if request.method == "POST" and gekozen:
+    if request.method == "POST" and gekozen and request.form.get("actie") == "vergelijk":
+        # Het goedkope leesmodel naast het dure, op antwoorden die er al staan.
+        # Geen enkele vraag wordt opnieuw gesteld, maar het zijn wel twintig
+        # leesopdrachten en dat is te lang voor een verzoek. Dus op een eigen
+        # draad, net als het meten zelf.
+        if categoriemeting.start_vergelijking(gekozen, aantal=10):
+            bericht = ("De vergelijking is gestart. Ververs deze pagina over een minuut, "
+                       "dan staat eronder hoe vaak het goedkope model hetzelfde zag als "
+                       "het dure.")
+        else:
+            bericht = "Er loopt al een vergelijking. Ververs de pagina."
+    elif request.method == "POST" and gekozen:
         vragen = int(request.form.get("vragen") or 0) or None
         if categoriemeting.start_meting(gekozen, max_vragen=vragen):
             bericht = (f"De meting van {categorieen.naam_van(gekozen)} is gestart en draait op "
@@ -4174,6 +4222,7 @@ def admin_ranglijst():
         naam_van=categorieen.naam_van,
         ranglijst=db.laatste_ranglijst(gekozen) if gekozen else None,
         vragen=db.categorie_vragen(gekozen) if gekozen else [],
+        vergelijking=categoriemeting.vergelijkstand(),
     )
 
 

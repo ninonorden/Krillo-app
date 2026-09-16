@@ -149,20 +149,24 @@ def koopintenties(landnaam="Nederlandse"):
 # ---------------------------------------------------------------------------
 # Een antwoord lezen: welke winkels staan erin
 # ---------------------------------------------------------------------------
+#
+# HIER ZIT DE HELE MEETPRIJS IN. Een categorie meten is dertig vragen aan twee
+# modellen, dus zestig antwoorden, en elk antwoord moet gelezen worden. Het
+# stellen van de vraag kunnen we niet goedkoper maken, want we meten juist wat
+# ChatGPT en Gemini antwoorden. Het lezen wel: dat is een leesopdracht met een
+# vast format eruit, en daar is geen duur model voor nodig.
+#
+# Op 14 september kostte een winkel ongeveer 35 cent per maand. Het leeswerk is
+# daarvan het grootste deel. Met een goedkoper leesmodel gaat dat naar een paar
+# cent.
+#
+# MAAR: dat mag de uitkomst niet veranderen. Een goedkoper model dat een winkel
+# over het hoofd ziet, kost een klant zijn positie. Daarom staat het leesmodel
+# in een omgevingsvariabele en zit er een vergelijking in (vergelijk_lezers)
+# die het goedkope en het dure model over dezelfde bewaarde antwoorden laat
+# lopen en vertelt hoe vaak ze het eens zijn. Pas overstappen als dat klopt.
 
-def winkels_uit_antwoord(vraag, antwoord):
-    """Haalt uit een AI-antwoord welke WINKELS er genoemd worden, en wie er
-    aanbevolen wordt. Zonder te weten om welke winkel het ons te doen is.
-
-    Dat laatste is precies waarom dit goedkoop is. Het dure werk, een model het
-    antwoord laten lezen, is winkelonafhankelijk. Voor veertig winkels in de
-    categorie hoeft dat dus maar EEN keer, en het koppelen daarna is gewoon
-    vergelijken."""
-    client = _client()
-    if client is None or not antwoord:
-        return None
-
-    prompt = f"""Je leest het antwoord dat een AI-assistent gaf op een koopvraag.
+_PROMPT_SJABLOON = """Je leest het antwoord dat een AI-assistent gaf op een koopvraag.
 Haal eruit welke WEBSHOPS erin genoemd worden.
 
 De vraag was:
@@ -199,20 +203,73 @@ Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
   "aanbevolen": ["fonQ"]
 }}"""
 
-    try:
-        gestart = time.monotonic()
-        resp = client.messages.create(
-            model=MODEL, max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}])
-        kosten.registreer_aanroep(
-            provider="anthropic", model=MODEL,
-            invoer_tokens=resp.usage.input_tokens,
-            uitvoer_tokens=resp.usage.output_tokens,
-            soort="categorie-antwoord-lezen",
-            duur_ms=int((time.monotonic() - gestart) * 1000))
-        data = beoordeling._schoon_json(resp.content[0].text) or {}
-    except Exception as e:
-        print(f"Antwoord lezen mislukt: {e}")
+
+# BEWUST STAAT HIER HET DURE MODEL ALS STANDAARD. Het goedkope model gaat pas
+# aan als de vergelijking op echte antwoorden groen licht geeft, en dat zetten
+# wij dan in Render om. Andersom zou betekenen dat een nieuwe versie stilletjes
+# de meetkwaliteit verandert van iedereen die al in de ranglijst staat, zonder
+# dat iemand het gezien heeft.
+#
+# Overzetten doe je zo: LEES_PROVIDER op openai en LEES_MODEL op gpt-5.6-luna.
+# Dat model is ongeveer vijftien keer goedkoper dan het huidige.
+LEES_PROVIDER = os.environ.get("LEES_PROVIDER", "anthropic")
+LEES_MODEL = os.environ.get("LEES_MODEL", MODEL)
+
+# Het model waar wij naartoe WILLEN. Dit is wat de vergelijking test, en wat je
+# in Render invult zodra die vergelijking groen licht geeft. Het staat hier
+# apart van LEES_MODEL, want anders zou de vergelijking het huidige model met
+# zichzelf vergelijken en altijd honderd procent zeggen.
+KANDIDAAT_PROVIDER = os.environ.get("LEES_KANDIDAAT_PROVIDER", "openai")
+KANDIDAAT_MODEL = os.environ.get("LEES_KANDIDAAT_MODEL", "gpt-5.6-luna")
+
+SLEUTELS = {"openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY"}
+
+
+def _lezer():
+    """Welk model de antwoorden leest.
+
+    Ontbreekt de sleutel van het goedkope model, dan valt hij terug op het dure.
+    Stilletjes niets meten zou veel erger zijn dan iets duurder meten."""
+    if os.environ.get(SLEUTELS.get(LEES_PROVIDER, "")):
+        return {"provider": LEES_PROVIDER, "model": LEES_MODEL}
+    return {"provider": "anthropic", "model": MODEL}
+
+
+def _lees_met(aanbieder, prompt):
+    """Laat een model de leesopdracht uitvoeren en geeft de JSON terug.
+
+    Loopt via metingen.stel_een_vraag, want daar zitten de herkansingen, de
+    wachtrij per aanbieder en de foutafhandeling al in. Twee keer hetzelfde
+    bouwen is twee keer dezelfde fout kunnen maken."""
+    uitkomst = metingen.stel_een_vraag(aanbieder, prompt, min_tekens=2)
+    if not uitkomst["gelukt"]:
+        print(f"Antwoord lezen mislukt met {aanbieder['model']}: {uitkomst['foutsoort']}")
+        return None
+    kosten.registreer_aanroep(
+        provider=aanbieder["provider"], model=aanbieder["model"],
+        invoer_tokens=uitkomst["invoer_tokens"],
+        uitvoer_tokens=uitkomst["uitvoer_tokens"],
+        soort="categorie-antwoord-lezen",
+        duur_ms=uitkomst["duur_ms"])
+    return beoordeling._schoon_json(uitkomst["antwoord"]) or {}
+
+
+def winkels_uit_antwoord(vraag, antwoord):
+    """Haalt uit een AI-antwoord welke WINKELS er genoemd worden, en wie er
+    aanbevolen wordt. Zonder te weten om welke winkel het ons te doen is.
+
+    Dat laatste is precies waarom dit goedkoop is. Het dure werk, een model het
+    antwoord laten lezen, is winkelonafhankelijk. Voor veertig winkels in de
+    categorie hoeft dat dus maar EEN keer, en het koppelen daarna is gewoon
+    vergelijken."""
+    if not antwoord:
+        return None
+
+    prompt = _leesprompt(vraag, antwoord)
+
+    data = _lees_met(_lezer(), prompt)
+    if data is None:
         return None
 
     winkels = []
@@ -255,6 +312,152 @@ def koppel_aan_winkels(genoemde, onze_winkels):
             "als_naam": treffer,
         }
     return uit
+
+
+def _leesprompt(vraag, antwoord):
+    """De leesopdracht, los, zodat de vergelijking dezelfde opdracht gebruikt."""
+    return _PROMPT_SJABLOON.format(vraag=vraag, antwoord=antwoord)
+
+
+def vergelijk_lezers(categorie, aantal=20, goedkoop=None, duur=None):
+    """Legt het goedkope leesmodel naast het dure, op al bewaarde antwoorden.
+
+    Dit is het bewijs dat de overstap mag. Er wordt geen enkele vraag opnieuw
+    gesteld: de antwoorden van de laatste ronde staan er nog, en alleen het
+    lezen wordt overgedaan. Twintig antwoorden kost een paar cent.
+
+    Waar het op aankomt is niet of de twee modellen exact dezelfde lijst geven,
+    maar of ze het eens zijn over de twee dingen die in de ranglijst terechtkomen:
+    telt deze vraag mee, en welke winkels staan erin. Een naam meer of minder in
+    een antwoord dat toch niet meetelt verandert niemands positie."""
+    goedkoop = goedkoop or {"provider": KANDIDAAT_PROVIDER, "model": KANDIDAAT_MODEL}
+    duur = duur or {"provider": "anthropic", "model": MODEL}
+    if (goedkoop["provider"], goedkoop["model"]) == (duur["provider"], duur["model"]):
+        return {"categorie": categorie, "bekeken": 0, "mislukt": 0,
+                "fout": "Het kandidaatmodel is hetzelfde als het huidige. Dan "
+                        "vergelijk je een model met zichzelf en zegt de uitkomst niets."}
+
+    rijen = db.bewaarde_antwoorden(categorie, aantal)
+    uit = {"categorie": categorie, "bekeken": 0, "mislukt": 0,
+           "eens_over_meetellen": 0, "eens_over_winkels": 0,
+           "goedkoop": goedkoop["model"], "duur": duur["model"], "verschillen": []}
+    if not rijen:
+        uit["fout"] = f"Geen bewaarde antwoorden voor {categorie}."
+        return uit
+
+    for rij in rijen:
+        prompt = _leesprompt(rij["vraag"], rij["antwoord"])
+        a = _lees_met(goedkoop, prompt)
+        b = _lees_met(duur, prompt)
+        if a is None or b is None:
+            uit["mislukt"] += 1
+            continue
+        uit["bekeken"] += 1
+
+        mee_a = bool(a.get("winkel_kon_genoemd"))
+        mee_b = bool(b.get("winkel_kon_genoemd"))
+        if mee_a == mee_b:
+            uit["eens_over_meetellen"] += 1
+
+        namen_a = {(w.get("naam") or "").strip().lower()
+                   for w in a.get("winkels", []) if (w.get("naam") or "").strip()}
+        namen_b = {(w.get("naam") or "").strip().lower()
+                   for w in b.get("winkels", []) if (w.get("naam") or "").strip()}
+        if namen_a == namen_b:
+            uit["eens_over_winkels"] += 1
+        elif len(uit["verschillen"]) < 5:
+            uit["verschillen"].append({
+                "vraag": rij["vraag"],
+                "alleen_goedkoop": sorted(namen_a - namen_b),
+                "alleen_duur": sorted(namen_b - namen_a),
+            })
+
+    if uit["bekeken"]:
+        uit["aandeel_meetellen"] = round(uit["eens_over_meetellen"] / uit["bekeken"], 3)
+        uit["aandeel_winkels"] = round(uit["eens_over_winkels"] / uit["bekeken"], 3)
+        # De grens. Onder de negentig procent overeenstemming over welke winkels
+        # er in een antwoord staan, gaat een klant een positie verliezen die hij
+        # niet verloren heeft. Dan is het goedkope model niet goed genoeg,
+        # hoeveel het ook scheelt.
+        uit["mag_over"] = (uit["aandeel_meetellen"] >= 0.95
+                           and uit["aandeel_winkels"] >= 0.90)
+    return uit
+
+
+_vgl_stand = {"bezig": False, "categorie": None, "uitkomst": None, "fout": None}
+_vgl_slot = threading.Lock()
+
+
+def vergelijkstand():
+    return dict(_vgl_stand)
+
+
+def _vgl_werk(categorie, aantal):
+    try:
+        _vgl_stand["uitkomst"] = vergelijk_lezers(categorie, aantal=aantal)
+    except Exception as e:
+        _vgl_stand["fout"] = f"{type(e).__name__}: {e}"[:200]
+        print(f"Vergelijking mislukt voor {categorie}: {e}")
+    finally:
+        _vgl_stand["bezig"] = False
+
+
+def start_vergelijking(categorie, aantal=10):
+    """Start de vergelijking van de twee leesmodellen op een eigen draad.
+
+    Tien antwoorden door twee modellen is twintig leesopdrachten. Dat past niet
+    binnen de twee minuten van gunicorn, en dat is precies de fout die op 11 en
+    op 13 september allebei een omgevallen server opleverde."""
+    with _vgl_slot:
+        if _vgl_stand["bezig"]:
+            return False
+        _vgl_stand.update({"bezig": True, "categorie": categorie,
+                           "uitkomst": None, "fout": None})
+    threading.Thread(target=_vgl_werk, args=(categorie, aantal), daemon=True).start()
+    return True
+
+
+def rol_ketens_op(telling, winkels):
+    """Telt de adressen van dezelfde keten bij elkaar op en laat eruit wat niet
+    in een winkelranglijst hoort.
+
+    Waarom dit moet. In de eerste echte ranglijst stond cookinglife.be eerste en
+    cookinglife.nl tweede, met exact dezelfde cijfers. Dat is dezelfde winkel op
+    twee plekken, waardoor een top tien er maar acht bevat en een echte
+    concurrent onterecht wegzakt.
+
+    Wat hier NIET gebeurt: een vermelding weggooien. cookinglife.be wordt nog
+    steeds herkend in een antwoord, de treffer verhuist alleen naar het
+    hoofdadres. Wordt een keten in dezelfde vraag onder twee adressen genoemd,
+    dan telt dat een keer, want de telling gaat over vragen en niet over
+    vermeldingen. Daarom zijn het verzamelingen en geen getallen.
+
+    Eruit gaan: merken, want Brabantia is geen webshop, en regels zonder
+    webadres, want die kunnen nooit aan een AI-antwoord gekoppeld worden en
+    zouden dus eeuwig onterecht nul scoren."""
+    aanwezig = {w["webshop_url"] for w in winkels}
+    hoofd_van, soort_van = {}, {}
+    for w in winkels:
+        url = w["webshop_url"]
+        hoofd = w.get("hoort_bij") or url
+        # Wijst het hoofdadres naar een winkel buiten deze categorie, dan houdt
+        # dit adres zichzelf. Anders verdwijnt de hele telling in het niets.
+        hoofd_van[url] = hoofd if hoofd in aanwezig else url
+        soort_van[url] = w.get("soort") or "winkel"
+
+    samen = {}
+    for url, t in telling.items():
+        doel = hoofd_van.get(url, url)
+        if soort_van.get(doel, "winkel") != "winkel":
+            continue
+        bij = samen.setdefault(doel, {"genoemd": set(), "aanbevolen": set(),
+                                      "beste_positie": None})
+        bij["genoemd"] |= t["genoemd"]
+        bij["aanbevolen"] |= t["aanbevolen"]
+        p = t["beste_positie"]
+        if p and (bij["beste_positie"] is None or p < bij["beste_positie"]):
+            bij["beste_positie"] = p
+    return samen
 
 
 # ---------------------------------------------------------------------------
@@ -346,19 +549,25 @@ def meet_categorie(slug, max_vragen=None):
                 if hoe["aanbevolen"]:
                     telling[url]["aanbevolen"].add(vraag["vraag"])
 
+    # Eerst opschonen: ketens bij elkaar, merken en adresloze regels eruit. Dit
+    # gebeurt na het tellen en niet ervoor, zodat een vermelding van
+    # cookinglife.be wel meetelt maar niet als eigen regel op de lijst komt.
+    opgeschoond = rol_ketens_op(telling, winkels)
+
     # De ranglijst. Aanbevolen weegt zwaarder dan genoemd, want in een rij staan
     # is iets anders dan aangeraden worden.
     rangen = sorted(
         ({"webshop_url": u,
           "genoemd": len(t["genoemd"]),
           "aanbevolen": len(t["aanbevolen"]),
-          "beste_positie": t["beste_positie"]} for u, t in telling.items()),
+          "beste_positie": t["beste_positie"]} for u, t in opgeschoond.items()),
         key=lambda r: (-r["aanbevolen"], -r["genoemd"], r["webshop_url"]))
     for plek, rij in enumerate(rangen, start=1):
         rij["positie"] = plek
     db.bewaar_categorie_uitkomsten(ronde, slug, rangen, len(telbaar))
 
-    return {"ronde": ronde, "categorie": slug, "winkels": len(winkels),
+    return {"ronde": ronde, "categorie": slug, "winkels": len(rangen),
+            "gemeten_adressen": len(winkels),
             "vragen": len(vragen), "telbaar": len(telbaar),
             "antwoorden": _stand["antwoorden"], "mislukt": _stand["mislukt"],
             "ranglijst": rangen}
