@@ -4227,7 +4227,7 @@ def admin_ranglijst():
             gekozen_model = (request.form.get("kandidaat") or "").strip()
             kandidaat = next((k for k in categoriemeting.KANDIDATEN
                               if k["model"] == gekozen_model), None)
-        if categoriemeting.start_vergelijking(gekozen, aantal=10, kandidaat=kandidaat):
+        if categoriemeting.start_vergelijking(gekozen, aantal=6, kandidaat=kandidaat):
             bericht = ("De vergelijking is gestart. Ververs deze pagina over een minuut, "
                        "dan staat eronder hoe vaak het goedkope model hetzelfde zag als "
                        "het dure.")

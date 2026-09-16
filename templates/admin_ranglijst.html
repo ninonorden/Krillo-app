@@ -110,14 +110,22 @@
                     border:1.5px solid var(--line); border-radius:7px; width:230px;">
     </div>
     <button class="knop licht" type="submit" name="actie" value="vergelijk"
-            style="cursor:pointer;" {% if vergelijking.bezig %}disabled{% endif %}>
+            style="cursor:pointer;" {% if vergelijking.bezig and not vergelijking.vastgelopen %}disabled{% endif %}>
       {% if vergelijking.bezig %}Bezig met vergelijken{% else %}Test het goedkope leesmodel{% endif %}</button>
   </form>
 
   {% if vergelijking.bezig %}
-  <div class="verslag" style="background:var(--teal-dim);">
-    BEZIG met vergelijken, op antwoorden die al bewaard zijn. Er wordt geen enkele vraag
-    opnieuw gesteld. Ververs over een minuut.
+  <div class="verslag" style="background:{% if vergelijking.vastgelopen %}var(--coral-dim){% else %}var(--teal-dim){% endif %};">
+    {% if vergelijking.vastgelopen %}
+    VASTGELOPEN. Hij staat al {{ vergelijking.verstreken }} op antwoord
+    {{ vergelijking.nu }} van {{ vergelijking.totaal }}. Dat duurt te lang, er hangt iets.
+    Druk gerust opnieuw op de knop, dan begint hij overnieuw.
+    {% else %}
+    BEZIG: antwoord {{ vergelijking.nu }} van {{ vergelijking.totaal }}, bezig sinds
+    {{ vergelijking.verstreken }}.<br>
+    Er wordt geen enkele vraag opnieuw gesteld, alleen opnieuw gelezen. Normaal duurt dit
+    een minuut of twee. Ververs deze pagina om bij te werken.
+    {% endif %}
   </div>
   {% elif vergelijking.fout %}
   <div class="verslag" style="background:var(--coral-dim);">
@@ -134,6 +142,8 @@
     er niet bij kan. Er is niets veranderd aan de meting.<br>
     Kijk op <a href="/admin/modellen">/admin/modellen</a> welke namen deze sleutels wel
     mogen gebruiken, kopieer er een, en typ hem hierboven in het vakje.
+    {% if v.leesfouten %}<br><br>Wat er precies misging:<br>
+    {% for f in v.leesfouten %}{{ f }}<br>{% endfor %}{% endif %}
     {% else %}
     {{ v.goedkoop }} naast {{ v.duur }}, op {{ v.bekeken }} bewaarde antwoorden.<br>
     Eens over meetellen: {{ (v.aandeel_meetellen * 100) | round(1) }}% (grens 95%).<br>
@@ -144,7 +154,10 @@
     Telt niet mee: een winkel die niet van ons is verandert niemands positie.<br>
     {% if v.mag_over %}GROEN LICHT. Het goedkope model mag het leeswerk overnemen.
     {% else %}NIET OVERSTAPPEN. Het goedkope model ziet te vaak iets anders.{% endif %}
-    {% if v.mislukt %}<br>{{ v.mislukt }} mislukt.{% endif %}
+    {% if v.afgekapt %}<br>{{ v.afgekapt }}{% endif %}
+    {% if v.mislukt %}<br>{{ v.mislukt }} mislukt.
+    {% if v.leesfouten %}Reden: {% for f in v.leesfouten %}{{ f }}{% if not loop.last %} / {% endif %}{% endfor %}{% endif %}
+    {% endif %}
     {% endif %}
   </div>
   {% if v.verschillen %}

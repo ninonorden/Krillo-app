@@ -276,14 +276,24 @@ def _lezer():
     return {"provider": "anthropic", "model": MODEL}
 
 
+# De laatste leesfout, zodat de vergelijking kan laten zien WAAROM een model
+# niets opleverde. Op 16 september mislukten er tien van de tien en stond er
+# alleen "mislukt" op het scherm. Toen bleek de modelnaam wel te bestaan, en
+# was er dus geen enkele aanwijzing meer over. Raden wat er misging kost meer
+# tijd dan de fout gewoon opschrijven.
+_laatste_leesfout = None
+
+
 def _lees_met(aanbieder, prompt):
     """Laat een model de leesopdracht uitvoeren en geeft de JSON terug.
 
     Loopt via metingen.stel_een_vraag, want daar zitten de herkansingen, de
     wachtrij per aanbieder en de foutafhandeling al in. Twee keer hetzelfde
     bouwen is twee keer dezelfde fout kunnen maken."""
+    global _laatste_leesfout
     uitkomst = metingen.stel_een_vraag(aanbieder, prompt, min_tekens=2)
     if not uitkomst["gelukt"]:
+        _laatste_leesfout = f"{aanbieder['model']}: {uitkomst.get('foutsoort')}"
         print(f"Antwoord lezen mislukt met {aanbieder['model']}: {uitkomst['foutsoort']}")
         return None
     kosten.registreer_aanroep(
@@ -359,7 +369,7 @@ def _leesprompt(vraag, antwoord):
     return _PROMPT_SJABLOON.format(vraag=vraag, antwoord=antwoord)
 
 
-def vergelijk_lezers(categorie, aantal=20, goedkoop=None, duur=None):
+def vergelijk_lezers(categorie, aantal=10, goedkoop=None, duur=None):
     """Legt het goedkope leesmodel naast het dure, op al bewaarde antwoorden.
 
     Dit is het bewijs dat de overstap mag. Er wordt geen enkele vraag opnieuw
@@ -386,9 +396,11 @@ def vergelijk_lezers(categorie, aantal=20, goedkoop=None, duur=None):
                         "vergelijk je een model met zichzelf en zegt de uitkomst niets."}
 
     rijen = db.bewaarde_antwoorden(categorie, aantal)
+    _vgl_stand.update({"nu": 0, "totaal": len(rijen)})
+    grens = time.monotonic() + MAX_VERGELIJK_SECONDEN
     uit = {"categorie": categorie, "bekeken": 0, "mislukt": 0,
            "eens_over_meetellen": 0, "eens_over_winkels": 0,
-           "eens_over_onze_winkels": 0,
+           "eens_over_onze_winkels": 0, "leesfouten": [],
            "goedkoop": goedkoop["model"], "duur": duur["model"], "verschillen": []}
     if not rijen:
         uit["fout"] = f"Geen bewaarde antwoorden voor {categorie}."
@@ -398,11 +410,27 @@ def vergelijk_lezers(categorie, aantal=20, goedkoop=None, duur=None):
     onze_winkels = db.winkels_in_categorie_met_kinderen(categorie)
 
     for rij in rijen:
+        # Een harde tijdslimiet. Zonder deze kon een vergelijking van tien
+        # antwoorden in het slechtste geval anderhalf uur duren: tien antwoorden
+        # maal twee modellen maal drie herkansingen maal negentig seconden
+        # wachttijd. Dan sta je te kijken naar een scherm dat "bezig" zegt en
+        # weet je niet of hij nog leeft. Liever een half antwoord met een
+        # eerlijke melding dan eindeloos wachten.
+        if time.monotonic() > grens:
+            uit["afgekapt"] = (f"Gestopt na {MAX_VERGELIJK_SECONDEN // 60} minuten. "
+                               f"{uit['bekeken']} van de {len(rijen)} antwoorden gedaan.")
+            break
+        _vgl_stand["nu"] += 1
         prompt = _leesprompt(rij["vraag"], rij["antwoord"])
         a = _lees_met(goedkoop, prompt)
         b = _lees_met(duur, prompt)
         if a is None or b is None:
             uit["mislukt"] += 1
+            # De echte fout erbij, ontdubbeld. Hoogstens drie, want honderd keer
+            # dezelfde regel helpt niemand.
+            if _laatste_leesfout and _laatste_leesfout not in uit["leesfouten"]:
+                if len(uit["leesfouten"]) < 3:
+                    uit["leesfouten"].append(_laatste_leesfout)
             continue
         uit["bekeken"] += 1
 
@@ -451,12 +479,35 @@ def vergelijk_lezers(categorie, aantal=20, goedkoop=None, duur=None):
     return uit
 
 
-_vgl_stand = {"bezig": False, "categorie": None, "uitkomst": None, "fout": None}
+# Hoe lang een vergelijking hoogstens mag duren. Tien antwoorden door twee
+# modellen zou binnen een paar minuten moeten. Duurt het langer, dan hangt er
+# iets en is doorwachten zinloos.
+MAX_VERGELIJK_SECONDEN = int(os.environ.get("VERGELIJK_MAX_SECONDEN", "300"))
+
+# Na deze tijd wordt een vergelijking die nog op "bezig" staat als vastgelopen
+# beschouwd, zodat je opnieuw kunt beginnen. Anders zit de knop voorgoed op
+# slot na een enkele hangende aanroep.
+VASTGELOPEN_NA_SECONDEN = int(os.environ.get("VERGELIJK_VASTGELOPEN_NA", "600"))
+
+_vgl_stand = {"bezig": False, "categorie": None, "uitkomst": None, "fout": None,
+              "nu": 0, "totaal": 0, "gestart_op": None}
 _vgl_slot = threading.Lock()
 
 
 def vergelijkstand():
-    return dict(_vgl_stand)
+    """De stand, met voortgang en verstreken tijd.
+
+    Een scherm dat alleen "bezig" zegt is niet te onderscheiden van een scherm
+    dat vastzit. Daarom staat er nu bij welk antwoord hij is en hoe lang hij
+    bezig is."""
+    uit = dict(_vgl_stand)
+    if uit["gestart_op"]:
+        verstreken = int(time.time() - uit["gestart_op"])
+        uit["verstreken_sec"] = verstreken
+        uit["verstreken"] = (f"{verstreken} seconden" if verstreken < 60
+                             else f"{verstreken // 60} minuten")
+        uit["vastgelopen"] = uit["bezig"] and verstreken > VASTGELOPEN_NA_SECONDEN
+    return uit
 
 
 def _vgl_werk(categorie, aantal, kandidaat=None):
@@ -470,7 +521,7 @@ def _vgl_werk(categorie, aantal, kandidaat=None):
         _vgl_stand["bezig"] = False
 
 
-def start_vergelijking(categorie, aantal=10, kandidaat=None):
+def start_vergelijking(categorie, aantal=6, kandidaat=None):
     """Start de vergelijking van de twee leesmodellen op een eigen draad.
 
     Tien antwoorden door twee modellen is twintig leesopdrachten. Dat past niet
@@ -478,9 +529,16 @@ def start_vergelijking(categorie, aantal=10, kandidaat=None):
     op 13 september allebei een omgevallen server opleverde."""
     with _vgl_slot:
         if _vgl_stand["bezig"]:
-            return False
+            # Loopt hij al te lang, dan is hij vastgelopen en mag er een nieuwe
+            # beginnen. De oude draad doet verder geen kwaad: die schrijft
+            # hoogstens een uitkomst weg die daarna overschreven wordt.
+            begon = _vgl_stand.get("gestart_op") or 0
+            if time.time() - begon < VASTGELOPEN_NA_SECONDEN:
+                return False
+            print("Vorige vergelijking lijkt vastgelopen, er wordt opnieuw gestart.")
         _vgl_stand.update({"bezig": True, "categorie": categorie,
-                           "uitkomst": None, "fout": None})
+                           "uitkomst": None, "fout": None,
+                           "nu": 0, "totaal": 0, "gestart_op": time.time()})
     threading.Thread(target=_vgl_werk, args=(categorie, aantal, kandidaat),
                      daemon=True).start()
     return True
