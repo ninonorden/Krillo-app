@@ -105,14 +105,25 @@ db.init_db()
 CAT = "test-goedkoop"
 
 
+# Twee echte winkels in deze categorie. Zonder die kan de vergelijking niet
+# meten wat er werkelijk toe doet, want dan is "onze winkels" bij beide modellen
+# leeg en zijn ze het dus altijd eens.
+ONZE = ["https://fonq.nl", "https://flinders.nl"]
+
+
 def opruimen():
     conn = db._get_connection()
     with conn, conn.cursor() as cur:
         cur.execute("DELETE FROM categorie_antwoorden WHERE categorie = %s", (CAT,))
+        cur.execute("DELETE FROM benadering WHERE webshop_url = ANY(%s)", (ONZE,))
     conn.close()
 
 
 opruimen()
+for url in ONZE:
+    db.voeg_benadering_toe(url, naam=url.split("//")[1].split(".")[0],
+                           land="NL", branche="test")
+    db.zet_categorie(url, CAT)
 for nummer, (vraag, antwoord) in enumerate([
         ("Waar koop ik servies?", "Kijk bij fonQ en Flinders."),
         ("Welk merk servies is goed?", "Serax en Ferm Living maken mooi servies."),
@@ -145,6 +156,19 @@ def oneens(aanbieder, prompt):
     return {"winkel_kon_genoemd": False, "winkels": [], "aanbevolen": []}
 
 
+def alleen_vreemde_naam_erbij(aanbieder, prompt):
+    """Het goedkope model ziet een winkel extra die NIET van ons is.
+
+    Dit is precies het geval waarop de eerste versie van deze vergelijking
+    onterecht rood gaf: de namenlijsten verschillen, maar er verandert geen
+    letter in onze ranglijst."""
+    aanroepen["n"] += 1
+    basis = [{"naam": "Kookhuis", "positie": 1}]
+    if aanbieder["model"] != categoriemeting.MODEL:
+        basis.append({"naam": "Een Belgische Winkel Die Wij Niet Volgen", "positie": 2})
+    return {"winkel_kon_genoemd": True, "winkels": basis, "aanbevolen": ["Kookhuis"]}
+
+
 try:
     categoriemeting._lees_met = eens
     uit = categoriemeting.vergelijk_lezers(CAT, aantal=3)
@@ -160,10 +184,23 @@ try:
     uit = categoriemeting.vergelijk_lezers(CAT, aantal=3)
     zo("nooit eens over meetellen", uit["aandeel_meetellen"], 0.0)
     zo("nooit eens over de winkels", uit["aandeel_winkels"], 0.0)
+    zo("en ook niet over onze winkels", uit["aandeel_onze_winkels"], 0.0)
     klopt("dus geen groen licht", uit["mag_over"] is False)
     klopt("en de verschillen staan erbij", len(uit["verschillen"]) == 3)
-    klopt("met wat het dure model wel zag",
-          "flinders" in uit["verschillen"][0]["alleen_duur"])
+    klopt("met welke van onze winkels het dure model wel zag",
+          any("flinders" in u for u in uit["verschillen"][0]["alleen_duur"]))
+
+    print("\n== een extra winkel die niet van ons is telt NIET als afkeuring ==")
+    # Op 16 september gaf de echte vergelijking 60% op de namenlijst en dus rood,
+    # terwijl er in onze ranglijst mogelijk niets veranderde. Dat was te streng
+    # gemeten. Het cijfer dat telt gaat alleen over onze eigen winkels.
+    aanroepen["n"] = 0
+    categoriemeting._lees_met = alleen_vreemde_naam_erbij
+    uit = categoriemeting.vergelijk_lezers(CAT, aantal=3)
+    zo("de namenlijsten verschillen altijd", uit["aandeel_winkels"], 0.0)
+    zo("maar over onze winkels zijn ze het altijd eens",
+       uit["aandeel_onze_winkels"], 1.0)
+    klopt("en dus is er groen licht", uit["mag_over"])
 
     print("\n== een leesfout telt als mislukt, niet als niets gevonden ==")
     categoriemeting._lees_met = lambda a, p: None
@@ -184,6 +221,19 @@ print("\n== de kandidaat staat los van het huidige model ==")
 klopt("er is een kandidaatmodel", categoriemeting.KANDIDAAT_MODEL)
 klopt("en dat is niet het huidige",
       categoriemeting.KANDIDAAT_MODEL != categoriemeting.LEES_MODEL)
+
+print("\n== er is meer dan een kandidaat om te proberen ==")
+# Valt er een af, dan moet er een volgende getest kunnen worden zonder nieuwe
+# versie. Anders staat het hele plan stil op een modelnaam.
+klopt("er staan meerdere kandidaten klaar", len(categoriemeting.KANDIDATEN) >= 3)
+klopt("elk met een provider en een model",
+      all(k.get("provider") and k.get("model") and k.get("toonnaam")
+          for k in categoriemeting.KANDIDATEN))
+klopt("en geen enkele is het dure model",
+      all(k["model"] != categoriemeting.MODEL for k in categoriemeting.KANDIDATEN))
+sjabloon = open(os.path.join(APP, "templates", "admin_ranglijst.html")).read()
+klopt("je kunt het model kiezen op de pagina", 'name="kandidaat"' in sjabloon)
+klopt("en het beslissende cijfer staat erop", "aandeel_onze_winkels" in sjabloon)
 
 print("\n== zonder bewaarde antwoorden zegt hij dat gewoon ==")
 uit = categoriemeting.vergelijk_lezers("bestaat-niet", aantal=3)
