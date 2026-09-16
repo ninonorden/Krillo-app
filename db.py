@@ -4480,6 +4480,72 @@ def winkels_in_categorie_met_kinderen(categorie):
         conn.close()
 
 
+def winkels_zonder_opschoning(limiet=None):
+    """Winkels die nog nooit opgeschoond zijn.
+
+    Herkenbaar aan hoort_bij dat leeg is. Elke winkel die binnenkomt heeft dat,
+    dus dit is precies de stapel die het onderhoud elke nacht moet wegwerken."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                vraag = ("SELECT webshop_url, naam, land, soort, hoort_bij "
+                         "FROM benadering WHERE hoort_bij IS NULL "
+                         "ORDER BY toegevoegd_op")
+                if limiet:
+                    vraag += " LIMIT %s"
+                    cur.execute(vraag, (limiet,))
+                else:
+                    cur.execute(vraag)
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Winkels zonder opschoning ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def categorieen_om_te_meten(minimum=10, ouder_dan_dagen=30):
+    """Welke categorieen aan een meting toe zijn, de meest verlopen eerst.
+
+    Een categorie die nog nooit gemeten is staat vooraan, want daar staat nog
+    helemaal geen ranglijst. Daarna de categorie waarvan de meting het langst
+    geleden is. Zo blijft de index vanzelf bijgewerkt zonder dat iemand een
+    lijstje hoeft bij te houden."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT b.categorie,
+                           count(*) AS aantal,
+                           max(r.afgerond_op) AS laatst_gemeten
+                      FROM benadering b
+                      LEFT JOIN categorie_rondes r
+                             ON r.categorie = b.categorie
+                            AND r.afgerond_op IS NOT NULL
+                     WHERE b.categorie IS NOT NULL
+                       AND b.categorie <> 'overig'
+                       AND b.afgemeld = FALSE
+                       AND b.soort = 'winkel'
+                     GROUP BY b.categorie
+                    HAVING count(*) >= %s
+                       AND (max(r.afgerond_op) IS NULL
+                            OR max(r.afgerond_op) < now() - (%s || ' days')::interval)
+                     ORDER BY max(r.afgerond_op) ASC NULLS FIRST
+                """, (minimum, str(ouder_dan_dagen)))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Categorieen om te meten ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def bewaarde_antwoorden(categorie, limiet=20):
     """De bewaarde antwoorden van de laatste ronde van een categorie.
 
@@ -4567,6 +4633,66 @@ def zet_hoort_bij(webshop_url, hoofd_url):
     except Exception as e:
         print(f"Hoort_bij zetten mislukt voor {webshop_url}: {e}")
         return False
+    finally:
+        conn.close()
+
+
+def zet_soorten(per_url):
+    """Zet de soort van veel winkels in EEN opdracht.
+
+    Waarom dit bestaat. Het opschonen deed een losse databaseopdracht per
+    winkel. Bij 924 winkels waren dat er bijna tweeduizend, elk met het opzetten
+    en afbreken van een verbinding naar een database die niet op deze machine
+    staat. Op 16 september duurde het opschonen daardoor meer dan een uur,
+    terwijl het echte werk, drieentwintig modelaanroepen, hooguit twintig
+    minuten is. Bijna al die tijd ging op aan wachten op het netwerk.
+
+    Zo is het een opdracht, ongeacht of het om tien winkels gaat of om tienduizend."""
+    if not per_url:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                execute_values(cur, """
+                    UPDATE benadering AS b
+                       SET soort = v.soort, bijgewerkt_op = now()
+                      FROM (VALUES %s) AS v(webshop_url, soort)
+                     WHERE b.webshop_url = v.webshop_url
+                """, list(per_url.items()))
+                return cur.rowcount
+    except Exception as e:
+        print(f"Soorten zetten mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def zet_hoort_bij_veel(per_url):
+    """Koppelt veel adressen in EEN opdracht aan hun hoofdadres.
+
+    Zelfde reden als bij zet_soorten: een opdracht per winkel maakt van een
+    klus van twintig minuten een klus van een uur."""
+    if not per_url:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                execute_values(cur, """
+                    UPDATE benadering AS b
+                       SET hoort_bij = v.hoort_bij, bijgewerkt_op = now()
+                      FROM (VALUES %s) AS v(webshop_url, hoort_bij)
+                     WHERE b.webshop_url = v.webshop_url
+                """, list(per_url.items()))
+                return cur.rowcount
+    except Exception as e:
+        print(f"Hoofdadressen zetten mislukt: {e}")
+        return 0
     finally:
         conn.close()
 

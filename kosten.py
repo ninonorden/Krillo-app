@@ -344,6 +344,38 @@ def ruimte_voor_benadering():
             "past_nog": max(0, int((grens - totaal) / SCHATTING_BENADERING_EURO))}
 
 
+# Wat een hele categoriemeting ongeveer kost: dertig vragen aan twee modellen,
+# plus het lezen van zestig antwoorden. Geschat op de meting van 14 september,
+# met het dure leesmodel. Gaat het lezen naar een goedkoper model, dan zakt dit
+# hard, en dan hoort dit getal mee omlaag.
+SCHATTING_CATEGORIE_EURO = float(os.environ.get("SCHATTING_CATEGORIE_EURO", "2.50"))
+
+
+def ruimte_vandaag():
+    """Hoeveel er vandaag nog uitgegeven mag worden, in euro.
+
+    Bedoeld om te beslissen of een grote klus er nog BIJ past, en niet alleen
+    of hij mag beginnen. Dat verschil is geld waard: een categoriemeting die
+    halverwege door de rem wordt afgekapt is wel betaald en levert geen
+    ranglijst op. Dan is er geld weg en is er niets voor teruggekomen.
+
+    Dezelfde fout is eerder gemaakt bij de benadering, waar metingen werden
+    ingepland die niet meer in de dagpot pasten."""
+    grens = GRENS_TOTAAL_DAG_EURO
+    try:
+        besteed = _met_onbekend(db.kosten_vandaag())
+    except Exception as e:
+        print(f"Kosten van vandaag ophalen mislukt: {e}")
+        # Bij twijfel niet beginnen. Niet weten wat je vandaag hebt uitgegeven
+        # is geen reden om dan maar tweeeneenhalve euro te gokken.
+        return {"besteed": None, "grens": grens, "over": 0.0,
+                "past_een_categorie": False, "onbekend": True}
+    over = max(0.0, grens - besteed)
+    return {"besteed": besteed, "grens": grens, "over": over,
+            "past_een_categorie": over >= SCHATTING_CATEGORIE_EURO,
+            "onbekend": False}
+
+
 def mag_doorgaan(webshop_url=None, scan_id=None):
     """Wordt aangeroepen VOORDAT een dure aanroep start. Geeft terug of het
     mag, en zo niet waarom. Dit is de rem die voorkomt dat een vastgelopen

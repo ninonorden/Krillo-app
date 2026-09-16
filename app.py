@@ -52,6 +52,7 @@ import shopify_billing
 import benadering
 import categorieen
 import categoriemeting
+import onderhoud
 import opschonen
 
 app = Flask(__name__)
@@ -2225,6 +2226,21 @@ def wakker():
     return "ok", 200
 
 
+@app.route("/api/cron/onderhoud", methods=["GET", "POST"])
+def cron_onderhoud():
+    """Het onderhoud: indelen, opschonen en meten, zonder dat iemand kijkt.
+
+    Een keer per nacht aanroepen vanuit Render. Antwoordt meteen, het werk
+    gebeurt op de achtergrond, en een ronde die al loopt wordt met rust
+    gelaten. Zie onderhoud.py voor wat er precies gebeurt en waarom er
+    hoogstens een categorie per ronde gemeten wordt."""
+    cron_key = os.environ.get("CRON_KEY")
+    if not cron_key or not _sleutel_klopt(request.args.get("key"), cron_key):
+        return "", 404
+    gestart = onderhoud.start_ronde()
+    return ("ok" if gestart else "loopt al"), 200
+
+
 @app.route("/api/cron/benadering", methods=["GET", "POST"])
 def cron_benadering():
     """Elk uur aanroepen vanuit Render. Doet per keer een klein stukje.
@@ -4167,6 +4183,11 @@ def admin_opschonen():
         bericht=bericht,
         stand=opschonen.stand(),
         tel=db.opschoonstand(),
+        onderhoudstand=onderhoud.stand(),
+        wachtrij=db.categorieen_om_te_meten(onderhoud.MINIMUM,
+                                            onderhoud.OPNIEUW_METEN_NA_DAGEN),
+        nog_op_te_schonen=len(db.winkels_zonder_opschoning()),
+        vervalt_na=onderhoud.OPNIEUW_METEN_NA_DAGEN,
     )
 
 

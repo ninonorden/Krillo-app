@@ -247,14 +247,40 @@ def merken_in(winkels):
 # Het hele opschoonwerk, op een eigen draad
 # ---------------------------------------------------------------------------
 
-_stand = {"bezig": False, "stap": None, "bekeken": 0, "zonder_adres": 0,
-          "merken": 0, "samengevoegd": 0, "aanroepen": 0,
-          "klaar_op": None, "fout": None}
+# De voortgang moet ONDERWEG kloppen, niet pas aan het eind. Op 16 september
+# stond het opschonen drieentwintig minuten te draaien zonder dat er ergens te
+# zien was hoe ver hij was of hoe lang het nog duurde. Een knop waarvan je niet
+# weet of hij nog leeft is net zo erg als een knop die stuk is: je drukt hem
+# nog een keer in, en dan betaal je alles dubbel.
+_stand = {"bezig": False, "stap": None, "bekeken": 0, "totaal": 0,
+          "zonder_adres": 0, "merken": 0, "samengevoegd": 0,
+          "aanroepen": 0, "aanroepen_totaal": 0,
+          "gestart_op": None, "klaar_op": None, "fout": None}
 _slot = threading.Lock()
 
 
 def stand():
-    return dict(_stand)
+    """De voortgang, met verstreken tijd en een schatting van wat er nog komt."""
+    uit = dict(_stand)
+    if uit["gestart_op"]:
+        uit["verstreken_sec"] = int(time.time() - uit["gestart_op"])
+        uit["verstreken"] = _duur(uit["verstreken_sec"])
+        gedaan, totaal = uit["aanroepen"], uit["aanroepen_totaal"]
+        if gedaan and totaal and gedaan < totaal:
+            per_stuk = uit["verstreken_sec"] / gedaan
+            uit["resterend"] = _duur(int(per_stuk * (totaal - gedaan)))
+    return uit
+
+
+def _duur(seconden):
+    """Een tijdsduur in gewone taal: "3 minuten", niet "PT3M"."""
+    if seconden < 60:
+        return f"{seconden} seconden"
+    minuten = seconden // 60
+    if minuten < 60:
+        return f"{minuten} minuut" if minuten == 1 else f"{minuten} minuten"
+    uren, rest = divmod(minuten, 60)
+    return f"{uren} uur en {rest} minuten"
 
 
 def schoon_alles_op(hoeveel=None):
@@ -266,6 +292,7 @@ def schoon_alles_op(hoeveel=None):
     winkels = db.alle_benaderingen_kaal(hoeveel)
     verslag = {"bekeken": len(winkels), "zonder_adres": 0, "merken": 0,
                "samengevoegd": 0, "aanroepen": 0}
+    _stand["totaal"] = len(winkels)
     if not winkels:
         return verslag
 
@@ -273,8 +300,8 @@ def schoon_alles_op(hoeveel=None):
     _stand["stap"] = "adressen nakijken"
     zonder = [w["webshop_url"] for w in winkels
               if not heeft_webadres(w["webshop_url"])]
-    for url in zonder:
-        db.zet_soort(url, SOORT_GEEN_ADRES)
+    # In EEN opdracht, niet een per winkel. Zie db.zet_soorten voor waarom.
+    db.zet_soorten({url: SOORT_GEEN_ADRES for url in zonder})
     verslag["zonder_adres"] = len(zonder)
     _stand["zonder_adres"] = len(zonder)
 
@@ -283,11 +310,8 @@ def schoon_alles_op(hoeveel=None):
     met_adres = [w["webshop_url"] for w in winkels
                  if heeft_webadres(w["webshop_url"])]
     koppeling = groepeer_ketens(met_adres)
-    samen = 0
-    for url, hoofd in koppeling.items():
-        db.zet_hoort_bij(url, hoofd)
-        if hoofd != url:
-            samen += 1
+    db.zet_hoort_bij_veel(koppeling)
+    samen = sum(1 for url, hoofd in koppeling.items() if hoofd != url)
     verslag["samengevoegd"] = samen
     _stand["samengevoegd"] = samen
 
@@ -297,16 +321,16 @@ def schoon_alles_op(hoeveel=None):
     hoofden = [w for w in winkels
                if heeft_webadres(w["webshop_url"])
                and koppeling.get(w["webshop_url"]) == w["webshop_url"]]
+    # Nu pas weten wij hoeveel aanroepen er komen, en dus hoe lang het duurt.
+    _stand["aanroepen_totaal"] = (len(hoofden) + PER_AANROEP - 1) // PER_AANROEP
     for begin in range(0, len(hoofden), PER_AANROEP):
         groep = hoofden[begin:begin + PER_AANROEP]
         uitkomst = merken_in(groep)
         verslag["aanroepen"] += 1
         _stand["aanroepen"] = verslag["aanroepen"]
-        for url, soort in uitkomst.items():
-            db.zet_soort(url, soort)
-            if soort == SOORT_MERK:
-                verslag["merken"] += 1
-                _stand["merken"] = verslag["merken"]
+        db.zet_soorten(uitkomst)
+        verslag["merken"] += sum(1 for s in uitkomst.values() if s == SOORT_MERK)
+        _stand["merken"] = verslag["merken"]
         if not uitkomst:
             # Geen sleutel of de kostenrem staat dicht. Doorgaan heeft dan geen
             # zin en kost alleen maar tijd.
@@ -338,7 +362,8 @@ def start_opschonen(hoeveel=None):
         if _stand["bezig"]:
             return False
         _stand.update({"bezig": True, "stap": "starten", "bekeken": 0,
-                       "zonder_adres": 0, "merken": 0, "samengevoegd": 0,
-                       "aanroepen": 0, "klaar_op": None, "fout": None})
+                       "totaal": 0, "zonder_adres": 0, "merken": 0,
+                       "samengevoegd": 0, "aanroepen": 0, "aanroepen_totaal": 0,
+                       "gestart_op": time.time(), "klaar_op": None, "fout": None})
     threading.Thread(target=_werk, args=(hoeveel,), daemon=True).start()
     return True
