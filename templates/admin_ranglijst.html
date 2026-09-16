@@ -103,6 +103,12 @@
         {% endfor %}
       </select>
     </div>
+    <div>
+      <label>of typ zelf een modelnaam</label>
+      <input type="text" name="eigen_model" placeholder="gemini-2.0-flash"
+             style="font-family:var(--mono); font-size:13.5px; padding:8px 10px;
+                    border:1.5px solid var(--line); border-radius:7px; width:230px;">
+    </div>
     <button class="knop licht" type="submit" name="actie" value="vergelijk"
             style="cursor:pointer;" {% if vergelijking.bezig %}disabled{% endif %}>
       {% if vergelijking.bezig %}Bezig met vergelijken{% else %}Test het goedkope leesmodel{% endif %}</button>
@@ -125,7 +131,9 @@
     {% elif not v.bekeken %}
     Geen enkel antwoord kon gelezen worden: {{ v.mislukt }} mislukt. Meestal betekent dat
     dat het kandidaatmodel {{ v.goedkoop }} niet bestaat onder die naam, of dat de sleutel
-    er niet bij kan. Er is niets veranderd aan de meting.
+    er niet bij kan. Er is niets veranderd aan de meting.<br>
+    Kijk op <a href="/admin/modellen">/admin/modellen</a> welke namen deze sleutels wel
+    mogen gebruiken, kopieer er een, en typ hem hierboven in het vakje.
     {% else %}
     {{ v.goedkoop }} naast {{ v.duur }}, op {{ v.bekeken }} bewaarde antwoorden.<br>
     Eens over meetellen: {{ (v.aandeel_meetellen * 100) | round(1) }}% (grens 95%).<br>

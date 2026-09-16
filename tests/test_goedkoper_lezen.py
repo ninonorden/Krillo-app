@@ -233,6 +233,28 @@ klopt("en geen enkele is het dure model",
       all(k["model"] != categoriemeting.MODEL for k in categoriemeting.KANDIDATEN))
 sjabloon = open(os.path.join(APP, "templates", "admin_ranglijst.html")).read()
 klopt("je kunt het model kiezen op de pagina", 'name="kandidaat"' in sjabloon)
+klopt("en je kunt ook zelf een naam intypen", 'name="eigen_model"' in sjabloon)
+klopt("met een verwijzing naar de echte modelnamen", "/admin/modellen" in sjabloon)
+
+print("\n== een zelf ingetypte modelnaam wordt herkend ==")
+# Op 16 september mislukten alle tien de leespogingen omdat de modelnaam die ik
+# uit mijn hoofd had opgeschreven niet bestond onder deze sleutel. Namen
+# verschillen per aanbieder en per account, dus intypen moet kunnen.
+zo("gpt hoort bij openai",
+   categoriemeting.kandidaat_uit_naam("gpt-4.1-mini")["provider"], "openai")
+zo("gemini bij google",
+   categoriemeting.kandidaat_uit_naam("gemini-2.0-flash")["provider"], "google")
+zo("claude bij anthropic",
+   categoriemeting.kandidaat_uit_naam("claude-haiku-4")["provider"], "anthropic")
+zo("en de naam blijft ongewijzigd",
+   categoriemeting.kandidaat_uit_naam("gemini-2.0-flash")["model"], "gemini-2.0-flash")
+zo("met een dubbele punt kun je de aanbieder zelf zeggen",
+   categoriemeting.kandidaat_uit_naam("google:iets-nieuws"),
+   {"provider": "google", "model": "iets-nieuws"})
+klopt("een lege invoer levert niets op",
+      categoriemeting.kandidaat_uit_naam("") is None)
+klopt("en een naam die nergens op lijkt ook niet",
+      categoriemeting.kandidaat_uit_naam("zomaar-iets") is None)
 klopt("en het beslissende cijfer staat erop", "aandeel_onze_winkels" in sjabloon)
 
 print("\n== zonder bewaarde antwoorden zegt hij dat gewoon ==")
