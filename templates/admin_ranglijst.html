@@ -91,9 +91,9 @@
   </div>
   {% endif %}
 
-  <form method="post">
+  <form method="get" style="margin-bottom:12px;">
     <div>
-      <label>Categorie</label>
+      <label>Categorie bekijken</label>
       <select name="categorie" onchange="this.form.submit()">
         {% for c in categorieen_lijst %}
         <option value="{{ c.categorie }}" {% if c.categorie == gekozen %}selected{% endif %}>
@@ -101,12 +101,21 @@
         {% endfor %}
       </select>
     </div>
+    <span style="font-size:12.5px; color:var(--ink-soft); padding-bottom:9px;">
+      Kiezen kost niets en start niets.</span>
+  </form>
+
+  <form method="post">
+    <input type="hidden" name="categorie" value="{{ gekozen }}">
     <div>
       <label>Aantal vragen (leeg is alle 30)</label>
       <input type="number" name="vragen" min="1" max="30" placeholder="30" style="width:110px;">
     </div>
-    <button class="knop" type="submit" {% if stand.bezig and not stand.vastgelopen %}disabled{% endif %}>
-      {% if stand.bezig %}Bezig met meten{% else %}Meet deze categorie{% endif %}</button>
+    <button class="knop" type="submit" name="actie" value="meten"
+            {% if stand.bezig and not stand.vastgelopen %}disabled{% endif %}>
+      {% if stand.bezig %}Bezig met meten{% else %}Meet {{ naam_van(gekozen) }}{% endif %}</button>
+    <span style="font-size:12.5px; color:var(--ink-soft); padding-bottom:9px;">
+      Dit kost geld. Ongeveer een euro twintig.</span>
   </form>
 
   {% if vergelijking.bezig %}

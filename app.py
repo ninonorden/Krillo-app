@@ -4127,16 +4127,21 @@ def admin_categorieen():
     # gunicorn kapt na twee minuten af. Op 13 september leverde dat twee
     # storingen op en moest de server herstart worden. Dezelfde fout als met de
     # kostenpagina op 11 september: lang werk aan een verzoek hangen.
-    bericht = None
+    # Doorsturen na een POST. Op 13 september moest dit vier keer aangeklikt
+    # worden en werd er vier keer betaald; verversen na een POST was daar een
+    # van de oorzaken van.
+    MELDINGEN = {
+        "gestart": ("Het indelen is gestart en draait op de achtergrond. Ververs deze "
+                    "pagina over een minuut of twee om te zien hoe ver hij is. Je kunt "
+                    "het tabblad gerust sluiten, hij gaat gewoon door."),
+        "loopt-al": "Het indelen loopt al. Ververs de pagina om te zien hoe ver hij is.",
+    }
+    bericht = MELDINGEN.get(request.args.get("m"))
     if request.method == "POST":
         hoeveel = int(request.form.get("hoeveel") or 0) or None
         opnieuw = request.form.get("opnieuw") == "ja"
-        if categorieen.start_indelen(hoeveel=hoeveel, opnieuw=opnieuw):
-            bericht = ("Het indelen is gestart en draait op de achtergrond. Ververs deze "
-                       "pagina over een minuut of twee om te zien hoe ver hij is. Je kunt "
-                       "het tabblad gerust sluiten, hij gaat gewoon door.")
-        else:
-            bericht = "Het indelen loopt al. Ververs de pagina om te zien hoe ver hij is."
+        gestart = categorieen.start_indelen(hoeveel=hoeveel, opnieuw=opnieuw)
+        return redirect("/admin/categorieen?m=" + ("gestart" if gestart else "loopt-al"))
 
     tel = categorieen.telling()
     return render_template(
@@ -4168,15 +4173,20 @@ def admin_opschonen():
     if doorsturen:
         return redirect(doorsturen)
 
-    bericht = None
+    # Doorsturen na een POST, zodat verversen niets opnieuw start. Zie de
+    # uitleg bij admin_ranglijst: een pagina die bij elke verversing opnieuw
+    # begint, laat je nooit de uitkomst zien en kan geld kosten.
+    MELDINGEN = {
+        "gestart": ("Het opschonen is gestart en draait op de achtergrond. Ververs "
+                    "deze pagina over een minuut of twee. Je kunt het tabblad gerust "
+                    "sluiten, hij gaat gewoon door."),
+        "loopt-al": "Het opschonen loopt al. Ververs de pagina om te zien hoe ver hij is.",
+    }
+    bericht = MELDINGEN.get(request.args.get("m"))
     if request.method == "POST":
         hoeveel = int(request.form.get("hoeveel") or 0) or None
-        if opschonen.start_opschonen(hoeveel=hoeveel):
-            bericht = ("Het opschonen is gestart en draait op de achtergrond. Ververs "
-                       "deze pagina over een minuut of twee. Je kunt het tabblad "
-                       "gerust sluiten, hij gaat gewoon door.")
-        else:
-            bericht = "Het opschonen loopt al. Ververs de pagina om te zien hoe ver hij is."
+        gestart = opschonen.start_opschonen(hoeveel=hoeveel)
+        return redirect("/admin/opschonen?m=" + ("gestart" if gestart else "loopt-al"))
 
     return render_template(
         "admin_opschonen.html",
@@ -4213,7 +4223,28 @@ def admin_ranglijst():
     bruikbaar = [r for r in tel["rijen"] if r["aantal"] >= tel["minimum"]]
     gekozen = request.values.get("categorie") or (bruikbaar[0]["categorie"] if bruikbaar else None)
 
-    bericht = None
+    # NA EEN POST ALTIJD DOORSTUREN NAAR EEN GET. Zonder dit stuurt de browser
+    # bij elke verversing hetzelfde formulier opnieuw op. Op 16 september zag
+    # Nino daardoor een kwartier lang "bezig sinds 0 seconden": elke verversing
+    # startte een nieuwe meting en gooide de vorige weg, en de foutmelding van
+    # de mislukte poging kreeg hij nooit te zien. Erger nog: elke verversing kan
+    # geld kosten.
+    #
+    # Dit is de klassieke oplossing: verwerk de POST, stuur door naar een GET,
+    # en zet de melding in het webadres. Verversen is dan alleen nog kijken.
+    MELDINGEN = {
+        "gestart": ("De meting is gestart en draait op de achtergrond. Ververs deze "
+                    "pagina over een paar minuten. Het tabblad mag dicht."),
+        "loopt-al": "Er loopt al een meting. Ververs de pagina om te zien hoe ver hij is.",
+        "vergelijk-gestart": ("De vergelijking is gestart. Ververs deze pagina over een "
+                              "minuut, dan staat eronder wat eruit kwam."),
+        "vergelijk-loopt-al": "Er loopt al een vergelijking. Ververs de pagina.",
+    }
+    bericht = MELDINGEN.get(request.args.get("m"))
+
+    def _terug(code):
+        return redirect(f"/admin/ranglijst?categorie={gekozen or ''}&m={code}")
+
     if request.method == "POST" and gekozen and request.form.get("actie") == "vergelijk":
         # Het goedkope leesmodel naast het dure, op antwoorden die er al staan.
         # Geen enkele vraag wordt opnieuw gesteld, maar het zijn wel twintig
@@ -4227,20 +4258,16 @@ def admin_ranglijst():
             gekozen_model = (request.form.get("kandidaat") or "").strip()
             kandidaat = next((k for k in categoriemeting.KANDIDATEN
                               if k["model"] == gekozen_model), None)
-        if categoriemeting.start_vergelijking(gekozen, aantal=6, kandidaat=kandidaat):
-            bericht = ("De vergelijking is gestart. Ververs deze pagina over een minuut, "
-                       "dan staat eronder hoe vaak het goedkope model hetzelfde zag als "
-                       "het dure.")
-        else:
-            bericht = "Er loopt al een vergelijking. Ververs de pagina."
-    elif request.method == "POST" and gekozen:
+        gestart = categoriemeting.start_vergelijking(gekozen, aantal=6, kandidaat=kandidaat)
+        return _terug("vergelijk-gestart" if gestart else "vergelijk-loopt-al")
+
+    # Meten gebeurt ALLEEN met een expliciete knop. Tot 16 september startte ook
+    # het wisselen van categorie een meting, want dat keuzemenu stuurde hetzelfde
+    # formulier op. Een ander product kiezen hoort niets te kosten.
+    if request.method == "POST" and gekozen and request.form.get("actie") == "meten":
         vragen = int(request.form.get("vragen") or 0) or None
-        if categoriemeting.start_meting(gekozen, max_vragen=vragen):
-            bericht = (f"De meting van {categorieen.naam_van(gekozen)} is gestart en draait op "
-                       f"de achtergrond. Ververs deze pagina over een paar minuten. Het tabblad "
-                       f"mag dicht.")
-        else:
-            bericht = "Er loopt al een meting. Ververs de pagina om te zien hoe ver hij is."
+        gestart = categoriemeting.start_meting(gekozen, max_vragen=vragen)
+        return _terug("gestart" if gestart else "loopt-al")
 
     return render_template(
         "admin_ranglijst.html",
