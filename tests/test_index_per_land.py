@@ -273,13 +273,14 @@ for stuk in ("scanUrlInput", "scanButton", "scanResult", "checkoutOverlay",
              "simAnswer", "uitvoeringCheckoutBtn", "monitoringCheckoutBtn"):
     klopt(f"de homepage heeft nog {stuk}", f'id="{stuk}"' in thuis)
 
-klopt("de index staat op de homepage", "idx-strook" in thuis)
+klopt("de index staat op de homepage", "idx-kaart" in thuis)
+klopt("met de cijfers in de hero", "hero-cijfers" in thuis)
 klopt("met een link naar de ranglijst zelf", "/index/nl/" in thuis)
 klopt("en met een link naar de index in het menu", 'href="/index"' in thuis)
 
 print("\n== de cijfers op de homepage zijn niet verzonnen ==")
 import re as _re  # noqa: E402
-blok = thuis[thuis.find("idx-strook"):thuis.find("idx-kaart")]
+blok = thuis[thuis.find("hero-cijfers"):thuis.find("idx-kaart")]
 klopt("in het cijferblok staat geen plaatshouder", "[" not in blok)
 klopt("het aantal categorieen komt uit de database",
       str(db.index_cijfers().get("categorieen")) in blok)
