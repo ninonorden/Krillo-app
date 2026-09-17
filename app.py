@@ -377,9 +377,25 @@ def sitemap_xml():
     # /uitkomst/<token> staat hier BEWUST niet in. Die pagina's gaan over één
     # winkel met naam en toenaam en horen niet in Google.
     vast = ["/", "/artikelen", "/zo-meten-we", "/veelgestelde-vragen",
-            "/onderzoek", "/over-ons", "/voorwaarden", "/privacybeleid", "/herroepen"]
+            "/onderzoek", "/index", "/over-ons", "/voorwaarden", "/privacybeleid",
+            "/herroepen"]
     regels = [(p, nieuwste) for p in vast]
     regels += [(f"/artikelen/{a['slug']}", a["datum"]) for a in artikelen.ARTIKELEN]
+    # De categoriepagina's van de index, met hun EIGEN meetdatum. Dat is niet
+    # cosmetisch: een zoekmachine ziet daaraan dat de pagina van vorige maand
+    # veranderd is, en haalt hem opnieuw op. Zonder datum zou hij moeten gokken.
+    #
+    # Ze staan hier los van de vaste pagina's omdat ze komen en gaan: een
+    # categorie verschijnt zodra hij gemeten is en genoeg winkels heeft. Deze
+    # lijst leest dus elke keer wat er echt staat en niet wat er ooit stond.
+    try:
+        for c in db.openbare_categorieen(minimum_winkels=5):
+            datum = c["afgerond_op"].strftime("%Y-%m-%d") if c.get("afgerond_op") else nieuwste
+            regels.append((f"/index/{c['categorie']}", datum))
+    except Exception as e:
+        # Een sitemap zonder de index is vervelend; een sitemap die een foutmelding
+        # teruggeeft is erger, want dan verdwijnt ook de rest uit Google.
+        print(f"Index in sitemap overslaan: {e}")
     urls = "".join(
         f"<url><loc>https://www.krillo.nl{p}</loc>"
         f"<lastmod>{datum}</lastmod><changefreq>weekly</changefreq></url>"
@@ -3560,6 +3576,72 @@ def admin_onderzoeksmail():
         melding=melding,
         basis=get_base_url(),
         sleutel=admin_key,
+    )
+
+
+# ---------------------------------------------------------------------------
+# De openbare index: per categorie een ranglijst
+# ---------------------------------------------------------------------------
+#
+# DIT IS HET GRATIS KANAAL WAAR KRILLO ZIJN KLANTEN VANDAAN MOET HALEN.
+#
+# Een winkelier die zoekt of hij door AI genoemd wordt, vindt hier zijn
+# categorie, ziet wie er wel genoemd wordt en waar hij zelf staat. Dat is de
+# reden om op de knop te drukken, en het kost ons niets per bezoeker.
+#
+# Tegelijk is dit precies het soort pagina dat AI-assistenten zelf citeren: een
+# lijst met een datum, een methode en een bron. Dat is niet toevallig; het is
+# hetzelfde dat wij onze klanten aanraden, en we horen het zelf te doen.
+#
+# WAT ER BEWUST NIET OP STAAT: de namen van winkels die bij geen enkele vraag
+# genoemd werden. Meten wat er niet gebeurt is eerlijk, maar iemand publiekelijk
+# bij naam op een lijst van niet-genoemden zetten is iets anders. Het aantal
+# staat er wel, want dat is het cijfer dat het verhaal draagt.
+
+@app.route("/index")
+def openbare_index():
+    """Alle gemeten categorieen op een rij."""
+    rijen = db.openbare_categorieen(minimum_winkels=5)
+    for r in rijen:
+        r["naam"] = categorieen.naam_van(r["categorie"])
+    rijen.sort(key=lambda r: r["naam"])
+    return render_template("index_overzicht.html", categorieen_lijst=rijen)
+
+
+@app.route("/index/<slug>")
+def openbare_categorie(slug):
+    """De ranglijst van een categorie, met de methode erbij."""
+    lijst = db.laatste_ranglijst(slug, limiet=100)
+    if not lijst or not lijst.get("ronde"):
+        return render_template(
+            "fout.html", titel="Deze categorie is nog niet gemeten",
+            bericht="Zodra er genoeg winkels in staan meten we hem. Op /index staan "
+                    "de categorieen die er wel al zijn."), 404
+
+    genoemd = [r for r in lijst["rijen"] if (r["genoemd"] or 0) > 0]
+
+    # De lijst voor de gestructureerde gegevens wordt HIER gebouwd en niet in
+    # een lus in de sjabloon. Een lus met komma's ertussen levert bij een lege
+    # of bij een laatste regel snel kapotte JSON op, en dat is precies de fout
+    # die op 16 september in de veelgestelde vragen zat: onzichtbaar tot Google
+    # hem meldde. Een enkele waarde door tojson kan niet stuk.
+    lijst_voor_ai = [{"@type": "ListItem", "position": r["positie"],
+                      "name": r["naam"] or r["webshop_url"], "url": r["webshop_url"]}
+                     for r in genoemd]
+
+    return render_template(
+        "index_categorie.html",
+        slug=slug,
+        lijst_voor_ai=lijst_voor_ai,
+        naam=categorieen.naam_van(slug),
+        ranglijst=genoemd,
+        niet_genoemd=len(lijst["rijen"]) - len(genoemd),
+        totaal=len(lijst["rijen"]),
+        telbaar=lijst["telbaar"],
+        gemeten_op=(genoemd[0].get("gemeten_op") if genoemd else None),
+        vragen=db.gemeten_vragen_van_ronde(lijst["ronde"]),
+        modellen=db.modellen_van_ronde(lijst["ronde"]),
+        basis=get_base_url(),
     )
 
 

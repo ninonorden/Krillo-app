@@ -84,8 +84,9 @@ def bedenk_vragen(slug, landnaam="Nederlandse", taal="Nederlands",
     if client is None:
         return []
     naam = categorieen.naam_van(slug)
-    intentie_uitleg = "\n".join(f"- {n}: {u}" for n, u in koopintenties(landnaam))
-    per_intentie = max(2, aantal // 6)
+    verdeling = _verdeling(aantal, landnaam)
+    intentie_uitleg = "\n".join(f"- {n} ({hoeveel} vragen): {u}"
+                                for n, u, hoeveel in verdeling)
 
     prompt = f"""Je helpt bij het meten welke webshops door AI-assistenten aanbevolen worden.
 
@@ -93,8 +94,7 @@ De categorie is: {naam}
 Het land is: {landnaam}
 
 Bedenk {aantal} vragen die een koper in {taal} echt aan ChatGPT of Gemini zou
-stellen als hij iets uit deze categorie wil kopen. Verdeel ze over deze soorten,
-ongeveer {per_intentie} per soort:
+stellen als hij iets uit deze categorie wil kopen. Houd je aan deze verdeling:
 {intentie_uitleg}
 
 REGELS:
@@ -152,9 +152,96 @@ Antwoord ALLEEN met JSON:
 
 def koopintenties(landnaam="Nederlandse"):
     """Dezelfde zes soorten koopvragen als bij de meting per winkel, zodat de
-    cijfers vergelijkbaar blijven met alles wat er al gemeten is."""
+    cijfers vergelijkbaar blijven met alles wat er al gemeten is.
+
+    Blijft staan voor code die de oude lijst gebruikt. Het BEDENKEN van
+    categorievragen gaat sinds 17 september via KOOPINTENTIES hieronder."""
     import koopvragen
     return koopvragen.intenties(landnaam)
+
+
+# ---------------------------------------------------------------------------
+# De zes soorten koopvragen, herschreven op 17 september
+# ---------------------------------------------------------------------------
+#
+# WAT DE METING VAN SPEELGOED LIET ZIEN. Per soort vraag, hoeveel van de
+# antwoorden er een webshop opleverden en dus meetelden:
+#
+#   winkel      10 van de 10   100%
+#   praktisch    8 van de  8   100%
+#   prijs        4 van de 10    40%
+#   alternatief  1 van de 10    10%
+#   algemeen     0 van de 10     0%
+#   doelgroep    0 van de 12     0%
+#
+# Dat is geen toeval en het ligt niet aan de categorie. Winkel en praktisch zijn
+# precies de twee omschrijvingen waarin letterlijk om een webshop gevraagd wordt.
+# De andere vier vroegen om een PRODUCT ("iemand zoekt het beste product",
+# "iemand zoekt iets voor beginners"), en op een productvraag antwoordt een
+# assistent met productnamen en merken. Daar komt geen winkel in voor, ook niet
+# als je de beste webshop van Nederland bent.
+#
+# Dus: alle zes omschrijvingen vragen nu om een WINKEL. Het onderwerp van de
+# vraag verschilt nog steeds (prijs, doelgroep, levertijd), maar wat er gevraagd
+# wordt is altijd een plek om te kopen.
+#
+# En de verdeling is niet meer gelijk. Winkel en praktisch bewezen zich, dus die
+# krijgen er meer. De andere vier krijgen een eerlijke tweede kans met hun nieuwe
+# omschrijving; blijkt die niet te werken, dan haalt het snoeien ze er vanzelf
+# uit en zien we dat terug in dezelfde tabel.
+
+def KOOPINTENTIES(landnaam="Nederlandse"):
+    """De zes soorten, met hun gewicht. Elke omschrijving vraagt om een winkel."""
+    return [
+        ("winkel", 8,
+         f"Iemand zoekt een betrouwbare {landnaam} webshop om iets uit deze "
+         f"categorie te kopen, zonder verdere eisen."),
+        ("praktisch", 6,
+         f"Iemand zoekt een {landnaam} webshop die levertijd, retourneren, "
+         f"voorraad of garantie goed geregeld heeft. Dus niet 'hoe lang duurt "
+         f"levering', wel 'welke {landnaam} webshop levert het snelst'."),
+        ("prijs", 5,
+         f"Iemand zoekt een {landnaam} webshop die goedkoop is, of waar je het "
+         f"meeste voor je geld krijgt. Vraag naar de WINKEL, niet naar wat iets "
+         f"kost."),
+        ("doelgroep", 4,
+         f"Iemand zoekt een {landnaam} webshop die gespecialiseerd is in een "
+         f"bepaalde situatie of persoon: beginners, kinderen, professioneel "
+         f"gebruik. Vraag naar de WINKEL die daarin gespecialiseerd is, niet "
+         f"naar het product."),
+        ("algemeen", 4,
+         f"Iemand weet nog niets en vraagt bij welke {landnaam} webshop hij dit "
+         f"online het beste kan kopen. Vraag WAAR hij moet kopen, niet WAT hij "
+         f"moet kopen."),
+        ("alternatief", 3,
+         f"Iemand kent alleen de grote bekende webshops en zoekt een andere "
+         f"{landnaam} webshop, of juist een gespecialiseerde in plaats van een "
+         f"warenhuis."),
+    ]
+
+
+def _verdeling(aantal, landnaam="Nederlandse"):
+    """Hoeveel vragen er per soort bedacht worden, opgeteld precies `aantal`.
+
+    De gewichten staan op dertig vragen. Wordt er om minder gevraagd, dan gaat
+    alles naar verhouding omlaag en krijgt elke soort er minstens een, zodat de
+    meting nooit op een enkel soort vraag komt te hangen."""
+    soorten = KOOPINTENTIES(landnaam)
+    # Vraag je om minder vragen dan er soorten zijn, dan kan niet elke soort aan
+    # bod komen. Dan vallen de zwakste af en niet de sterkste: de lijst staat op
+    # volgorde van wat zich bewezen heeft.
+    soorten = soorten[:max(1, aantal)]
+    totaal_gewicht = sum(g for _, g, _ in soorten)
+    uit, gebruikt = [], 0
+    for plek, (naam, gewicht, uitleg) in enumerate(soorten):
+        if plek == len(soorten) - 1:
+            hoeveel = max(1, aantal - gebruikt)
+        else:
+            hoeveel = max(1, round(aantal * gewicht / totaal_gewicht))
+            hoeveel = min(hoeveel, max(1, aantal - gebruikt - (len(soorten) - plek - 1)))
+        gebruikt += hoeveel
+        uit.append((naam, uitleg, hoeveel))
+    return uit
 
 
 # ---------------------------------------------------------------------------

@@ -4911,6 +4911,86 @@ def laatste_afgeronde_ronde(categorie):
         conn.close()
 
 
+def openbare_categorieen(minimum_winkels=5):
+    """De categorieen die een openbare ranglijstpagina verdienen.
+
+    Voorwaarde is een AFGERONDE meting met genoeg winkels erin. Een ranglijst
+    van drie winkels is geen ranglijst, en een pagina die dat toch beweert is
+    precies het soort overpromising waar wij bij anderen op controleren.
+
+    Per categorie komt eruit: hoeveel winkels er in de nieuwste ranglijst staan,
+    hoeveel koopvragen er meetelden, en wanneer er gemeten is."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    WITH nieuwste AS (
+                        SELECT DISTINCT ON (categorie) categorie, id, afgerond_op, telbaar
+                          FROM categorie_rondes
+                         WHERE afgerond_op IS NOT NULL
+                      ORDER BY categorie, id DESC
+                    )
+                    SELECT n.categorie, n.afgerond_op, n.telbaar,
+                           count(u.id)                                   AS winkels,
+                           count(*) FILTER (WHERE u.genoemd > 0)         AS genoemd
+                      FROM nieuwste n
+                      JOIN categorie_uitkomsten u ON u.ronde = n.id
+                  GROUP BY n.categorie, n.afgerond_op, n.telbaar
+                    HAVING count(u.id) >= %s
+                  ORDER BY count(u.id) DESC""", (minimum_winkels,))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Openbare categorieen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def gemeten_vragen_van_ronde(ronde):
+    """De koopvragen van een ronde die echt meetelden, zonder dubbele.
+
+    Voor de openbare pagina. Laten zien WELKE vragen er gesteld zijn is het
+    verschil tussen een ranglijst die iemand kan narekenen en een ranglijst die
+    hij maar moet geloven."""
+    conn = _get_connection()
+    if conn is None or not ronde:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT DISTINCT vraag FROM categorie_antwoorden
+                                WHERE ronde = %s AND winkel_kon_genoemd = TRUE
+                             ORDER BY vraag""", (ronde,))
+                return [r[0] for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Vragen van ronde ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def modellen_van_ronde(ronde):
+    """Welke AI-assistenten er in deze ronde bevraagd zijn."""
+    conn = _get_connection()
+    if conn is None or not ronde:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT DISTINCT model FROM categorie_antwoorden
+                                WHERE ronde = %s AND model IS NOT NULL
+                             ORDER BY model""", (ronde,))
+                return [r[0] for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Modellen van ronde ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def gemeten_categorieen():
     """Elke categorie waarvan er een afgeronde meting ligt.
 
@@ -5093,7 +5173,8 @@ def laatste_ranglijst(categorie, limiet=200):
 
                 cur.execute("""
                     SELECT u.webshop_url, u.positie, u.genoemd, u.aanbevolen,
-                           u.telbaar, b.naam, v.positie AS vorige_positie
+                           u.telbaar, u.gemeten_op, b.naam,
+                           v.positie AS vorige_positie
                       FROM categorie_uitkomsten u
                  LEFT JOIN benadering b ON b.webshop_url = u.webshop_url
                  LEFT JOIN categorie_uitkomsten v
