@@ -79,12 +79,12 @@ krillo.app.config["TESTING"] = True
 klant = krillo.app.test_client()
 
 print("\n== zonder meting is er geen pagina ==")
-antwoord = klant.get(f"/index/{CAT}")
+antwoord = klant.get(f"/index/nl/{CAT}")
 zo("een ongemeten categorie geeft 404", antwoord.status_code, 404)
 klopt("met uitleg in plaats van een kale foutpagina",
       "nog niet gemeten" in antwoord.get_data(as_text=True))
-overzicht = klant.get("/index").get_data(as_text=True)
-klopt("en hij staat niet in het overzicht", f"/index/{CAT}" not in overzicht)
+overzicht = klant.get("/index/nl").get_data(as_text=True)
+klopt("en hij staat niet in het overzicht", f"/index/nl/{CAT}" not in overzicht)
 
 print("\n== na een meting staat hij er wel ==")
 VRAAG_A = "waar koop ik online een testartikel"
@@ -110,7 +110,7 @@ db.bewaar_categorie_uitkomsten(ronde, CAT, [
     {"webshop_url": ALLE[4], "positie": 5, "genoemd": 0, "aanbevolen": 0, "beste_positie": None},
 ], 2)
 
-pagina = klant.get(f"/index/{CAT}")
+pagina = klant.get(f"/index/nl/{CAT}")
 zo("de pagina bestaat nu", pagina.status_code, 200)
 tekst = pagina.get_data(as_text=True)
 klopt("de genoemde winkel staat erop", "welgenoemd.nl" in tekst)
@@ -121,7 +121,7 @@ klopt("de stille winkel staat er niet bij naam op", "nooitgenoemd.nl" not in tek
 klopt("maar het aantal staat er wel", "overige 3" in tekst)
 
 print("\n== de methode staat erbij ==")
-klopt("de meetdatum staat erop", "Gemeten op" in tekst)
+klopt("de meetdatum staat erop", "gemeten op" in tekst.lower())
 klopt("de gestelde vragen staan erop", VRAAG_A in tekst and VRAAG_B in tekst)
 klopt("de vraag die niet meetelde staat er niet op",
       "beste merk testartikelen" not in tekst)
@@ -131,22 +131,25 @@ klopt("er staat dat niemand zich kan inkopen", "inkopen" in tekst)
 print("\n== de gestructureerde gegevens zijn geldige JSON ==")
 blokken = re.findall(
     r'<script type="application/ld\+json">(.*?)</script>', tekst, re.S)
-zo("er staat er precies een op de pagina", len(blokken), 1)
-data = json.loads(blokken[0])
+zo("er staan twee blokken: de ranglijst en het kruimelpad", len(blokken), 2)
+data = [json.loads(x) for x in blokken if json.loads(x)["@type"] == "ItemList"][0]
 zo("het is een lijst", data["@type"], "ItemList")
 zo("met twee winkels erin", data["numberOfItems"], 2)
 zo("de eerste is de meest genoemde", data["itemListElement"][0]["url"], GENOEMD)
 klopt("de stille winkel zit er ook hier niet in",
       STIL not in json.dumps(data))
 
+print("\n== een land dat niet bestaat ==")
+zo("geeft netjes 404", klant.get(f"/index/zz/{CAT}").status_code, 404)
+
 print("\n== het overzicht en de sitemap ==")
-overzicht = klant.get("/index").get_data(as_text=True)
-klopt("de categorie staat in het overzicht", f"/index/{CAT}" in overzicht)
+overzicht = klant.get("/index/nl").get_data(as_text=True)
+klopt("de categorie staat in het overzicht", f"/index/nl/{CAT}" in overzicht)
 sitemap = klant.get("/sitemap.xml").get_data(as_text=True)
-klopt("en in de sitemap", f"https://www.krillo.nl/index/{CAT}" in sitemap)
+klopt("en in de sitemap", f"https://www.krillo.nl/index/nl/{CAT}" in sitemap)
 klopt("het overzicht staat er ook in", "https://www.krillo.nl/index<" in sitemap)
 klopt("met een lastmod erbij",
-      re.search(r"/index/" + CAT + r"</loc><lastmod>\d{4}-\d{2}-\d{2}", sitemap))
+      re.search(r"/index/nl/" + CAT + r"</loc><lastmod>\d{4}-\d{2}-\d{2}", sitemap))
 
 print("\n== robots houdt de index open en het beheer dicht ==")
 robots = klant.get("/robots.txt").get_data(as_text=True)
@@ -154,7 +157,7 @@ klopt("beheer blijft dicht", "Disallow: /admin/" in robots)
 klopt("de index wordt niet verboden", "Disallow: /index" not in robots)
 
 print("\n== een te kleine categorie komt er niet op ==")
-groot = [r["categorie"] for r in db.openbare_categorieen(minimum_winkels=99)]
+groot = [r["categorie"] for r in db.categorieen_per_land("nl", 99)]
 klopt("vijf winkels is te weinig bij een minimum van negenennegentig",
       CAT not in groot)
 
