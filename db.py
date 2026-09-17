@@ -4507,6 +4507,50 @@ def winkels_zonder_opschoning(limiet=None):
         conn.close()
 
 
+def kosten_van_ronde(ronde):
+    """Wat een categoriemeting werkelijk gekost heeft, in euro.
+
+    Waarom dit bestaat. Op 17 september vroeg Nino wat een ronde had gekost, en
+    dat was nergens te zien. Je kon het alleen afleiden uit het totaal van dertig
+    dagen, en dan reken je met een verschil tussen twee grote getallen waar ook
+    van alles anders in zit.
+
+    Hier wordt gekeken naar alles wat er tussen het starten en het afronden van
+    die ene ronde is uitgegeven aan meten en lezen. Dat is een schatting die
+    dicht bij de waarheid ligt: er draait immers maar een meting tegelijk.
+    Loopt er toevallig iets anders doorheen, dan telt dat mee, en dat is liever
+    te hoog dan te laag."""
+    conn = _get_connection()
+    if conn is None:
+        return {}
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT r.gestart_op, r.afgerond_op,
+                           coalesce(sum(k.kosten), 0)            AS kosten,
+                           count(k.gebeurtenis_id)               AS aanroepen,
+                           count(*) FILTER (WHERE k.kosten_status = 'onbekend')
+                                                                 AS zonder_prijs
+                      FROM categorie_rondes r
+                      LEFT JOIN kostengebeurtenissen k
+                             ON k.moment >= r.gestart_op
+                            AND k.moment <= coalesce(r.afgerond_op, now())
+                            AND k.soort IN ('categoriemeting',
+                                            'categorie-antwoord-lezen',
+                                            'categorievragen-bedenken')
+                     WHERE r.id = %s
+                     GROUP BY r.gestart_op, r.afgerond_op
+                """, (ronde,))
+                rij = cur.fetchone()
+                return dict(rij) if rij else {}
+    except Exception as e:
+        print(f"Kosten van ronde ophalen mislukt: {e}")
+        return {}
+    finally:
+        conn.close()
+
+
 def categorieen_om_te_meten(minimum=10, ouder_dan_dagen=30):
     """Welke categorieen aan een meting toe zijn, de meest verlopen eerst.
 

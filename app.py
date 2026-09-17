@@ -4269,6 +4269,7 @@ def admin_ranglijst():
         gestart = categoriemeting.start_meting(gekozen, max_vragen=vragen)
         return _terug("gestart" if gestart else "loopt-al")
 
+    lijst = db.laatste_ranglijst(gekozen) if gekozen else None
     return render_template(
         "admin_ranglijst.html",
         bericht=bericht,
@@ -4276,7 +4277,8 @@ def admin_ranglijst():
         categorieen_lijst=bruikbaar,
         gekozen=gekozen,
         naam_van=categorieen.naam_van,
-        ranglijst=db.laatste_ranglijst(gekozen) if gekozen else None,
+        ranglijst=lijst,
+        ronde_kosten=db.kosten_van_ronde(lijst["ronde"]) if lijst and lijst.get("ronde") else None,
         vragen=db.categorie_vragen(gekozen) if gekozen else [],
         vergelijking=categoriemeting.vergelijkstand(),
         kandidaten=categoriemeting.KANDIDATEN,

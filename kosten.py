@@ -357,10 +357,15 @@ def ruimte_voor_benadering():
 # van de vragen, want dat kunnen wij niet goedkoper maken; dat is juist wat wij
 # meten. Vandaar deze schatting van 1,20.
 #
-# DIT IS EEN SCHATTING EN GEEN METING. Na de eerstvolgende echte categoriemeting
-# staat het werkelijke bedrag op /admin/kosten, en dan hoort dit getal daarheen
-# bijgesteld te worden.
-SCHATTING_CATEGORIE_EURO = float(os.environ.get("SCHATTING_CATEGORIE_EURO", "1.20"))
+# BIJGESTELD OP 17 SEPTEMBER, na de eerste meting met luna als lezer: dertig
+# koopvragen over speelgoed aan twee modellen, zestig antwoorden, nul mislukt,
+# vierentwintig minuten. Afgeleid uit de kostenpagina komt dat rond de veertig
+# cent uit. Hier staat zestig cent: liever een marge naar boven, want op basis
+# van dit getal wordt besloten of een meting nog in de dagpot past.
+#
+# Wat een ronde ECHT gekost heeft staat vanaf nu onder de ranglijst zelf, dus
+# dit getal hoeft nooit meer geraden te worden.
+SCHATTING_CATEGORIE_EURO = float(os.environ.get("SCHATTING_CATEGORIE_EURO", "0.60"))
 
 
 def ruimte_vandaag():
