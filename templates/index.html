@@ -49,7 +49,8 @@
   "areaServed": ["NL", "BE"],
   "offers": [
     {"@type": "Offer", "name": "Gratis scan", "price": "0", "priceCurrency": "EUR"},
-    {"@type": "Offer", "name": "Wij doen het", "price": "149", "priceCurrency": "EUR"},
+    {"@type": "Offer", "name": "Watch", "price": "49", "priceCurrency": "EUR"},
+    {"@type": "Offer", "name": "Fix", "price": "149", "priceCurrency": "EUR"},
     {"@type": "Offer", "name": "Monitoring", "price": "39", "priceCurrency": "EUR"}
   ]
 }
@@ -779,6 +780,28 @@
   .price-card.featured .price-feats li::before{color:var(--coral);}
   .price-card.featured .price-badge{background:var(--coral); color:#fff;}
   .price-card.featured .price-btn.solid{background:var(--coral); color:#fff;}
+
+  .prijs-voet{display:grid; grid-template-columns:1fr 1fr; gap:18px 36px;
+              margin-top:26px; font-size:14.5px; color:var(--ink-soft); line-height:1.6;}
+  .prijs-voet strong{color:var(--ink);}
+  @media(max-width:700px){ .prijs-voet{grid-template-columns:1fr;} }
+
+  .eigen-cijfer{display:grid; grid-template-columns:auto 1fr; gap:14px 26px;
+                align-items:start; background:var(--paper-raised);
+                border:1px solid var(--lijn, var(--line)); border-radius:16px;
+                padding:32px 36px;}
+  .eigen-cijfer .ec-groot{font-family:var(--disp); font-weight:400; font-size:54px;
+                          line-height:1; color:var(--coral);}
+  .eigen-cijfer .ec-groot.klein{font-size:44px;}
+  .eigen-cijfer .ec-tekst{font-size:16px; color:var(--ink-soft); line-height:1.6;
+                          max-width:640px;}
+  .eigen-cijfer .ec-tekst span{display:block; color:var(--ink-grijs, #6E6E7A);
+                               font-size:14.5px; margin-top:4px;}
+  .eigen-cijfer .ec-scheiding{grid-column:1 / -1; height:1px;
+                              background:var(--line); margin:6px 0;}
+  @media(max-width:560px){
+    .eigen-cijfer{grid-template-columns:1fr; padding:26px 24px;}
+  }
 </style>
 </head>
 <body>
@@ -880,6 +903,39 @@
 </section>
 {% endif %}
 
+
+{# ONS EIGEN CIJFER. Dit is het sterkste bewijs dat wij hebben: geen Amerikaans
+   onderzoek over merken, maar onze eigen meting van Nederlandse webshops. Staat
+   er nog te weinig gemeten, dan valt het cijfer weg en blijft er iets staan dat
+   altijd waar is. #}
+<section id="cijfer" class="vlak">
+  <div class="wrap">
+    <div class="eigen-cijfer">
+      {% if eigen_cijfer %}
+      <div class="ec-groot">{{ eigen_cijfer.deel }}%</div>
+      <div class="ec-tekst">
+        van de {{ eigen_cijfer.gemeten }} Nederlandse webshops die wij zelf maten,
+        werd bij geen enkele koopvraag genoemd door ChatGPT of Gemini.
+        <span>Onze eigen meting, niet die van iemand anders.</span>
+      </div>
+      {% else %}
+      <div class="ec-groot">30</div>
+      <div class="ec-tekst">
+        koopvragen stellen wij per winkel aan meerdere AI-assistenten, en uit elk
+        antwoord lezen wij welke webshops genoemd worden.
+        <span>Elk antwoord blijft bewaard, met de datum erbij.</span>
+      </div>
+      {% endif %}
+      <div class="ec-scheiding"></div>
+      <div class="ec-groot klein">13</div>
+      <div class="ec-tekst">
+        punten bepalen of AI je shop uberhaupt kan vinden, lezen en begrijpen.
+        <span>De meeste shops missen er meerdere zonder het te weten.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
 {# WAT JE KRIJGT. Zes blokken, elk een regel. De hele markt verkoopt rapporten;
    het enige dat Krillo anders doet is het uitvoeren, dus dat blok is donker. #}
 <section id="wat-je-krijgt" class="vlak">
@@ -920,231 +976,16 @@
 </section>
 
 
-{# ONS EIGEN CIJFER. Dit stond in de oude probleemsectie en is het sterkste dat
-   wij hebben: geen Amerikaans onderzoek maar onze eigen meting van Nederlandse
-   webshops. Het valt vanzelf weg zolang er te weinig gemeten is. #}
-<section id="probleem">
-  <div class="wrap">
-    <div class="probleem-grid">
-      <div class="probleem-tekst">
-        <h2>Jouw shop kan technisch perfect zijn, en toch onzichtbaar voor AI.</h2>
-        <p>AI-modellen bepalen wat ze aanbevelen op basis van heel andere signalen dan een gewone zoekmachine. De meeste webshops zijn daar nooit voor ingericht, en merken dat niet, want er komt geen foutmelding als je wordt overgeslagen.</p>
-      </div>
-      <div class="probleem-cijfers">
-        {# Ons eigen cijfer gaat voor, zodra het er is. Een Nederlands cijfer uit
-           onze eigen metingen is geloofwaardiger voor deze doelgroep dan een
-           Amerikaans onderzoek naar merken, en het is controleerbaar. Onder de
-           ondergrens staat er None in en blijft het onderzoek hieronder staan:
-           een eigen cijfer over negen winkels is geen onderzoek. #}
-        {% if eigen_cijfer %}
-        <div class="cijfer">
-          <span class="cijfer-num">{{ eigen_cijfer.deel }}%</span>
-          <span class="cijfer-tekst">van de {{ eigen_cijfer.gemeten }} Nederlandse webshops die wij zelf maten, werd bij geen enkele koopvraag genoemd door ChatGPT of Gemini. Onze eigen meting, niet die van iemand anders.</span>
-        </div>
-        {% else %}
-        <div class="cijfer">
-          <span class="cijfer-num">30</span>
-          <span class="cijfer-tekst">koopvragen stellen wij per winkel aan ChatGPT en Gemini, en wij bewaren van elk antwoord het letterlijke citaat waar ons oordeel op rust.</span>
-        </div>
-        {% endif %}
-        <div class="cijfer">
-          <span class="cijfer-num">13</span>
-          <span class="cijfer-tekst">punten bepalen of AI je shop überhaupt kan vinden, lezen en begrijpen. De meeste shops missen er meerdere zonder het te weten.</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
 
-{# HET NAGEMAAKTE SCHERM VAN DE GRATIS SCAN. Dit was de kritiek op het
-   ondernemersforum: te vaag, laat gewoon zien wat je krijgt. Daarom staat het
-   er, en daarom bewaakt een test dat het blijft staan. #}
-<section id="voorbeeld">
-  <div class="wrap">
-    {# Dit blok heette "Zo ziet een echt resultaat eruit" en het nagemaakte
-       venster zei krillo.nl/rapport. Dat was de rapportpagina van de audit van
-       79 euro, en dat product bestaat sinds 11 september niet meer. Er stond dus
-       een scherm op de homepage dat geen enkele klant meer krijgt. Een
-       monitoringklant komt op /monitoring/<token>, en dat scherm staat verderop
-       al afgebeeld.
 
-       Wat er nu staat is wel waar: dit is de uitslag van de gratis scan, precies
-       wat een bezoeker ziet als hij bovenaan zijn webadres invult. Dat is ook
-       een beter argument, want het is een belofte die hij binnen een minuut zelf
-       kan controleren in plaats van er een te moeten geloven. #}
-    <div class="voorbeeld-kop">
-      <h2>Dit krijg je van de gratis scan.</h2>
-      <p>Een echte scan van een Nederlandse webshop. De naam laten we weg, de bevindingen zijn onveranderd. Dit is wat jij te zien krijgt als je hierboven je webadres invult.</p>
-    </div>
 
-    <div class="rapport-demo">
-      <div class="rapport-demo-balk">
-        <span class="stip"></span><span class="stip"></span><span class="stip"></span>
-        <span class="rapport-demo-url">krillo.nl</span>
-      </div>
-      <div class="rapport-demo-body">
-        <div class="demo-score">
-          <div class="demo-score-label">AI-leesbaarheid</div>
-          <div class="demo-score-num">43<span>/100</span></div>
-        </div>
 
-        <div class="demo-bevindingen">
-          <div class="demo-regel">
-            <span class="demo-tag probleem">verbeterpunt</span>
-            <div>
-              <strong>Is de belangrijkste tekst zichtbaar zonder te klikken?</strong>
-              <span>Er staan maar 16 woorden direct leesbare tekst in de ruwe pagina. Deze website bouwt zijn inhoud vrijwel volledig op nadat de pagina geladen is. De meeste AI-robots zien daardoor een zo goed als lege pagina.</span>
-            </div>
-          </div>
-          <div class="demo-regel">
-            <span class="demo-tag probleem">verbeterpunt</span>
-            <div>
-              <strong>Kan AI de inhoud van deze pagina betrouwbaar uitlezen?</strong>
-              <span>Er is geen machine-leesbare informatie gevonden. AI moet dan zelf raden wat je verkoopt en voor welke prijs.</span>
-            </div>
-          </div>
-          <div class="demo-regel">
-            <span class="demo-tag probleem">verbeterpunt</span>
-            <div>
-              <strong>Kan AI makkelijk al je pagina's vinden?</strong>
-              <span>Geen sitemap gevonden op de standaardlocatie. Zonder sitemap moet AI zelf via links al je pagina's ontdekken.</span>
-            </div>
-          </div>
-          <div class="demo-regel">
-            <span class="demo-tag ok">goed</span>
-            <div>
-              <strong>Laadt de pagina snel genoeg?</strong>
-              <span>De pagina reageerde in 33 ms, dat is snel genoeg om geen probleem te zijn.</span>
-            </div>
-          </div>
-        </div>
 
-        <div class="demo-fix">
-          {# Dit stukje zit met opzet onder de streep in het nagemaakte venster,
-             want het hoort NIET bij de gratis scan. De scan zegt wat er mis is;
-             de oplossing uitschrijven en neerzetten is het betaalde deel. De kop
-             moet dat verschil dus zelf duidelijk maken, anders belooft de
-             gratis scan iets wat hij niet geeft. #}
-          <div class="demo-fix-kop">Niet gratis: dit is wat wij er voor je neerzetten</div>
-          <div class="demo-fix-code">&lt;script type="application/ld+json"&gt;
-{
-  "@context": "https://schema.org",
-  "@type": "Store",
-  "name": "Jouw webshop",
-  "priceRange": "€€",
-  "areaServed": "NL"
-}
-&lt;/script&gt;</div>
-          <div class="demo-fix-waar"><strong>Waar dat hoort:</strong> in de kop van je website, tussen &lt;head&gt; en &lt;/head&gt;. Bij "wij doen het" zetten wij het daar neer. Doe je het liever zelf, dan staat er bij elke taak precies welk menu je nodig hebt in jouw systeem.</div>
-        </div>
-      </div>
-    </div>
 
-    {# Hier stond een blok met vier stukjes tekst over wat wij met de
-       gevonden punten doen. Weggehaald op 11 september. Niet omdat het onwaar
-       was, maar omdat het woord voor woord hetzelfde zei als de sectie die er
-       direct onder staat, en als de prijskaart van 149 euro verderop. Drie keer hetzelfde argument binnen een halve pagina maakt geen
-       van de drie sterker. Het voorbeeldrapport hierboven blijft staan: dat is
-       het enige bewijs op deze pagina dat er iets concreets uitkomt. #}
-  </div>
-</section>
 
-<section id="wij-doen-het">
-  <div class="wrap">
-    <div class="voorbeeld-kop">
-      <h2>Je hoeft het niet zelf te doen.</h2>
-      <p>De meeste webshopeigenaren hebben geen tijd om uit te zoeken waar ze een stukje code moeten plakken, en dat hoeft ook niet. Geef ons toegang tot je webshop, dan zetten wij het erin.</p>
-    </div>
 
-    <div class="stappen">
-      <div class="stap">
-        <span class="stap-num">1</span>
-        <h3>Je geeft ons toegang</h3>
-        <p>Op dezelfde manier als je een webshopbureau toegang geeft. Bij Shopify keur je een verzoek goed, bij WooCommerce maak je een gebruiker aan. Kost je twee minuten en je kunt het met een klik weer intrekken.</p>
-      </div>
-      <div class="stap">
-        <span class="stap-num">2</span>
-        <h3>Wij voeren het uit</h3>
-        <p>Wij zetten de vragen en antwoorden erin, schrijven je productinformatie zo op dat AI hem kan lezen, en zetten de technische punten goed. Meestal binnen twee tot vijf werkdagen.</p>
-      </div>
-      <div class="stap">
-        <span class="stap-num">3</span>
-        <h3>Je ziet wat er veranderd is</h3>
-        {# Hier stond "En daarna meten we of je vaker genoemd wordt." Dat is niet
-           waar bij dit product: de wekelijkse meting hoort bij het abonnement,
-           en wie alleen de uitvoering koopt wordt een keer gemeten, bij de start.
-           Zo'n zin is precies het soort belofte waar een klant later op valt. #}
-        <p>Je krijgt een overzicht van elke wijziging, met de oude tekst erbij. Bevalt iets je niet, dan zet je het terug. Wil je daarna blijven volgen of je vaker genoemd wordt, dan kan dat met monitoring.</p>
-      </div>
-    </div>
 
-    <div class="toegang">
-      <h3>Wat we wel en niet aanraken</h3>
-      <p><strong>Wel:</strong> je teksten, je productomschrijvingen, je veelgestelde vragen, de beschrijvingen bij je afbeeldingen, en de technische instellingen waarmee AI je site kan lezen.</p>
-      <p><strong>Niet:</strong> je prijzen, je voorraad, je bestellingen, je klantgegevens en je vormgeving. Daar blijven we vanaf.</p>
-      <p>We vragen alleen de rechten die we nodig hebben en bewaren van elke wijziging de oude versie.</p>
-    </div>
-  </div>
-</section>
 
-{# WAT ER DAARNA GEBEURT. Ook nagemaakt, en er staat bij dat het nagemaakt is. #}
-<section id="monitoring">
-  <div class="wrap">
-    <div class="voorbeeld-kop">
-      <h2>En daarna houden wij het voor je bij.</h2>
-      {# Twee alinea's samengevoegd tot een. De vermelding dat dit scherm
-         nagemaakt is moet blijven staan, want zonder die regel leest het als de
-         pagina van een bestaande klant. Maar hij hoeft geen eigen alinea. #}
-      <p>Geen dashboard vol cijfers waar je een specialist bij nodig hebt. Wij meten elke week, bepalen de hoogstens drie dingen die het meeste opleveren, en voeren ze uit in je winkel. Jij krijgt een bericht van wat er gedaan is. Geef je ons liever geen toegang, dan krijg je dezelfde drie dingen kant en klaar om zelf te doen. Het scherm hieronder is nagemaakt; het zijn niet de cijfers van een bestaande klant.</p>
-    </div>
-
-    <div class="rapport-demo">
-      <div class="rapport-demo-balk">
-        <span class="stip"></span><span class="stip"></span><span class="stip"></span>
-        <span class="rapport-demo-url">krillo.nl/monitoring</span>
-      </div>
-      <div class="rapport-demo-body">
-        <div class="taken-demo-kop">Wat wij deze week voor je gedaan hebben</div>
-        <div class="taken-demo-stand">Je wordt genoemd bij 4 van de 30 koopvragen.</div>
-
-        <div class="taak-demo">
-          <span class="taak-demo-num">1</span>
-          <div>
-            <strong>Twee plekken gevonden waar je hoort te staan</strong>
-            <span class="taak-demo-uitleg">Op deze pagina's staan winkels die AI wel noemt, en jij niet. Ze bestaan al. De mail aan de redactie schrijven wij voor je, klaar om te versturen.</span>
-          </div>
-        </div>
-        <div class="taak-demo">
-          <span class="taak-demo-num">2</span>
-          <div>
-            <strong>Vijf vragen en antwoorden op je site gezet</strong>
-            <span class="taak-demo-uitleg">Geschreven over jouw producten en geplaatst in je winkel. De oude tekst staat erbij, dus terugdraaien kan altijd.</span>
-          </div>
-        </div>
-        <div class="taak-demo">
-          <span class="taak-demo-num">3</span>
-          <div>
-            <strong>Rechtgezet wat AI verkeerd over je vertelde</strong>
-            <span class="taak-demo-uitleg">AI zei dat je binnen 24 uur levert, op je site staat 2 tot 3 werkdagen. Dat kost je klanten die al bijna besloten hadden, dus dat hebben we op je site verduidelijkt.</span>
-          </div>
-        </div>
-
-        <div class="taken-demo-voet">Alle cijfers, citaten en de dertien controlepunten staan achter één link, voor als je wil zien waar dit op gebaseerd is.</div>
-      </div>
-    </div>
-
-    {# Hier stonden zes stukjes tekst die opsomden wat het abonnement geeft.
-       Weggehaald op 11 september. Ze zeiden bijna woordelijk hetzelfde als de
-       prijskaart monitoring, en die staat een halve pagina lager mét de prijs
-       ernaast. Het nagemaakte takenoverzicht hierboven laat beter zien wat dit
-       is dan zes alinea's eronder: je ziet in één oogopslag dat het drie taken
-       zijn en geen dashboard. #}
-    <div class="monitoring-slot">
-      Wat je precies krijgt en wat het kost staat hieronder bij de prijzen.
-      <a href="#prijzen">Bekijk monitoring &rarr;</a>
-    </div>
-  </div>
-</section>
 
 {# HET DASHBOARD. Met een knop naar een ECHT dashboard van een echte winkel.
    Een schermafbeelding is over twee maanden verouderd en niemand gelooft hem;
@@ -1202,74 +1043,70 @@
   </div>
 </section>
 
-<section id="prijzen">
+<section id="prijzen" class="vlak">
   <div class="wrap">
-    <div class="prijzen-kop">
-      <h2>Begin gratis. Betaal pas als je verder wil.</h2>
-      <p>De gratis scan blijft gratis, zonder account en zonder betaalgegevens. Wil je meer, dan kies je of je het zelf doet of dat wij het doen.</p>
-      {# De garantie hoort hier te staan en niet alleen in de voorwaarden. Dit is
-         de plek waar iemand van een bedrijf dat hij niet kent geld moet
-         uitgeven, en dat is precies waar de drempel zit. #}
-      {# LET OP: per product geldt iets anders, en dat hoort er zo te staan.
-         Stond hier eerst een onvoorwaardelijke belofte van dertig dagen geld
-         terug voor alle producten, en dat gold alleen voor de audit. Dat is een
-         onjuiste mededeling over een betalingsverplichting.
-
-         De audit bestaat sinds 11 september niet meer, dus de zin die daarover
-         ging is hier weg. Wat er nu staat is wat wij echt doen. #}
-      <p style="font-size:14px; color:var(--ink-soft); margin-top:10px;">
-        <strong>Niet tevreden over een wijziging die wij maakten? Wij draaien hem terug.</strong>
-        Bij het abonnement kun je binnen veertien dagen na je eerste betaling opzeggen
-        en krijg je die maand terug.
-      </p>
+    <div class="sectiekop">
+      <div>
+        <h2>De rest levert een rapport. Wij lossen het op.</h2>
+        <p>Je positie zien is gratis en blijft gratis. Maandelijks opzegbaar, geen looptijd.</p>
+      </div>
     </div>
+
+    {# LET OP BIJ WIJZIGEN: de bedragen hieronder moeten gelijk zijn aan
+       payments.PAKKETTEN. Een prijs op de site die niet klopt met wat er
+       afgeschreven wordt is een onjuiste mededeling over een
+       betalingsverplichting. Een test bewaakt dat ze gelijk blijven. #}
     <div class="price-grid">
       <div class="price-card">
-        <div class="price-name">Gratis scan</div>
-        <div class="price-amount">€0</div>
+        <div class="price-name">Watch</div>
+        <div class="price-amount">&euro;49 <span>/maand</span></div>
         <ul class="price-feats">
-          <li><strong>3 koopvragen aan AI</strong>, meteen, zonder iets in te vullen</li>
-          <li>Je score op 13 technische punten, binnen een minuut</li>
-          <li>Mailadres erbij? Dan 5 vragen aan ChatGPT én Gemini, met citaten</li>
-          <li>Geen account, geen betaalgegevens</li>
+          <li><strong>Je positie elke maand</strong>, in je categorie en in je land</li>
+          <li>De koopvragen waar je niet in voorkomt, met het echte antwoord erbij</li>
+          <li>Welke concurrent er genoemd werd in plaats van jou</li>
+          <li>De dertien controlepunten op je winkel</li>
+          <li>De oplossingen uitgeschreven, om zelf te doen</li>
         </ul>
-        <a class="price-btn ghost" href="#scan">Start gratis</a>
+        <a class="price-btn ghost" href="#scan" id="watchCheckoutBtn">Start Watch</a>
       </div>
-      {# De losse audit van 79 euro is op 11 september geschrapt als apart
-         product. Waarom: de doelgroep is uitdrukkelijk "zonder technische
-         kennis", en juist bij de audit moest de koper zelf code plakken. Elke
-         koper die dat fout doet mailt ons, en tijd is de schaarste. Vier keuzes
-         op een prijspagina is er bovendien een te veel: wie twijfelt kiest
-         niets.
 
-         Alles wat erin zat blijft bestaan, als onderdeel van "wij doen het". De
-         bestelroute /api/checkout/audit blijft met opzet werken, zodat een oude
-         link of een lopende afspraak niet stukgaat. #}
       <div class="price-card featured">
-        <div class="price-badge">Meeste werk uit handen</div>
-        <div class="price-name">Wij doen het</div>
-        <div class="price-amount">€149 <span>eenmalig</span></div>
+        <div class="price-badge">Meest gekozen</div>
+        <div class="price-name">Fix</div>
+        <div class="price-amount">&euro;149 <span>/maand</span></div>
         <ul class="price-feats">
-          <li><strong>Wij voeren het uit in je webshop</strong>, jij hoeft niets te plakken</li>
-          <li>Voor elk verbeterpunt een oplossing, geschreven voor jouw producten</li>
-          <li>Werkt op Shopify, WooCommerce, Lightspeed en de meeste andere systemen</li>
-          <li>Achteraf elke wijziging op een rij, en wij draaien terug wat je niet bevalt</li>
-          <li>Meestal binnen 2 tot 5 werkdagen klaar</li>
+          <li><strong>Alles uit Watch</strong></li>
+          <li><strong>Wij voeren de oplossingen uit in je winkel</strong>, jij drukt op akkoord</li>
+          <li>De oude tekst blijft bewaard, dus terugdraaien kan altijd</li>
+          <li>Vier weken later meten wij opnieuw en laten we het verschil zien</li>
+          <li>Bericht zodra je zakt, met de reden erbij</li>
         </ul>
-        <a class="price-btn solid" href="#scan" id="uitvoeringCheckoutBtn">Laat het ons doen</a>
+        <a class="price-btn solid" href="#scan" id="fixCheckoutBtn">Start Fix</a>
       </div>
+
       <div class="price-card">
-        <div class="price-name">Monitoring</div>
-        <div class="price-amount">€39 <span>/maand</span></div>
+        <div class="price-name">Merken en bureaus</div>
+        <div class="price-amount">&euro;490 <span>/maand</span></div>
         <ul class="price-feats">
-          <li><strong>Wij voeren elke week de verbeteringen uit</strong>, jij krijgt het verslag</li>
-          <li>Hoogstens drie dingen per week, op volgorde van wat het meeste oplevert</li>
-          <li>De pagina's waar je concurrent wel op staat en jij niet, met de link erbij</li>
-          <li>30 koopvragen per week aan ChatGPT en Gemini, met het citaat erbij</li>
-          <li>Geen toegang? Dan krijg je alles kant en klaar om zelf te doen</li>
-          <li>Maandelijks opzegbaar, geen looptijd</li>
+          <li><strong>Tot 25 winkels</strong> in een overzicht</li>
+          <li>Alle categorieen waarin je voorkomt, in alle gemeten landen</li>
+          <li>Elke koopvraag, en wie jou verslaat</li>
+          <li>Rapporten op je eigen naam</li>
+          <li>Wij richten het samen met je in</li>
         </ul>
-        <a class="price-btn ghost" href="#scan" id="monitoringCheckoutBtn">Start abonnement</a>
+        <a class="price-btn ghost" href="mailto:hallo@krillo.nl?subject=Krillo%20voor%20merken%20en%20bureaus">Neem contact op</a>
+      </div>
+    </div>
+
+    <div class="prijs-voet">
+      <div>
+        <strong>Een tweede land erbij kost 49 euro per maand.</strong>
+        Verkoop je in Nederland en Belgie, dan zijn dat twee ranglijsten, want AI
+        geeft daar andere antwoorden.
+      </div>
+      <div>
+        <strong>Niet tevreden over een wijziging die wij maakten? Wij draaien hem terug.</strong>
+        Je kunt binnen veertien dagen na je eerste betaling opzeggen en krijgt die maand terug.
       </div>
     </div>
   </div>
@@ -1893,16 +1730,40 @@
       delivery: 'Levering: direct na betaling vragen we je per e-mail om toegang tot je webshop. Zodra we binnen zijn is het meestal binnen 2 tot 5 werkdagen klaar.',
       garantie: 'Bevalt een wijziging je niet, dan draaien wij hem terug als je dat binnen dertig dagen laat weten.'
     },
+    watch: {
+      items: [
+        'Elke maand je positie in de ranglijst van je categorie en je land',
+        'De koopvragen waar je niet in voorkomt, met het echte antwoord erbij',
+        'Welke concurrent er genoemd werd in plaats van jou',
+        'De dertien controlepunten op je winkel',
+        'De oplossingen uitgeschreven, om zelf uit te voeren',
+        'Op elk moment op te zeggen, geen minimale looptijd'
+      ],
+      delivery: 'Levering: je positie staat er zodra je categorie gemeten is, en daarna elke maand opnieuw. Je krijgt een link naar je eigen scherm, zonder wachtwoord.',
+      garantie: 'Zeg je binnen veertien dagen na je eerste betaling op, dan krijg je die maand volledig terug.'
+    },
+    fix: {
+      items: [
+        'Alles uit Watch',
+        'Wij voeren de oplossingen uit in je winkel, jij drukt alleen op akkoord',
+        'De oude tekst blijft bewaard, dus terugdraaien kan altijd',
+        'Vier weken later meten wij opnieuw en laten we het verschil zien',
+        'Bericht zodra je zakt, met erbij of het aan jou lag of aan de markt',
+        'Op elk moment op te zeggen, geen minimale looptijd'
+      ],
+      delivery: 'Levering: je eerste meting start direct. Daarna vragen we je per e-mail om toegang tot je webshop, zodat wij de oplossingen kunnen uitvoeren. Geef je geen toegang, dan krijg je alles kant en klaar om zelf te doen.',
+      garantie: 'Zeg je binnen veertien dagen na je eerste betaling op, dan krijg je die maand volledig terug.'
+    },
     monitoring: {
       items: [
-        'We vragen elke week aan ChatGPT en Gemini of jouw webshop genoemd wordt bij echte koopvragen',
-        'Wij voeren de verbeteringen uit in je winkel, jij krijgt het verslag met de oude tekst erbij',
+        'Elke maand je positie in de ranglijst van je categorie en je land',
+        'Wij voeren de oplossingen uit in je winkel, jij krijgt het verslag met de oude tekst erbij',
         'Geef je ons geen toegang, dan krijg je alles kant en klaar om zelf te doen',
         'Je ziet of je genoemd wordt en of je ook echt aanbevolen wordt, met het citaat erbij',
         'Bericht als er iets verandert, met erbij of het aan jou lag of aan de markt',
         'Op elk moment op te zeggen, geen minimale looptijd'
       ],
-      delivery: 'Levering: je eerste meting start direct na aanmelding. Daarna vragen we je per e-mail om toegang tot je webshop, zodat wij de verbeteringen kunnen uitvoeren. Elke week een nieuwe meting.',
+      delivery: 'Levering: je eerste meting start direct na aanmelding. Daarna vragen we je per e-mail om toegang tot je webshop, zodat wij de verbeteringen kunnen uitvoeren. Elke maand een nieuwe meting.',
       garantie: 'Zeg je binnen veertien dagen na je eerste betaling op, dan krijg je die maand volledig terug.'
     }
   };
@@ -1956,9 +1817,13 @@
       eyebrow.textContent = 'Wij doen het \u00b7 \u20ac149 eenmalig';
       title.textContent = 'Welke webshop gaan we voor je opknappen?';
       emailField.style.display = 'block';
+    } else if(type === 'watch'){
+      eyebrow.textContent = 'Watch \u00b7 \u20ac49 /maand';
+      title.textContent = 'Welke webshop gaan we volgen?';
+      emailField.style.display = 'block';
     } else {
-      eyebrow.textContent = 'Monitoring \u00b7 \u20ac39 /maand';
-      title.textContent = 'Start je maandelijkse monitoring';
+      eyebrow.textContent = 'Fix \u00b7 \u20ac149 /maand';
+      title.textContent = 'Welke webshop gaan we voor je oplossen?';
       emailField.style.display = 'block';
     }
     submitBtn.textContent = 'Doorgaan naar betalen';
@@ -1984,7 +1849,7 @@
       } else if(currentType === 'uitvoering'){
         showError('Vul een e-mailadres in, daarop vragen we je om toegang tot je webshop.');
       } else {
-        showError('Vul een e-mailadres in, daarop sturen we je wekelijkse update.');
+        showError('Vul een e-mailadres in, daarop sturen we je maandelijkse uitslag.');
       }
       return;
     }
@@ -2000,13 +1865,19 @@
     submitBtn.disabled = true;
     submitBtn.textContent = 'Bezig...';
 
+    // Watch en Fix zijn allebei een maandabonnement en lopen dus over dezelfde
+    // route. Alleen het pakket verschilt, en daar hangt het bedrag aan.
     var endpoints = {audit: '/api/checkout/audit',
                      uitvoering: '/api/checkout/uitvoering',
+                     watch: '/api/checkout/monitoring',
+                     fix: '/api/checkout/monitoring',
                      monitoring: '/api/checkout/monitoring'};
     var endpoint = endpoints[currentType] || endpoints.monitoring;
+    var pakketten = {watch: 'watch', fix: 'fix', monitoring: 'fix'};
     var body = {url: url, email: email, bedrijfsnaam: bedrijfInput.value.trim(),
                 voorwaarden_akkoord: vinkVoorwaarden.checked,
                 directe_uitvoering_akkoord: vinkDirect.checked,
+                pakket: pakketten[currentType] || 'fix',
                 herkomst: bepaalHerkomst()};
 
     fetch(endpoint, {
@@ -2034,6 +1905,14 @@
   var auditBtn = document.getElementById('auditCheckoutBtn');
   var uitvoeringBtn = document.getElementById('uitvoeringCheckoutBtn');
   var monitoringBtn = document.getElementById('monitoringCheckoutBtn');
+  var watchBtn = document.getElementById('watchCheckoutBtn');
+  var fixBtn = document.getElementById('fixCheckoutBtn');
+  if(watchBtn){
+    watchBtn.addEventListener('click', function(e){ e.preventDefault(); openModal('watch'); });
+  }
+  if(fixBtn){
+    fixBtn.addEventListener('click', function(e){ e.preventDefault(); openModal('fix'); });
+  }
   if(auditBtn){
     auditBtn.addEventListener('click', function(e){ e.preventDefault(); openModal('audit'); });
   }
