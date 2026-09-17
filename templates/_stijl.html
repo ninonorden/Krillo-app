@@ -1,0 +1,115 @@
+{# De huisstijl van Krillo, op EEN plek.
+
+   Waarom dit bestand bestaat: dezelfde kleuren en letters stonden in achttien
+   sjablonen overgeschreven. Verander je dan iets, dan vergeet je er altijd een
+   en loopt de site langzaam uit elkaar. Nu staat het hier, en een sjabloon
+   haalt het op met {% include "_stijl.html" %}.
+
+   Vastgelegd op 17 september 2026. Zie krillo-huisstijl in het project. #}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#101014; --ink-zacht:#4A4A55; --ink-grijs:#6E6E7A;
+    --papier:#FBFAF8; --wit:#FFFFFF; --zand:#F6F4EF;
+    --lijn:#E6E2D8; --lijn-licht:#F0EDE5;
+    --vermiljoen:#E0452F; --vermiljoen-licht:#FF6A52; --vermiljoen-tekst:#B8351F;
+    --groen:#0F5C52; --groen-licht:#F4FAF8; --groen-dim:#DFF0EC;
+    --disp:'Instrument Serif', Georgia, serif;
+    --body:'Archivo', system-ui, sans-serif;
+    --mono:'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--papier); color:var(--ink); font-family:var(--body);
+       line-height:1.65; -webkit-font-smoothing:antialiased;}
+  a{color:var(--vermiljoen-tekst);}
+  a:hover{color:#8F2616;}
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible{
+    outline:2px solid var(--vermiljoen); outline-offset:3px; border-radius:4px;}
+
+  .wrap{max-width:1040px; margin:0 auto; padding:0 24px;}
+  nav{border-bottom:1px solid var(--lijn); background:var(--papier);}
+  nav .wrap{display:flex; align-items:center; justify-content:space-between;
+            min-height:72px; gap:16px; flex-wrap:wrap;}
+  .logo{font-family:var(--disp); font-size:25px; display:flex; align-items:center;
+        gap:10px; color:var(--ink); text-decoration:none; letter-spacing:-0.01em;}
+  .stip{width:10px; height:10px; background:var(--vermiljoen); border-radius:50%;
+        display:inline-block; flex-shrink:0;}
+  nav .links{display:flex; align-items:center; gap:26px; font-size:14.5px; flex-wrap:wrap;}
+  nav .links a{color:var(--ink-zacht); text-decoration:none;}
+  .knop{display:inline-block; text-decoration:none; font-weight:600; font-size:15px;
+        padding:12px 22px; border-radius:8px; border:none; cursor:pointer;
+        font-family:var(--body);}
+  .knop.vol{background:var(--vermiljoen); color:#fff;}
+  .knop.donker{background:var(--ink); color:var(--papier);}
+  .knop.leeg{border:1.5px solid var(--ink); color:var(--ink); background:transparent;}
+
+  main{padding:48px 0 80px;}
+  h1{font-family:var(--disp); font-weight:400; font-size:52px; line-height:1.06;
+     letter-spacing:-0.025em; margin-bottom:18px;}
+  h2{font-family:var(--disp); font-weight:400; font-size:34px; line-height:1.12;
+     letter-spacing:-0.02em; margin:0 0 12px;}
+  h3{font-family:var(--body); font-weight:600; font-size:16px; margin-bottom:6px;}
+  p{margin-bottom:14px; color:var(--ink-zacht);}
+  .kruimels{font-family:var(--mono); font-size:12.5px; color:var(--ink-grijs);
+            margin-bottom:18px;}
+  .kruimels a{color:var(--ink-grijs);}
+  .inleiding{font-size:18px; color:var(--ink-zacht); margin-bottom:18px; max-width:640px;}
+  .meta{font-family:var(--mono); font-size:12.5px; color:var(--ink-grijs); margin-bottom:28px;}
+
+  .strook{background:var(--ink); color:var(--papier); border-radius:14px;
+          padding:24px 28px; display:flex; gap:44px; align-items:center;
+          flex-wrap:wrap; margin-bottom:34px;}
+  .strook .getal{font-family:var(--disp); font-size:32px; line-height:1;}
+  .strook .bij{font-family:var(--mono); font-size:11px; color:#9C9AA6; margin-top:4px;}
+  .strook .landen{margin-left:auto; font-family:var(--mono); font-size:12px;
+                  color:#C9C7D1; text-align:right; line-height:1.8;}
+  .strook .landen .later{color:#6E6E7A;}
+
+  table{width:100%; border-collapse:collapse; background:var(--wit);
+        border:1px solid var(--lijn); border-radius:14px; overflow:hidden;}
+  th{text-align:left; font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em;
+     text-transform:uppercase; color:var(--ink-grijs); padding:12px 20px;
+     border-bottom:1px solid var(--lijn); background:var(--zand);}
+  td{padding:14px 20px; font-size:15px; border-bottom:1px solid var(--lijn-licht);}
+  tr:last-child td{border-bottom:none;}
+  td.pos{font-family:var(--disp); font-size:24px; width:58px;}
+  td.getal{text-align:right; font-family:var(--mono); font-size:13.5px;}
+  tr.top td{background:var(--groen-licht);}
+  .aanbevolen{color:var(--groen);}
+  .adres{font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs);}
+  .merk{font-weight:600;}
+
+  .kaarten{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  @media(max-width:860px){ .kaarten{grid-template-columns:repeat(2,1fr);} }
+  @media(max-width:560px){ .kaarten{grid-template-columns:1fr;} }
+  .kaart{background:var(--wit); border:1px solid var(--lijn); border-radius:14px;
+         padding:20px 22px; text-decoration:none; color:var(--ink); display:block;}
+  .kaart:hover{border-color:var(--vermiljoen); color:var(--ink);}
+  .kaart .naam{font-family:var(--disp); font-size:21px; margin-bottom:4px;}
+  .kaart .bij{font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs);}
+
+  .blok{background:var(--wit); border:1px solid var(--lijn); border-radius:14px;
+        padding:24px 26px; font-size:15px; color:var(--ink-zacht);}
+  .blok li{margin:0 0 8px 18px;}
+  .leeg{background:var(--wit); border:1px solid var(--lijn); border-radius:14px;
+        padding:32px; text-align:center; color:var(--ink-zacht);}
+  .cta{background:var(--ink); color:#fff; border-radius:16px; padding:30px 32px;
+       margin-top:40px;}
+  .cta h2{color:#fff;}
+  .cta p{color:#C9C7D1;}
+  .marktkiezer{display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+               font-size:14px; color:var(--ink-zacht);}
+  .marktkiezer a{font-family:var(--mono); font-size:12.5px; text-decoration:none;
+                 padding:8px 13px; border-radius:7px; border:1.5px solid var(--lijn);
+                 color:var(--ink-zacht); background:var(--wit);}
+  .marktkiezer a.aan{background:var(--ink); color:var(--papier); border-color:var(--ink);}
+  footer{border-top:1px solid var(--lijn); padding:26px 0; font-size:13.5px;
+         color:var(--ink-grijs);}
+  footer a{color:var(--ink-grijs); text-decoration:none;}
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{animation-duration:0.01ms !important;
+      transition-duration:0.01ms !important; scroll-behavior:auto !important;}
+  }
+</style>

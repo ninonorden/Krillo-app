@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="{{ taal }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ beeld.naam }} | Krillo</title>
+{% if voorbeeld %}
+<meta name="description" content="Een echt Krillo-dashboard van een echte webshop, met echte cijfers. Geen account nodig.">
+<link rel="canonical" href="{{ basis_url }}/demo">
+{% else %}
+<meta name="robots" content="noindex">
+{% endif %}
+<link rel="icon" href="/static/favicon.png" type="image/png">
+{% include "_stijl.html" %}
+<style>
+  .paneel{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:18px;}
+  @media(max-width:760px){ .paneel{grid-template-columns:1fr;} }
+  .cijfer{background:var(--wit); border:1px solid var(--lijn); border-radius:14px;
+          padding:22px 24px;}
+  .cijfer .label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em;
+                 color:var(--ink-grijs); margin-bottom:10px;}
+  .cijfer .groot{font-family:var(--disp); font-size:52px; line-height:1;}
+  .cijfer .bij{font-size:15px; color:var(--ink-zacht); margin-top:10px;}
+  .merkje{font-family:var(--mono); font-size:12.5px; padding:5px 11px; border-radius:5px;
+          display:inline-block;}
+  .merkje.op{color:var(--groen); background:var(--groen-dim);}
+  .merkje.af{color:var(--vermiljoen-tekst); background:#FFE9E5;}
+  .merkje.nieuw{color:var(--ink-grijs); background:var(--zand);}
+  .staven{display:flex; gap:10px; align-items:flex-end;}
+  .staaf{flex-grow:1; text-align:center;}
+  .staaf .bak{height:92px; display:flex; align-items:flex-end; justify-content:center;}
+  .staaf .vulling{width:100%; background:#EDE9E0; border-radius:6px 6px 0 0;}
+  .staaf.nu .vulling{background:var(--groen);}
+  .staaf .cijfertje{font-family:var(--mono); font-size:12.5px; margin-top:8px;}
+  .staaf .datum{font-family:var(--mono); font-size:11px; color:var(--ink-grijs);}
+  .vraagrij{padding:18px 0; border-bottom:1px solid var(--lijn-licht);}
+  .vraagrij:last-child{border-bottom:none;}
+  .vraagrij .vraag{font-size:16px; font-weight:500; color:var(--ink); margin-bottom:6px;}
+  .banner{background:var(--zand); border:1px solid var(--lijn); border-radius:14px;
+          padding:18px 22px; margin-bottom:26px; font-size:15px; color:var(--ink-zacht);}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="/"><span class="stip"></span>Krillo</a>
+  <div class="links">
+    <a href="/index">{{ t.terug_index }}</a>
+    <a href="/zo-meten-we">{{ t.zo_meten_we }}</a>
+    {% if voorbeeld %}<a class="knop donker" href="/#scan">{{ t.cta_knop }}</a>{% endif %}
+  </div>
+</div></nav>
+
+<main><div class="wrap">
+  {% if voorbeeld %}
+  <div class="banner">
+    <strong>{{ 'Dit is een voorbeeld' if taal == 'nl' else 'This is an example' }}.</strong>
+    {% if taal == 'nl' %}
+    Een echte webshop uit de index, met echte gemeten cijfers. Zo ziet het scherm
+    eruit dat een klant elke maand krijgt. Er is geen account voor nodig.
+    {% else %}
+    A real store from the index, with real measured numbers. This is the screen a
+    customer sees every month. No account needed.
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="kruimels">
+    <a href="/index">{{ t.terug_index }}</a> &rsaquo;
+    <a href="/index/{{ beeld.land }}">{{ landnaam }}</a> &rsaquo;
+    <a href="/index/{{ beeld.land }}/{{ beeld.categorie }}">{{ categorienaam }}</a>
+  </div>
+
+  <h1>{{ beeld.naam }}</h1>
+  <div class="meta">
+    {{ categorienaam }} &middot; {{ landnaam }}
+    {% if beeld.gemeten_op %} &middot; {{ t.gemeten_op | upper }}
+      {{ beeld.gemeten_op.strftime('%d-%m-%Y') }}{% endif %}
+  </div>
+
+  <div class="paneel">
+    <div class="cijfer">
+      <div class="label">{{ 'JOUW POSITIE' if taal == 'nl' else 'YOUR POSITION' }}</div>
+      <div class="groot">{{ beeld.positie }}</div>
+      <div class="bij">{{ t.van_de }} {{ beeld.van }}</div>
+      <div style="margin-top:12px;">
+        {% if beeld.verschil and beeld.verschil > 0 %}
+        <span class="merkje op">{{ 'GESTEGEN' if taal == 'nl' else 'UP' }} {{ beeld.verschil }}</span>
+        {% elif beeld.verschil and beeld.verschil < 0 %}
+        <span class="merkje af">{{ 'GEZAKT' if taal == 'nl' else 'DOWN' }} {{ -beeld.verschil }}</span>
+        {% elif beeld.vorige_positie %}
+        <span class="merkje nieuw">{{ 'GELIJK' if taal == 'nl' else 'NO CHANGE' }}</span>
+        {% else %}
+        <span class="merkje nieuw">{{ 'EERSTE METING' if taal == 'nl' else 'FIRST MEASUREMENT' }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="cijfer">
+      <div class="label">{{ t.genoemd | upper }}</div>
+      <div class="groot">{{ beeld.genoemd }}</div>
+      <div class="bij">{{ t.van_de }} {{ beeld.telbaar }} {{ t.koopvragen }}</div>
+    </div>
+    <div class="cijfer">
+      <div class="label">{{ t.aanbevolen | upper }}</div>
+      <div class="groot">{{ beeld.aanbevolen }}</div>
+      <div class="bij">
+        {% if beeld.aanbevolen == 0 %}
+        {{ 'Hier gaan de kopers verloren.' if taal == 'nl' else 'This is where buyers are lost.' }}
+        {% else %}{{ t.van_de }} {{ beeld.telbaar }} {{ t.koopvragen }}{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if staven | length > 1 %}
+  <div class="blok" style="margin-bottom:18px;">
+    <div style="font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em;
+                color:var(--ink-grijs); margin-bottom:16px;">
+      {{ 'POSITIE PER METING' if taal == 'nl' else 'POSITION OVER TIME' }}</div>
+    <div class="staven">
+      {% for s in staven %}
+      <div class="staaf {% if loop.last %}nu{% endif %}">
+        <div class="bak"><div class="vulling" style="height:{{ s.hoogte }}px;"></div></div>
+        <div class="cijfertje">{{ s.positie }}</div>
+        <div class="datum">{% if s.datum %}{{ s.datum.strftime('%b') }}{% endif %}</div>
+      </div>
+      {% endfor %}
+      <div style="flex-grow:2;"></div>
+    </div>
+    <p style="margin:14px 0 0; font-size:14px;">
+      {{ 'Lager is beter.' if taal == 'nl' else 'Lower is better.' }}
+    </p>
+  </div>
+  {% endif %}
+
+  {% if beeld.boven_mij %}
+  <div class="blok" style="margin-bottom:18px;">
+    <h3>{{ 'Wie er vlak boven je staat' if taal == 'nl' else 'Who is just above you' }}</h3>
+    {% for r in beeld.boven_mij %}
+    <div style="display:flex; gap:14px; padding:8px 0; align-items:baseline;">
+      <span style="font-family:var(--disp); font-size:19px; width:34px;">{{ r.positie }}</span>
+      <span class="merk" style="flex-grow:1;">{{ r.naam or r.webshop_url }}</span>
+      <span style="font-family:var(--mono); font-size:13px;">{{ r.genoemd }} / {{ beeld.telbaar }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if beeld.gemiste_vragen %}
+  <h2 style="margin-top:36px;">
+    {{ 'De vragen die je verliest' if taal == 'nl' else 'The questions you lose' }}</h2>
+  <p style="margin-bottom:16px;">
+    {% if taal == 'nl' %}Het echte antwoord, en wie er genoemd werd in plaats van jou.
+    {% else %}The real answer, and who was named instead of you.{% endif %}
+  </p>
+  <div class="blok">
+    {% for v in beeld.gemiste_vragen %}
+    <div class="vraagrij">
+      <div class="vraag">{{ v.vraag }}</div>
+      <div style="font-size:14.5px;">
+        {% if taal == 'nl' %}Wel genoemd:{% else %}Named instead:{% endif %}
+        {% for c in v.concurrenten %}<strong style="color:var(--ink);">{{ c }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}
+        {% if not v.concurrenten %}<span style="color:var(--ink-grijs);">
+          {{ 'geen enkele winkel' if taal == 'nl' else 'no store at all' }}</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="cta">
+    {% if voorbeeld %}
+    <h2>{{ t.cta_kop }}</h2>
+    <p>{{ t.cta_tekst }}</p>
+    <a class="knop vol" href="/#scan">{{ t.cta_knop }}</a>
+    {% else %}
+    <h2>{{ 'Wij lossen dit op' if taal == 'nl' else 'We fix this' }}</h2>
+    <p>
+      {% if taal == 'nl' %}De oplossingen voor deze vragen schrijven wij, en na jouw
+      goedkeuring zetten we ze in je winkel. Vier weken later meten we opnieuw.
+      {% else %}We write the fixes for these questions, and after your approval we put
+      them in your store. Four weeks later we measure again.{% endif %}
+    </p>
+    {% if taken_url %}<a class="knop vol" href="{{ taken_url }}">
+      {{ 'Naar mijn taken' if taal == 'nl' else 'Go to my tasks' }}</a>{% endif %}
+    {% endif %}
+  </div>
+</div></main>
+
+<footer><div class="wrap">
+  Krillo &middot; <a href="/index">{{ t.terug_index }}</a> &middot;
+  <a href="/zo-meten-we">{{ t.zo_meten_we }}</a> &middot;
+  <a href="/over-ons">{{ t.over_ons }}</a>
+</div></footer>
+</body>
+</html>

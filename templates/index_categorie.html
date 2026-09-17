@@ -1,167 +1,130 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="{{ taal }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ naam }}: welke webshops noemt AI? | Krillo</title>
-<meta name="description" content="Welke webshops voor {{ naam|lower }} worden door ChatGPT en Gemini genoemd en aanbevolen? De gemeten ranglijst, met de koopvragen en de meetdatum erbij.">
-<link rel="canonical" href="https://www.krillo.nl/index/{{ slug }}">
+<title>{{ naam }} {{ landnaam }}: {{ t.index_kop }} | Krillo</title>
+<meta name="description" content="{{ naam }} {{ landnaam }}. {{ t.index_omschrijving }}">
+<link rel="canonical" href="{{ basis_url }}{{ canonical }}">
+<link rel="alternate" hreflang="{{ taal }}" href="{{ basis_url }}/index/{{ land }}/{{ slug }}">
+{% for l in andere_landen %}
+<link rel="alternate" hreflang="{{ l.taal }}" href="{{ basis_url }}/index/{{ l.code }}/{{ slug }}">
+{% endfor %}
 <link rel="icon" href="/static/favicon.png" type="image/png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
-    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --teal:#1FB6A4;
-    --teal-dim:#DFF5F1;
-    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.7;
-       -webkit-font-smoothing:antialiased;}
-  a{color:var(--coral-tekst);}
-  .wrap{max-width:720px; margin:0 auto; padding:0 24px;}
-  nav{border-bottom:1px solid var(--line);}
-  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:64px;}
-  .logo{font-family:var(--disp); font-weight:700; font-size:18px; display:flex;
-        align-items:center; gap:8px; color:var(--ink); text-decoration:none;}
-  .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
-  main{padding:44px 0 90px;}
-  .kruimels{font-family:var(--mono); font-size:12px; color:var(--ink-soft); margin-bottom:14px;}
-  h1{font-family:var(--disp); font-weight:700; font-size:34px; line-height:1.18;
-     letter-spacing:-0.02em; margin-bottom:14px;}
-  .inleiding{font-size:17.5px; color:var(--ink-soft); margin-bottom:12px;}
-  .datum{font-family:var(--mono); font-size:12.5px; color:var(--ink-soft); margin-bottom:32px;}
-  h2{font-family:var(--disp); font-weight:700; font-size:22px; margin:44px 0 14px;}
-  p{margin-bottom:16px;}
-
-  table{width:100%; border-collapse:collapse; background:var(--paper-raised);
-        border:1px solid var(--line); border-radius:12px; overflow:hidden;}
-  th{text-align:left; font-family:var(--mono); font-size:11px; text-transform:uppercase;
-     color:var(--ink-soft); padding:12px 16px; border-bottom:1px solid var(--line);
-     background:var(--paper);}
-  td{padding:12px 16px; font-size:14.5px; border-bottom:1px solid var(--line);}
-  tr:last-child td{border-bottom:none;}
-  td.pos{font-family:var(--disp); font-weight:700; font-size:16px; width:54px;}
-  td.getal{text-align:right; font-family:var(--mono); font-size:13px;}
-  .top3 td{background:var(--teal-dim);}
-  .merk{font-family:var(--disp); font-weight:600;}
-  .adres{font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);}
-
-  .vraaglijst{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
-              padding:22px 26px; font-size:15px; color:var(--ink-soft);}
-  .vraaglijst li{margin:0 0 7px 18px;}
-  .methode{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
-           padding:24px 26px; font-size:15px; color:var(--ink-soft);}
-  .methode h3{font-family:var(--disp); font-size:16px; color:var(--ink); margin-bottom:8px;}
-  .cta{background:var(--ink); color:#fff; border-radius:16px; padding:32px; margin-top:44px;}
-  .cta h2{color:#fff; margin-top:0;}
-  .cta p{color:#B9BBD4; font-size:15.5px;}
-  .cta a{display:inline-block; background:var(--coral); color:#fff; text-decoration:none;
-         padding:13px 26px; border-radius:9px; font-weight:600; font-size:15px; margin-top:8px;}
-  footer{border-top:1px solid var(--line); padding:26px 0; font-size:13px; color:var(--ink-soft);}
-  a:focus-visible{outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;}
-</style>
+{% include "_stijl.html" %}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "ItemList",
-  "name": {{ ("Webshops voor " ~ naam ~ " die door AI-assistenten genoemd worden") | tojson }},
-  "description": {{ ("Gemeten ranglijst van webshops die door ChatGPT en Gemini genoemd worden op koopvragen over " ~ naam|lower ~ ".") | tojson }},
+  "name": {{ (naam ~ " " ~ landnaam) | tojson }},
+  "description": {{ t.index_omschrijving | tojson }},
   "numberOfItems": {{ ranglijst | length | tojson }},
   "itemListOrder": "https://schema.org/ItemListOrderDescending",
   "itemListElement": {{ lijst_voor_ai | tojson }}
 }
 </script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": {{ kruimels | tojson }}
+}
+</script>
 </head>
 <body>
 <nav><div class="wrap">
-  <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
-  <a href="/#scan" style="font-size:14px;">Gratis scan</a>
+  <a class="logo" href="/"><span class="stip"></span>Krillo</a>
+  <div class="links">
+    <a href="/index">{{ t.terug_index }}</a>
+    <a href="/zo-meten-we">{{ t.zo_meten_we }}</a>
+    <a class="knop donker" href="/#scan">{{ t.cta_knop }}</a>
+  </div>
 </div></nav>
 
 <main><div class="wrap">
-  <div class="kruimels"><a href="/index">De index</a> &rsaquo; {{ naam }}</div>
-  <h1>Welke webshops voor {{ naam|lower }} noemt AI?</h1>
-  <p class="inleiding">Wij stelden {{ telbaar }} koopvragen over {{ naam|lower }} aan
-    {{ modellen|length }} AI-assistenten, zoals een koper ze zou intypen, en telden welke
-    webshops er in de antwoorden voorkwamen. Hieronder de uitkomst.</p>
-  <div class="datum">
-    {% if gemeten_op %}Gemeten op {{ gemeten_op.strftime('%-d %B %Y') }}{% endif %}
-    &middot; {{ totaal }} webshops in deze categorie
-    &middot; assistenten: {{ modellen|join(', ') }}
+  <div class="kruimels">
+    <a href="/index">{{ t.terug_index }}</a> &rsaquo;
+    <a href="/index/{{ land }}">{{ landnaam }}</a> &rsaquo; {{ naam }}
   </div>
+
+  <h1>{{ naam }}</h1>
+  <p class="inleiding">
+    {{ telbaar }} {{ t.koopvragen }} &middot; {{ landnaam }} &middot;
+    {{ modellen | length }} {{ t.assistenten }}
+  </p>
+  <div class="meta">
+    {% if gemeten_op %}{{ t.gemeten_op | upper }} {{ gemeten_op.strftime('%d-%m-%Y') }} &middot; {% endif %}
+    {{ totaal }} {{ t.webshop | upper }} &middot; {{ modellen | join(', ') }}
+  </div>
+
+  {% if andere_landen %}
+  <div class="marktkiezer" style="margin-bottom:24px;">
+    <span>{{ t.markt }}</span>
+    <a class="aan" href="/index/{{ land }}/{{ slug }}">{{ landnaam }}</a>
+    {% for l in andere_landen %}
+    <a href="/index/{{ l.code }}/{{ slug }}">{{ l.naam }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   {% if ranglijst %}
   <table>
     <tr>
-      <th>#</th><th>Webshop</th>
-      <th style="text-align:right">Genoemd</th>
-      <th style="text-align:right">Aanbevolen</th>
+      <th>#</th><th>{{ t.webshop }}</th>
+      <th style="text-align:right">{{ t.genoemd }}</th>
+      <th style="text-align:right">{{ t.aanbevolen }}</th>
     </tr>
     {% for r in ranglijst %}
-    <tr {% if r.positie <= 3 %}class="top3"{% endif %}>
+    <tr {% if r.positie <= 3 %}class="top"{% endif %}>
       <td class="pos">{{ r.positie }}</td>
       <td>
         <span class="merk">{{ r.naam or r.webshop_url }}</span><br>
-        <span class="adres">{{ r.webshop_url | replace('https://', '') | replace('http://', '') }}</span>
+        <span class="adres">{{ r.webshop_url | replace('https://','') | replace('http://','') }}</span>
       </td>
       <td class="getal">{{ r.genoemd }} / {{ telbaar }}</td>
-      <td class="getal">{{ r.aanbevolen }}</td>
+      <td class="getal {% if r.aanbevolen %}aanbevolen{% endif %}">{{ r.aanbevolen }}</td>
     </tr>
     {% endfor %}
   </table>
-  <p style="font-size:13.5px; margin-top:12px;">
-    Genoemd is: de webshop stond in het antwoord. Aanbevolen is: de assistent raadde hem
-    er duidelijk aan, bijvoorbeeld in het slotadvies. In een rij staan is iets anders dan
-    aangeraden worden, dus dat tellen we apart.
-    {% if niet_genoemd %}<br>
-    De overige {{ niet_genoemd }} webshops in deze categorie werden bij geen enkele van
-    deze vragen genoemd. Die zetten we hier niet bij naam neer.{% endif %}
+  <p style="font-size:14px; margin-top:12px;">
+    {{ t.genoemd_uitleg }}
+    {% if niet_genoemd %} {{ t.overige.replace('{n}', niet_genoemd | string) }}{% endif %}
   </p>
   {% else %}
-  <p>Bij deze meting werd geen enkele webshop uit onze lijst genoemd. Dat komt voor in
-    categorieen waar de assistenten vooral merken of marktplaatsen noemen.</p>
+  <div class="leeg">{{ t.niemand_genoemd }}</div>
   {% endif %}
 
   {% if vragen %}
-  <h2>De vragen die we stelden</h2>
-  <p style="font-size:15px;">Alleen de vragen waarin echt om een winkel gevraagd kon
-    worden, want alleen die tellen mee.</p>
-  <div class="vraaglijst">
+  <h2 style="margin-top:44px;">{{ t.vragen_kop }}</h2>
+  <p style="margin-bottom:16px;">{{ t.vragen_uitleg }}</p>
+  <div class="blok">
     <ul>
       {% for v in vragen %}<li>{{ v }}</li>{% endfor %}
     </ul>
   </div>
   {% endif %}
 
-  <h2>Hoe je dit moet lezen</h2>
-  <div class="methode">
-    <h3>Het is een momentopname</h3>
-    <p style="margin-bottom:10px;">AI-assistenten veranderen hun antwoorden. Deze lijst
-      is wat er op de meetdatum uitkwam, niet een oordeel over de winkels. We meten elke
-      maand opnieuw, en dan kan de volgorde er anders uitzien.</p>
-    <h3>Wat er niet in zit</h3>
-    <p style="margin-bottom:10px;">Geen betaalde plekken. Een winkel kan zich hier niet
-      inkopen, en de volgorde volgt alleen uit de antwoorden.</p>
-    <h3>Waarom niet alle dertig vragen meetellen</h3>
-    <p style="margin-bottom:0;">Vraagt iemand naar een merk of naar algemene informatie,
-      dan komt daar geen webshop in voor, ook de beste niet. Die vragen laten we buiten
-      de telling. Meer hierover op <a href="/zo-meten-we">zo meten we</a>.</p>
+  <h2 style="margin-top:44px;">{{ t.lezen_kop }}</h2>
+  <div class="blok">
+    <h3>{{ t.momentopname_kop }}</h3>
+    <p>{{ t.momentopname }}</p>
+    <h3>{{ t.niet_inkopen_kop }}</h3>
+    <p>{{ t.niet_inkopen }}</p>
+    <h3>{{ t.telbaar_kop }}</h3>
+    <p style="margin-bottom:0;">{{ t.telbaar }} <a href="/zo-meten-we">{{ t.zo_meten_we }}</a>.</p>
   </div>
 
   <div class="cta">
-    <h2>Sta jij hier niet bij?</h2>
-    <p>Doe de gratis scan van je webshop. Je ziet meteen of AI-assistenten je winkel
-      kunnen vinden en lezen, en wat er precies in de weg zit.</p>
-    <a href="/#scan">Gratis scan doen</a>
+    <h2>{{ t.cta_kop }}</h2>
+    <p>{{ t.cta_tekst }}</p>
+    <a class="knop vol" href="/#scan">{{ t.cta_knop }}</a>
   </div>
 </div></main>
 
 <footer><div class="wrap">
-  Krillo &middot; <a href="/index">De index</a> &middot;
-  <a href="/zo-meten-we">Zo meten we</a> &middot; <a href="/over-ons">Over ons</a>
+  Krillo &middot; <a href="/index">{{ t.terug_index }}</a> &middot;
+  <a href="/zo-meten-we">{{ t.zo_meten_we }}</a> &middot;
+  <a href="/over-ons">{{ t.over_ons }}</a>
 </div></footer>
 </body>
 </html>

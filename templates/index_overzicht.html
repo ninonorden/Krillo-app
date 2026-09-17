@@ -1,115 +1,92 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="{{ taal }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>De Krillo-index: welke webshops noemt AI? | Krillo</title>
-<meta name="description" content="Per categorie meten we welke Nederlandse en Belgische webshops door ChatGPT en Gemini genoemd en aanbevolen worden. Bekijk de ranglijst van jouw categorie.">
-<link rel="canonical" href="https://www.krillo.nl/index">
+<title>{{ t.index_titel }} | Krillo</title>
+<meta name="description" content="{{ t.index_omschrijving }}">
+<link rel="canonical" href="{{ basis_url }}{{ canonical }}">
+{% for l in landen %}
+<link rel="alternate" hreflang="{{ l.taalcode }}" href="{{ basis_url }}/index/{{ l.code }}">
+{% endfor %}
+<link rel="alternate" hreflang="x-default" href="{{ basis_url }}/index">
 <link rel="icon" href="/static/favicon.png" type="image/png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
-    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --teal:#1FB6A4;
-    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.7;
-       -webkit-font-smoothing:antialiased;}
-  a{color:var(--coral-tekst);}
-  .wrap{max-width:720px; margin:0 auto; padding:0 24px;}
-  nav{border-bottom:1px solid var(--line);}
-  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:64px;}
-  .logo{font-family:var(--disp); font-weight:700; font-size:18px; display:flex;
-        align-items:center; gap:8px; color:var(--ink); text-decoration:none;}
-  .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
-  main{padding:52px 0 90px;}
-  .eyebrow{font-family:var(--mono); font-size:12px; color:var(--ink-soft); margin-bottom:12px;}
-  h1{font-family:var(--disp); font-weight:700; font-size:38px; line-height:1.15;
-     letter-spacing:-0.02em; margin-bottom:16px;}
-  .inleiding{font-size:18px; color:var(--ink-soft); margin-bottom:36px;}
-  h2{font-family:var(--disp); font-weight:700; font-size:23px; margin:44px 0 14px;}
-  p{margin-bottom:16px;}
-
-  .kaarten{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
-  @media(max-width:640px){ .kaarten{grid-template-columns:1fr;} }
-  .kaart{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
-         padding:20px 22px; text-decoration:none; color:var(--ink); display:block;}
-  .kaart:hover{border-color:var(--coral);}
-  .kaart .naam{font-family:var(--disp); font-weight:600; font-size:17px; margin-bottom:4px;}
-  .kaart .bij{font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
-
-  .leeg{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
-        padding:32px; text-align:center; color:var(--ink-soft);}
-  .methode{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
-           padding:24px 26px; font-size:15px; color:var(--ink-soft); margin-top:32px;}
-  .methode h3{font-family:var(--disp); font-size:16px; color:var(--ink); margin-bottom:8px;}
-  .cta{background:var(--ink); color:#fff; border-radius:16px; padding:32px; margin-top:44px;}
-  .cta h2{color:#fff; margin-top:0;}
-  .cta p{color:#B9BBD4; font-size:15.5px;}
-  .cta a{display:inline-block; background:var(--coral); color:#fff; text-decoration:none;
-         padding:13px 26px; border-radius:9px; font-weight:600; font-size:15px; margin-top:8px;}
-  footer{border-top:1px solid var(--line); padding:26px 0; font-size:13px; color:var(--ink-soft);}
-  a:focus-visible{outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;}
-</style>
+{% include "_stijl.html" %}
 </head>
 <body>
 <nav><div class="wrap">
-  <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
-  <a href="/#scan" style="font-size:14px;">Gratis scan</a>
+  <a class="logo" href="/"><span class="stip"></span>Krillo</a>
+  <div class="links">
+    <a href="/index">{{ t.terug_index }}</a>
+    <a href="/zo-meten-we">{{ t.zo_meten_we }}</a>
+    <a class="knop donker" href="/#scan">{{ t.cta_knop }}</a>
+  </div>
 </div></nav>
 
 <main><div class="wrap">
-  <div class="eyebrow">De index &middot; Krillo</div>
-  <h1>Welke webshops noemt AI als je iets wil kopen?</h1>
-  <p class="inleiding">Wij stellen per categorie dezelfde koopvragen aan ChatGPT en
-    Gemini die een koper zou stellen, en kijken welke webshops er in de antwoorden
-    staan. Geen mening, geen sterren: alleen wat de assistenten echt antwoordden, met
-    de datum en de vragen erbij.</p>
+  <div class="kruimels">
+    <a href="/index">{{ t.terug_index }}</a>{% if landnaam %} &rsaquo; {{ landnaam }}{% endif %}
+  </div>
+  <h1>{{ t.index_kop }}</h1>
+  <p class="inleiding">{{ t.index_inleiding }}</p>
+
+  <div class="strook">
+    <div>
+      <div class="getal">{{ cijfers.categorieen or 0 }}</div>
+      <div class="bij">{{ t.categorieen | upper }}</div>
+    </div>
+    <div>
+      <div class="getal">{{ cijfers.winkels or 0 }}</div>
+      <div class="bij">{{ t.winkels_gevolgd | upper }}</div>
+    </div>
+    <div>
+      <div class="getal">{{ cijfers.antwoorden or 0 }}</div>
+      <div class="bij">{{ t.antwoorden_bewaard | upper }}</div>
+    </div>
+    <div class="landen">
+      {{ t.live }} {% for l in landen %}{{ l.code | upper }}{% if not loop.last %} {% endif %}{% endfor %}<br>
+      {% if binnenkort %}<span class="later">{{ t.binnenkort }}
+        {% for l in binnenkort %}{{ l.code | upper }}{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}
+    </div>
+  </div>
+
+  {% if landen | length > 1 or land %}
+  <div class="marktkiezer" style="margin-bottom:22px;">
+    <span>{{ t.markt }}</span>
+    {% for l in landen %}
+    <a href="/index/{{ l.code }}" {% if l.code == land %}class="aan"{% endif %}>{{ l.naam }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h2>{{ t.index_open }}</h2>
+  <p style="margin-bottom:22px;">{{ t.index_open_uitleg }}</p>
 
   {% if categorieen_lijst %}
   <div class="kaarten">
     {% for c in categorieen_lijst %}
-    <a class="kaart" href="/index/{{ c.categorie }}">
+    <a class="kaart" href="/index/{{ land or 'nl' }}/{{ c.categorie }}">
       <div class="naam">{{ c.naam }}</div>
-      <div class="bij">{{ c.genoemd }} van de {{ c.winkels }} winkels genoemd
-        &middot; {{ c.telbaar or 0 }} koopvragen</div>
+      <div class="bij">{{ c.genoemd }} {{ t.van_de }} {{ c.winkels }} {{ t.winkels_genoemd }}
+        &middot; {{ c.telbaar or 0 }} {{ t.koopvragen }}</div>
     </a>
     {% endfor %}
   </div>
   {% else %}
-  <div class="leeg">
-    De eerste categorieen worden op dit moment gemeten. Zodra een categorie klaar is
-    verschijnt hij hier.
-  </div>
+  <div class="leeg">{{ t.nog_leeg }}</div>
   {% endif %}
 
-  <div class="methode">
-    <h3>Hoe dit gemeten is</h3>
-    <p style="margin-bottom:10px;">Per categorie bedenken we dertig koopvragen zoals
-      een koper ze intypt. Elke vraag gaat naar meerdere AI-assistenten. Uit elk
-      antwoord halen we welke webshops er genoemd worden en wie er aanbevolen wordt.</p>
-    <p style="margin-bottom:0;">Vragen waarin geen enkele webshop genoemd kon worden
-      tellen niet mee. Vraagt iemand naar een merk of naar algemene informatie, dan
-      komt daar geen winkel in voor, ook de beste niet. Zulke vragen meetellen maakt
-      elk cijfer mooier of lelijker dan het is. Meer hierover staat op
-      <a href="/zo-meten-we">zo meten we</a>.</p>
-  </div>
-
   <div class="cta">
-    <h2>Staat jouw webshop er niet bij?</h2>
-    <p>Doe de gratis scan. Je ziet meteen of AI-assistenten je winkel kunnen vinden
-      en lezen, en wat er in de weg zit.</p>
-    <a href="/#scan">Gratis scan doen</a>
+    <h2>{{ t.cta_kop }}</h2>
+    <p>{{ t.cta_tekst }}</p>
+    <a class="knop vol" href="/#scan">{{ t.cta_knop }}</a>
   </div>
 </div></main>
 
 <footer><div class="wrap">
-  Krillo &middot; <a href="/zo-meten-we">Zo meten we</a> &middot;
-  <a href="/onderzoek">Onderzoek</a> &middot; <a href="/over-ons">Over ons</a>
+  Krillo &middot; <a href="/index">{{ t.terug_index }}</a> &middot;
+  <a href="/zo-meten-we">{{ t.zo_meten_we }}</a> &middot;
+  <a href="/over-ons">{{ t.over_ons }}</a>
 </div></footer>
 </body>
 </html>

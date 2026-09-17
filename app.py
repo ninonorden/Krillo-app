@@ -46,12 +46,15 @@ import zichtbaarheid
 import benchmark
 import markt
 import shopify_app
+import sitetaal
 import shopify_werk
 import toepasmodule
 import shopify_billing
 import benadering
 import categorieen
 import categoriemeting
+import klantbeeld
+import meldingen
 import onderhoud
 import opschonen
 
@@ -197,8 +200,43 @@ def home():
     except Exception as e:
         print(f"Teller ophalen mislukt: {e}")
         gescand = 0
+    # De index op de homepage. Dit is het bewijs: geen belofte dat wij meten,
+    # maar een echte ranglijst die iemand kan aanklikken. Alles komt uit de
+    # database, dus er staat nooit een verouderd getal.
+    #
+    # Valt het ophalen om, dan blijft de homepage gewoon staan zonder dit blok.
+    # Een homepage die niet laadt kost klanten; een homepage zonder proefblokje
+    # niet.
+    index = {}
+    try:
+        landen = db.landen_in_index()
+        cijfers = db.index_cijfers()
+        voorbeeldland = landen[0]["land"] if landen else None
+        rijen = (db.categorieen_per_land(voorbeeldland, MINIMUM_PER_LAND)
+                 if voorbeeldland else [])
+        top = None
+        if rijen:
+            beste = max(rijen, key=lambda r: r["winkels"])
+            lijst = db.ranglijst_per_land(beste["categorie"], voorbeeldland, limiet=4)
+            top = {
+                "categorie": beste["categorie"],
+                "naam": categorieen.naam_van(beste["categorie"]),
+                "land": voorbeeldland,
+                "landnaam": sitetaal.landnaam(voorbeeldland, "nl"),
+                "telbaar": lijst.get("telbaar") or 0,
+                "rijen": [r for r in lijst.get("rijen", []) if (r["genoemd"] or 0) > 0],
+                "niet_genoemd": len([r for r in lijst.get("rijen", [])
+                                     if not (r["genoemd"] or 0)]),
+            }
+        index = {"cijfers": cijfers, "landen": landen, "top": top,
+                 "binnenkort": [c for c in sitetaal.LANDEN
+                                if c not in {r["land"] for r in landen}]}
+    except Exception as e:
+        print(f"Index op homepage overslaan: {e}")
+
     return render_template("index.html",
                            gescand=gescand if gescand >= MINIMUM_VOOR_TELLER else None,
+                           index=index,
                            eigen_cijfer=_eigen_benchmarkcijfer())
 
 
@@ -345,6 +383,8 @@ Allow: /
 Disallow: /uitkomst/
 Disallow: /monitoring/
 Disallow: /rapport/
+Disallow: /mijn/
+Disallow: /mijn-link
 Disallow: /admin/
 
 User-agent: GPTBot
@@ -377,7 +417,7 @@ def sitemap_xml():
     # /uitkomst/<token> staat hier BEWUST niet in. Die pagina's gaan over één
     # winkel met naam en toenaam en horen niet in Google.
     vast = ["/", "/artikelen", "/zo-meten-we", "/veelgestelde-vragen",
-            "/onderzoek", "/index", "/over-ons", "/voorwaarden", "/privacybeleid",
+            "/onderzoek", "/index", "/demo", "/over-ons", "/voorwaarden", "/privacybeleid",
             "/herroepen"]
     regels = [(p, nieuwste) for p in vast]
     regels += [(f"/artikelen/{a['slug']}", a["datum"]) for a in artikelen.ARTIKELEN]
@@ -389,9 +429,15 @@ def sitemap_xml():
     # categorie verschijnt zodra hij gemeten is en genoeg winkels heeft. Deze
     # lijst leest dus elke keer wat er echt staat en niet wat er ooit stond.
     try:
-        for c in db.openbare_categorieen(minimum_winkels=5):
-            datum = c["afgerond_op"].strftime("%Y-%m-%d") if c.get("afgerond_op") else nieuwste
-            regels.append((f"/index/{c['categorie']}", datum))
+        for rij in db.landen_in_index():
+            land = rij["land"]
+            if land not in sitetaal.LANDEN:
+                continue
+            regels.append((f"/index/{land}", nieuwste))
+            for c in db.categorieen_per_land(land):
+                datum = (c["afgerond_op"].strftime("%Y-%m-%d")
+                         if c.get("afgerond_op") else nieuwste)
+                regels.append((f"/index/{land}/{c['categorie']}", datum))
     except Exception as e:
         # Een sitemap zonder de index is vervelend; een sitemap die een foutmelding
         # teruggeeft is erger, want dan verdwijnt ook de rest uit Google.
@@ -3598,42 +3644,141 @@ def admin_onderzoeksmail():
 # bij naam op een lijst van niet-genoemden zetten is iets anders. Het aantal
 # staat er wel, want dat is het cijfer dat het verhaal draagt.
 
+# Hoeveel winkels een categorie in EEN land minstens moet hebben voordat er een
+# openbare ranglijst van komt. Een lijst van twee winkels is geen ranglijst, en
+# een pagina die dat toch beweert is precies de overpromise waar wij anderen op
+# controleren. Deze ondergrens geldt voor het overzicht EN voor de losse pagina,
+# anders staat er een categorie niet in het overzicht terwijl hij wel bestaat.
+MINIMUM_PER_LAND = int(os.environ.get("INDEX_MINIMUM_PER_LAND", "3"))
+
+
 @app.route("/index")
 def openbare_index():
-    """Alle gemeten categorieen op een rij."""
-    rijen = db.openbare_categorieen(minimum_winkels=5)
+    """Het overzicht van alle gemeten categorieen.
+
+    De taal van DEZE pagina volgt de bezoeker (standaard Engels). Het land dat
+    voorgekozen staat volgt zijn browser, maar dat is alleen een suggestie: de
+    adressen per land bestaan los van elkaar en er wordt nooit doorgestuurd op
+    IP-adres. Zie de uitleg bovenin sitetaal.py."""
+    landen = [r["land"] for r in db.landen_in_index()]
+    taal = sitetaal.kies_taal(kop_taal=request.headers.get("Accept-Language"))
+    voorkeur = (request.args.get("markt") or "").lower()
+    if voorkeur not in landen:
+        voorkeur = sitetaal.land_uit_kop(
+            request.headers.get("Accept-Language"), landen)
+    return _indexoverzicht(voorkeur, taal, canonical="/index")
+
+
+@app.route("/index/<stuk>")
+def openbare_index_stuk(stuk):
+    """Een land, of een categorie van voor de landenopdeling.
+
+    Adressen die Google al kent moeten blijven werken. Voor de landen bestonden
+    stond een categorie op /index/speelgoed; die stuurt nu permanent door naar
+    /index/nl/speelgoed. Een 301 en geen 302, want de oude plek komt niet
+    terug en een tijdelijke verwijzing laat Google beide adressen aanhouden."""
+    kort = (stuk or "").lower()
+    if kort in sitetaal.LANDEN:
+        landen = [r["land"] for r in db.landen_in_index()]
+        if kort not in landen:
+            return render_template(
+                "fout.html", titel="Dit land staat nog niet in de index",
+                bericht="We meten het binnenkort. Op /index staan de landen die "
+                        "er wel al zijn."), 404
+        return _indexoverzicht(kort, sitetaal.taal_van_land(kort),
+                               canonical=f"/index/{kort}")
+    return redirect(f"/index/nl/{stuk}", code=301)
+
+
+def _indexoverzicht(land, taal, canonical="/index"):
+    """Het overzicht, voor een land of zonder land."""
+    t = sitetaal.teksten(taal)
+    cijfers = db.index_cijfers()
+    landen = db.landen_in_index()
+    rijen = (db.categorieen_per_land(land, MINIMUM_PER_LAND) if land
+             else db.openbare_categorieen(minimum_winkels=MINIMUM_PER_LAND))
     for r in rijen:
         r["naam"] = categorieen.naam_van(r["categorie"])
     rijen.sort(key=lambda r: r["naam"])
-    return render_template("index_overzicht.html", categorieen_lijst=rijen)
+    return render_template(
+        "index_overzicht.html",
+        t=t, taal=taal, land=land,
+        landnaam=sitetaal.landnaam(land, taal) if land else None,
+        landen=[{"code": r["land"],
+                 "naam": sitetaal.landnaam(r["land"], taal),
+                 "taalcode": sitetaal.taal_van_land(r["land"]),
+                 "categorieen": r["categorieen"]} for r in landen],
+        basis_url=get_base_url().rstrip("/"),
+        binnenkort=[{"code": c, "naam": sitetaal.landnaam(c, taal)}
+                    for c in sitetaal.LANDEN
+                    if c not in {r["land"] for r in landen}],
+        cijfers=cijfers,
+        categorieen_lijst=rijen,
+        canonical=canonical,
+    )
 
 
-@app.route("/index/<slug>")
-def openbare_categorie(slug):
-    """De ranglijst van een categorie, met de methode erbij."""
-    lijst = db.laatste_ranglijst(slug, limiet=100)
-    if not lijst or not lijst.get("ronde"):
+@app.route("/index/<land>/<slug>")
+def openbare_categorie(land, slug):
+    """De ranglijst van een categorie in een land.
+
+    Deze pagina staat in de taal van het LAND en niet van de bezoeker. Een
+    Nederlandse koper vraagt "waar koop ik online speelgoed", en daar wordt een
+    Engelse pagina nooit op gevonden."""
+    land = (land or "").lower()
+    if land not in sitetaal.LANDEN:
+        return render_template("fout.html", titel="Dit land kennen wij niet",
+                               bericht="Op /index staan de landen die er zijn."), 404
+
+    taal = sitetaal.taal_van_land(land)
+    t = sitetaal.teksten(taal)
+    lijst = db.ranglijst_per_land(slug, land, limiet=100)
+    if (not lijst or not lijst.get("ronde")
+            or len(lijst["rijen"]) < MINIMUM_PER_LAND):
         return render_template(
-            "fout.html", titel="Deze categorie is nog niet gemeten",
-            bericht="Zodra er genoeg winkels in staan meten we hem. Op /index staan "
-                    "de categorieen die er wel al zijn."), 404
+            "fout.html", titel="Deze categorie is hier nog niet gemeten",
+            bericht="Zodra er genoeg winkels in staan meten we hem. Op /index "
+                    "staan de categorieen die er wel zijn."), 404
 
     genoemd = [r for r in lijst["rijen"] if (r["genoemd"] or 0) > 0]
-
-    # De lijst voor de gestructureerde gegevens wordt HIER gebouwd en niet in
-    # een lus in de sjabloon. Een lus met komma's ertussen levert bij een lege
-    # of bij een laatste regel snel kapotte JSON op, en dat is precies de fout
-    # die op 16 september in de veelgestelde vragen zat: onzichtbaar tot Google
-    # hem meldde. Een enkele waarde door tojson kan niet stuk.
     lijst_voor_ai = [{"@type": "ListItem", "position": r["positie"],
                       "name": r["naam"] or r["webshop_url"], "url": r["webshop_url"]}
                      for r in genoemd]
 
+    # De andere landen waar deze categorie ook gemeten is. Dat wordt hreflang,
+    # zodat een zoekmachine weet dat dit dezelfde pagina voor een ander land is
+    # en ze niet als kopieen van elkaar behandelt.
+    anders = []
+    for rij in db.landen_in_index():
+        code = rij["land"]
+        if code == land or code not in sitetaal.LANDEN:
+            continue
+        if any(c["categorie"] == slug
+               for c in db.categorieen_per_land(code, MINIMUM_PER_LAND)):
+            anders.append({"code": code,
+                           "taal": sitetaal.taal_van_land(code),
+                           "naam": sitetaal.landnaam(code, taal)})
+
+    # Het kruimelpad als gestructureerde gegevens. Dit is wat een zoekmachine
+    # laat zien als "Krillo > Nederland > Speelgoed" in plaats van een kale
+    # link, en het vertelt tegelijk dat deze pagina onder een land hangt.
+    basis_url = get_base_url().rstrip("/")
+    kruimels = [
+        {"@type": "ListItem", "position": 1, "name": "Krillo",
+         "item": f"{basis_url}/index"},
+        {"@type": "ListItem", "position": 2,
+         "name": sitetaal.landnaam(land, taal), "item": f"{basis_url}/index/{land}"},
+        {"@type": "ListItem", "position": 3, "name": categorieen.naam_van(slug),
+         "item": f"{basis_url}/index/{land}/{slug}"},
+    ]
+
     return render_template(
         "index_categorie.html",
-        slug=slug,
-        lijst_voor_ai=lijst_voor_ai,
+        t=t, taal=taal, land=land, slug=slug, kruimels=kruimels,
+        landnaam=sitetaal.landnaam(land, taal),
+        andere_landen=anders,
         naam=categorieen.naam_van(slug),
+        lijst_voor_ai=lijst_voor_ai,
         ranglijst=genoemd,
         niet_genoemd=len(lijst["rijen"]) - len(genoemd),
         totaal=len(lijst["rijen"]),
@@ -3641,8 +3786,108 @@ def openbare_categorie(slug):
         gemeten_op=(genoemd[0].get("gemeten_op") if genoemd else None),
         vragen=db.gemeten_vragen_van_ronde(lijst["ronde"]),
         modellen=db.modellen_van_ronde(lijst["ronde"]),
+        canonical=f"/index/{land}/{slug}",
+        basis_url=basis_url,
         basis=get_base_url(),
     )
+
+
+def _dashboard(webshop_url, land=None, voorbeeld=False, taken_url=None):
+    """Het dashboard van een winkel. Dezelfde pagina voor het openbare
+    voorbeeld en voor een klant; alleen de knoppen eronder verschillen.
+
+    Een pagina en geen twee: zou het voorbeeld zijn eigen sjabloon krijgen, dan
+    laat je bezoekers straks iets zien dat een klant niet krijgt."""
+    beeld = klantbeeld.bouw(webshop_url, land=land)
+    if not beeld:
+        return None
+    taal = sitetaal.taal_van_land(beeld.get("land") or "nl")
+    return render_template(
+        "dashboard.html",
+        t=sitetaal.teksten(taal), taal=taal, beeld=beeld,
+        landnaam=sitetaal.landnaam(beeld.get("land"), taal),
+        categorienaam=categorieen.naam_van(beeld["categorie"]),
+        staven=klantbeeld.balkhoogtes(beeld["verloop"]),
+        voorbeeld=voorbeeld, taken_url=taken_url,
+        basis_url=get_base_url().rstrip("/"),
+    )
+
+
+@app.route("/demo")
+def openbaar_voorbeeld():
+    """Het dashboard van een ECHTE winkel, zonder inloggen.
+
+    Waarom dit bestaat: op de homepage staat een knop naar het dashboard, en een
+    bezoeker die nog geen klant is kan daar anders niets. Een schermafbeelding
+    zou ook kunnen, maar die is over twee maanden verouderd en niemand gelooft
+    hem. Dit is echte data die zichzelf bijwerkt.
+
+    Er staat niets geheims op: precies dezelfde cijfers staan op de openbare
+    indexpagina van die categorie."""
+    keuze = db.voorbeeldwinkel()
+    if not keuze:
+        return render_template(
+            "fout.html", titel="Er is nog geen voorbeeld",
+            bericht="Zodra de eerste categorie gemeten is staat hier een echt "
+                    "dashboard van een echte winkel."), 404
+    pagina = _dashboard(keuze["webshop_url"], land=keuze.get("land"), voorbeeld=True)
+    if pagina is None:
+        return render_template(
+            "fout.html", titel="Er is nog geen voorbeeld",
+            bericht="Zodra de eerste categorie gemeten is staat hier een echt "
+                    "dashboard van een echte winkel."), 404
+    return pagina
+
+
+@app.route("/mijn/<klant_token>")
+def klant_dashboard(klant_token):
+    """Het dashboard van een klant, achter zijn geheime link.
+
+    Geen wachtwoord: de link IS de sleutel. Dat is bewust, want een wachtwoord
+    dat je een keer per maand nodig hebt ben je kwijt, en dan is de drempel om
+    te kijken hoger dan de moeite om op te zeggen."""
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return render_template(
+            "fout.html", titel="Deze link werkt niet meer",
+            bericht="Vraag een nieuwe aan op /mijn-link, dan mailen we hem "
+                    "opnieuw."), 404
+    pagina = _dashboard(klant["webshop_url"],
+                        taken_url=f"/monitoring/{klant_token}")
+    if pagina is None:
+        return render_template(
+            "fout.html", titel="Je categorie is nog niet gemeten",
+            bericht="Zodra jouw categorie aan de beurt is verschijnt hier je "
+                    "positie. Je krijgt er vanzelf bericht van."), 404
+    return pagina
+
+
+@app.route("/mijn-link", methods=["GET", "POST"])
+def link_opnieuw():
+    """De link opnieuw laten mailen.
+
+    Zonder dit is een klant die zijn mail kwijt is voorgoed buitengesloten, en
+    die belt niet maar zegt op.
+
+    Het antwoord is ALTIJD hetzelfde, of het adres nu bestaat of niet. Anders is
+    dit formulier een manier om uit te vinden welke webshops klant bij ons zijn,
+    en dat gaat niemand aan."""
+    verstuurd = request.args.get("m") == "verstuurd"
+    if request.method == "POST":
+        adres = (request.form.get("email") or "").strip().lower()
+        try:
+            klant = db.klant_bij_email(adres) if adres else None
+            if klant:
+                emailing.send_vermeldingen_update(
+                    klant["email"], klant["webshop_url"],
+                    "Hier is je link naar je Krillo-dashboard. Bewaar hem, want "
+                    "hij is je sleutel: er komt geen wachtwoord aan te pas.",
+                    monitoring_url=f"{get_base_url().rstrip('/')}/mijn/{klant['klant_token']}",
+                    taal="nl")
+        except Exception as e:
+            print(f"Link opnieuw sturen mislukt: {e}")
+        return redirect("/mijn-link?m=verstuurd")
+    return render_template("mijn_link.html", verstuurd=verstuurd)
 
 
 @app.route("/onderzoek")
@@ -4389,6 +4634,12 @@ def admin_ranglijst():
         ranglijst=lijst,
         ronde_kosten=db.kosten_van_ronde(lijst["ronde"]) if lijst and lijst.get("ronde") else None,
         vragen=db.categorie_vragen(gekozen) if gekozen else [],
+        # DROOGLOOP. Laat zien wie er bij de volgende nachtronde bericht zou
+        # krijgen en waarom, zonder dat er ook maar iets verstuurd wordt. Zo kun
+        # je de regels nakijken voordat er een echte klant iets in zijn inbox
+        # krijgt, en een verkeerde mail kun je niet terughalen.
+        berichten=(meldingen.na_meting(lijst["ronde"], gekozen, verstuur=False)
+                   if lijst and lijst.get("ronde") else None),
         intenties=db.telbaarheid_per_intentie(gekozen) if gekozen else [],
         zwakke_vragen=db.vragen_die_nooit_meetelden(gekozen) if gekozen else [],
         vergelijking=categoriemeting.vergelijkstand(),

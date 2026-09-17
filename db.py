@@ -429,6 +429,31 @@ def init_db():
                         UNIQUE (ronde, webshop_url)
                     );
                 """)
+                # Welk bericht er wanneer naar welke winkel ging.
+                #
+                # DIT IS DE REM. Zonder deze tabel kan een klant bij elke
+                # meting opnieuw dezelfde waarschuwing krijgen, en bij drie
+                # handmatige metingen op een dag dus drie mails. Een dienst die
+                # blijft mailen wordt uitgezet, en dan ben je de klant kwijt aan
+                # je eigen attendering.
+                #
+                # De unieke sleutel op (webshop_url, ronde) doet het zware werk:
+                # per meetronde kan er hooguit EEN bericht per winkel bestaan,
+                # ook als de code twee keer langskomt.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS berichten (
+                        id BIGSERIAL PRIMARY KEY,
+                        webshop_url TEXT NOT NULL,
+                        soort TEXT NOT NULL,
+                        ronde INTEGER,
+                        categorie TEXT,
+                        verstuurd_op TIMESTAMPTZ DEFAULT now(),
+                        details JSONB,
+                        UNIQUE (webshop_url, ronde)
+                    );
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_bericht_winkel "
+                            "ON berichten (webshop_url, verstuurd_op DESC);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_cat_uitkomst "
                             "ON categorie_uitkomsten (categorie, ronde);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_cat_uitkomst_winkel "
@@ -4911,6 +4936,299 @@ def laatste_afgeronde_ronde(categorie):
         conn.close()
 
 
+def index_cijfers():
+    """De cijfers die op de site staan. Allemaal in EEN query.
+
+    WAAROM DIT BESTAAT. Op het ontwerp stonden [31] categorieen en [924] winkels
+    tussen vierkante haakjes. Zulke getallen met de hand in een sjabloon zetten
+    gaat altijd mis: over twee maanden klopt er niets meer van, en wij zijn juist
+    het bedrijf dat anderen erop controleert of hun site waar is.
+
+    Alles hier komt rechtstreeks uit wat er gemeten is. Staat er morgen een
+    categorie bij, dan staat dat vanzelf op de homepage."""
+    conn = _get_connection()
+    if conn is None:
+        return {}
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT
+                      (SELECT count(DISTINCT categorie) FROM categorie_rondes
+                        WHERE afgerond_op IS NOT NULL)            AS categorieen,
+                      (SELECT count(DISTINCT webshop_url) FROM categorie_uitkomsten)
+                                                                  AS winkels,
+                      (SELECT count(*) FROM categorie_antwoorden)  AS antwoorden,
+                      (SELECT count(*) FROM gratis_scans)          AS checks,
+                      (SELECT min(gemeten_op) FROM categorie_antwoorden) AS sinds
+                """)
+                return dict(cur.fetchone() or {})
+    except Exception as e:
+        print(f"Indexcijfers ophalen mislukt: {e}")
+        return {}
+    finally:
+        conn.close()
+
+
+def landen_in_index(minimum_categorieen=1):
+    """Welke landen er in de index staan, en met hoeveel categorieen.
+
+    Een land telt als LIVE zodra er minstens een gemeten categorie met winkels
+    uit dat land in staat. Alles wat daaronder zit staat op de site bij
+    BINNENKORT. Zo hoeft er nooit iemand een lijstje landen bij te werken: zet
+    je morgen Duitsland aan, dan verhuist Duitsland vanzelf."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT lower(b.land) AS land,
+                           count(DISTINCT u.categorie) AS categorieen,
+                           count(DISTINCT u.webshop_url) AS winkels
+                      FROM categorie_uitkomsten u
+                      JOIN benadering b ON b.webshop_url = u.webshop_url
+                     WHERE b.land IS NOT NULL AND b.land <> ''
+                  GROUP BY lower(b.land)
+                    HAVING count(DISTINCT u.categorie) >= %s
+                  ORDER BY count(DISTINCT u.webshop_url) DESC
+                """, (minimum_categorieen,))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Landen in index ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def ranglijst_per_land(categorie, land, limiet=200):
+    """De ranglijst van een categorie voor EEN land.
+
+    Waarom dit apart moet. De meting gaat over de categorie, niet over het land:
+    dezelfde koopvraag wordt een keer gesteld en alle winkels worden er tegelijk
+    op gescoord. Maar een Belgische koper krijgt andere antwoorden dan een
+    Nederlandse, en een winkel die alleen in Nederland levert hoort niet in de
+    Belgische ranglijst.
+
+    De cijfers blijven precies zoals ze gemeten zijn; alleen de winkels van dat
+    land blijven staan en de posities worden opnieuw genummerd. Er wordt dus
+    niets opnieuw gevraagd en niets opnieuw gelezen: nul modelaanroepen.
+
+    Dit is ook wat een klant met winkels in twee landen twee posities geeft."""
+    conn = _get_connection()
+    if conn is None:
+        return {"ronde": None, "telbaar": 0, "rijen": []}
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT id FROM categorie_rondes
+                                WHERE categorie = %s AND afgerond_op IS NOT NULL
+                             ORDER BY id DESC LIMIT 2""", (categorie,))
+                rondes = [r["id"] for r in cur.fetchall()]
+                if not rondes:
+                    return {"ronde": None, "telbaar": 0, "rijen": []}
+                nu, vorige = rondes[0], (rondes[1] if len(rondes) > 1 else None)
+
+                cur.execute("""
+                    SELECT u.webshop_url, u.genoemd, u.aanbevolen, u.telbaar,
+                           u.gemeten_op, b.naam, lower(b.land) AS land,
+                           v.positie AS vorige_ruwe_positie
+                      FROM categorie_uitkomsten u
+                 LEFT JOIN benadering b ON b.webshop_url = u.webshop_url
+                 LEFT JOIN categorie_uitkomsten v
+                        ON v.webshop_url = u.webshop_url AND v.ronde = %s
+                     WHERE u.ronde = %s
+                       AND (%s IS NULL OR lower(b.land) = %s)
+                  ORDER BY u.aanbevolen DESC, u.genoemd DESC, u.webshop_url
+                     LIMIT %s""",
+                    (vorige, nu, land, (land or "").lower() or None, limiet))
+                rijen = [dict(r) for r in cur.fetchall()]
+
+        # Opnieuw nummeren binnen dit land. De volgorde komt uit de query en is
+        # dezelfde als bij een verse meting: aanbevolen weegt zwaarder dan
+        # genoemd.
+        for plek, rij in enumerate(rijen, start=1):
+            rij["positie"] = plek
+        # De vorige positie binnen hetzelfde land, op dezelfde manier bepaald.
+        vorige_orde = sorted(
+            [r for r in rijen if r.get("vorige_ruwe_positie")],
+            key=lambda r: r["vorige_ruwe_positie"])
+        for plek, rij in enumerate(vorige_orde, start=1):
+            rij["vorige_positie"] = plek
+        return {"ronde": nu, "land": land,
+                "telbaar": (rijen[0]["telbaar"] if rijen else 0),
+                "rijen": rijen}
+    except Exception as e:
+        print(f"Ranglijst per land ophalen mislukt: {e}")
+        return {"ronde": None, "telbaar": 0, "rijen": []}
+    finally:
+        conn.close()
+
+
+def categorieen_per_land(land, minimum_winkels=3):
+    """Welke categorieen er voor dit land een ranglijst hebben."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    WITH nieuwste AS (
+                        SELECT DISTINCT ON (categorie) categorie, id, afgerond_op, telbaar
+                          FROM categorie_rondes
+                         WHERE afgerond_op IS NOT NULL
+                      ORDER BY categorie, id DESC
+                    )
+                    SELECT n.categorie, n.afgerond_op, n.telbaar,
+                           count(u.id)                           AS winkels,
+                           count(*) FILTER (WHERE u.genoemd > 0) AS genoemd
+                      FROM nieuwste n
+                      JOIN categorie_uitkomsten u ON u.ronde = n.id
+                      JOIN benadering b ON b.webshop_url = u.webshop_url
+                     WHERE lower(b.land) = %s
+                  GROUP BY n.categorie, n.afgerond_op, n.telbaar
+                    HAVING count(u.id) >= %s
+                  ORDER BY count(u.id) DESC
+                """, ((land or "").lower(), minimum_winkels))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Categorieen per land ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def klant_bij_email(email):
+    """De klant bij een e-mailadres, voor het opnieuw sturen van zijn link."""
+    conn = _get_connection()
+    if conn is None or not email:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT klant_token, webshop_url, email FROM klanten
+                                WHERE lower(email) = lower(%s)
+                             ORDER BY aangemaakt_op DESC LIMIT 1""", (email,))
+                rij = cur.fetchone()
+                return dict(rij) if rij else None
+    except Exception as e:
+        print(f"Klant bij e-mail ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def positieverloop(webshop_url, categorie, land=None, limiet=6):
+    """De positie van een winkel over de laatste meetrondes, binnen zijn land.
+
+    De positie wordt PER RONDE opnieuw bepaald met een vensterfunctie, en niet
+    uit de opgeslagen kolom gehaald. Dat moet: de opgeslagen positie gaat over
+    alle landen samen, en op het dashboard staat de positie binnen een land.
+    Zou je die twee door elkaar halen, dan lijkt een klant ineens tien plaatsen
+    te springen terwijl er niets veranderd is. Precies het soort onzichtbare
+    fout dat een klant wel ziet en niet vergeeft."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    WITH rondes AS (
+                        SELECT id, afgerond_op FROM categorie_rondes
+                         WHERE categorie = %s AND afgerond_op IS NOT NULL
+                      ORDER BY id DESC LIMIT %s
+                    ),
+                    gerangschikt AS (
+                        SELECT u.ronde, u.webshop_url, r.afgerond_op,
+                               rank() OVER (
+                                   PARTITION BY u.ronde
+                                   ORDER BY u.aanbevolen DESC, u.genoemd DESC,
+                                            u.webshop_url
+                               ) AS positie,
+                               count(*) OVER (PARTITION BY u.ronde) AS van,
+                               u.genoemd, u.aanbevolen, u.telbaar
+                          FROM categorie_uitkomsten u
+                          JOIN rondes r ON r.id = u.ronde
+                          JOIN benadering b ON b.webshop_url = u.webshop_url
+                         WHERE (%s IS NULL OR lower(b.land) = %s)
+                    )
+                    SELECT ronde, afgerond_op, positie, van, genoemd, aanbevolen, telbaar
+                      FROM gerangschikt
+                     WHERE webshop_url = %s
+                  ORDER BY ronde
+                """, (categorie, limiet, (land or "").lower() or None,
+                      (land or "").lower() or None, webshop_url))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Positieverloop ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def winkel_kort(webshop_url):
+    """Naam, land en categorie van een winkel. Meer heeft het dashboard niet nodig."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT webshop_url, naam, lower(land) AS land,
+                                      categorie, soort, hoort_bij
+                                 FROM benadering WHERE webshop_url = %s""",
+                            (webshop_url,))
+                rij = cur.fetchone()
+                return dict(rij) if rij else None
+    except Exception as e:
+        print(f"Winkel ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def voorbeeldwinkel():
+    """Een winkel die zich leent voor het openbare voorbeelddashboard.
+
+    Voorwaarden: hij staat in een gemeten categorie, hij is wel genoemd maar
+    niet op plaats een, en hij heeft een naam. Dat laatste is voor het beeld;
+    de eerste twee zijn inhoudelijk. Een winkel die alles wint laat niet zien
+    waar Krillo voor is, en een winkel die nergens genoemd wordt geeft een
+    dashboard vol nullen."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    WITH nieuwste AS (
+                        SELECT DISTINCT ON (categorie) categorie, id
+                          FROM categorie_rondes
+                         WHERE afgerond_op IS NOT NULL
+                      ORDER BY categorie, id DESC
+                    )
+                    SELECT u.webshop_url, u.categorie, lower(b.land) AS land
+                      FROM categorie_uitkomsten u
+                      JOIN nieuwste n ON n.id = u.ronde
+                      JOIN benadering b ON b.webshop_url = u.webshop_url
+                     WHERE u.genoemd > 0 AND u.positie > 1
+                       AND b.naam IS NOT NULL AND b.land IS NOT NULL
+                  ORDER BY u.positie, u.webshop_url
+                     LIMIT 1
+                """)
+                rij = cur.fetchone()
+                return dict(rij) if rij else None
+    except Exception as e:
+        print(f"Voorbeeldwinkel ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
 def openbare_categorieen(minimum_winkels=5):
     """De categorieen die een openbare ranglijstpagina verdienen.
 
@@ -4987,6 +5305,133 @@ def modellen_van_ronde(ronde):
     except Exception as e:
         print(f"Modellen van ronde ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+def klanten_in_ronde(ronde):
+    """De betalende klanten die in deze meetronde een positie kregen.
+
+    Alles in EEN query: de positie van nu, de positie van de vorige ronde, het
+    e-mailadres, de klantlink, en wanneer er voor het laatst iets aan hun winkel
+    opgeleverd is. Dat laatste bepaalt of er een nameting hoort te komen.
+
+    Waarom een join en geen lus: bij honderd klanten is een lus honderd keer
+    heen en weer naar Neon, en dat is precies de fout die het opschonen op 16
+    september een uur liet duren."""
+    conn = _get_connection()
+    if conn is None or not ronde:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    WITH deze AS (
+                        SELECT categorie, id FROM categorie_rondes WHERE id = %s
+                    ),
+                    vorige AS (
+                        SELECT max(r.id) AS id
+                          FROM categorie_rondes r, deze d
+                         WHERE r.categorie = d.categorie
+                           AND r.afgerond_op IS NOT NULL
+                           AND r.id < d.id
+                    )
+                    SELECT u.webshop_url, u.categorie, u.positie, u.genoemd,
+                           u.aanbevolen, u.telbaar,
+                           v.positie          AS vorige_positie,
+                           v.genoemd          AS vorige_genoemd,
+                           v.aanbevolen       AS vorige_aanbevolen,
+                           k.email, k.klant_token,
+                           (SELECT max(x.opgeleverd_op) FROM uitvoeringen x
+                             WHERE x.webshop_url = u.webshop_url
+                               AND x.opgeleverd_op IS NOT NULL) AS opgeleverd_op,
+                           (SELECT count(*) FROM categorie_uitkomsten y
+                             WHERE y.ronde = u.ronde)           AS van
+                      FROM categorie_uitkomsten u
+                      JOIN klanten k ON k.webshop_url = u.webshop_url
+                 LEFT JOIN categorie_uitkomsten v
+                        ON v.webshop_url = u.webshop_url
+                       AND v.ronde = (SELECT id FROM vorige)
+                     WHERE u.ronde = %s
+                  ORDER BY u.positie
+                """, (ronde, ronde))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Klanten in ronde ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def laatste_bericht(webshop_url):
+    """Wanneer deze winkel voor het laatst iets van ons kreeg, en wat."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT soort, verstuurd_op, ronde, details
+                                 FROM berichten
+                                WHERE webshop_url = %s
+                             ORDER BY verstuurd_op DESC LIMIT 1""", (webshop_url,))
+                rij = cur.fetchone()
+                return dict(rij) if rij else None
+    except Exception as e:
+        print(f"Laatste bericht ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def nameting_al_gestuurd(webshop_url, opgeleverd_op):
+    """Of er al een nameting gestuurd is voor deze oplevering.
+
+    Een nameting hoort een keer te komen, niet elke maand opnieuw. De datum van
+    de oplevering staat in de details, dus daar is het aan te herkennen."""
+    conn = _get_connection()
+    if conn is None or not opgeleverd_op:
+        return True
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT 1 FROM berichten
+                                WHERE webshop_url = %s AND soort = 'nameting'
+                                  AND details ->> 'opgeleverd_op' = %s
+                                LIMIT 1""",
+                            (webshop_url, str(opgeleverd_op)))
+                return cur.fetchone() is not None
+    except Exception as e:
+        print(f"Nameting nakijken mislukt: {e}")
+        return True
+    finally:
+        conn.close()
+
+
+def noteer_bericht(webshop_url, soort, ronde, categorie=None, details=None):
+    """Legt vast dat er een bericht uit is. Bestond er al een voor deze ronde,
+    dan gebeurt er niets en is het antwoord False.
+
+    Dat antwoord is belangrijk: de verzender kijkt ernaar en verstuurt alleen
+    als dit True zegt. Zo kan dezelfde ronde nooit twee mails opleveren, ook
+    niet als er per ongeluk twee keer gemeten wordt."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO berichten (webshop_url, soort, ronde, categorie, details)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (webshop_url, ronde) DO NOTHING
+                    RETURNING id""",
+                    (webshop_url, soort, ronde, categorie,
+                     json.dumps(details or {})))
+                return cur.fetchone() is not None
+    except Exception as e:
+        print(f"Bericht vastleggen mislukt: {e}")
+        return False
     finally:
         conn.close()
 

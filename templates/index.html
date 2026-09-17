@@ -93,22 +93,27 @@
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* De huisstijl van 17 september 2026. Zie templates/_stijl.html, daar staat
+     dezelfde lijst voor de nieuwe pagina's. Deze hele opmaak loopt via
+     variabelen, dus hier omzetten zet de hele homepage om zonder dat er een
+     regel structuur verandert. Dat was ook de bedoeling: de scan en de
+     bestelschermen mochten bij het verbouwen niet geraakt worden. */
   :root{
-    --ink:#12142B;
-    --ink-soft:#3B3D57;
-    --paper:#F6F5F1;
+    --ink:#101014;
+    --ink-soft:#4A4A55;
+    --paper:#FBFAF8;
     --paper-raised:#FFFFFF;
-    --line:#E4E2DA;
-    --coral:#FF4B3E; --coral-tekst:#D42E22;
-    --coral-dim:#FFE3E0;
-    --teal:#1FB6A4;
-    --amber:#E8A33D;
-    --teal-dim:#DFF5F1;
+    --line:#E6E2D8;
+    --coral:#E0452F; --coral-tekst:#B8351F;
+    --coral-dim:#FFE9E5;
+    --teal:#0F5C52;
+    --amber:#C98A2E;
+    --teal-dim:#DFF0EC;
     --mono:'IBM Plex Mono', monospace;
-    --disp:'Space Grotesk', sans-serif;
-    --body:'Inter', sans-serif;
+    --disp:'Instrument Serif', Georgia, serif;
+    --body:'Archivo', system-ui, sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{
@@ -124,7 +129,7 @@
   /* NAV */
   nav{
     position:sticky; top:0; z-index:50;
-    background:rgba(246,245,241,0.88);
+    background:rgba(251,250,248,0.90);
     backdrop-filter:blur(8px);
     border-bottom:1px solid var(--line);
   }
@@ -133,9 +138,9 @@
     height:68px;
   }
   .logo{
-    font-family:var(--disp); font-weight:700; font-size:19px;
-    display:flex; align-items:center; gap:8px;
-    letter-spacing:-0.02em;
+    font-family:var(--disp); font-weight:400; font-size:25px;
+    display:flex; align-items:center; gap:10px;
+    letter-spacing:-0.01em;
   }
   .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%; display:inline-block;}
   .navlinks{display:flex; gap:32px; font-size:14px; color:var(--ink-soft);}
@@ -143,7 +148,7 @@
   .navlinks a:hover{color:var(--ink);}
   .nav-cta{
     font-size:14px; font-weight:600; background:var(--ink); color:var(--paper);
-    padding:9px 18px; border-radius:100px; text-decoration:none;
+    padding:10px 20px; border-radius:8px; text-decoration:none;
   }
 
   /* HERO */
@@ -156,10 +161,12 @@
   }
   .eyebrow::before{content:''; width:16px; height:1px; background:var(--coral); display:inline-block;}
   h1{
-    font-family:var(--disp); font-weight:700; letter-spacing:-0.03em;
-    font-size:52px; line-height:1.05; margin-bottom:22px;
+    font-family:var(--disp); font-weight:400; letter-spacing:-0.025em;
+    font-size:60px; line-height:1.02; margin-bottom:22px;
   }
-  h1 em{font-style:normal; color:var(--coral);}
+  /* Schuin en in vermiljoen. Bij een schreefletter is cursief het accent dat
+     werkt; bij de oude schreefloze letter was dat alleen kleur. */
+  h1 em{font-style:italic; color:var(--coral);}
   .hero-sub{
     font-size:17px; color:var(--ink-soft); max-width:460px; margin-bottom:32px;
   }
@@ -624,6 +631,42 @@
   a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
     outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
   }
+
+  /* DE INDEX OP DE HOMEPAGE
+     Toegevoegd 17 september 2026. Dit is het bewijsblok: geen belofte dat wij
+     meten, maar een echte ranglijst die je kunt aanklikken. Alle cijfers komen
+     uit de database, er staat geen vast getal in dit sjabloon. */
+  .idx{padding:8px 0 0;}
+  .idx-strook{background:var(--ink); color:var(--paper); border-radius:16px;
+              padding:22px 26px; display:flex; gap:42px; align-items:center;
+              flex-wrap:wrap; margin-bottom:26px;}
+  .idx-strook .n{font-family:var(--disp); font-size:32px; line-height:1;}
+  .idx-strook .l{font-family:var(--mono); font-size:11px; color:#9C9AA6; margin-top:4px;}
+  .idx-strook .landen{margin-left:auto; font-family:var(--mono); font-size:12px;
+                      color:#C9C7D1; text-align:right; line-height:1.8;}
+  .idx-strook .landen .later{color:#6E6E7A;}
+  .idx-kaart{background:var(--paper-raised); border:1px solid var(--line);
+             border-radius:16px; overflow:hidden;}
+  .idx-kop{padding:16px 24px; border-bottom:1px solid var(--line); display:flex;
+           align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  .idx-kop strong{font-size:16px;}
+  .idx-kop span{font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
+  .idx-rij{display:flex; align-items:center; padding:14px 24px;
+           border-bottom:1px solid #F0EDE5; gap:12px;}
+  .idx-rij:last-child{border-bottom:none;}
+  .idx-rij .p{font-family:var(--disp); font-size:22px; width:40px; flex-shrink:0;}
+  .idx-rij .w{flex-grow:1; font-weight:500; font-size:15px;}
+  .idx-rij .g{font-family:var(--mono); font-size:13px; width:80px; text-align:right;}
+  .idx-rij .a{font-family:var(--mono); font-size:13px; width:60px; text-align:right;
+              color:var(--teal);}
+  .idx-rij.top{background:#F4FAF8;}
+  .idx-voet{padding:16px 24px; display:flex; justify-content:space-between;
+            align-items:center; gap:12px; flex-wrap:wrap; font-size:14px;
+            color:var(--ink-soft); background:var(--paper);}
+  .idx-voet a{font-weight:600; color:var(--coral-tekst); text-decoration:none;}
+  @media(max-width:560px){
+    .idx-strook{gap:24px;} .idx-rij .g{width:64px;} .idx-rij .a{width:44px;}
+  }
 </style>
 </head>
 <body>
@@ -672,6 +715,55 @@
     </div>
   </div>
 </header>
+
+{# HET BEWIJSBLOK. Staat bewust direct onder de hero: een bezoeker moet in een
+   oogopslag zien dat er echt gemeten wordt, voordat hij iets hoeft te geloven.
+   Alles hier komt uit de database; is er nog niets gemeten, dan valt het hele
+   blok weg in plaats van dat er nullen staan. #}
+{% if index and index.top and index.top.rijen %}
+<section class="idx" id="index">
+  <div class="wrap">
+    <div class="idx-strook">
+      <div>
+        <div class="n">{{ index.cijfers.categorieen }}</div>
+        <div class="l">CATEGORIEEN GEMETEN</div>
+      </div>
+      <div>
+        <div class="n">{{ index.cijfers.winkels }}</div>
+        <div class="l">WEBSHOPS IN DE INDEX</div>
+      </div>
+      <div>
+        <div class="n">{{ index.cijfers.antwoorden }}</div>
+        <div class="l">ANTWOORDEN BEWAARD</div>
+      </div>
+      <div class="landen">
+        LIVE {% for l in index.landen %}{{ l.land | upper }}{% if not loop.last %} {% endif %}{% endfor %}<br>
+        {% if index.binnenkort %}<span class="later">BINNENKORT
+          {% for c in index.binnenkort %}{{ c | upper }}{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}
+      </div>
+    </div>
+
+    <div class="idx-kaart">
+      <div class="idx-kop">
+        <strong>{{ index.top.naam }} &middot; {{ index.top.landnaam }}</strong>
+        <span>{{ index.top.telbaar }} KOOPVRAGEN &middot; ECHT GEMETEN</span>
+      </div>
+      {% for r in index.top.rijen %}
+      <div class="idx-rij {% if r.positie <= 3 %}top{% endif %}">
+        <span class="p">{{ r.positie }}</span>
+        <span class="w">{{ r.naam or r.webshop_url | replace('https://','') }}</span>
+        <span class="g">{{ r.genoemd }} / {{ index.top.telbaar }}</span>
+        <span class="a">{{ r.aanbevolen }}</span>
+      </div>
+      {% endfor %}
+      <div class="idx-voet">
+        <span>Genoemd is: je stond in het antwoord. Aanbevolen is: de assistent raadde je aan.</span>
+        <a href="/index/{{ index.top.land }}/{{ index.top.categorie }}">Bekijk deze ranglijst &rarr;</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
 
 <section id="probleem">
   <div class="wrap">

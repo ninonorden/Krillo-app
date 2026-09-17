@@ -240,6 +240,38 @@
   <p>Deze categorie is nog niet gemeten. Druk op de knop hierboven.</p>
   {% endif %}
 
+  {% if berichten %}
+  <h2>Wie er bericht krijgt na deze meting</h2>
+  <p>
+    Dit is een droogloop: er is niets verstuurd en er staat niets in de database.
+    Alleen de nachtronde verstuurt echt, zodat een meting vanaf deze pagina nooit
+    per ongeluk je klantenbestand mailt.
+  </p>
+  {% if berichten.klanten %}
+  <table>
+    <tr>
+      <th>Webshop</th><th>Bericht</th><th>Reden</th>
+      <th style="text-align:right">Positie</th>
+    </tr>
+    {% for r in berichten.regels %}
+    <tr {% if r.soort == 'geen' %}class="leeg"{% endif %}>
+      <td>{{ r.webshop_url }}</td>
+      <td>{{ r.soort }}</td>
+      <td>{{ r.reden }}</td>
+      <td class="getal">
+        {% if r.vorige_positie %}{{ r.vorige_positie }} &rarr; {% endif %}{{ r.positie }}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="vraaglijst">
+    Geen betalende klanten in deze categorie, dus er gaat niets uit.
+    Zodra er een klant in staat verschijnt hier wat hij zou krijgen.
+  </div>
+  {% endif %}
+  {% endif %}
+
   {% if intenties %}
   <h2>Welke soort vragen iets oplevert</h2>
   <p>

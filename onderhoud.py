@@ -21,6 +21,9 @@ WAT EEN RONDE DOET, IN DEZE VOLGORDE
    zit. Kost niets, want er wordt niets opnieuw gevraagd of gelezen.
 4. METEN. Hoogstens EEN categorie per ronde, en alleen als hij nog nooit gemeten
    is of als de laatste meting verlopen is.
+5. BERICHTEN. Meteen na die meting krijgen de klanten in die categorie hun
+   nameting, hun waarschuwing of hun maandbericht. Hooguit een per klant per
+   ronde, en nooit twee binnen veertien dagen. Zie meldingen.py.
 
 DRIE REGELS DIE HIER NIET ONDERHANDELBAAR ZIJN
 
@@ -51,6 +54,7 @@ import categorieen
 import categoriemeting
 import db
 import kosten
+import meldingen
 import opschonen
 
 # Hoeveel winkels er per ronde ingedeeld worden. Veertig per aanroep, dus dit
@@ -198,12 +202,25 @@ def stap_meten(hoeveel=None):
             verslag["ruimte"] = ruimte
             break
         uit = categoriemeting.meet_categorie(rij["categorie"])
-        verslag["gemeten"].append({
+        regel = {
             "categorie": rij["categorie"],
             "winkels": uit.get("winkels"),
             "telbaar": uit.get("telbaar"),
             "fout": uit.get("fout"),
-        })
+        }
+
+        # Meteen na de meting de berichten. Alleen HIER wordt er echt verstuurd;
+        # de knop op de beheerpagina doet dat bewust niet, want dan mail je je
+        # hele klantenbestand terwijl je aan het testen bent.
+        if uit.get("ronde") and not uit.get("fout"):
+            try:
+                regel["berichten"] = meldingen.na_meting(
+                    uit["ronde"], rij["categorie"], verstuur=True,
+                    basis=os.environ.get("BASE_URL"))
+            except Exception as e:
+                print(f"Berichten na meting mislukt voor {rij['categorie']}: {e}")
+                regel["berichten"] = {"fout": str(e)[:160]}
+        verslag["gemeten"].append(regel)
     return verslag
 
 
