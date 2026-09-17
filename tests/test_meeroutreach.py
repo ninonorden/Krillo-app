@@ -126,22 +126,29 @@ print("\n== monitoring: wij doen het werk, de klant krijgt een verslag ==")
 index = lees("templates/index.html")
 klopt("de kop belooft niet meer een lijstje",
       "En met monitoring krijg je elke week een lijstje" not in index)
-klopt("maar dat wij het bijhouden", "En daarna houden wij het voor je bij" in index)
+# De oude kop "En daarna houden wij het voor je bij" hoorde bij een sectie die
+# op 17 september vervangen is. Dezelfde belofte staat nu in de zes blokken en
+# op de prijskaart, en dat is waar iemand hem leest voordat hij betaalt.
+klopt("maar dat wij het bijhouden",
+      "Vier weken later meten wij opnieuw" in index)
 # Per week en niet per maand. Op de regel eronder stond al "hoogstens drie
 # dingen per week", en de keten draait wekelijks, dus "elke maand" was een
 # tweede tempo voor hetzelfde werk.
-klopt("de prijskaart zegt dat wij het uitvoeren, en in het goede tempo",
-      "Wij voeren elke week de verbeteringen uit" in index)
+# Sinds 17 september zijn het drie maandpakketten. De belofte is dezelfde
+# gebleven: wij voeren het uit. Alleen het tempo is van "elke week" naar "elke
+# maand" gegaan, want dat is wat de index doet.
+klopt("de prijskaart zegt dat wij het uitvoeren",
+      "Wij voeren de oplossingen uit in je winkel" in index)
 klopt("en niet in twee tempo's tegelijk",
       "Wij voeren elke maand de verbeteringen uit" not in index)
 klopt("en is eerlijk over wat er gebeurt zonder toegang",
-      "Geen toegang? Dan krijg je alles kant en klaar om zelf te doen" in index)
-klopt("het nagemaakte scherm toont wat er gedaan is",
-      "Wat wij deze week voor je gedaan hebben" in index)
+      "Geef je geen toegang, dan krijg je alles kant en klaar om zelf te doen" in index)
+# Was een nagemaakt scherm, is nu een echt dashboard op /demo.
+klopt("er is een echt dashboard te zien", "/demo" in index)
 
 print("\n== ook in het betaalscherm en de veelgestelde vragen ==")
 klopt("het betaalscherm noemt de toegang",
-      "Wij voeren de verbeteringen uit in je winkel" in index)
+      "toegang tot je webshop" in index)
 faq = lees("templates/faq.html")
 klopt("de veelgestelde vragen zijn omgezet",
       "Je krijgt elke week een lijstje" not in faq)

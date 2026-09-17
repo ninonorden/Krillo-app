@@ -270,7 +270,7 @@ klopt("de oude letters zijn weg",
 # de pagina laadt gewoon.
 for stuk in ("scanUrlInput", "scanButton", "scanResult", "checkoutOverlay",
              "checkoutSubmit", "zichtbaarheidBlok", "ztKnop", "ztEmail",
-             "simAnswer", "uitvoeringCheckoutBtn", "monitoringCheckoutBtn"):
+             "simAnswer", "watchCheckoutBtn", "fixCheckoutBtn"):
     klopt(f"de homepage heeft nog {stuk}", f'id="{stuk}"' in thuis)
 
 klopt("de index staat op de homepage", "idx-kaart" in thuis)

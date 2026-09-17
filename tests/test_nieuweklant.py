@@ -55,7 +55,7 @@ klopt("en het webadres wordt netjes ontsmet", "quote(" in functie)
 print("\n== alle drie de manieren waarop iemand klant wordt ==")
 for soort, herkenning in (
         ("wij doen het", '_meld_nieuwe_klant("Wij doen het"'),
-        ("monitoring via Mollie", '_meld_nieuwe_klant(\n                        "Monitoring"'),
+        ("monitoring via Mollie", '_meld_nieuwe_klant(\n                        "Abonnement"'),
         ("monitoring via de Shopify-app", '"Monitoring via de Shopify-app"')):
     klopt(f"{soort} geeft een bericht", herkenning in bron)
 

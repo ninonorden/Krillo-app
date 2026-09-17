@@ -155,21 +155,23 @@ klopt("het dubbele blok onder het voorbeeldrapport is weg",
 klopt("de zes stukjes onder het monitoringoverzicht zijn weg",
       "Wat je bij monitoring krijgt" not in index)
 klopt("hun opmaak is ook opgeruimd", "audit-teaser" not in index)
-klopt("er staat wel een weg naar de prijzen", "monitoring-slot" in index)
+klopt("er staat wel een weg naar de prijzen", 'href="#prijzen"' in index)
 # Wat er met opzet moet blijven: het bewijs. Dat was juist de kritiek op het
 # ondernemersforum, dat het te vaag was.
-klopt("het nagemaakte scherm met de uitslag staat er nog",
-      'class="rapport-demo"' in index)
-# En het is nu de gratis scan, niet de rapportpagina van de audit. Die pagina
-# krijgt niemand meer: een monitoringklant komt op /monitoring/<token>.
-klopt("het is aangekondigd als de gratis scan",
-      "Dit krijg je van de gratis scan" in index)
-klopt("het venster doet niet meer alsof het de auditpagina is",
-      '<span class="rapport-demo-url">krillo.nl/rapport</span>' not in index)
-klopt("en het stukje code zegt erbij dat het niet gratis is",
-      "Niet gratis: dit is wat wij er voor je neerzetten" in index)
-klopt("en het blok over wat wij wel en niet aanraken ook",
-      "Wat we wel en niet aanraken" in index)
+#
+# OP 17 SEPTEMBER IS DAT BEWIJS VERVANGEN DOOR IETS BETERS. Er stond een
+# NAGEMAAKT scherm van een uitslag. Nu staat er een link naar /demo: het echte
+# dashboard van een echte winkel uit de index, met echt gemeten cijfers, zonder
+# account. Een nagemaakt plaatje veroudert en niemand gelooft het; dit werkt
+# zichzelf bij. Daarom bewaken we vanaf nu de link en niet het plaatje.
+klopt("er staat een weg naar een ECHT dashboard", '/demo' in index)
+klopt("en er staat bij dat het echte cijfers zijn",
+      "ECHTE WINKEL, ECHTE CIJFERS" in index.upper())
+klopt("de openbare index staat er ook op", 'href="/index"' in index)
+# De belofte over wat wij wel en niet aanraken hoort ergens te staan. Hij staat
+# nu in het bestelscherm, op de plek waar iemand geld gaat uitgeven.
+klopt("wat wij wel en niet aanraken staat in het bestelscherm",
+      "We blijven van je prijzen, voorraad, bestellingen en vormgeving af" in index)
 
 print("\n== de prijskaarten ==")
 klopt("drie kolommen, niet vier", "grid-template-columns:repeat(3,1fr)" in index)

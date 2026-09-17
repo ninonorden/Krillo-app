@@ -40,7 +40,7 @@ def _create_audit_payment(base_url, webshop_url, email, bedrijfsnaam=None, bron=
     return {"checkout_url": "https://mollie.test/" + pid, "payment_id": pid}
 
 
-def _create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, bron=None):
+def _create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, bron=None, pakket=None):
     pid = f"tr_mon_{len(nep.betalingen)}"
     nep.betalingen[pid] = {"type": "monitoring_first_payment", "webshop_url": webshop_url,
                            "email": email, "bedrijfsnaam": bedrijfsnaam,

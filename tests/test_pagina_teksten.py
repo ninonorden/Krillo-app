@@ -79,8 +79,8 @@ zo("geen 'wel genoemd' als eindstand van de animatie",
 zo("het label zegt voorbeeld en niet live", "Live gesimuleerd" in h, False)
 zo("de audit belooft niet dat hij het oplost",
    "een audit die de verbeterpunten voor je oplost" in h, False)
-zo("het product van 149 euro staat in de gestructureerde gegevens",
-   '"name": "Wij doen het", "price": "149"' in h, True)
+zo("de maandpakketten staan in de gestructureerde gegevens",
+   '"name": "Fix", "price": "149"' in h and '"name": "Watch", "price": "49"' in h, True)
 zo("en in de navigatie", '#wij-doen-het' in h, True)
 zo("de demo gebruikt hetzelfde aantal vragen als de rest",
    "4 van de 22 koopvragen" in h, False)
@@ -88,7 +88,7 @@ zo("de demo gebruikt hetzelfde aantal vragen als de rest",
 print("\n== llms.txt, wat AI over ons overneemt ==")
 c = krillo.app.test_client()
 t = c.get("/llms.txt").get_data(as_text=True)
-zo("noemt het product van 149 euro", "Wij doen het: 149 euro" in t, True)
+zo("noemt de maandpakketten", "Fix: 149 euro per maand" in t, True)
 zo("zegt niet meer dat klanten het zelf regelen", "die dit zelf regelen" in t, False)
 zo("verwijst naar het onderzoek", "/onderzoek" in t, True)
 
