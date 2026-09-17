@@ -224,6 +224,32 @@ antwoord(EEN_KEER, "model-b", False, [])
 zwak = [z["vraag"] for z in db.vragen_die_nooit_meetelden(CAT)]
 klopt("bij twee missers wel", EEN_KEER in zwak)
 
+print("\n== elke soort koopvraag vraagt om een WINKEL ==")
+# De meting van Speelgoed op 17 september, per soort vraag, aandeel dat meetelde:
+#   winkel 100%, praktisch 100%, prijs 40%, alternatief 10%, algemeen 0%,
+#   doelgroep 0%.
+# De twee die het goed deden zijn precies de twee die letterlijk om een webshop
+# vroegen. De rest vroeg om een product, en daar antwoordt een assistent met
+# productnamen. Alle zes omschrijvingen vragen nu om een winkel; deze test houdt
+# dat zo, want dit is het soort regel dat bij de volgende herschrijving zo weer
+# sneuvelt.
+for naam, gewicht, uitleg in categoriemeting.KOOPINTENTIES():
+    laag = uitleg.lower()
+    klopt(f"de soort '{naam}' vraagt om een winkel",
+          "webshop" in laag or "winkel" in laag)
+    klopt(f"en '{naam}' heeft een gewicht", gewicht >= 1)
+
+print("\n== de verdeling telt precies op ==")
+for aantal in (30, 12, 6, 3, 1):
+    verdeling = categoriemeting._verdeling(aantal)
+    zo(f"{aantal} vragen worden er ook {aantal}",
+       sum(h for _, _, h in verdeling), aantal)
+    klopt("geen enkele soort krijgt er nul",
+          all(h >= 1 for _, _, h in verdeling))
+dertig = dict((n, h) for n, _, h in categoriemeting._verdeling(30))
+klopt("winkel krijgt de meeste vragen, want die telt altijd mee",
+      dertig["winkel"] == max(dertig.values()))
+
 print("\n== zonder meting valt er niets te herberekenen ==")
 leeg = categoriemeting.herbereken_ranglijst("bestaat-echt-niet")
 klopt("dat zegt hij gewoon", "fout" in leeg)
