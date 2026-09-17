@@ -827,7 +827,7 @@ def _vermeldingenblok(vermeldingen, taal="nl"):
 
     De mail ging tot nu toe alleen over de technische score. "Je score is nog
     steeds 51 van 100, er is niets veranderd" is waar, maar het is geen reden om
-    39 euro per maand te blijven betalen. Waar iemand voor betaalt is of AI zijn
+    elke maand te blijven betalen. Waar iemand voor betaalt is of AI zijn
     winkel noemt, en dat stond er niet in.
 
     Geeft een lege tekst terug als er niets te melden valt. Een blok met nullen

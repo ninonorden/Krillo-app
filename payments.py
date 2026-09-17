@@ -16,11 +16,59 @@ from mollie.api.client import Client
 from mollie.api.error import Error as MollieError
 
 AUDIT_PRICE = {"currency": "EUR", "value": "79.00"}
-MONITORING_PRICE = {"currency": "EUR", "value": "39.00"}
-# Wij voeren het uit in de webshop zelf. Dit is handwerk, geen software: er
-# wordt niets automatisch aangepast zolang er geen koppeling per platform is.
-# De prijs is een keuze en geen berekening, en mag veranderen zodra er genoeg
-# klanten zijn geweest om te weten hoeveel tijd het echt kost.
+
+# ---------------------------------------------------------------------------
+# DE PAKKETTEN, zoals ze sinds 17 september 2026 zijn
+# ---------------------------------------------------------------------------
+#
+# Hiervoor was het "149 euro eenmalig" plus "39 euro per maand". Dat is
+# veranderd in drie MAANDPAKKETTEN, om twee redenen.
+#
+# 1. Het product is maandelijks geworden. De index wordt elke maand opnieuw
+#    gemeten, er komt elke maand een nameting en een waarschuwing als je zakt.
+#    Daar past geen eenmalige betaling bij.
+#
+# 2. De markt. Otterly vraagt 189 dollar per maand, Scrunch 250 tot 500,
+#    AthenaHQ 295, en die leveren allemaal ALLEEN een rapport. Krillo voert het
+#    werk uit en vroeg 39. Dat leest niet als voordelig maar als goedkoop.
+#    Onderbouwing staat in krillo-prijzen-en-concurrentie-17-09-2026.
+#
+# Alle drie lopen via hetzelfde abonnement bij Mollie. Alleen het bedrag en de
+# omschrijving verschillen, zodat er maar EEN betaalstroom te onderhouden is.
+PAKKETTEN = {
+    "watch": {
+        "prijs": {"currency": "EUR", "value": "49.00"},
+        "naam": "Watch",
+        "omschrijving": "Krillo Watch, maandelijkse meting en oplossingen om zelf te doen",
+    },
+    "fix": {
+        "prijs": {"currency": "EUR", "value": "149.00"},
+        "naam": "Fix",
+        "omschrijving": "Krillo Fix, maandelijkse meting en wij voeren de oplossingen uit",
+    },
+    "merken": {
+        "prijs": {"currency": "EUR", "value": "490.00"},
+        "naam": "Merken en bureaus",
+        "omschrijving": "Krillo voor merken en bureaus, tot 25 winkels",
+    },
+}
+
+# Welk pakket het wordt als er niets meegestuurd is. Fix, want dat is het
+# pakket waar de site naartoe stuurt en waar het verschil met de rest van de
+# markt in zit.
+STANDAARD_PAKKET = "fix"
+
+
+def pakket_van(naam):
+    """Het pakket bij een naam, met terugval op het standaardpakket.
+
+    Nooit omvallen op een onbekende naam: dan zou iemand die op betalen drukt
+    een foutmelding krijgen op precies het moment dat hij besloten had."""
+    return PAKKETTEN.get((naam or "").strip().lower(), PAKKETTEN[STANDAARD_PAKKET])
+
+
+# Blijft bestaan voor code en oude links die deze namen nog gebruiken.
+MONITORING_PRICE = PAKKETTEN["fix"]["prijs"]
 UITVOERING_PRICE = {"currency": "EUR", "value": "149.00"}
 
 
@@ -93,7 +141,8 @@ def create_uitvoering_payment(base_url, webshop_url, email, bedrijfsnaam=None, b
         return {"error": str(e)}
 
 
-def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, bron=None):
+def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, bron=None,
+                             pakket=STANDAARD_PAKKET):
     """Stap 1 van het abonnement: klant aanmaken en de eerste betaling starten.
     Zodra deze betaling lukt (zie webhook), maken we het echte, doorlopende
     abonnement aan via create_subscription hieronder."""
@@ -107,15 +156,20 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
             "email": email,
             "metadata": {"webshop_url": webshop_url},
         })
+        gekozen = pakket_van(pakket)
         first_payment = customer.payments.create({
-            "amount": MONITORING_PRICE,
-            "description": "Krillo monitoring, eerste maand",
+            "amount": gekozen["prijs"],
+            "description": f"{gekozen['omschrijving']}, eerste maand",
             "redirectUrl": f"{base_url}/bedankt?type=monitoring",
             "webhookUrl": f"{base_url}/webhooks/mollie",
             "sequenceType": "first",
             "metadata": {"type": "monitoring_first_payment", "webshop_url": webshop_url,
                          "customer_id": customer.id, "email": email,
-                         "bedrijfsnaam": bedrijfsnaam, "bron": bron},
+                         "bedrijfsnaam": bedrijfsnaam, "bron": bron,
+                         # Het pakket MOET mee in de metadata. De webhook maakt
+                         # daarna het doorlopende abonnement aan, en die weet
+                         # anders niet of het 49 of 149 per maand wordt.
+                         "pakket": (pakket or STANDAARD_PAKKET)},
         })
         _zet_terugkeerlink_met_kenmerk(client, first_payment, base_url, "monitoring")
         return {"checkout_url": first_payment.checkout_url, "payment_id": first_payment.id, "customer_id": customer.id}
@@ -123,7 +177,7 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
         return {"error": str(e)}
 
 
-def create_subscription(customer_id):
+def create_subscription(customer_id, pakket=STANDAARD_PAKKET):
     """Stap 2, wordt aangeroepen vanuit de webhook zodra de eerste betaling is gelukt.
     Zet het echte, maandelijks terugkerende abonnement op."""
     client = get_mollie_client()
@@ -132,10 +186,11 @@ def create_subscription(customer_id):
 
     try:
         customer = client.customers.get(customer_id)
+        gekozen = pakket_van(pakket)
         subscription = customer.subscriptions.create({
-            "amount": MONITORING_PRICE,
+            "amount": gekozen["prijs"],
             "interval": "1 month",
-            "description": "Krillo monitoring-abonnement",
+            "description": f"{gekozen['omschrijving']} (abonnement)",
         })
         return {"subscription_id": subscription.id}
     except (MollieError, Exception) as e:

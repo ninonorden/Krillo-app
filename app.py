@@ -479,9 +479,12 @@ door Krillo laten uitvoeren.
 ## Prijzen
 - Gratis scan: 0 euro, geen account nodig
 - Volledige audit: 79 euro eenmalig, alle oplossingen uitgeschreven om zelf te doen
-- Wij doen het: 149 euro eenmalig, Krillo voert de verbeteringen uit in de webshop
-- Monitoring: 39 euro per maand, Krillo meet elke week en voert de verbeteringen uit,
-  maandelijks opzegbaar
+- Watch: 49 euro per maand, elke maand je positie in de ranglijst, de koopvragen
+  waar je niet in voorkomt, en de oplossingen uitgeschreven om zelf te doen
+- Fix: 149 euro per maand, alles uit Watch plus Krillo voert de oplossingen uit in
+  de webshop, met een nameting na vier weken. Maandelijks opzegbaar.
+- Merken en bureaus: 490 euro per maand, tot 25 winkels in een overzicht
+- Een extra land voor dezelfde winkel: 49 euro per maand
 
 ## Belangrijke pagina's
 - Homepage, gratis scan en gratis zichtbaarheidstest: https://www.krillo.nl/
@@ -940,9 +943,14 @@ def checkout_monitoring():
         # die wil betalen omdat onze controle hapert is erger dan het risico.
         print(f"Bestaand abonnement nakijken mislukt voor {webshop_url}: {e}")
 
+    # Welk pakket. Onbekend of leeg wordt het standaardpakket; payments.pakket_van
+    # doet die keuze op EEN plek, zodat de site en de webhook nooit iets anders
+    # kunnen denken.
+    pakket = (data.get("pakket") or "").strip().lower()
+
     bron = _schoon_bron(data.get("herkomst")) or _schoon_bron(_herkomst())
     result = payments.create_monitoring_signup(get_base_url(), email, webshop_url,
-                                               bedrijfsnaam, bron=bron)
+                                               bedrijfsnaam, bron=bron, pakket=pakket)
     if "payment_id" in result:
         db.leg_toestemming_vast(result["payment_id"], email, webshop_url, "monitoring", voorwaarden, False)
     if "error" in result:
@@ -1171,7 +1179,7 @@ def _verwerk_betaling(payment_id, base_url):
             # Meteen een bericht naar het eigen adres. Hier moet een mens aan de
             # slag, dus dit is het enige product waarbij stilte betekent dat er
             # niets gebeurt.
-            _meld_nieuwe_klant("Wij doen het", webshop_url, email, "149 euro eenmalig",
+            _meld_nieuwe_klant("Wij doen het", webshop_url, email, "149 euro eenmalig (oude route)",
                                extra=(f"Platform: {platform}" if platform else
                                       "Platform onbekend, kijk zelf even waar hij op draait."))
             klant_token = db.get_or_create_klant(webshop_url, email)
@@ -1276,7 +1284,12 @@ def _verwerk_betaling(payment_id, base_url):
                           f"geen tweede aangemaakt.")
                     uitkomst = {"id": bestaand.get("subscription_id")}
                 else:
-                    uitkomst = payments.create_subscription(customer_id) or {}
+                    # Het pakket komt uit de metadata van de eerste betaling.
+                    # Zonder dit werd elk abonnement het standaardbedrag, ook
+                    # als iemand Watch van 49 euro gekozen had, en dan wordt er
+                    # elke maand honderd euro te veel afgeschreven.
+                    uitkomst = payments.create_subscription(
+                        customer_id, pakket=metadata.get("pakket")) or {}
                 if uitkomst.get("error"):
                     print(f"LET OP: doorlopend abonnement NIET aangemaakt voor "
                           f"{webshop_url} ({customer_id}): {uitkomst['error']}")
@@ -1321,7 +1334,7 @@ def _verwerk_betaling(payment_id, base_url):
                     except Exception as e:
                         print(f"Toegangsmail bij monitoring mislukt voor {webshop_url}: {e}")
                     _meld_nieuwe_klant(
-                        "Monitoring", webshop_url, email, "39 euro per maand",
+                        "Abonnement", webshop_url, email, "maandpakket",
                         extra=(f'Zijn pagina: <a href="{monitoring_url}">{monitoring_url}</a>'
                                if monitoring_url else None))
 
@@ -1646,7 +1659,7 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                 # zorg is terecht, maar de prijs was hoog: de mail ging dan over
                 # de meting van vorige week, en kon dus alleen het technische
                 # cijfer melden. "Je score is nog steeds 51 van 100, er is niets
-                # veranderd" is geen reden om 39 euro per maand te betalen. Waar
+                # veranderd" is geen reden om elke maand te betalen. Waar
                 # een klant voor betaalt is of AI hem noemt.
                 #
                 # Nu meten wij eerst en mailen daarna. De zorg blijft opgelost
