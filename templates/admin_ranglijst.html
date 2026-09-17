@@ -118,6 +118,17 @@
       Dit kost geld. Ongeveer veertig cent.</span>
   </form>
 
+  <form method="post" style="background:var(--teal-dim);">
+    <input type="hidden" name="categorie" value="{{ gekozen }}">
+    <button class="knop licht" type="submit" name="actie" value="herbereken"
+            style="cursor:pointer;">Ranglijst opnieuw uitrekenen</button>
+    <span style="font-size:12.5px; color:var(--ink-soft); padding-bottom:9px; max-width:520px;">
+      Gratis. Er wordt geen vraag opnieuw gesteld en geen antwoord opnieuw gelezen: de
+      antwoorden die er al staan worden alleen opnieuw geteld. Doe dit na het opschonen,
+      na het indelen, en nadat je met de hand een adres als merk hebt gemarkeerd. Dan
+      verdwijnen twee adressen van dezelfde keten uit de lijst zonder opnieuw te meten.</span>
+  </form>
+
   {% if vergelijking.bezig %}
   <div class="verslag" style="background:{% if vergelijking.vastgelopen %}var(--coral-dim){% else %}var(--teal-dim){% endif %};">
     {% if vergelijking.vastgelopen %}
@@ -227,6 +238,52 @@
   </table>
   {% elif gekozen %}
   <p>Deze categorie is nog niet gemeten. Druk op de knop hierboven.</p>
+  {% endif %}
+
+  {% if intenties %}
+  <h2>Welke soort vragen iets oplevert</h2>
+  <p>
+    Een vraag die om een product of een merk vraagt levert geen enkele webshop op. Zo'n
+    antwoord telt niet mee in de ranglijst, terwijl hij wel betaald is. Hier zie je welke
+    soort vragen dat zijn, zodat we ze eruit kunnen halen in plaats van te gokken.
+  </p>
+  <table>
+    <tr>
+      <th>Soort vraag</th>
+      <th style="text-align:right">Antwoorden</th>
+      <th style="text-align:right">Telden mee</th>
+      <th style="text-align:right">Aandeel</th>
+    </tr>
+    {% for i in intenties %}
+    <tr {% if i.aandeel < 0.45 %}class="leeg"{% endif %}>
+      <td>{{ i.intentie }}</td>
+      <td class="getal">{{ i.antwoorden }}</td>
+      <td class="getal">{{ i.telden_mee }}</td>
+      <td class="getal">{{ (i.aandeel * 100) | round(0) | int }}%</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if zwakke_vragen %}
+  <div class="vraaglijst" style="margin-top:16px;">
+    <strong style="font-family:var(--disp); font-size:14px;">
+      {{ zwakke_vragen | length }} vragen leverden nooit een winkel op</strong>
+    <ul style="margin-top:8px;">
+      {% for z in zwakke_vragen %}
+      <li>{{ z.vraag }} <span class="intentie">[{{ z.intentie }}, {{ z.antwoorden }} keer geprobeerd]</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+  <form method="post" style="margin-top:12px;">
+    <input type="hidden" name="categorie" value="{{ gekozen }}">
+    <button class="knop licht" type="submit" name="actie" value="snoeien"
+            style="cursor:pointer;">Deze vragen uitzetten</button>
+    <span style="font-size:12.5px; color:var(--ink-soft); padding-bottom:9px; max-width:520px;">
+      Gratis. Ze blijven bewaard maar worden niet meer gesteld. Bij de volgende meting
+      worden er nieuwe vragen voor bedacht, zodat er weer dertig zijn. Zo telt er elke
+      ronde een groter deel mee en wordt de meting tegelijk goedkoper.</span>
+  </form>
   {% endif %}
 
   {% if vragen %}

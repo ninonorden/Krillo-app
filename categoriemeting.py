@@ -100,9 +100,20 @@ ongeveer {per_intentie} per soort:
 REGELS:
 - Geen enkele winkelnaam of merknaam in de vragen. Anders meten we of AI een
   naam kan herhalen in plaats van of een winkel uit zichzelf genoemd wordt.
-- Elke vraag moet ECHT om een winkel of een plek om te kopen kunnen vragen.
-  Vragen die alleen om informatie vragen ("hoe onderhoud ik een koekenpan")
-  leveren geen enkele webshop op en zijn dus weggegooid geld.
+- DE BELANGRIJKSTE REGEL. In ELKE vraag moet om een WINKEL of een PLEK OM TE
+  KOPEN gevraagd worden, ook bij de soorten die over prijs of doelgroep gaan.
+  Een vraag die om een product, een merk of uitleg vraagt levert geen enkele
+  webshop op. Zo'n antwoord telt niet mee in de meting en is dus betaald voor
+  niets. Bij een echte meting telde maar 13 van de 30 vragen mee, en dat kwam
+  hierdoor.
+  Fout: "wat is de beste houten trein voor een peuter"
+  Goed: "waar koop ik online een houten trein voor een peuter"
+  Fout: "welk merk speelgoed gaat het langst mee"
+  Goed: "welke webshop verkoopt speelgoed dat lang meegaat"
+  Fout: "hoeveel kost een goede loopfiets"
+  Goed: "welke {landnaam} webshop heeft goedkope loopfietsen"
+- Controleer elke vraag voor je hem opschrijft: zou een assistent hierop met een
+  of meer WINKELNAMEN antwoorden. Is dat nee, schrijf de vraag dan om.
 - Schrijf ze zoals iemand ze intypt: gewone taal, geen zoekmachinetermen.
 - Varieer in wat er gezocht wordt binnen de categorie, zodat de meting niet op
   een smal stukje van de markt hangt.
@@ -587,6 +598,128 @@ def rol_ketens_op(telling, winkels):
     return samen
 
 
+def maak_ranglijst(telling, winkels):
+    """Van een telling per adres naar een ranglijst met posities.
+
+    Staat apart omdat er twee wegen naartoe leiden: een verse meting, en een
+    herberekening uit bewaarde antwoorden. Zouden die twee elk hun eigen
+    sorteerregels hebben, dan kan een herberekening een andere volgorde geven
+    dan de meting, en dan weet niemand meer welke lijst waar is.
+
+    Eerst opschonen: ketens bij elkaar, merken en adresloze regels eruit. Dat
+    gebeurt na het tellen en niet ervoor, zodat een vermelding van
+    cookinglife.be wel meetelt maar niet als eigen regel op de lijst komt.
+
+    Aanbevolen weegt zwaarder dan genoemd, want in een rij staan is iets anders
+    dan aangeraden worden."""
+    opgeschoond = rol_ketens_op(telling, winkels)
+    rangen = sorted(
+        ({"webshop_url": u,
+          "genoemd": len(t["genoemd"]),
+          "aanbevolen": len(t["aanbevolen"]),
+          "beste_positie": t["beste_positie"]} for u, t in opgeschoond.items()),
+        key=lambda r: (-r["aanbevolen"], -r["genoemd"], r["webshop_url"]))
+    for plek, rij in enumerate(rangen, start=1):
+        rij["positie"] = plek
+    return rangen
+
+
+def tel_uit_antwoorden(rijen, winkels):
+    """Telt bewaarde antwoorden uit zonder ook maar een model aan te roepen.
+
+    Elk antwoord staat in de database met wat eruit gelezen is: welke winkels
+    erin voorkwamen, wie er aanbevolen werd, en of er uberhaupt een winkel
+    genoemd kon worden. Dat is precies wat het tellen nodig heeft. Het dure
+    stuk, het lezen, is al betaald.
+
+    Tellen gebeurt per VRAAG en niet per antwoord. Dezelfde vraag is aan twee
+    modellen gesteld; wordt een winkel door allebei genoemd, dan is dat een
+    vraag waarbij hij genoemd werd, niet twee. Daarom zijn het verzamelingen."""
+    telling = {w["webshop_url"]: {"genoemd": set(), "aanbevolen": set(),
+                                  "beste_positie": None} for w in winkels}
+    telbaar = set()
+    for rij in rijen:
+        genoemde = rij.get("genoemde_winkels") or {}
+        if isinstance(genoemde, str):
+            genoemde = json.loads(genoemde)
+        if not genoemde.get("winkel_kon_genoemd"):
+            continue
+        vraag = rij["vraag"]
+        telbaar.add(vraag)
+        for url, hoe in koppel_aan_winkels(genoemde, winkels).items():
+            if hoe["genoemd"]:
+                telling[url]["genoemd"].add(vraag)
+                p = hoe["positie"]
+                huidig = telling[url]["beste_positie"]
+                if p and (huidig is None or p < huidig):
+                    telling[url]["beste_positie"] = p
+            if hoe["aanbevolen"]:
+                telling[url]["aanbevolen"].add(vraag)
+    return telling, telbaar
+
+
+def herbereken_ranglijst(slug):
+    """Rekent de ranglijst opnieuw uit de bewaarde antwoorden. Kost niets.
+
+    WAAROM DEZE KNOP ER IS. In de eerste ranglijst van servies stonden
+    cookinglife.be en cookinglife.nl als twee regels met dezelfde cijfers. Dat
+    is een keten met twee adressen, en sinds het opschonen weet de database dat.
+    Maar de ranglijst was al gemaakt, en de enige manier om hem te verbeteren
+    was opnieuw meten. Opnieuw meten kost veertig cent en een half uur, terwijl
+    er aan de gemeten werkelijkheid niets veranderd is: alleen onze kennis over
+    welke adressen bij elkaar horen is beter geworden.
+
+    Wat hier dus NIET gebeurt: er wordt geen enkele vraag opnieuw gesteld en er
+    wordt geen enkel antwoord opnieuw gelezen. Nul modelaanroepen, nul euro.
+
+    Gebruik hem na het opschonen, na het indelen in categorieen, en nadat je met
+    de hand een adres als merk hebt gemarkeerd."""
+    ronde = db.laatste_afgeronde_ronde(slug)
+    if not ronde:
+        return {"fout": f"Er is nog geen afgeronde meting van {slug}."}
+    rijen = db.antwoorden_van_ronde(ronde)
+    if not rijen:
+        return {"fout": "Er zijn geen bewaarde antwoorden bij deze ronde."}
+    winkels = db.winkels_in_categorie_met_kinderen(slug)
+    if not winkels:
+        return {"fout": f"Geen winkels in {slug}."}
+
+    telling, telbaar = tel_uit_antwoorden(rijen, winkels)
+    rangen = maak_ranglijst(telling, winkels)
+    db.wis_categorie_uitkomsten(ronde)
+    db.bewaar_categorie_uitkomsten(ronde, slug, rangen, len(telbaar))
+    return {"ronde": ronde, "categorie": slug, "winkels": len(rangen),
+            "antwoorden": len(rijen), "telbaar": len(telbaar),
+            "gemeten_adressen": len(winkels), "ranglijst": rangen}
+
+
+# ---------------------------------------------------------------------------
+# Stap 6: meer vragen laten meetellen
+# ---------------------------------------------------------------------------
+#
+# Bij Speelgoed telden er 13 van de 30 vragen mee. De andere zeventien leverden
+# geen enkele webshop op, meestal omdat er om een product of een merk gevraagd
+# werd en niet om een plek om te kopen. Dat is dubbel zonde: die vragen kosten
+# wel geld en ze leveren geen enkel cijfer op.
+#
+# Twee dingen ertegen. Vooraf: de opdracht om vragen te bedenken is strenger
+# geworden, met voorbeelden van goed en fout. Achteraf: een vraag die bij twee
+# of meer antwoorden nooit een winkel opleverde gaat uit, en de volgende ronde
+# wordt hij niet meer gesteld.
+
+def snoei_vragen(slug, minstens=2):
+    """Zet de koopvragen uit die nooit een winkel opleveren.
+
+    Nooit op een enkele meting, want dan zet je een goede vraag uit omdat een
+    model die ene keer een merkenlijstje gaf. Pas vanaf twee antwoorden die er
+    allebei niets uit kregen."""
+    zwak = db.vragen_die_nooit_meetelden(slug, minstens=minstens)
+    if not zwak:
+        return {"categorie": slug, "uitgezet": 0, "vragen": []}
+    aantal = db.zet_vragen_uit(slug, [z["vraag"] for z in zwak])
+    return {"categorie": slug, "uitgezet": aantal, "vragen": zwak}
+
+
 # ---------------------------------------------------------------------------
 # Een hele categorie meten
 # ---------------------------------------------------------------------------
@@ -631,16 +764,25 @@ def meet_categorie(slug, max_vragen=None):
 
     _stand["stap"] = "koopvragen ophalen"
     vragen = db.categorie_vragen(slug)
-    if not vragen:
+    # Aanvullen tot er weer dertig actieve vragen zijn. Dat is nodig sinds
+    # zwakke vragen na een ronde uitgezet worden: zonder aanvullen zou elke
+    # ronde met minder vragen meten dan de vorige en zou de meting langzaam
+    # uitdoven. Nu gaat er een vraag uit die niets oplevert en komt er een
+    # nieuwe voor terug.
+    if len(vragen) < VRAGEN_PER_CATEGORIE:
         # Dit is een modelaanroep van een minuut of wat, en tot 16 september
         # stond er ondertussen "vraag 0 van 0" op het scherm. Dat leest als
         # vastgelopen terwijl er gewoon gewerkt wordt.
-        _stand["stap"] = "dertig koopvragen bedenken voor deze categorie"
-        nieuw = bedenk_vragen(slug)
-        if not nieuw:
+        tekort = VRAGEN_PER_CATEGORIE - len(vragen)
+        _stand["stap"] = f"{tekort} koopvragen bedenken voor deze categorie"
+        nieuw = bedenk_vragen(slug, aantal=max(tekort, 6))
+        if not nieuw and not vragen:
             return {"fout": "Er konden geen vragen bedacht worden."}
-        db.bewaar_categorie_vragen(slug, nieuw)
-        vragen = db.categorie_vragen(slug)
+        if nieuw:
+            db.bewaar_categorie_vragen(slug, nieuw)
+            vragen = db.categorie_vragen(slug)
+    if not vragen:
+        return {"fout": "Er zijn geen koopvragen voor deze categorie."}
     if max_vragen:
         vragen = vragen[:max_vragen]
 
@@ -702,25 +844,19 @@ def meet_categorie(slug, max_vragen=None):
                 if hoe["aanbevolen"]:
                     telling[url]["aanbevolen"].add(vraag["vraag"])
 
-    # Eerst opschonen: ketens bij elkaar, merken en adresloze regels eruit. Dit
-    # gebeurt na het tellen en niet ervoor, zodat een vermelding van
-    # cookinglife.be wel meetelt maar niet als eigen regel op de lijst komt.
-    opgeschoond = rol_ketens_op(telling, winkels)
-
-    # De ranglijst. Aanbevolen weegt zwaarder dan genoemd, want in een rij staan
-    # is iets anders dan aangeraden worden.
-    rangen = sorted(
-        ({"webshop_url": u,
-          "genoemd": len(t["genoemd"]),
-          "aanbevolen": len(t["aanbevolen"]),
-          "beste_positie": t["beste_positie"]} for u, t in opgeschoond.items()),
-        key=lambda r: (-r["aanbevolen"], -r["genoemd"], r["webshop_url"]))
-    for plek, rij in enumerate(rangen, start=1):
-        rij["positie"] = plek
+    rangen = maak_ranglijst(telling, winkels)
     db.bewaar_categorie_uitkomsten(ronde, slug, rangen, len(telbaar))
+
+    # Opruimen voor de volgende keer: vragen die nooit een winkel opleveren gaan
+    # uit. Dat is wat het aandeel meetellende vragen omhoog brengt, en het maakt
+    # de volgende ronde tegelijk goedkoper, want zo'n vraag wordt niet meer
+    # gesteld en niet meer gelezen.
+    _stand["stap"] = "zwakke vragen opruimen"
+    gesnoeid = snoei_vragen(slug)
 
     return {"ronde": ronde, "categorie": slug, "winkels": len(rangen),
             "gemeten_adressen": len(winkels),
+            "uitgezette_vragen": gesnoeid.get("uitgezet", 0),
             "vragen": len(vragen), "telbaar": len(telbaar),
             "antwoorden": _stand["antwoorden"], "mislukt": _stand["mislukt"],
             "ranglijst": rangen}

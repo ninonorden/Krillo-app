@@ -16,7 +16,10 @@ WAT EEN RONDE DOET, IN DEZE VOLGORDE
 2. OPSCHONEN. Nieuwe winkels krijgen hun soort en hun hoofdadres. Het adreswerk
    is gratis en gebeurt voor alles wat binnen is; alleen merk-of-winkel kost
    geld en gaat per veertig.
-3. METEN. Hoogstens EEN categorie per ronde, en alleen als hij nog nooit gemeten
+3. HERBEREKENEN. Elke bestaande ranglijst opnieuw uitrekenen uit de antwoorden
+   die er al staan, zodat wat er net bij het opschonen geleerd is er meteen in
+   zit. Kost niets, want er wordt niets opnieuw gevraagd of gelezen.
+4. METEN. Hoogstens EEN categorie per ronde, en alleen als hij nog nooit gemeten
    is of als de laatste meting verlopen is.
 
 DRIE REGELS DIE HIER NIET ONDERHANDELBAAR ZIJN
@@ -143,6 +146,27 @@ def stap_opschonen(hoeveel=None):
     return verslag
 
 
+def stap_herberekenen():
+    """Elke bestaande ranglijst opnieuw uitrekenen uit de bewaarde antwoorden.
+
+    Kost niets: geen vraag wordt opnieuw gesteld, geen antwoord opnieuw gelezen.
+    Daarom staat er ook geen kostenrem voor.
+
+    Waarom dit na het opschonen moet. Het opschonen zet net vast dat
+    cookinglife.be bij cookinglife.nl hoort en dat Brabantia een merk is. De
+    ranglijsten die er al liggen weten dat nog niet en laten dus dubbele regels
+    en merken zien. Zonder deze stap zou je voor die verbetering opnieuw moeten
+    meten, en dat kost per categorie veertig cent voor precies dezelfde
+    antwoorden."""
+    verslag = {"categorieen": 0, "bijgewerkt": 0}
+    for slug in db.gemeten_categorieen():
+        verslag["categorieen"] += 1
+        uit = categoriemeting.herbereken_ranglijst(slug)
+        if not uit.get("fout"):
+            verslag["bijgewerkt"] += 1
+    return verslag
+
+
 def stap_meten(hoeveel=None):
     """De categorie meten die er het langst op wacht.
 
@@ -199,6 +223,11 @@ def ronde():
 
     _stand["stap"] = "opschonen"
     verslag["opschonen"] = stap_opschonen()
+
+    # Gratis, en het moet na het opschonen: wat daar geleerd is over ketens en
+    # merken hoort meteen in de bestaande ranglijsten te staan.
+    _stand["stap"] = "ranglijsten herberekenen"
+    verslag["herberekenen"] = stap_herberekenen()
 
     _stand["stap"] = "meten"
     verslag["meten"] = stap_meten()

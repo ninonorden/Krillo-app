@@ -4239,11 +4239,38 @@ def admin_ranglijst():
         "vergelijk-gestart": ("De vergelijking is gestart. Ververs deze pagina over een "
                               "minuut, dan staat eronder wat eruit kwam."),
         "vergelijk-loopt-al": "Er loopt al een vergelijking. Ververs de pagina.",
+        "herberekend": ("De ranglijst is opnieuw uitgerekend uit de antwoorden die "
+                        "er al stonden. Dit heeft niets gekost."),
+        "niets-te-herberekenen": ("Er is nog geen afgeronde meting van deze categorie, "
+                                  "dus er valt niets te herberekenen."),
+        "gesnoeid": ("De vragen die nooit een winkel opleverden staan uit. Bij de "
+                     "volgende meting worden ze niet meer gesteld en komen er nieuwe "
+                     "voor terug."),
+        "niets-te-snoeien": ("Elke vraag leverde weleens een winkel op. Er hoefde "
+                             "niets uit."),
     }
     bericht = MELDINGEN.get(request.args.get("m"))
+    if request.args.get("m") == "herberekend" and request.args.get("winkels"):
+        bericht += f" Er staan nu {request.args.get('winkels')} winkels in de lijst."
 
-    def _terug(code):
-        return redirect(f"/admin/ranglijst?categorie={gekozen or ''}&m={code}")
+    def _terug(code, **extra):
+        adres = f"/admin/ranglijst?categorie={gekozen or ''}&m={code}"
+        for sleutel, waarde in extra.items():
+            adres += f"&{sleutel}={waarde}"
+        return redirect(adres)
+
+    # Herberekenen: de ranglijst opnieuw uitrekenen uit de bewaarde antwoorden.
+    # Nul modelaanroepen, nul euro, klaar in een seconde. Daarom mag dit wel in
+    # het verzoek zelf en hoeft er geen draad aan te pas te komen.
+    if request.method == "POST" and gekozen and request.form.get("actie") == "herbereken":
+        uitkomst = categoriemeting.herbereken_ranglijst(gekozen)
+        if uitkomst.get("fout"):
+            return _terug("niets-te-herberekenen")
+        return _terug("herberekend", winkels=uitkomst["winkels"])
+
+    if request.method == "POST" and gekozen and request.form.get("actie") == "snoeien":
+        uitkomst = categoriemeting.snoei_vragen(gekozen)
+        return _terug("gesnoeid" if uitkomst["uitgezet"] else "niets-te-snoeien")
 
     if request.method == "POST" and gekozen and request.form.get("actie") == "vergelijk":
         # Het goedkope leesmodel naast het dure, op antwoorden die er al staan.
@@ -4280,6 +4307,8 @@ def admin_ranglijst():
         ranglijst=lijst,
         ronde_kosten=db.kosten_van_ronde(lijst["ronde"]) if lijst and lijst.get("ronde") else None,
         vragen=db.categorie_vragen(gekozen) if gekozen else [],
+        intenties=db.telbaarheid_per_intentie(gekozen) if gekozen else [],
+        zwakke_vragen=db.vragen_die_nooit_meetelden(gekozen) if gekozen else [],
         vergelijking=categoriemeting.vergelijkstand(),
         kandidaten=categoriemeting.KANDIDATEN,
     )

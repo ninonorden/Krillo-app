@@ -4875,13 +4875,201 @@ def bewaar_categorie_uitkomsten(ronde, categorie, rangen, telbaar):
                         telbaar = EXCLUDED.telbaar
                 """, [(ronde, categorie, r["webshop_url"], r["positie"], r["genoemd"],
                        r["aanbevolen"], r.get("beste_positie"), telbaar) for r in rangen])
+                # coalesce en niet now(): een herberekening mag de eindtijd van
+                # de ronde niet verzetten. Deed hij dat wel, dan zou het venster
+                # waarin kosten_van_ronde kijkt opeens uren beslaan en zou een
+                # gratis herberekening de ronde duurder laten lijken dan hij was.
                 cur.execute("""UPDATE categorie_rondes
-                                  SET afgerond_op = now(), telbaar = %s
+                                  SET afgerond_op = coalesce(afgerond_op, now()),
+                                      telbaar = %s
                                 WHERE id = %s""", (telbaar, ronde))
         return True
     except Exception as e:
         print(f"Categorie-uitkomsten bewaren mislukt: {e}")
         return False
+    finally:
+        conn.close()
+
+
+def laatste_afgeronde_ronde(categorie):
+    """Het nummer van de nieuwste afgeronde meetronde van een categorie."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT id FROM categorie_rondes
+                                WHERE categorie = %s AND afgerond_op IS NOT NULL
+                             ORDER BY id DESC LIMIT 1""", (categorie,))
+                rij = cur.fetchone()
+                return rij[0] if rij else None
+    except Exception as e:
+        print(f"Laatste ronde ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def gemeten_categorieen():
+    """Elke categorie waarvan er een afgeronde meting ligt.
+
+    Voor het onderhoud: na het opschonen moeten die ranglijsten opnieuw
+    uitgerekend worden, want er kunnen adressen bij een keten zijn gaan horen of
+    als merk gemarkeerd zijn. Dat herberekenen kost niets."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT DISTINCT categorie FROM categorie_rondes
+                                WHERE afgerond_op IS NOT NULL ORDER BY categorie""")
+                return [r[0] for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Gemeten categorieen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def antwoorden_van_ronde(ronde):
+    """Alles wat er in een ronde gelezen is, zonder limiet.
+
+    Verschil met bewaarde_antwoorden: die is voor de modelvergelijking en pakt
+    er een handjevol, met de volledige antwoordtekst erbij. Deze is voor het
+    herberekenen van een ranglijst en laat die tekst juist weg, want die is dan
+    niet nodig en het scheelt bij zestig antwoorden een hoop geheugen."""
+    conn = _get_connection()
+    if conn is None or not ronde:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT vraag, model, winkel_kon_genoemd, genoemde_winkels
+                      FROM categorie_antwoorden
+                     WHERE ronde = %s ORDER BY id""", (ronde,))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Antwoorden van ronde ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def wis_categorie_uitkomsten(ronde):
+    """Gooit de ranglijst van een ronde weg, zodat een herberekening hem
+    helemaal opnieuw kan wegschrijven.
+
+    Waarom wissen en niet overschrijven. Bij een herberekening kunnen er regels
+    VERDWIJNEN: een adres dat inmiddels als merk gemarkeerd staat hoort niet
+    meer in de lijst. Alleen overschrijven laat zo'n regel met zijn oude cijfers
+    staan, en dan klopt de lijst nog steeds niet."""
+    conn = _get_connection()
+    if conn is None or not ronde:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM categorie_uitkomsten WHERE ronde = %s",
+                            (ronde,))
+        return True
+    except Exception as e:
+        print(f"Uitkomsten wissen mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def telbaarheid_per_intentie(categorie=None):
+    """Per soort koopvraag: hoeveel antwoorden er waren en hoeveel er meetelden.
+
+    Dit is het cijfer achter stap 6. Bij Speelgoed telden er 13 van de 30 vragen
+    mee, en zonder deze uitsplitsing weet je alleen DAT het er weinig zijn, niet
+    WELKE soort vragen het verpesten. Met deze uitsplitsing zie je bijvoorbeeld
+    dat prijsvragen productnamen opleveren en bijna nooit een webshop."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                waar, waarden = "", []
+                if categorie:
+                    waar = " AND a.categorie = %s"
+                    waarden = [categorie]
+                cur.execute(f"""
+                    SELECT coalesce(v.intentie, 'onbekend')      AS intentie,
+                           count(*)                              AS antwoorden,
+                           count(*) FILTER (WHERE a.winkel_kon_genoemd) AS telden_mee
+                      FROM categorie_antwoorden a
+                 LEFT JOIN categorie_vragen v
+                        ON v.categorie = a.categorie AND v.vraag = a.vraag
+                     WHERE TRUE{waar}
+                  GROUP BY 1 ORDER BY 2 DESC""", waarden)
+                rijen = [dict(r) for r in cur.fetchall()]
+        for r in rijen:
+            r["aandeel"] = (round(r["telden_mee"] / r["antwoorden"], 3)
+                            if r["antwoorden"] else 0)
+        return rijen
+    except Exception as e:
+        print(f"Telbaarheid per intentie ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def vragen_die_nooit_meetelden(categorie, minstens=2):
+    """De koopvragen die bij elk antwoord dat er ooit op kwam niets opleverden.
+
+    Minstens twee antwoorden, want een vraag afkeuren op een enkele meting is
+    afkeuren op toeval: een model kan die ene keer een slechte bui hebben."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT a.vraag,
+                           count(*) AS antwoorden,
+                           coalesce(max(v.intentie), 'onbekend') AS intentie
+                      FROM categorie_antwoorden a
+                 LEFT JOIN categorie_vragen v
+                        ON v.categorie = a.categorie AND v.vraag = a.vraag
+                     WHERE a.categorie = %s
+                  GROUP BY a.vraag
+                    HAVING count(*) >= %s
+                       AND count(*) FILTER (WHERE a.winkel_kon_genoemd) = 0
+                  ORDER BY count(*) DESC""", (categorie, minstens))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Zwakke vragen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def zet_vragen_uit(categorie, vragen):
+    """Zet koopvragen op niet-actief. Ze blijven staan, ze worden niet meer
+    gesteld.
+
+    Weggooien zou zonde zijn: over een jaar wil je kunnen laten zien dat deze
+    vraag ooit gesteld is en wat eruit kwam."""
+    conn = _get_connection()
+    if conn is None or not vragen:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE categorie_vragen SET actief = FALSE
+                                WHERE categorie = %s AND vraag = ANY(%s)""",
+                            (categorie, list(vragen)))
+                return cur.rowcount
+    except Exception as e:
+        print(f"Vragen uitzetten mislukt: {e}")
+        return 0
     finally:
         conn.close()
 
