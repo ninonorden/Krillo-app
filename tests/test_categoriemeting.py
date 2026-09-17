@@ -184,7 +184,11 @@ finally:
 print("\n== meten draait op een eigen draad ==")
 bron = lees("app.py")
 i = bron.find("def admin_ranglijst(")
-blok = bron[i:i + 2600]
+# Tot aan de volgende route, en niet tot een vast aantal tekens. Die vaste
+# grens van 2600 sneed de route op 16 september halverwege af toen er uitleg
+# bij kwam, en dan lijkt het alsof start_meting verdwenen is terwijl hij er
+# gewoon onder staat.
+blok = bron[i:]
 einde = blok.find("\n@app.route")
 blok = blok[:einde] if einde > 0 else blok
 klopt("de route accepteert POST", 'methods=["GET", "POST"]' in bron[max(0, i - 120):i])
@@ -228,7 +232,9 @@ antwoord = klant.get("/admin/ranglijst?key=testsleutel", follow_redirects=True)
 zo("de pagina laadt", antwoord.status_code, 200)
 tekst = antwoord.get_data(as_text=True)
 klopt("met de kop erop", "Ranglijst per categorie" in tekst)
-klopt("en een knop om te meten", "Meet deze categorie" in tekst)
+klopt("en een knop om te meten", "actie\" value=\"meten" in tekst
+      or 'value="meten"' in tekst)
+klopt("de knop zegt erbij dat het geld kost", "Dit kost geld" in tekst)
 
 kaal = krillo.app.test_client()
 antwoord = kaal.get("/admin/ranglijst")
