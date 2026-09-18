@@ -55,6 +55,31 @@ POOL_WACHT_SECONDEN = 0.02
 # meestal allemaal dood, en dan zijn er ook niet meer dan een paar.
 POOL_GEZONDE_POGINGEN = 3
 
+# HOE LANG WIJ HOOGSTENS WACHTEN OP DE DATABASE ZELF.
+#
+# Dit ontbrak, en dat was de ergste soort fout: eentje die pas opvalt als het
+# misgaat. Zonder tijdslimiet blijft psycopg2 wachten tot het besturingssysteem
+# de poging opgeeft, en dat duurt minuten. app.py roept db.init_db() aan bij het
+# IMPORTEREN, dus als de database even niet bereikbaar is, komt gunicorn nooit
+# klaar met opstarten. Render ziet dan een proces dat niet antwoordt en geeft
+# 502 Bad Gateway. Op 18 september lag de site daardoor plat.
+#
+# Met een limiet van tien seconden geeft een onbereikbare database meteen een
+# fout in plaats van een hangende boel. De site start dan gewoon op, en de
+# pagina's die een try/except om hun databasewerk hebben blijven staan.
+#
+# De keepalives houden een verbinding die stil ligt open. Neon doet stille
+# verbindingen weg, en dat is precies wat er elke nacht tussen twee rondes
+# gebeurt.
+VERBIND_TIJDSLIMIET = int(os.environ.get("DB_CONNECT_TIMEOUT", "10"))
+VERBIND_OPTIES = {
+    "connect_timeout": VERBIND_TIJDSLIMIET,
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 3,
+}
+
 
 class _Geleend:
     """Een geleende verbinding die zichzelf teruggeeft in plaats van te sluiten.
@@ -106,7 +131,7 @@ def _get_connection():
             with _POOL_SLOT:
                 if _POOL is None:
                     _POOL = psycopg2.pool.ThreadedConnectionPool(
-                        POOL_MIN, POOL_MAX, db_url)
+                        POOL_MIN, POOL_MAX, db_url, **VERBIND_OPTIES)
         # Zijn alle verbindingen in gebruik, dan even wachten in plaats van
         # meteen een losse verbinding opzetten. Een aanroep duurt milliseconden,
         # dus er komt bijna altijd binnen een oogwenk een vrij. Zonder dit zette
@@ -159,7 +184,7 @@ def _get_connection():
         # dan helemaal niet: dit is de laag waar alles op draait.
         print(f"Verbindingenpool niet beschikbaar, losse verbinding gebruikt: {e}")
         try:
-            return psycopg2.connect(db_url)
+            return psycopg2.connect(db_url, **VERBIND_OPTIES)
         except Exception as e2:
             print(f"Verbinden met de database mislukt: {e2}")
             return None
@@ -822,7 +847,44 @@ def init_db():
     # gewoon op.
     _zet_slot_op_lopende_tests()
     _sluit_bestaande_shopify_sleutels_weg()
-    _zet_webadressen_op_een_schrijfwijze()
+    # EENMALIG, NIET BIJ ELKE START.
+    #
+    # Dit liep bij ELKE herstart opnieuw, en het is geen kleine klus: hij zoekt
+    # alle tabellen met een webadres erin op, haalt uit elk daarvan de
+    # verschillende adressen op, en werkt ze een voor een bij. Dat zijn negentien
+    # tabellen, waaronder de tabel met alle bewaarde AI-antwoorden, en die groeit
+    # elke nacht. Al dat werk gebeurde voordat de site ook maar een bezoeker kon
+    # bedienen, en Render geeft 502 zolang er nog niets luistert.
+    #
+    # Het is bovendien werk dat maar een keer nodig is: na de omzetting staat
+    # alles al in de nieuwe schrijfwijze. De twee winkels die niet omgezet konden
+    # worden (er stond al een rij op de nieuwe schrijfwijze) lukken ook bij de
+    # honderdste poging niet.
+    #
+    # Moet hij toch nog een keer draaien, bijvoorbeeld na het inlezen van een
+    # oude lijst, dan zet je de instelling weg of roep je de functie met de hand
+    # aan via de beheerpagina.
+    _eenmalig("webadressen_op_een_schrijfwijze", _zet_webadressen_op_een_schrijfwijze)
+
+
+def _eenmalig(sleutel, werk):
+    """Voert werk hoogstens een keer uit, en onthoudt dat in de database.
+
+    Mislukt het onthouden, dan draait het de volgende keer gewoon opnieuw. Dat
+    is vervelend maar niet erg; het omgekeerde, werk overslaan dat nog niet
+    gedaan is, zou wel erg zijn."""
+    naam = f"migratie_{sleutel}"
+    try:
+        if (get_instelling(naam) or "") == "gedaan":
+            return None
+    except Exception as e:
+        print(f"Kon niet nakijken of {naam} al gedaan is, ik doe hem toch: {e}")
+    uit = werk()
+    try:
+        zet_instelling(naam, "gedaan")
+    except Exception as e:
+        print(f"Kon niet onthouden dat {naam} gedaan is: {e}")
+    return uit
 
 
 def ontclaim_payment(payment_id):

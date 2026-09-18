@@ -925,7 +925,7 @@
          niet geleend uit een Amerikaans onderzoek. Staat er nog te weinig
          gemeten, dan staat er iets dat altijd waar is. #}
       {% if eigen_cijfer %}
-      <div class="rij"><span class="naam">Never named, of {{ eigen_cijfer.gemeten }} Dutch stores we measured</span><span class="getal">{{ eigen_cijfer.deel }}%</span></div>
+      <div class="rij"><span class="naam">Never named<br><span style="color:var(--ink-grijs); font-size:12.5px;">of {{ eigen_cijfer.gemeten }} Dutch stores we measured</span></span><span class="getal">{{ eigen_cijfer.deel }}%</span></div>
       {% else %}
       <div class="rij"><span class="naam">Buying questions per store</span><span class="getal">30</span></div>
       {% endif %}
@@ -1040,7 +1040,7 @@
         <div class="dash-label">YOUR POSITION &middot; {{ index.top.naam | upper }}</div>
         <div class="dash-groot">
           <span class="nr">{{ index.top.rijen[0].positie }}</span>
-          <span class="van">of {{ index.top.rijen | length }}+</span>
+          <span class="van">of {{ index.top.winkels }}</span>
         </div>
         <div class="dash-regel">Named in {{ index.top.rijen[0].genoemd }} of {{ index.top.telbaar }} buying questions</div>
         <div class="dash-regel">Recommended in {{ index.top.rijen[0].aanbevolen }}</div>

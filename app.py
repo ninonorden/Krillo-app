@@ -59,7 +59,22 @@ import onderhoud
 import opschonen
 
 app = Flask(__name__)
-db.init_db()
+
+# DE SITE MOET OPSTARTEN, OOK ALS DE DATABASE EVEN NIET MEEDOET.
+#
+# Dit stond hier kaal, en dat is de tweede helft van de storing van 18
+# september: gaat het aanmaken van de tabellen mis, dan mislukt het IMPORTEREN
+# van app.py, gunicorn komt niet omhoog en Render geeft 502 Bad Gateway op elke
+# pagina. Ook op /robots.txt, die helemaal geen database nodig heeft.
+#
+# Nu start de site gewoon op. De pagina's die de database nodig hebben vangen
+# hun eigen fouten al af, dus wat er dan overblijft is een site die het grootste
+# deel nog doet in plaats van een site die weg is. Zodra de database terug is,
+# maakt de eerstvolgende aanroep de tabellen alsnog aan.
+try:
+    db.init_db()
+except Exception as e:
+    print(f"init_db bij het opstarten mislukt, de site start toch op: {e}")
 
 
 def get_base_url():
@@ -217,16 +232,29 @@ def home():
         top = None
         if rijen:
             beste = max(rijen, key=lambda r: r["winkels"])
-            lijst = db.ranglijst_per_land(beste["categorie"], voorbeeldland, limiet=4)
+            # DE HELE RANGLIJST OPHALEN, MAAR ER VIER LATEN ZIEN.
+            #
+            # Dit stond op limiet=4, en daarmee klopten twee getallen niet. Het
+            # aantal winkels dat bij geen enkele vraag genoemd werd, werd geteld
+            # binnen die vier, dus daar kon nooit meer dan vier uitkomen terwijl
+            # het er in werkelijkheid twintig zijn. En het kaartje eronder zei
+            # "1 van de 4+" terwijl er vierentwintig winkels in die categorie
+            # staan. Een getal dat kleiner is dan de waarheid is net zo fout als
+            # een getal dat groter is: het is precies de meting die wij verkopen.
+            lijst = db.ranglijst_per_land(beste["categorie"], voorbeeldland, limiet=500)
+            alle = lijst.get("rijen", [])
+            genoemd = [r for r in alle if (r["genoemd"] or 0) > 0]
             top = {
                 "categorie": beste["categorie"],
                 "naam": categorieen.naam_van(beste["categorie"]),
                 "land": voorbeeldland,
                 "landnaam": sitetaal.landnaam(voorbeeldland, "nl"),
                 "telbaar": lijst.get("telbaar") or 0,
-                "rijen": [r for r in lijst.get("rijen", []) if (r["genoemd"] or 0) > 0],
-                "niet_genoemd": len([r for r in lijst.get("rijen", [])
-                                     if not (r["genoemd"] or 0)]),
+                # Vier rijen op het scherm. Meer is een ranglijst en geen
+                # voorproefje, en daar is de indexpagina zelf voor.
+                "rijen": genoemd[:4],
+                "winkels": len(alle),
+                "niet_genoemd": len(alle) - len(genoemd),
             }
         # De koersbalk bovenaan de homepage. Per categorie de winkel die op
         # dit moment bovenaan staat, met de dag waarop dat gemeten is. Dit is

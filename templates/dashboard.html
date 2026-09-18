@@ -219,7 +219,7 @@
         <div class="staaf {% if loop.last %}nu{% endif %}">
           <div class="bak"><div class="vulling" style="height:{{ s.hoogte }}px;"></div></div>
           <div class="cijfertje">{{ s.positie }}</div>
-          <div class="datum">{% if s.datum %}{{ s.datum.strftime('%b') | upper }}{% endif %}</div>
+          <div class="datum">{% if s.datum %}{{ s.datum.strftime('%d %b') | upper }}{% endif %}</div>
         </div>
         {% endfor %}
         <div style="flex-grow:2;"></div>
@@ -234,7 +234,7 @@
         {% for r in beeld.boven_mij %}
         <div class="buurrij">
           <span class="p">{{ r.positie }}</span>
-          <span class="merk" style="flex-grow:1;">{{ r.naam or r.webshop_url }}</span>
+          <span class="merk" style="flex-grow:1;">{{ r.naam or r.webshop_url | replace('https://','') | replace('http://','') }}</span>
           <span style="font-family:var(--mono); font-size:13px;">{{ r.genoemd }} / {{ beeld.telbaar }}</span>
         </div>
         {% endfor %}
