@@ -171,7 +171,12 @@
         <div class="label">{{ 'JOUW POSITIE' if taal == 'nl' else 'YOUR POSITION' }}</div>
         <div class="rij">
           <span class="groot">{{ beeld.positie }}</span>
-          <span class="naast">{{ t.van_de }} {{ beeld.van }}</span>
+          {# Hier stond de kale variant zonder label, dus alleen "of 24". Dat
+             leest als "van alle 24 winkels in deze markt", en er zijn er
+             honderden. Het zijn de winkels die WIJ meten, en dat hoort erbij
+             te staan. De twee cijfers hieronder (van de N koopvragen) zeggen
+             al wel waar hun noemer over gaat en blijven daarom zoals ze zijn. #}
+          <span class="naast">{{ t.van_de_gemeten.replace('{n}', beeld.van | string) }}</span>
         </div>
         {% if beeld.verschil and beeld.verschil > 0 %}
         <span class="merkje op">{{ 'GESTEGEN' if taal == 'nl' else 'UP' }} {{ beeld.verschil }}</span>

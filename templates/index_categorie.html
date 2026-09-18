@@ -94,6 +94,14 @@
     {{ t.genoemd_uitleg }}
     {% if niet_genoemd %} {% if taal == 'en' and niet_genoemd == 1 %}The other store was named in none of these questions.{% else %}{{ t.overige.replace('{n}', niet_genoemd | string) }}{% endif %}{% endif %}
   </p>
+  {# TOEGEVOEGD 18 september 2026. Zonder deze regel leest een ranglijst van
+     24 winkels als de hele markt, terwijl het de winkels zijn die wij meten.
+     Een bezoeker die weet dat er honderden speelgoedwebshops zijn, concludeert
+     anders dat onze meting niet klopt. Dat is precies het vertrouwen dat wij
+     verkopen, dus dit is geen detail. #}
+  <p style="font-size:14px; margin-top:6px; opacity:0.75;">
+    {{ t.index_dekking.replace('{n}', totaal | string) }}
+  </p>
   {% else %}
   <div class="leeg">{{ t.niemand_genoemd }}</div>
   {% endif %}

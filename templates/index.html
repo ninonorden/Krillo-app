@@ -1094,7 +1094,9 @@
         <div class="dash-label">YOUR POSITION &middot; {{ index.top.naam | upper }}</div>
         <div class="dash-groot">
           <span class="nr">{{ index.top.rijen[0].positie }}</span>
-          <span class="van">of {{ index.top.winkels }}</span>
+          {# Stond hier kaal als "of 24". Zie de uitleg bij van_de_gemeten in
+             sitetaal.py: een noemer zonder label leest als de hele markt. #}
+          <span class="van">of {{ index.top.winkels }} we measure</span>
         </div>
         <div class="dash-regel">Named in {{ index.top.rijen[0].genoemd }} of {{ index.top.telbaar }} buying questions</div>
         <div class="dash-regel">Recommended in {{ index.top.rijen[0].aanbevolen }}</div>

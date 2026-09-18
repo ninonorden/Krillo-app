@@ -123,6 +123,15 @@ T = {
         "nog_leeg": ("De eerste categorieën worden op dit moment gemeten. Zodra een "
                      "categorie klaar is verschijnt hij hier."),
         "van_de": "van de",
+        # TOEGEVOEGD 18 september 2026. Nino vroeg terecht: er zijn veel meer
+        # webshops dan de webshops die wij meten. Staat er kaal "1 van de 24",
+        # dan leest een speelgoedwinkelier dat als "1 van alle 24
+        # speelgoedwebshops in Nederland", en dat klopt niet: het zijn de 24
+        # winkels die WIJ in die categorie meten. Het getal was waar, het label
+        # ontbrak. Zeggen waar een noemer over gaat kost een woord.
+        "van_de_gemeten": "van de {n} die wij meten",
+        "index_dekking": ("Deze ranglijst gaat over de {n} webshops die wij in deze "
+                          "categorie meten. Dat zijn niet alle webshops in de markt."),
         "winkels_genoemd": "winkels genoemd",
         "koopvragen": "koopvragen",
         "webshop": "Webshop",
@@ -181,6 +190,10 @@ T = {
         "nog_leeg": ("The first categories are being measured right now. A category "
                      "appears here as soon as it is done."),
         "van_de": "of",
+        # Zie de uitleg bij de Nederlandse versie hierboven.
+        "van_de_gemeten": "of {n} we measure",
+        "index_dekking": ("This ranking covers the {n} stores we measure in this "
+                          "category. That is not every store in the market."),
         "winkels_genoemd": "stores named",
         "koopvragen": "buying questions",
         "webshop": "Store",
