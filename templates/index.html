@@ -648,13 +648,51 @@
   /* De koersbalk. Dit is het eerste dat iemand ziet en het zegt in één regel
      wat Krillo is: een index die vandaag gemeten is. De inhoud komt uit de
      database, dus er staat nooit een verzonnen regel. */
-  .ticker{background:var(--ink); color:#fff; min-height:38px; padding:8px 0;
+  /* LOPENDE BALK, 18 september 2026.
+     Stond hier eerst als een gewone flexregel met flex-wrap. Bij drie
+     categorieen paste dat niet meer op een regel en viel de balk over twee
+     regels, wat eruitzag als een fout in plaats van een ontwerp. En het wordt
+     alleen erger: de index groeit naar 31 categorieen.
+     Nu loopt hij door zoals een nieuwsbalk. Het merk blijft links staan en de
+     datum rechts, want dat zijn geen berichten maar vaste labels; alleen de
+     gemeten categorieen bewegen.
+     De truc met het loopje: de rij berichten staat er TWEE keer in en schuift
+     precies de helft op. Op het moment dat kopie een eruit loopt staat kopie
+     twee op exact dezelfde plek, dus je ziet geen sprong. Daarom heeft elk
+     bericht zijn eigen marge rechts in plaats van een gap op de rij: met een
+     gap is de helft van de breedte niet gelijk aan het aantal berichten en
+     springt hij wel. */
+  .ticker{background:var(--ink); color:#fff;
           font-family:var(--mono); font-size:11.5px; letter-spacing:0.04em;}
-  .ticker .wrap{display:flex; align-items:center; gap:30px; flex-wrap:wrap;}
-  .ticker .merk{color:var(--coral-licht);}
+  .ticker .wrap{display:flex; align-items:center; gap:18px; height:38px;}
+  .ticker .merk{flex:none; color:var(--coral-licht);}
+  /* De baan knipt af wat buiten beeld loopt. De maskers laten een bericht aan
+     de randen oplossen in plaats van het halverwege een letter af te hakken. */
+  .ticker .baan{flex:1 1 auto; min-width:0; overflow:hidden; height:38px;
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%);
+    mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%);}
+  .ticker .spoor{display:flex; align-items:center; height:38px;
+                 width:max-content; white-space:nowrap;
+                 animation:tickerloop var(--loopduur,30s) linear infinite;}
+  /* Stilzetten als iemand er met de muis op staat, zodat een regel te lezen is
+     zonder achter de tekst aan te hoeven kijken. */
+  .ticker .baan:hover .spoor{animation-play-state:paused;}
+  .ticker .helft{display:flex; align-items:center;}
+  .ticker .post{flex:none; margin-right:30px;}
+  @keyframes tickerloop{from{transform:translateX(0);}
+                        to{transform:translateX(-50%);}}
   .ticker .goed{color:#35D6A4;}
   .ticker .bezig{color:#6E7079;}
-  .ticker .datum{margin-left:auto; color:#6E7079;}
+  .ticker .datum{flex:none; color:#6E7079;}
+  /* Wie beweging op zijn scherm heeft uitgezet krijgt de balk stil, zonder
+     maskers, zodat er niets half zichtbaar blijft hangen. */
+  @media (prefers-reduced-motion:reduce){
+    .ticker .spoor{animation:none;}
+    .ticker .baan{-webkit-mask-image:none; mask-image:none;}
+  }
+  /* Op een telefoon is de datum het eerste dat mag wijken: het is het minst
+     belangrijke label en het eet de breedte op waar de berichten langs moeten. */
+  @media (max-width:640px){ .ticker .datum{display:none;} }
 
   nav{position:sticky; top:0; z-index:50; background:rgba(255,255,255,0.94);
       backdrop-filter:blur(8px); border-bottom:1px solid var(--line);}
@@ -873,11 +911,27 @@
 <div class="ticker">
   <div class="wrap">
     <span class="merk">KRILLO INDEX</span>
-    {% for r in index.ticker %}
-    <span>{{ r.categorie | upper }} {{ r.land | upper }}
-      {% if r.leider %}<span class="goed">{{ r.leider | upper }} {{ r.genoemd }}/{{ r.telbaar }}</span>
-      {% else %}<span class="bezig">MEASURING</span>{% endif %}</span>
-    {% endfor %}
+    {# De loopduur groeit mee met het aantal berichten: vijf seconden per
+       bericht. Zonder dat zou de balk bij 31 categorieen een waas worden en bij
+       drie tergend langzaam. Nu is de snelheid altijd dezelfde, hoeveel er ook
+       gemeten is. #}
+    <div class="baan">
+      <div class="spoor" style="--loopduur:{{ index.ticker | length * 5 }}s">
+        {# De berichten staan er TWEE keer in. Zie de uitleg bij .spoor in de
+           stijl hierboven: dat is wat het loopje naadloos maakt. De tweede
+           kopie is verborgen voor een schermlezer, anders wordt alles dubbel
+           voorgelezen. #}
+        {% for kopie in [1, 2] %}
+        <span class="helft"{% if kopie == 2 %} aria-hidden="true"{% endif %}>
+          {% for r in index.ticker %}
+          <span class="post">{{ r.categorie | upper }} {{ r.land | upper }}
+            {% if r.leider %}<span class="goed">{{ r.leider | upper }} {{ r.genoemd }}/{{ r.telbaar }}</span>
+            {% else %}<span class="bezig">MEASURING</span>{% endif %}</span>
+          {% endfor %}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
     {% if index.gemeten_op %}
     <span class="datum">UPDATED {{ index.gemeten_op.strftime('%d %b %Y') | upper }}</span>
     {% endif %}
