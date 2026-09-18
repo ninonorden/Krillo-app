@@ -125,8 +125,25 @@ for bestand in ("templates/faq.html", "templates/index.html"):
     inhoud = lees(bestand)
     klopt(f"{bestand} belooft geen 39 euro per maand meer",
           "39 euro per maand" not in inhoud)
-klopt("llms.txt noemt de nieuwe pakketten",
-      "Watch: 49 euro per maand" in appbron and "Fix: 149 euro per maand" in appbron)
+# Deze controle keek eerst of de bedragen letterlijk in de BRON van app.py
+# stonden. Sinds 18 september bouwt llms.txt zijn prijsregels op uit
+# payments.PAKKETTEN, juist zodat dat bestand nooit meer iets anders kan
+# beweren dan het bestelscherm. Daarmee staan de bedragen niet meer als tekst
+# in de bron en sloeg de oude controle nergens meer op.
+#
+# Wat er nu gecontroleerd wordt is sterker: niet wat er getypt staat, maar wat
+# er daadwerkelijk uitgeserveerd wordt.
+os.environ.setdefault("BASE_URL", "https://krilloai.com")
+import app as _app  # noqa: E402
+
+_app.app.config["TESTING"] = True
+_llms = _app.app.test_client().get("/llms.txt").get_data(as_text=True)
+for _sleutel in ("watch", "fix", "merken"):
+    _bedrag = int(float(payments.PAKKETTEN[_sleutel]["prijs"]["value"]))
+    klopt(f"llms.txt serveert {_bedrag} euro per maand voor {_sleutel}",
+          f"{_bedrag} euro per maand" in _llms)
+klopt("llms.txt noemt geen vervallen audit van 79 euro meer",
+      "79 euro" not in _llms)
 
 print()
 if fouten:

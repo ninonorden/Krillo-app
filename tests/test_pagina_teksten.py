@@ -27,7 +27,23 @@ def zo(o, g, v):
         print(f"  ok  {o}")
 
 
+# De echte module eerst inlezen, alleen om de BEDRAGEN over te nemen.
+#
+# Waarom: hieronder wordt payments vervangen door een nepmodule, zodat deze
+# test niet bij Mollie langs hoeft. Die nepmodule was blijven staan in het
+# oude prijstijdperk: hij kende alleen AUDIT_PRICE, MONITORING_PRICE en
+# UITVOERING_PRICE, en dat zijn precies de drie producten die op 11 september
+# vervallen zijn. Toen llms.txt zijn prijzen uit PAKKETTEN ging opbouwen viel
+# deze test daardoor om met "module payments has no attribute PAKKETTEN",
+# terwijl er niets mis was met de site.
+#
+# Door de bedragen uit de ECHTE module te halen kan dit nooit meer uit elkaar
+# lopen: verandert een prijs, dan verandert die hier vanzelf mee.
+import payments as _echte_payments  # noqa: E402
+
 nep = types.ModuleType("payments")
+nep.PAKKETTEN = _echte_payments.PAKKETTEN
+nep.STANDAARD_PAKKET = _echte_payments.STANDAARD_PAKKET
 nep.AUDIT_PRICE = nep.MONITORING_PRICE = nep.UITVOERING_PRICE = {}
 for n in ("create_audit_payment", "create_monitoring_signup", "create_uitvoering_payment"):
     setattr(nep, n, lambda *a, **k: {})

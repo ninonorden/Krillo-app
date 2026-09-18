@@ -53,7 +53,16 @@ def klopt(omschrijving, voorwaarde):
 
 # Velden die wij zelf aanmaken en die geen aanhalingsteken of backslash kunnen
 # bevatten. Alles wat een mens intypt hoort hier NIET bij en moet door tojson.
-VEILIG_IN_TEKST = {"artikel.slug", "artikel.datum"}
+# basis_url is er op 18 september bij gekomen, bij de verhuizing naar
+# krilloai.com. Daarvoor stond het adres hardgecodeerd in elk blok en was er
+# niets te ontsnappen.
+#
+# Waarom het veilig is zonder tojson: het komt uit BASE_URL in Render, dus uit
+# onze eigen instellingen en niet van een bezoeker, en het staat altijd
+# MIDDENIN een tekst ("{{ basis_url }}/artikelen/..."). Er doorheen halen met
+# tojson zou juist aanhalingstekens midden in de URL zetten en het blok slopen,
+# precies zoals hierboven bij slug en datum beschreven staat.
+VEILIG_IN_TEKST = {"artikel.slug", "artikel.datum", "basis_url"}
 
 BLOK = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.S)
 JINJA_WAARDE = re.compile(r"\{\{(.*?)\}\}", re.S)
