@@ -245,6 +245,35 @@ klopt("klantpagina's blijven uit Google", "Disallow: /mijn/" in robots)
 klopt("het beheer ook", "Disallow: /admin/" in robots)
 klopt("de index juist niet", "Disallow: /index" not in robots)
 
+print("\n== de cijfers op de homepage tellen de HELE categorie ==")
+# Op de homepage stond "1 van de 4+" terwijl er vierentwintig winkels in die
+# categorie staan, en het aantal niet-genoemde winkels werd geteld binnen de
+# vier die getoond worden. Allebei te laag, en het is precies de meting die wij
+# verkopen. De ranglijst wordt nu volledig opgehaald en er worden er vier
+# getoond.
+thuis2 = klant.get("/").get_data(as_text=True)
+hele = db.ranglijst_per_land(CAT, "nl", limiet=500)
+alle_winkels = len(hele.get("rijen", []))
+stil = len([r for r in hele.get("rijen", []) if not (r["genoemd"] or 0)])
+if f"/index/nl/{CAT}" in thuis2:
+    klopt("het totaal aantal winkels staat er, niet het aantal getoonde rijen",
+          f"of {alle_winkels}<" in thuis2 or f"of {alle_winkels} " in thuis2)
+    klopt("en het aantal niet-genoemde winkels klopt met de hele lijst",
+          stil == 0 or f"{stil} other stores" in thuis2)
+    klopt("er staat geen plaatshouder met een plusje meer", "+</span>" not in thuis2)
+
+print("\n== het dashboard schrijft winkels net zo op als de ranglijst ==")
+# Op de ranglijst stond ilovespeelgoed.nl en op het dashboard, bij wie er vlak
+# boven je staat, stond https://ilovespeelgoed.nl. Twee schermen die dezelfde
+# winkel anders schrijven laten je twijfelen of het wel dezelfde winkel is.
+dash = open(os.path.join(APP, "templates", "dashboard.html"), encoding="utf-8").read()
+klopt("de buren staan zonder https ervoor",
+      "r.naam or r.webshop_url | replace('https://','')" in dash)
+# Zes metingen in september gaven zes keer SEP onder de staafjes, en dat zegt
+# niets. De dag erbij zegt wel iets.
+klopt("bij het verloop staat de dag en niet alleen de maand",
+      "s.datum.strftime('%d %b')" in dash)
+
 print("\n== het openbare voorbeeld en de klantlink ==")
 zo("het voorbeelddashboard staat er", klant.get("/demo").status_code, 200)
 demo = klant.get("/demo").get_data(as_text=True)
