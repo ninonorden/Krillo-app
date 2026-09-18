@@ -140,12 +140,12 @@ klopt("geen garantie over de audit meer boven de prijskaarten",
 # In het betaalscherm mag de audittekst nog wel staan: die tak blijft bestaan
 # voor oude links, en voor wie via zo'n link koopt geldt die garantie gewoon.
 klopt("maar de oude betaalroute houdt zijn eigen belofte",
-      "Levert de audit je niets op" in index)
-klopt("de knop wijst naar wat er wel te koop is", "Laat het ons doen &rarr;" in index)
+      "If the audit gets you nothing" in index)
+klopt("de knop wijst naar wat er wel te koop is", "Let us do it &rarr;" in index)
 
 print("\n== de uitslag is korter geworden ==")
 klopt("wat goed staat zit ingeklapt", 'class="scan-goed"' in index)
-klopt("en de verbeterpunten staan wel open", "Wat er beter kan" in index)
+klopt("en de verbeterpunten staan wel open", "What can be better" in index)
 
 print("\n== de homepage herhaalt zichzelf niet meer ==")
 # Drie blokken zeiden hetzelfde als de prijskaarten. Die zijn weg. Dit bewaakt
@@ -166,12 +166,12 @@ klopt("er staat wel een weg naar de prijzen", 'href="#prijzen"' in index)
 # zichzelf bij. Daarom bewaken we vanaf nu de link en niet het plaatje.
 klopt("er staat een weg naar een ECHT dashboard", '/demo' in index)
 klopt("en er staat bij dat het echte cijfers zijn",
-      "ECHTE WINKEL, ECHTE CIJFERS" in index.upper())
+      "REAL STORE, REAL DATA" in index.upper())
 klopt("de openbare index staat er ook op", 'href="/index"' in index)
 # De belofte over wat wij wel en niet aanraken hoort ergens te staan. Hij staat
 # nu in het bestelscherm, op de plek waar iemand geld gaat uitgeven.
 klopt("wat wij wel en niet aanraken staat in het bestelscherm",
-      "We blijven van je prijzen, voorraad, bestellingen en vormgeving af" in index)
+      "We never touch your prices, stock, orders or design" in index)
 
 print("\n== de prijskaarten ==")
 klopt("drie kolommen, niet vier", "grid-template-columns:repeat(3,1fr)" in index)

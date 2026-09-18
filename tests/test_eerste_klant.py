@@ -102,13 +102,13 @@ print("\n== de garantie belooft per product wat de voorwaarden geven ==")
 # terugdraaien. Anders staat er een onjuiste mededeling over een
 # betalingsverplichting op het scherm waar iemand afrekent.
 index = open(os.path.join(TEMPLATES, "index.html")).read()
-klopt("de belofte op de prijskaart noemt de audit", "Levert de audit je niets op" in index)
+klopt("de belofte op de prijskaart noemt de audit", "If the audit gets you nothing" in index)
 klopt("er staat geen onvoorwaardelijke belofte meer",
       "Levert het je niets op, dan krijg je binnen dertig dagen" not in index)
 klopt("het bestelscherm vult de regel per product",
       "checkoutGarantie" in index and "content.garantie" in index)
-for zin in ("Levert de audit je niets op", "dan draaien wij hem terug",
-            "Zeg je binnen veertien dagen"):
+for zin in ("If the audit gets you nothing", "we roll it back",
+            "Cancel within fourteen days"):
     klopt(f"er is een eigen regel: {zin[:30]}", zin in index)
 
 print("\n== de klantpagina spreekt zichzelf niet tegen over geld ==")

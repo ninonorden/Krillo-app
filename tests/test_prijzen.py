@@ -78,19 +78,19 @@ index = lees("templates/index.html")
 for sleutel in ("watch", "fix", "merken"):
     bedrag = payments.PAKKETTEN[sleutel]["prijs"]["value"].split(".")[0]
     klopt(f"{sleutel} staat met {bedrag} euro op de prijskaart",
-          f"&euro;{bedrag} <span>/maand</span>" in index)
+          f"&euro;{bedrag} <span>/mo</span>" in index)
 
 print("\n== de oude prijzen staan er niet meer ==")
 prijzenblok = index[index.find('<section id="prijzen"'):index.find('<div class="checkout-overlay"')]
 klopt("geen 39 euro per maand meer", "&euro;39" not in prijzenblok)
 klopt("geen eenmalig bedrag meer", "eenmalig" not in prijzenblok)
-klopt("wel drie maandbedragen", prijzenblok.count("/maand") == 3)
+klopt("wel drie maandbedragen", prijzenblok.count("/mo<") == 3)
 
 print("\n== het bestelscherm noemt dezelfde bedragen ==")
 klopt("Watch staat op 49 in het bestelscherm",
-      "'Watch \\u00b7 \\u20ac49 /maand'" in index)
+      "'Watch \\u00b7 \\u20ac49 /mo'" in index)
 klopt("Fix staat op 149 in het bestelscherm",
-      "'Fix \\u00b7 \\u20ac149 /maand'" in index)
+      "'Fix \\u00b7 \\u20ac149 /mo'" in index)
 
 print("\n== de knoppen gaan naar de goede route met het goede pakket ==")
 klopt("er is een knop voor Watch", 'id="watchCheckoutBtn"' in index)

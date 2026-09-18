@@ -187,15 +187,15 @@ _zonder = _index.render(gescand=None, eigen_cijfer=None)
 # wij de bron niet konden aanwijzen. Daar staat nu iets dat van onszelf is en
 # altijd waar is: wat wij per winkel doen.
 klopt("zonder eigen cijfer staat er iets van onszelf",
-      "koopvragen stellen wij per winkel" in _zonder)
+      "BUYING QUESTIONS WE ASK PER STORE" in _zonder)
 klopt("en geen extern cijfer zonder bron", "21.000 vermeldingen" not in _zonder)
-klopt("en staat ons cijfer er niet", "die wij zelf maten" not in _zonder)
+klopt("en staat ons cijfer er niet", "WE MEASURED OURSELVES" not in _zonder)
 
 _met = _index.render(gescand=200, eigen_cijfer={"gemeten": 40, "nooit": 26, "deel": 65})
-klopt("met eigen cijfer staat ons cijfer er", "die wij zelf maten" in _met)
+klopt("met eigen cijfer staat ons cijfer er", "WE MEASURED OURSELVES" in _met)
 klopt("met het percentage", "65%" in _met)
-klopt("en het aantal winkels", "40 Nederlandse webshops" in _met)
-klopt("de terugval is dan weg", "koopvragen stellen wij per winkel" not in _met)
+klopt("en het aantal winkels", "OF 40 DUTCH STORES" in _met)
+klopt("de terugval is dan weg", "BUYING QUESTIONS WE ASK PER STORE" not in _met)
 
 print("\n== de ondergrens is dezelfde als in de mail ==")
 # Twee verschillende ondergrenzen voor hetzelfde woord "onderzoek" is hoe je

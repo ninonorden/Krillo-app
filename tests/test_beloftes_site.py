@@ -122,8 +122,12 @@ klopt("en dat getal staat ook echt op de site",
       "dertien" in TEKSTEN.get("zo-meten-we.html", "").lower())
 
 zo("hoogstens drie acties per ronde", actieplan.MAX_ACTIES, 3)
+# De homepage noemt dit aantal sinds de verbouwing van 17 september niet meer;
+# de belofte staat op de pagina's die er wel over gaan. Bewaakt wordt dat er
+# ergens op de site een getal staat en dat dat getal klopt met de code.
 klopt("en de site belooft er niet meer",
-      "hoogstens drie" in TEKSTEN.get("index.html", "").lower())
+      "hoogstens drie" in TEKSTEN.get("faq.html", "").lower()
+      or "hoogstens drie" in TEKSTEN.get("voorwaarden.html", "").lower())
 
 standaard = inspect.signature(koopvragen.genereer_koopvragen).parameters["aantal"].default
 zo("dertig koopvragen per winkel", standaard, 30)

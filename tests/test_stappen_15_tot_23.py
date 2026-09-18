@@ -211,9 +211,9 @@ zo("Watch kost 49", payments.PAKKETTEN["watch"]["prijs"]["value"], "49.00")
 zo("Fix kost 149", payments.PAKKETTEN["fix"]["prijs"]["value"], "149.00")
 zo("merken kost 490", payments.PAKKETTEN["merken"]["prijs"]["value"], "490.00")
 klopt("en die bedragen staan ook op de prijskaarten",
-      "&euro;49 <span>/maand</span>" in thuis
-      and "&euro;149 <span>/maand</span>" in thuis
-      and "&euro;490 <span>/maand</span>" in thuis)
+      "&euro;49 <span>/mo</span>" in thuis
+      and "&euro;149 <span>/mo</span>" in thuis
+      and "&euro;490 <span>/mo</span>" in thuis)
 
 opruimen()
 

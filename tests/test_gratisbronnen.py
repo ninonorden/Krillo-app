@@ -154,7 +154,7 @@ print("\n== de uitslag laat het zien, op de pagina en in de mail ==")
 pagina = lees("templates/index.html")
 klopt("de pagina leest het veld uit", "r.bronnen" in pagina)
 klopt("met een kop die zegt waar het over gaat",
-      "Waar je concurrent wel staat en jij niet" in pagina)
+      "Where your competitor appears and you do not" in pagina)
 klopt("en zet de namen door de ontsmetter", "veilig(g.titel" in pagina)
 mail = lees("emailing.py")
 klopt("de mail leest het veld uit", 'resultaat.get("bronnen")' in mail)

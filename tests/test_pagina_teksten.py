@@ -81,7 +81,10 @@ zo("de audit belooft niet dat hij het oplost",
    "een audit die de verbeterpunten voor je oplost" in h, False)
 zo("de maandpakketten staan in de gestructureerde gegevens",
    '"name": "Fix", "price": "149"' in h and '"name": "Watch", "price": "49"' in h, True)
-zo("en in de navigatie", '#wij-doen-het' in h, True)
+# De navigatie is op 17 september teruggebracht tot vier links, precies zoals
+# in het gekozen ontwerp. Wat bewaakt moet blijven is dat de prijzen bereikbaar
+# zijn vanaf de bovenkant van de pagina.
+zo("en in de navigatie", '#prijzen' in h, True)
 zo("de demo gebruikt hetzelfde aantal vragen als de rest",
    "4 van de 22 koopvragen" in h, False)
 

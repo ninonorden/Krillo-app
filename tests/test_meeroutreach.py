@@ -130,7 +130,7 @@ klopt("de kop belooft niet meer een lijstje",
 # op 17 september vervangen is. Dezelfde belofte staat nu in de zes blokken en
 # op de prijskaart, en dat is waar iemand hem leest voordat hij betaalt.
 klopt("maar dat wij het bijhouden",
-      "Vier weken later meten wij opnieuw" in index)
+      "Four weeks later we measure again" in index)
 # Per week en niet per maand. Op de regel eronder stond al "hoogstens drie
 # dingen per week", en de keten draait wekelijks, dus "elke maand" was een
 # tweede tempo voor hetzelfde werk.
@@ -138,17 +138,17 @@ klopt("maar dat wij het bijhouden",
 # gebleven: wij voeren het uit. Alleen het tempo is van "elke week" naar "elke
 # maand" gegaan, want dat is wat de index doet.
 klopt("de prijskaart zegt dat wij het uitvoeren",
-      "Wij voeren de oplossingen uit in je winkel" in index)
+      "We install the fixes in your store" in index)
 klopt("en niet in twee tempo's tegelijk",
       "Wij voeren elke maand de verbeteringen uit" not in index)
 klopt("en is eerlijk over wat er gebeurt zonder toegang",
-      "Geef je geen toegang, dan krijg je alles kant en klaar om zelf te doen" in index)
+      "No access, and you get everything ready to do yourself" in index)
 # Was een nagemaakt scherm, is nu een echt dashboard op /demo.
 klopt("er is een echt dashboard te zien", "/demo" in index)
 
 print("\n== ook in het betaalscherm en de veelgestelde vragen ==")
 klopt("het betaalscherm noemt de toegang",
-      "toegang tot je webshop" in index)
+      "access to your store" in index)
 faq = lees("templates/faq.html")
 klopt("de veelgestelde vragen zijn omgezet",
       "Je krijgt elke week een lijstje" not in faq)
