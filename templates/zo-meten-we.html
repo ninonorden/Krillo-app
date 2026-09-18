@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zo meten we | Krillo</title>
-<meta name="description" content="Precies hoe Krillo een webshop beoordeelt: welke dertien punten we checken, hoe de score wordt berekend, wat we wel en niet kunnen meten, en waar de grenzen liggen.">
+<title>How we measure | Krillo</title>
+<meta name="description" content="Exactly how Krillo judges a store: which thirteen points we check, how the score is calculated, what we can and cannot measure, and where the limits are.">
 <link rel="canonical" href="https://www.krillo.nl/zo-meten-we">
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://www.krillo.nl/zo-meten-we">
-<meta property="og:title" content="Zo meten we bij Krillo">
-<meta property="og:description" content="Welke dertien punten we checken, hoe de score wordt berekend, en waar de grenzen van onze meting liggen.">
+<meta property="og:title" content="How Krillo measures">
+<meta property="og:description" content="Which thirteen points we check, how the score is calculated, and where our measurement stops.">
 <meta property="og:image" content="https://www.krillo.nl/static/krillo-share.png">
 <meta property="og:locale" content="nl_NL">
 
@@ -30,13 +30,13 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
-    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --coral-dim:#FFE3E0;
-    --teal:#1FB6A4; --teal-dim:#DFF5F1; --amber-dim:#FFF3D6;
-    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+    --ink:#0A0A0B; --ink-soft:#4A4A55; --paper:#FFFFFF; --paper-raised:#FFFFFF;
+    --line:#E8E8EC; --coral:#1B3FE0; --coral-tekst:#142FA8; --coral-dim:#E7EBFF;
+    --teal:#0B7C5E; --teal-dim:#DFF3EC; --amber-dim:#FFF3D6;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Space Grotesk', sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.7; -webkit-font-smoothing:antialiased;}
@@ -101,160 +101,145 @@
   a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
     outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
   }
+  /* OPTIE B, 18 september 2026: het woordmerk. Hoofdletters, strak
+     gespatieerd, met INDEX ernaast in de schrijfmachineletter. De stip van
+     optie A is weg. */
+  .logo{font-family:var(--disp); font-weight:700; font-size:21px;
+        letter-spacing:-0.04em; text-transform:uppercase; display:flex;
+        align-items:baseline; gap:9px; color:var(--ink); text-decoration:none;}
+  .logo .tag{font-family:var(--mono); font-size:10.5px; color:#6E7079;
+             letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
+  .logo-dot{display:none;}
 </style>
 </head>
 <body>
 
 <nav>
   <div class="wrap">
-    <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
-    <a class="nav-cta" href="/#scan">Gratis scan</a>
+    <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
+    <a class="nav-cta" href="/#scan">Check my store</a>
   </div>
 </nav>
 
 <main>
-  <h1>Zo meten we</h1>
-  <p class="intro">Een score van 43 of 78 zegt niets als je niet weet hoe die tot stand komt. Daarom staat hier precies wat we doen, wat de cijfers betekenen, en wat we niet kunnen meten.</p>
+  <h1>How we measure</h1>
+  <p class="intro">A score of 43 or 78 means nothing if you do not know how it came about. So here is exactly what we do, what the numbers mean, and what we cannot measure.</p>
 
-  <h2>Wat er gebeurt als je een scan start</h2>
-  <p>We halen je pagina op zoals een gewone browser dat doet, en kijken naar de broncode die een AI-robot ook te zien krijgt. Dat is belangrijk, want wat jij in je browser ziet is vaak meer dan wat een robot ziet.</p>
-  <p>Daarnaast zoeken we vanaf je homepage naar maximaal vijf andere relevante pagina's, zoals je product- of categoriepagina's. Die nemen we mee bij het beoordelen van je productinformatie, want die staat zelden op een homepage.</p>
-  <p>Lukt het ophalen niet in één keer, dan proberen we het opnieuw. Krijgen we een beveiligingscontrole in plaats van je echte pagina, dan geven we geen score maar een melding. Een verkeerd cijfer is erger dan geen cijfer.</p>
+  <h2>What happens when you run a check</h2>
+  <p>We fetch your page the way an ordinary browser does, and look at the source an AI crawler gets to see. That matters, because what you see in your browser is often more than what a crawler sees.</p>
+  <p>We also look from your home page for up to five other relevant pages, such as your product or category pages. Those count when we judge your product information, because that is rarely on a home page.</p>
+  <p>If fetching fails the first time, we try again. If we get a security check instead of your real page, we give a notice rather than a score. A wrong number is worse than no number.</p>
 
-  <h2>De dertien punten</h2>
-  <p>We checken dertien dingen, verdeeld over vier groepen. Punten met hoge invloed tellen twee keer zo zwaar mee als punten met gemiddelde invloed.</p>
+  <h2>The thirteen points</h2>
+  <p>We check thirteen things, in four groups. Points with high impact count twice as heavily as points with average impact.</p>
 
   <div class="categorie">
-    <div class="categorie-naam">Toegang</div>
-    <div class="categorie-gewicht">Kan een AI-robot er überhaupt bij?</div>
+    <div class="categorie-naam">Access</div>
+    <div class="categorie-gewicht">Can an AI crawler reach it at all?</div>
     <ul>
-      <li>Gebruikt de site een beveiligde verbinding</li>
-      <li>Worden AI-robots niet geweerd in het instellingenbestand</li>
-      <li>Reageert de pagina snel genoeg</li>
+      <li>Does the site use a secure connection</li>
+      <li>Are AI crawlers not blocked in the settings file</li>
+      <li>Does the page respond quickly enough</li>
     </ul>
   </div>
 
   <div class="categorie">
-    <div class="categorie-naam">Leesbaarheid</div>
-    <div class="categorie-gewicht">Kan een robot de inhoud lezen?</div>
+    <div class="categorie-naam">Readability</div>
+    <div class="categorie-gewicht">Can a crawler read the content?</div>
     <ul>
-      <li>Hoeveel tekst staat er direct in de pagina, zonder dat er iets geladen hoeft te worden</li>
-      <li>Is er precies één hoofdkop die vertelt waar de pagina over gaat</li>
-      <li>Staat er expliciet in welke taal de pagina geschreven is</li>
+      <li>How much text is in the page itself, without anything having to load first</li>
+      <li>Is there exactly one main heading saying what the page is about</li>
+      <li>Is the language of the page stated explicitly</li>
     </ul>
   </div>
 
   <div class="categorie">
-    <div class="categorie-naam">Structuur</div>
-    <div class="categorie-gewicht">Kan een robot je site overzien?</div>
+    <div class="categorie-naam">Structure</div>
+    <div class="categorie-gewicht">Can a crawler see the whole site?</div>
     <ul>
-      <li>Is er machine-leesbare informatie over je producten en bedrijf</li>
-      <li>Bestaat er een overzicht van al je pagina's</li>
-      <li>Staan er specifieke instructies voor AI op de site</li>
-      <li>Is er een korte samenvatting die AI en sociale media kunnen gebruiken</li>
+      <li>Is there machine readable information about your products and company</li>
+      <li>Is there an overview of all your pages</li>
+      <li>Are there specific instructions for AI on the site</li>
+      <li>Is there a short summary that AI and social media can use</li>
     </ul>
   </div>
 
   <div class="categorie">
-    <div class="categorie-naam">Inhoud</div>
-    <div class="categorie-gewicht">Staat er genoeg om iets mee te doen?</div>
+    <div class="categorie-naam">Content</div>
+    <div class="categorie-gewicht">Is there enough to work with?</div>
     <ul>
-      <li>Heeft de pagina een duidelijke titel en omschrijving</li>
-      <li>Worden veelgestelde vragen direct beantwoord</li>
-      <li>Hebben afbeeldingen een beschrijving die een robot kan lezen</li>
+      <li>Does the page have a clear title and description</li>
+      <li>Are common questions answered directly</li>
+      <li>Do images have a description a crawler can read</li>
     </ul>
   </div>
 
-  <h2>Hoe de score wordt berekend</h2>
-  <p>Elk punt krijgt een cijfer van 0 tot 100. Punten met hoge invloed wegen dubbel. De eindscore is het gewogen gemiddelde daarvan. Punten die we niet konden meten laten we buiten de berekening, in plaats van er een nul voor te rekenen.</p>
-  <p>Per punt zie je een van deze drie labels:</p>
+  <h2>How the score is calculated</h2>
+  <p>Every point gets a number from 0 to 100. Points with high impact count double. The final score is the weighted average of those. Points we could not measure are left out of the sum instead of counted as a zero.</p>
+  <p>Each point carries one of these three labels:</p>
 
   <div class="schaal">
     <div class="schaal-item goed">
-      <div class="schaal-label">goed</div>
-      <span>Dit staat in orde, hier hoef je niets aan te doen.</span>
+      <div class="schaal-label">good</div>
+      <span>This is in order, nothing to do here.</span>
     </div>
     <div class="schaal-item deels">
-      <div class="schaal-label">kan beter</div>
-      <span>Werkt, maar er blijft iets liggen.</span>
+      <div class="schaal-label">could be better</div>
+      <span>It works, but something is left on the table.</span>
     </div>
     <div class="schaal-item probleem">
-      <div class="schaal-label">verbeterpunt</div>
-      <span>Dit kost je waarschijnlijk zichtbaarheid.</span>
+      <div class="schaal-label">needs fixing</div>
+      <span>This is probably costing you visibility.</span>
     </div>
   </div>
 
-  <h2>Waarom dezelfde webshop soms een andere score krijgt</h2>
-  <p>Twee scans van dezelfde pagina horen hetzelfde resultaat te geven, en dat doen ze ook. Krijg je toch een ander cijfer, dan is er meestal iets anders aan de hand.</p>
-  <p>De meest voorkomende reden is dat er een ander adres is gescand. De homepage van een webshop en een categoriepagina zijn verschillende pagina's, met een andere opbouw en dus een andere score. Op je rapport staat daarom altijd precies welk adres we hebben bekeken.</p>
-  <p>Daarnaast kan je site zelf veranderd zijn, of tijdelijk trager. Om te voorkomen dat een toevallige piek je score beïnvloedt, meten we de laadtijd meerdere keren en gebruiken we de snelste.</p>
+  <h2>Why the same store sometimes gets a different score</h2>
+  <p>Two checks of the same page should give the same result, and they do. If you still get a different number, something else is usually going on.</p>
+  <p>The most common reason is that a different address was checked. The home page of a store and a category page are different pages, built differently, so they score differently. That is why your report always states exactly which address we looked at.</p>
+  <p>Your site may also have changed, or been temporarily slower. To stop a one-off spike from moving your score, we measure load time several times and use the fastest.</p>
 
   <div class="grens">
-    <strong>Waar onze meting ophoudt</strong>
-    <p>We meten of AI je webshop kan vinden, lezen en begrijpen. Dat is de basis, en zonder die basis wordt je shop zeker niet aanbevolen. Maar het is geen garantie dat het wel gebeurt.</p>
-    <p>Of een AI je daadwerkelijk noemt hangt ook af van dingen buiten je site: wat anderen over je schrijven, reviews, vergelijkingssites, en hoe bekend je merk is. Dat meten we op dit moment niet, en we doen ook niet alsof.</p>
-    <p>We beloven daarom geen resultaat. We laten zien wat er aan jouw kant niet klopt, en lossen dat op.</p>
+    <strong>Where our measurement stops</strong>
+    <p>We measure whether AI can find, read and understand your store. That is the base, and without it your store certainly will not be recommended. But it is no guarantee that it will be.</p>
+    <p>Whether an assistant actually names you also depends on things outside your site: what others write about you, reviews, comparison sites, and how well known your brand is. We do not measure that right now, and we do not pretend to.</p>
+    <p>So we promise no result. We show what is wrong on your side, and we fix that.</p>
   </div>
 
-  <h2>Hoe we meten of AI je noemt</h2>
-  <p>Bij het monitoringabonnement doen we meer dan je site nakijken. We stellen elke week
-  koopvragen aan AI-assistenten en kijken of jouw webshop in het antwoord staat. Op dit moment zijn
-  dat ChatGPT en Gemini. Zo werkt dat.</p>
+  <h2>How we measure whether AI names you</h2>
+  <p>With a subscription we do more than check your site. Every month we put buying questions to AI assistants and see whether your store is in the answer. Right now those are ChatGPT and Gemini. This is how that works.</p>
   <ol>
-    <li>We bekijken wat je winkel verkoopt en bedenken daar dertig vragen bij die kopers echt
-    stellen. Verdeeld over zes soorten: algemeen, prijs, doelgroep, alternatief voor een merk,
-    welke winkel, en praktische vragen.</li>
-    <li>De naam van jouw webshop komt in die vragen <strong>niet</strong> voor. Anders zouden we
-    meten of AI een naam kan herhalen in plaats van of je uit jezelf genoemd wordt.</li>
-    <li>Elke vraag gaat naar de AI-modellen die we op dat moment betrouwbaar kunnen bevragen. We
-    bewaren het volledige antwoord.</li>
-    <li>Daarna lezen we die antwoorden en halen eruit welke winkels genoemd worden, of jij erbij
-    staat, op welke plek, en of je alleen genoemd wordt of ook echt aanbevolen.</li>
+    <li>We look at what your store sells and write thirty questions buyers really ask about it, spread over six kinds: general, price, audience, alternative to a brand, which store, and practical questions.</li>
+    <li>The name of your store does <strong>not</strong> appear in those questions. Otherwise we would be measuring whether AI can repeat a name instead of whether you are named on your own.</li>
+    <li>Every question goes to the AI models we can query reliably at that moment. We keep the full answer.</li>
+    <li>Then we read those answers and take from them which stores are named, whether you are among them, in which place, and whether you are only named or actually recommended.</li>
   </ol>
 
-  <h3>Genoemd is niet hetzelfde als aanbevolen</h3>
-  <p>Veel antwoorden geven eerst een lange lijst en sluiten af met een advies: "voor deze look zou
-  ik vooral kijken naar X en Y". In die lijst staan is genoemd. In dat slotadvies staan is
-  aanbevolen. Dat verschil is groot, dus we tellen die twee apart. Bij elke vermelding zetten we
-  het citaat uit het antwoord erbij, zodat je zelf kan zien waar ons oordeel op rust.</p>
+  <h3>Named is not the same as recommended</h3>
+  <p>Many answers first give a long list and then close with advice: "for this look I would mainly look at X and Y". Being in that list is named. Being in that closing advice is recommended. That difference is large, so we count the two separately. With every mention we include the quote from the answer, so you can see for yourself what our judgement rests on.</p>
 
-  <h3>Waarom je geen percentage te zien krijgt</h3>
-  <p>Je krijgt aantallen: genoemd bij zoveel van de zoveel vragen. Geen percentages, want die
-  suggereren een precisie die er niet is. We tellen ook alleen de vragen mee waarin er
-  <em>ergens</em> een winkel genoemd kon worden. Vraagt iemand naar een merk of een product, dan
-  komt daar geen enkele webshop in voor, ook de beste niet. Zulke vragen meetellen zou je cijfer
-  mooier of lelijker maken dan het is.</p>
+  <h3>Why you do not get a percentage</h3>
+  <p>You get counts: named in so many of so many questions. No percentages, because those suggest a precision that is not there. We also only count the questions in which a store could be named at all. If someone asks about a brand or a product, no store appears in the answer, not even the best one. Counting those questions would make your number prettier or uglier than it is.</p>
 
-  <h3>Welke modellen we bevragen</h3>
-  <p>Vandaag zijn dat ChatGPT en Gemini. We willen er meer bij, en de techniek daarvoor staat klaar, maar we
-  zetten een model er pas bij als het betrouwbaar antwoord geeft. Een model dat de ene week wel en
-  de andere week niet meedoet, maakt je cijfers onvergelijkbaar, en daar heb je niets aan. Op je
-  eigen pagina staat altijd welke modellen die week echt geantwoord hebben.</p>
+  <h3>Which models we ask</h3>
+  <p>Today those are ChatGPT and Gemini. We want more, and the technical side is ready, but we only add a model once it answers reliably. A model that joins one month and not the next makes your numbers incomparable, and that helps nobody. Your own page always states which models actually answered that month.</p>
 
-  <h3>We meten via de programmeerkoppeling</h3>
-  <p>We stellen de vragen via de koppeling die ontwikkelaars gebruiken, zonder er iets omheen te
-  zetten. Dat is een benadering van wat iemand in de app zou zien, geen kopie ervan: in de app
-  wegen ook de zoekresultaten van dat moment, de locatie en de geschiedenis van die persoon mee.
-  We zeggen dus niet dat dit precies is wat een koper ziet.</p>
+  <h3>We measure through the programming interface</h3>
+  <p>We ask the questions through the interface developers use, with nothing built around it. That is an approximation of what someone would see in the app, not a copy of it: in the app the search results of that moment, the location and that person's history all weigh in too. So we do not claim this is exactly what a buyer sees.</p>
 
-  <h3>Dit heb je niet volledig zelf in de hand</h3>
-  <p>Een technische score gaat over je eigen site en die beheers je zelf. Vermeldingen niet. Komt
-  een concurrent groot in het nieuws of wordt een AI-model bijgewerkt, dan kan je cijfer
-  veranderen zonder dat jij iets fout deed. Daarom laten we altijd zien wie er nog meer genoemd
-  worden, en zetten we bij elke verandering of het aan jou lag of aan de markt. Zonder die uitleg
-  is een cijfer alleen maar verwarrend.</p>
+  <h3>This is not fully in your hands</h3>
+  <p>A technical score is about your own site and you control that. Mentions are not. If a competitor makes the news or an AI model is updated, your number can change without you doing anything wrong. That is why we always show who else was named, and state with every change whether it was you or the market. Without that, a number is only confusing.</p>
 
-  <h2>Wat we met je gegevens doen</h2>
-  <p>We bewaren de resultaten van je scans zodat je ze later kan terugkijken en je verloop kan zien. We verkopen niets door en gebruiken je gegevens niet voor advertenties. In het <a href="/privacybeleid">privacybeleid</a> staat precies wat we bewaren en hoe lang.</p>
+  <h2>What we do with your data</h2>
+  <p>We keep the results of your checks so you can look back at them and see your history. We sell nothing on and do not use your data for advertising. The <a href="/privacybeleid">privacy policy</a> states exactly what we keep and for how long.</p>
 
   <div class="cta-blok">
-    <strong>Zelf zien hoe het werkt?</strong>
-    <p>Doe de gratis scan en bekijk je eigen resultaat. Geen account, geen betaalgegevens, en je ziet meteen alle dertien punten met uitleg.</p>
-    <a class="cta-knop" href="/#scan">Scan je webshop gratis</a>
+    <strong>See for yourself how it works?</strong>
+    <p>Run the free check and look at your own result. No account, no payment details, and you see all thirteen points with the explanation right away.</p>
+    <a class="cta-knop" href="/#scan">Check my store</a>
   </div>
 </main>
 
-<footer>© 2026 Krillo &middot; <a href="/">Terug naar de website</a> &middot; <a href="/veelgestelde-vragen">Veelgestelde vragen</a></footer>
+<footer>&copy; 2026 Krillo &middot; <a href="/">Back to the website</a> &middot; <a href="/veelgestelde-vragen">Questions</a></footer>
 
 </body>
 </html>

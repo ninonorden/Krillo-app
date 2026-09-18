@@ -6,9 +6,13 @@
 <title>{{ naam }} {{ landnaam }}: {{ t.index_kop }} | Krillo</title>
 <meta name="description" content="{{ naam }} {{ landnaam }}. {{ t.index_omschrijving }}">
 <link rel="canonical" href="{{ basis_url }}{{ canonical }}">
-<link rel="alternate" hreflang="{{ taal }}" href="{{ basis_url }}/index/{{ land }}/{{ slug }}">
+{# TAAL EN LAND. De pagina staat in het Engels, maar hij gaat over EEN markt.
+   Daarom taal-en-land samen (en-NL, en-BE): zo weet een zoekmachine dat dit
+   dezelfde pagina voor een ander land is en geen kopie. Alleen de taalcode zou
+   betekenen dat het twee talen zijn, en dat is het niet. #}
+<link rel="alternate" hreflang="{{ taal }}-{{ land | upper }}" href="{{ basis_url }}/index/{{ land }}/{{ slug }}">
 {% for l in andere_landen %}
-<link rel="alternate" hreflang="{{ l.taal }}" href="{{ basis_url }}/index/{{ l.code }}/{{ slug }}">
+<link rel="alternate" hreflang="{{ taal }}-{{ l.code | upper }}" href="{{ basis_url }}/index/{{ l.code }}/{{ slug }}">
 {% endfor %}
 <link rel="icon" href="/static/favicon.png" type="image/png">
 {% include "_stijl.html" %}
@@ -33,7 +37,7 @@
 </head>
 <body>
 <nav><div class="wrap">
-  <a class="logo" href="/"><span class="stip"></span>Krillo</a>
+  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
   <div class="links">
     <a href="/index">{{ t.terug_index }}</a>
     <a href="/zo-meten-we">{{ t.zo_meten_we }}</a>
@@ -54,7 +58,7 @@
   </p>
   <div class="meta">
     {% if gemeten_op %}{{ t.gemeten_op | upper }} {{ gemeten_op.strftime('%d-%m-%Y') }} &middot; {% endif %}
-    {{ totaal }} {{ t.webshop | upper }} &middot; {{ modellen | join(', ') }}
+    {{ totaal }} {% if taal == 'en' and totaal != 1 %}STORES{% else %}{{ t.webshop | upper }}{% endif %} &middot; {{ modellen | join(', ') }}
   </div>
 
   {% if andere_landen %}
@@ -88,7 +92,7 @@
   </table>
   <p style="font-size:14px; margin-top:12px;">
     {{ t.genoemd_uitleg }}
-    {% if niet_genoemd %} {{ t.overige.replace('{n}', niet_genoemd | string) }}{% endif %}
+    {% if niet_genoemd %} {% if taal == 'en' and niet_genoemd == 1 %}The other store was named in none of these questions.{% else %}{{ t.overige.replace('{n}', niet_genoemd | string) }}{% endif %}{% endif %}
   </p>
   {% else %}
   <div class="leeg">{{ t.niemand_genoemd }}</div>

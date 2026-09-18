@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,42 +10,42 @@
 </head>
 <body>
 <nav><div class="wrap">
-  <a class="logo" href="/"><span class="stip"></span>Krillo</a>
-  <div class="links"><a href="/index">De index</a></div>
+  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
+  <div class="links"><a href="/index">The index</a></div>
 </div></nav>
 
 <main><div class="wrap" style="max-width:560px;">
-  <h1>Je link kwijt?</h1>
+  <h1>Lost your link?</h1>
   <p class="inleiding">
-    Je dashboard zit achter een geheime link in plaats van achter een wachtwoord.
-    Vul je mailadres in, dan sturen we hem opnieuw.
+    Your dashboard sits behind a secret link instead of a password.
+    Enter your email address and we send it again.
   </p>
 
   {% if verstuurd %}
   <div class="blok" style="background:var(--groen-licht); border-color:var(--groen-dim);">
-    Als dit adres bij ons bekend is, is de link onderweg. Kijk ook even in je
-    ongewenste mail.
+    If we know this address, the link is on its way. Have a look in your spam
+    folder too.
   </div>
   {% else %}
   <form method="post" class="blok">
     <label for="email" style="display:block; font-size:14px; margin-bottom:8px;">
-      Je mailadres</label>
+      Your email address</label>
     <input id="email" name="email" type="email" required
            style="width:100%; font-family:var(--mono); font-size:15px; padding:14px 16px;
                   border:1.5px solid var(--lijn); border-radius:8px; margin-bottom:14px;">
-    <button class="knop vol" type="submit">Stuur mijn link</button>
+    <button class="knop vol" type="submit">Send my link</button>
   </form>
   {% endif %}
 
   <p style="font-size:14px; margin-top:20px;">
-    Wij zeggen bewust niet of een adres bij ons bekend is. Anders zou dit
-    formulier een manier zijn om uit te vinden welke webshops klant bij ons
-    zijn, en dat gaat niemand aan.
+    We deliberately do not say whether an address is known to us. Otherwise this
+    form would be a way to find out which stores are customers of ours, and that
+    is nobody else's business.
   </p>
 </div></main>
 
 <footer><div class="wrap">
-  Krillo &middot; <a href="/index">De index</a> &middot; <a href="/over-ons">Over ons</a>
+  Krillo &middot; <a href="/index">The index</a> &middot; <a href="/over-ons">About us</a>
 </div></footer>
 </body>
 </html>

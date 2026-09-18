@@ -1,29 +1,31 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pagina niet gevonden | Krillo</title>
+<title>Page not found | Krillo</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
-    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22;
-    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+    --ink:#0A0A0B; --ink-soft:#4A4A55; --paper:#FFFFFF; --paper-raised:#FFFFFF;
+    --line:#E8E8EC; --coral:#1B3FE0; --coral-tekst:#142FA8;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif;
+    --body:'Space Grotesk', sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6;
        min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;}
   .kaart{max-width:460px; text-align:center;}
-  .logo{font-family:var(--disp); font-weight:700; font-size:18px; display:flex; align-items:center;
+  .logo{font-family:var(--disp); font-weight:700; font-size:21px; display:flex; align-items:center;
         justify-content:center; gap:8px; margin-bottom:32px; color:var(--ink);}
   .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
   .code{font-family:var(--mono); font-size:12px; color:var(--coral); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px;}
-  h1{font-family:var(--disp); font-weight:700; font-size:26px; margin-bottom:12px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:34px; line-height:1.05;
+     letter-spacing:-0.04em; margin-bottom:12px;}
   p{color:var(--ink-soft); font-size:15px; margin-bottom:24px;}
   .knoppen{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
   .knop{padding:11px 22px; border-radius:8px; font-size:14px; font-weight:600; text-decoration:none;}
@@ -42,20 +44,29 @@
   a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
     outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
   }
+  /* OPTIE B, 18 september 2026: het woordmerk. Hoofdletters, strak
+     gespatieerd, met INDEX ernaast in de schrijfmachineletter. De stip van
+     optie A is weg. */
+  .logo{font-family:var(--disp); font-weight:700; font-size:21px;
+        letter-spacing:-0.04em; text-transform:uppercase; display:flex;
+        align-items:baseline; gap:9px; color:var(--ink); text-decoration:none;}
+  .logo .tag{font-family:var(--mono); font-size:10.5px; color:#6E7079;
+             letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
+  .logo-dot{display:none;}
 </style>
 </head>
 <body>
   <div class="kaart">
-    <div class="logo"><span class="logo-dot"></span>Krillo</div>
+    <div class="logo">KRILLO <span class="tag">INDEX</span></div>
     {# Deze pagina wordt ook gebruikt voor andere foutmeldingen dan een
        ontbrekende pagina, bijvoorbeeld bij het installeren van de Shopify-app.
        Zonder titel en bericht blijft het gewoon de oude 404. #}
-    <div class="code">{{ 'Er ging iets mis' if titel else 'Pagina niet gevonden' }}</div>
-    <h1>{{ titel or 'Deze pagina bestaat niet' }}</h1>
-    <p>{{ bericht or 'Mogelijk klopt het adres niet meer, of is de link verlopen. Vanaf de homepage vind je alles terug.' }}</p>
+    <div class="code">{{ 'Something went wrong' if titel else 'Page not found' }}</div>
+    <h1>{{ titel or 'This page does not exist' }}</h1>
+    <p>{{ bericht or 'The address may have changed, or the link has expired. Everything is reachable from the home page.' }}</p>
     <div class="knoppen">
-      <a class="knop vol" href="/">Naar de homepage</a>
-      <a class="knop leeg" href="/artikelen">Bekijk de artikelen</a>
+      <a class="knop vol" href="/">Go to the home page</a>
+      <a class="knop leeg" href="/index">Open the index</a>
     </div>
   </div>
 </body>

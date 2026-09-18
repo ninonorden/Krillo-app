@@ -228,7 +228,28 @@ def home():
                 "niet_genoemd": len([r for r in lijst.get("rijen", [])
                                      if not (r["genoemd"] or 0)]),
             }
+        # De koersbalk bovenaan de homepage. Per categorie de winkel die op
+        # dit moment bovenaan staat, met de dag waarop dat gemeten is. Dit is
+        # het eerste dat een bezoeker ziet, dus het moet uit de database komen
+        # en niet uit een sjabloon: een verzonnen regel in een koersbalk is
+        # precies de overpromise waar wij anderen op controleren.
+        ticker = []
+        for rij in rijen[:3]:
+            kop = db.ranglijst_per_land(rij["categorie"], voorbeeldland, limiet=1)
+            eerste = (kop.get("rijen") or [None])[0]
+            ticker.append({
+                "categorie": categorieen.naam_van(rij["categorie"]),
+                "land": voorbeeldland,
+                "slug": rij["categorie"],
+                "leider": (eerste.get("naam") or eerste.get("webshop_url", "")
+                           .replace("https://", "")) if eerste else None,
+                "genoemd": eerste.get("genoemd") if eerste else None,
+                "telbaar": kop.get("telbaar") if eerste else None,
+            })
         index = {"cijfers": cijfers, "landen": landen, "top": top,
+                 "ticker": ticker,
+                 "gemeten_op": (top.get("rijen")[0].get("gemeten_op")
+                                if top and top.get("rijen") else None),
                  "binnenkort": [c for c in sitetaal.LANDEN
                                 if c not in {r["land"] for r in landen}]}
     except Exception as e:
@@ -3669,12 +3690,16 @@ MINIMUM_PER_LAND = int(os.environ.get("INDEX_MINIMUM_PER_LAND", "3"))
 def openbare_index():
     """Het overzicht van alle gemeten categorieen.
 
-    De taal van DEZE pagina volgt de bezoeker (standaard Engels). Het land dat
-    voorgekozen staat volgt zijn browser, maar dat is alleen een suggestie: de
-    adressen per land bestaan los van elkaar en er wordt nooit doorgestuurd op
+    EEN ADRES, EEN TAAL. De hele site staat in het Engels, en alleen een
+    uitdrukkelijke ?taal=nl in het adres zet hem om. Bewust NIET de taal van de
+    browser: Google haalt de site op zonder taalkop en zou dan iets anders te
+    zien krijgen dan een Nederlandse bezoeker op hetzelfde adres. Dan staan er
+    twee versies onder een adres en weet een zoekmachine niet welke hij moet
+    tonen. Het land dat voorgekozen staat in het keuzemenu mag de browser wel
+    bepalen: dat verandert de pagina niet. Er wordt nooit doorgestuurd op
     IP-adres. Zie de uitleg bovenin sitetaal.py."""
     landen = [r["land"] for r in db.landen_in_index()]
-    taal = sitetaal.kies_taal(kop_taal=request.headers.get("Accept-Language"))
+    taal = sitetaal.kies_taal(pad_taal=request.args.get("taal"))
     voorkeur = (request.args.get("markt") or "").lower()
     if voorkeur not in landen:
         voorkeur = sitetaal.land_uit_kop(
@@ -3695,10 +3720,11 @@ def openbare_index_stuk(stuk):
         landen = [r["land"] for r in db.landen_in_index()]
         if kort not in landen:
             return render_template(
-                "fout.html", titel="Dit land staat nog niet in de index",
-                bericht="We meten het binnenkort. Op /index staan de landen die "
-                        "er wel al zijn."), 404
-        return _indexoverzicht(kort, sitetaal.taal_van_land(kort),
+                "fout.html", titel="This country is not in the index yet",
+                bericht="We are measuring it soon. The countries that are in "
+                        "already are listed on /index."), 404
+        return _indexoverzicht(kort,
+                               sitetaal.kies_taal(pad_taal=request.args.get("taal")),
                                canonical=f"/index/{kort}")
     return redirect(f"/index/nl/{stuk}", code=301)
 
@@ -3735,23 +3761,26 @@ def _indexoverzicht(land, taal, canonical="/index"):
 def openbare_categorie(land, slug):
     """De ranglijst van een categorie in een land.
 
-    Deze pagina staat in de taal van het LAND en niet van de bezoeker. Een
-    Nederlandse koper vraagt "waar koop ik online speelgoed", en daar wordt een
-    Engelse pagina nooit op gevonden."""
+    De pagina zelf staat in het Engels, net als de rest van de site. Wat er in
+    de taal van het LAND blijft staan is het enige dat daar ook echt hoort: de
+    koopvragen die wij gesteld hebben en de naam van de categorie. Dat zijn
+    geen vertaalbare teksten maar de meting zelf, en het zijn precies de
+    woorden waarop een Nederlandse koper zoekt. Zo leest de site als een
+    Engelse site en blijft de Nederlandse zoekterm toch op de pagina staan."""
     land = (land or "").lower()
     if land not in sitetaal.LANDEN:
-        return render_template("fout.html", titel="Dit land kennen wij niet",
-                               bericht="Op /index staan de landen die er zijn."), 404
+        return render_template("fout.html", titel="We do not know this country",
+                               bericht="The countries we measure are listed on /index."), 404
 
-    taal = sitetaal.taal_van_land(land)
+    taal = sitetaal.kies_taal(pad_taal=request.args.get("taal"))
     t = sitetaal.teksten(taal)
     lijst = db.ranglijst_per_land(slug, land, limiet=100)
     if (not lijst or not lijst.get("ronde")
             or len(lijst["rijen"]) < MINIMUM_PER_LAND):
         return render_template(
-            "fout.html", titel="Deze categorie is hier nog niet gemeten",
-            bericht="Zodra er genoeg winkels in staan meten we hem. Op /index "
-                    "staan de categorieen die er wel zijn."), 404
+            "fout.html", titel="This category has not been measured here yet",
+            bericht="We measure it as soon as enough stores are in it. The "
+                    "categories that are measured are listed on /index."), 404
 
     genoemd = [r for r in lijst["rijen"] if (r["genoemd"] or 0) > 0]
     lijst_voor_ai = [{"@type": "ListItem", "position": r["positie"],
@@ -3814,11 +3843,12 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, taken_url=None):
     beeld = klantbeeld.bouw(webshop_url, land=land)
     if not beeld:
         return None
-    taal = sitetaal.taal_van_land(beeld.get("land") or "nl")
+    taal = sitetaal.kies_taal(pad_taal=request.args.get("taal"))
     return render_template(
         "dashboard.html",
         t=sitetaal.teksten(taal), taal=taal, beeld=beeld,
         landnaam=sitetaal.landnaam(beeld.get("land"), taal),
+        modellen=db.modellen_van_ronde(beeld["ronde"]),
         categorienaam=categorieen.naam_van(beeld["categorie"]),
         staven=klantbeeld.balkhoogtes(beeld["verloop"]),
         voorbeeld=voorbeeld, taken_url=taken_url,
@@ -3840,15 +3870,15 @@ def openbaar_voorbeeld():
     keuze = db.voorbeeldwinkel()
     if not keuze:
         return render_template(
-            "fout.html", titel="Er is nog geen voorbeeld",
-            bericht="Zodra de eerste categorie gemeten is staat hier een echt "
-                    "dashboard van een echte winkel."), 404
+            "fout.html", titel="There is no example yet",
+            bericht="As soon as the first category is measured, a real "
+                    "dashboard of a real store appears here."), 404
     pagina = _dashboard(keuze["webshop_url"], land=keuze.get("land"), voorbeeld=True)
     if pagina is None:
         return render_template(
-            "fout.html", titel="Er is nog geen voorbeeld",
-            bericht="Zodra de eerste categorie gemeten is staat hier een echt "
-                    "dashboard van een echte winkel."), 404
+            "fout.html", titel="There is no example yet",
+            bericht="As soon as the first category is measured, a real "
+                    "dashboard of a real store appears here."), 404
     return pagina
 
 
@@ -3862,16 +3892,16 @@ def klant_dashboard(klant_token):
     klant = db.get_klant(klant_token)
     if not klant:
         return render_template(
-            "fout.html", titel="Deze link werkt niet meer",
-            bericht="Vraag een nieuwe aan op /mijn-link, dan mailen we hem "
-                    "opnieuw."), 404
+            "fout.html", titel="This link no longer works",
+            bericht="Ask for a new one on /mijn-link and we will email it "
+                    "again."), 404
     pagina = _dashboard(klant["webshop_url"],
                         taken_url=f"/monitoring/{klant_token}")
     if pagina is None:
         return render_template(
-            "fout.html", titel="Je categorie is nog niet gemeten",
-            bericht="Zodra jouw categorie aan de beurt is verschijnt hier je "
-                    "positie. Je krijgt er vanzelf bericht van."), 404
+            "fout.html", titel="Your category has not been measured yet",
+            bericht="As soon as your category comes up, your rank appears "
+                    "here. We let you know when it does."), 404
     return pagina
 
 
@@ -5990,39 +6020,39 @@ def bedankt():
         # wachten op een mail die nooit zou komen.
         return render_template(
             "bedankt.html", gelukt=False,
-            title="De betaling is niet afgerond",
-            message=("Er is niets afgeschreven. Dat kan gebeuren: afgebroken, geweigerd "
-                     "door de bank, of verlopen. Je kan het gewoon opnieuw proberen."),
-            note="Loopt het steeds vast? Mail hallo@krillo.nl, dan regelen wij het met de hand.")
+            title="The payment was not completed",
+            message=("Nothing was charged. That happens: cancelled, refused by the bank, "
+                     "or expired. You can simply try again."),
+            note="Stuck every time? Email hallo@krillo.nl and we sort it out by hand.")
 
     if checkout_type == "monitoring":
         return render_template(
             "bedankt.html", gelukt=betaald,
-            title="Je betaling is verwerkt door Mollie",
-            message=("Is de betaling gelukt, dan is je eerste meting nu onderweg en krijg je "
-                     "binnen ongeveer een kwartier een mail met de link naar je eigen pagina. "
-                     "Daar staat wat je als eerste kan doen."),
-            note=("Is er niets afgeschreven en krijg je geen mail, dan is de betaling niet "
-                  "afgerond. Je kan het gewoon opnieuw proberen, of mail hallo@krillo.nl."))
+            title="Your payment went through Mollie",
+            message=("If the payment succeeded, your first measurement is on its way and "
+                     "within about fifteen minutes you get an email with the link to your "
+                     "own page. That page says what to do first."),
+            note=("If nothing was charged and no email arrives, the payment was not "
+                  "completed. You can simply try again, or email hallo@krillo.nl."))
     if checkout_type == "uitvoering":
         return render_template(
             "bedankt.html", gelukt=betaald,
-            title="Je betaling is verwerkt door Mollie",
-            message=("Is de betaling gelukt, dan staat er binnen enkele minuten een mail voor "
-                     "je klaar. Daarin staat precies één ding: hoe je ons toegang geeft tot je "
-                     "webshop. Zonder die stap kunnen we niet beginnen, dus doe hem even. Het "
-                     "kost twee minuten."),
-            note=("Niets ontvangen? Kijk eerst in je spamfolder. Is er ook niets afgeschreven, "
-                  "dan is de betaling niet afgerond en kan je het opnieuw proberen. Mail "
-                  "anders hallo@krillo.nl."))
+            title="Your payment went through Mollie",
+            message=("If the payment succeeded, an email is waiting for you within a few "
+                     "minutes. It contains exactly one thing: how to give us access to your "
+                     "store. Without that step we cannot start, so do it now. It takes two "
+                     "minutes."),
+            note=("Nothing received? Check your spam folder first. If nothing was charged "
+                  "either, the payment was not completed and you can try again. Otherwise "
+                  "email hallo@krillo.nl."))
     return render_template(
         "bedankt.html", gelukt=betaald,
-        title="Je betaling is verwerkt door Mollie",
-        message=("Is de betaling gelukt, dan gaan we direct aan de slag en ontvang je de "
-                 "volledige audit binnen enkele minuten per e-mail."),
-        note=("Niets ontvangen? Kijk eerst in je spamfolder. Is er ook niets afgeschreven, dan "
-              "is de betaling niet afgerond en kan je het opnieuw proberen. Mail anders "
-              "hallo@krillo.nl."))
+        title="Your payment went through Mollie",
+        message=("If the payment succeeded, we start right away and you receive the full "
+                 "audit by email within a few minutes."),
+        note=("Nothing received? Check your spam folder first. If nothing was charged "
+              "either, the payment was not completed and you can try again. Otherwise "
+              "email hallo@krillo.nl."))
 
 
 if __name__ == "__main__":

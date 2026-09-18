@@ -7,7 +7,7 @@
 <meta name="description" content="{{ t.index_omschrijving }}">
 <link rel="canonical" href="{{ basis_url }}{{ canonical }}">
 {% for l in landen %}
-<link rel="alternate" hreflang="{{ l.taalcode }}" href="{{ basis_url }}/index/{{ l.code }}">
+<link rel="alternate" hreflang="{{ taal }}-{{ l.code | upper }}" href="{{ basis_url }}/index/{{ l.code }}">
 {% endfor %}
 <link rel="alternate" hreflang="x-default" href="{{ basis_url }}/index">
 <link rel="icon" href="/static/favicon.png" type="image/png">
@@ -15,7 +15,7 @@
 </head>
 <body>
 <nav><div class="wrap">
-  <a class="logo" href="/"><span class="stip"></span>Krillo</a>
+  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
   <div class="links">
     <a href="/index">{{ t.terug_index }}</a>
     <a href="/zo-meten-we">{{ t.zo_meten_we }}</a>

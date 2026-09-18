@@ -94,7 +94,7 @@
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* De huisstijl van 17 september 2026. Zie templates/_stijl.html, daar staat
      dezelfde lijst voor de nieuwe pagina's. Deze hele opmaak loopt via
@@ -102,19 +102,25 @@
      regel structuur verandert. Dat was ook de bedoeling: de scan en de
      bestelschermen mochten bij het verbouwen niet geraakt worden. */
   :root{
-    --ink:#101014;
+    --ink:#0A0A0B;
     --ink-soft:#4A4A55;
-    --paper:#FBFAF8;
+    --ink-grijs:#6E7079;
+    --paper:#FFFFFF;
     --paper-raised:#FFFFFF;
-    --line:#E6E2D8;
-    --coral:#E0452F; --coral-tekst:#B8351F;
-    --coral-dim:#FFE9E5;
-    --teal:#0F5C52;
-    --amber:#C98A2E;
-    --teal-dim:#DFF0EC;
+    --zand:#F7F7F9;
+    --line:#E8E8EC;
+    --line-licht:#F1F1F4;
+    /* Het accent is blauw. De naam coral is blijven staan omdat hij in dit
+       bestand honderd keer voorkomt; de waarde is wat telt. */
+    --coral:#1B3FE0; --coral-tekst:#142FA8;
+    --coral-licht:#7F8CFF;
+    --coral-dim:#E7EBFF;
+    --teal:#0B7C5E;
+    --amber:#B57A16;
+    --teal-dim:#DFF3EC;
     --mono:'IBM Plex Mono', monospace;
-    --disp:'Instrument Serif', Georgia, serif;
-    --body:'Archivo', system-ui, sans-serif;
+    --disp:'Space Grotesk', system-ui, sans-serif;
+    --body:'Space Grotesk', system-ui, sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{
@@ -633,190 +639,255 @@
     outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
   }
 
-  /* ===== DE NIEUWE HOMEPAGE, 17 september 2026 =====================
-     Optie A: donkere hero over de volle breedte, schreefletter, en het bewijs
-     meteen onder de vouw. De oude opbouw stond nog in de weg: die had de
-     nieuwe kleuren maar dezelfde acht secties eronder, en dan verandert er
-     voor een bezoeker niets. ================================================ */
+  /* ===== DE HOMEPAGE, OPTIE B, 18 september 2026 =====================
+     Wit, strak, en de letter doet het werk: Space Grotesk in zwaar met een
+     krappe spatiëring, dunne lijnen in plaats van gekleurde vlakken, en één
+     blauw accent. Geen schreefletter en geen donkere hero meer: dat was optie
+     A. ==================================================================== */
 
-  /* De hero loopt van rand tot rand en is donker. Dat is het eerste dat het
-     verschil maakt tussen een sjabloon en iets eigens. */
-  header.hero{background:var(--ink); color:var(--paper); padding:84px 0 0;}
-  header.hero .eyebrow{color:var(--coral); }
-  header.hero .eyebrow::before{background:var(--coral);}
-  header.hero h1{color:var(--paper); font-size:76px; max-width:900px;}
-  header.hero .hero-sub{color:#C9C7D1; font-size:20px; max-width:540px;}
-  header.hero .hero-note{color:#9C9AA6; text-transform:uppercase; letter-spacing:0.06em;}
+  /* De koersbalk. Dit is het eerste dat iemand ziet en het zegt in één regel
+     wat Krillo is: een index die vandaag gemeten is. De inhoud komt uit de
+     database, dus er staat nooit een verzonnen regel. */
+  .ticker{background:var(--ink); color:#fff; min-height:38px; padding:8px 0;
+          font-family:var(--mono); font-size:11.5px; letter-spacing:0.04em;}
+  .ticker .wrap{display:flex; align-items:center; gap:30px; flex-wrap:wrap;}
+  .ticker .merk{color:var(--coral-licht);}
+  .ticker .goed{color:#35D6A4;}
+  .ticker .bezig{color:#6E7079;}
+  .ticker .datum{margin-left:auto; color:#6E7079;}
 
-  /* De hero heeft geen tweede kolom meer. Het invoerveld staat breder, precies
-     zoals in optie A, en niets staat er nog naast om de aandacht te delen. */
-  .hero-grid{grid-template-columns:1fr;}
-  header.hero .scan-form{max-width:600px;}
-  header.hero .scan-form input{height:58px; font-family:var(--mono); font-size:15px;}
-  header.hero .scan-form button{height:58px;}
-  header.hero .eyebrow{letter-spacing:0.14em;}
-  header.hero .scan-form input{background:#191920; border-color:#33333D; color:var(--paper);}
-  header.hero .scan-form input::placeholder{color:#6E6E7A;}
-  .hero-grid{padding-bottom:56px;}
+  nav{position:sticky; top:0; z-index:50; background:rgba(255,255,255,0.94);
+      backdrop-filter:blur(8px); border-bottom:1px solid var(--line);}
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:74px;}
+  .logo{font-family:var(--disp); font-weight:700; font-size:21px;
+        letter-spacing:-0.04em; text-transform:uppercase; display:flex;
+        align-items:baseline; gap:9px; color:var(--ink);}
+  .logo .tag{font-family:var(--mono); font-size:10.5px; color:var(--ink-grijs);
+             letter-spacing:0.1em; font-weight:400;}
+  .logo-dot{display:none;}
+  .navlinks{display:flex; gap:30px; font-size:14.5px; font-weight:500; color:#3A3A42;}
+  .navlinks a{text-decoration:none;}
+  .navlinks a:hover{color:var(--ink);}
+  .nav-cta{font-size:14.5px; font-weight:600; background:var(--coral); color:#fff;
+           padding:10px 20px; border-radius:6px; text-decoration:none;}
+  .nav-cta:hover{background:var(--coral-tekst);}
 
-  /* De cijfers, als voetregel binnen de hero. */
-  .hero-cijfers{border-top:1px solid #2A2A33; padding:22px 0 26px;
-                display:flex; gap:48px; align-items:center; flex-wrap:wrap;}
-  .hero-cijfers .n{font-family:var(--disp); font-size:30px; line-height:1; display:block;}
-  .hero-cijfers .l{font-family:var(--mono); font-size:10.5px; color:#9C9AA6;
-                   margin-top:5px; display:block; letter-spacing:0.06em;}
-  .hero-cijfers .landen{margin-left:auto; font-family:var(--mono); font-size:11.5px;
-                        color:#C9C7D1; text-align:right; line-height:1.9;}
-  .hero-cijfers .landen .later{color:#6E6E7A;}
+  /* De hero: links de belofte, rechts de index van vandaag in een omlijnd
+     kaartje. Twee kolommen, want het bewijs hoort naast de belofte te staan en
+     niet eronder. */
+  header.hero{padding:70px 0 0; background:var(--paper); color:var(--ink);}
+  .hero-grid{display:grid; grid-template-columns:1fr 340px; gap:56px;
+             align-items:flex-start; padding-bottom:0;}
+  .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:0.12em;
+           color:var(--ink-grijs); text-transform:uppercase; margin-bottom:22px;
+           display:block;}
+  .eyebrow::before{content:none;}
+  h1{font-family:var(--disp); font-weight:700; letter-spacing:-0.045em;
+     font-size:74px; line-height:0.98; margin-bottom:20px; max-width:720px;
+     color:var(--ink);}
+  h1 em{font-style:normal; color:var(--coral);}
+  .hero-sub{font-size:19px; line-height:1.5; color:var(--ink-soft);
+            max-width:520px; margin-bottom:32px;}
+  .scan-form{display:flex; gap:10px; max-width:540px; margin-bottom:14px;}
+  .scan-form input{flex:1; height:54px; border-radius:7px;
+                   border:1.5px solid #D8D8DE; background:#fff; padding:0 18px;
+                   font-family:var(--mono); font-size:15px; color:var(--ink);
+                   outline:none;}
+  .scan-form input:focus{border-color:var(--coral);}
+  .scan-form input::placeholder{color:#9A9AA2;}
+  .scan-form button{height:54px; padding:0 28px; border-radius:7px; border:none;
+                    background:var(--coral); color:#fff; font-family:var(--body);
+                    font-weight:600; font-size:15px; cursor:pointer; white-space:nowrap;}
+  .scan-form button:hover{background:var(--coral-tekst);}
+  .hero-note{font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs);
+             text-transform:uppercase; letter-spacing:0.04em;}
 
-  /* Secties: rustig, veel lucht, geen afwisselende achtergrondkleuren. */
-  .vlak{padding:72px 0 0;}
+  /* Het kaartje met de index van vandaag. Omlijnd in de inktkleur, want in
+     optie B doen lijnen het werk dat in optie A door vlakken gedaan werd. */
+  .indexkaart{border:1.5px solid var(--ink); border-radius:10px; padding:26px 28px;}
+  .indexkaart .kop{font-family:var(--mono); font-size:10.5px; letter-spacing:0.12em;
+                   color:var(--ink-grijs); margin-bottom:20px;}
+  .indexkaart .rij{display:flex; justify-content:space-between; align-items:baseline;
+                   padding:14px 0; border-bottom:1px solid var(--line);}
+  .indexkaart .rij:first-of-type{padding-top:0;}
+  .indexkaart .rij .naam{font-size:14px; color:var(--ink-soft);}
+  .indexkaart .rij .getal{font-family:var(--disp); font-weight:700; font-size:28px;
+                          letter-spacing:-0.03em;}
+  .indexkaart .landen{padding-top:16px; font-family:var(--mono); font-size:11.5px;
+                      line-height:1.8; color:var(--ink-grijs);}
+  .indexkaart .landen strong{color:var(--ink); font-weight:500;}
+
+  .vlak{padding:74px 0 0;}
   .sectiekop{display:flex; justify-content:space-between; align-items:flex-end;
-             gap:20px; flex-wrap:wrap; margin-bottom:24px;}
-  .sectiekop h2{font-family:var(--disp); font-weight:400; font-size:40px;
-                line-height:1.08; letter-spacing:-0.025em; margin-bottom:6px;}
+             gap:20px; flex-wrap:wrap; margin-bottom:20px;}
+  .sectiekop h2{font-family:var(--disp); font-weight:700; font-size:38px;
+                line-height:1.05; letter-spacing:-0.035em; margin-bottom:6px;}
   .sectiekop p{font-size:17px; color:var(--ink-soft); margin:0;}
-  .sectiekop .meer{font-size:15px; font-weight:600; color:var(--coral-tekst);
+  .sectiekop .meer{font-size:14.5px; font-weight:600; color:var(--coral-tekst);
                    text-decoration:none; white-space:nowrap; padding-bottom:6px;}
 
-  /* De ranglijst als bewijs. */
-  .idx-kaart{background:var(--paper-raised); border:1px solid var(--line);
-             border-radius:16px; overflow:hidden;}
-  .idx-kop{padding:16px 24px; border-bottom:1px solid var(--line); display:flex;
-           align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;}
-  .idx-kop strong{font-size:16.5px;}
-  .idx-kop span{font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);}
-  .idx-rij{display:flex; align-items:center; padding:14px 24px;
-           border-bottom:1px solid #F0EDE5; gap:12px;}
-  .idx-rij.idx-hoofd{background:#F6F4EF; padding:11px 24px;
-                     font-family:var(--mono); font-size:10px; letter-spacing:0.1em;
-                     color:var(--ink-soft);}
-  .idx-rij.idx-hoofd .p{font-family:var(--mono); font-size:10px;}
-  .idx-rij .p{font-family:var(--disp); font-size:22px; width:42px; flex-shrink:0;}
-  .idx-rij .w{flex-grow:1; font-weight:500; font-size:15px;}
-  .idx-rij .g{font-family:var(--mono); font-size:13px; width:86px; text-align:right;}
-  .idx-rij .a{font-family:var(--mono); font-size:13px; width:92px; text-align:right;
+  /* De ranglijst. Een tabel met dunne lijnen, geen gekleurde rijen. */
+  .idx-kaart{border:1px solid var(--line); border-radius:10px; overflow:hidden;}
+  .idx-kop{padding:14px 24px; border-bottom:1px solid var(--line);
+           display:flex; align-items:baseline; justify-content:space-between;
+           gap:12px; flex-wrap:wrap; background:var(--zand);}
+  .idx-kop strong{font-size:15px; font-weight:600;}
+  .idx-kop span{font-family:var(--mono); font-size:11px; color:var(--ink-grijs);
+                letter-spacing:0.08em;}
+  .idx-rij{display:flex; align-items:center; padding:15px 24px;
+           border-bottom:1px solid var(--line-licht); gap:12px;}
+  .idx-rij.idx-hoofd{background:var(--zand); padding:12px 24px;
+                     font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em;
+                     color:var(--ink-grijs);}
+  .idx-rij .p{font-family:var(--disp); font-weight:700; font-size:17px; width:40px;
+              flex-shrink:0;}
+  .idx-rij.idx-hoofd .p{font-family:var(--mono); font-size:10.5px; font-weight:400;}
+  .idx-rij .w{flex-grow:1; font-weight:500; font-size:15.5px;}
+  .idx-rij .c{width:130px; font-family:var(--mono); font-size:12px;
+              color:var(--ink-grijs); text-transform:uppercase;}
+  .idx-rij .g{font-family:var(--mono); font-size:13.5px; width:86px; text-align:right;}
+  .idx-rij .a{font-family:var(--mono); font-size:13.5px; width:110px; text-align:right;
               color:var(--teal);}
-  .idx-rij.top{background:#F4FAF8;}
-  .idx-voet{padding:16px 24px; display:flex; justify-content:space-between;
+  .idx-rij.idx-hoofd .a{color:var(--ink-grijs);}
+  .idx-voet{padding:15px 24px; display:flex; justify-content:space-between;
             align-items:center; gap:12px; flex-wrap:wrap; font-size:14px;
-            color:var(--ink-soft); background:var(--paper);}
+            color:var(--ink-soft);}
   .idx-voet a{font-weight:600; color:var(--coral-tekst); text-decoration:none;}
 
-  /* De zes dingen die je krijgt. */
-  .zes{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
-  .zeskaart{background:var(--paper-raised); border:1px solid var(--line);
-            border-radius:14px; padding:24px 26px;}
-  .zeskaart h3{font-family:var(--body); font-weight:600; font-size:17px;
-               margin-bottom:6px; color:var(--ink);}
-  .zeskaart p{font-size:15px; color:var(--ink-soft); margin:0; line-height:1.6;}
-  .zeskaart.donker{background:var(--ink); border-color:var(--ink);}
-  .zeskaart.donker h3{color:var(--coral);}
-  .zeskaart.donker p{color:#C9C7D1;}
-
-  /* Het dashboard. */
-  .dash-blok{background:var(--paper-raised); border:1px solid var(--line);
-             border-radius:18px; padding:36px 40px; display:flex; gap:44px;
-             align-items:center; flex-wrap:wrap;}
-  .dash-tekst{flex:1 1 340px;}
-  .dash-tekst h2{font-family:var(--disp); font-weight:400; font-size:36px;
-                 letter-spacing:-0.02em; line-height:1.1; margin-bottom:10px;}
-  .dash-tekst p{font-size:16px; color:var(--ink-soft); margin-bottom:20px;}
-  .knop-donker{display:inline-block; background:var(--ink); color:var(--paper);
-               text-decoration:none; font-weight:600; font-size:15px;
-               padding:13px 24px; border-radius:8px;}
-  .dash-note{font-family:var(--mono); font-size:11px; color:var(--ink-soft);
-             margin-top:12px; letter-spacing:0.06em;}
-  .dash-kaart{flex:1 1 320px; background:var(--paper); border:1px solid var(--line);
-              border-radius:12px; padding:24px 26px;}
-  .dash-label{font-family:var(--mono); font-size:10.5px; color:var(--ink-soft);
-              letter-spacing:0.08em; margin-bottom:12px;}
-  .dash-groot{display:flex; align-items:baseline; gap:12px; margin-bottom:14px;}
-  .dash-groot .nr{font-family:var(--disp); font-size:56px; line-height:1;}
-  .dash-groot .van{font-size:16px; color:var(--ink-soft);}
-  .dash-regel{font-size:14.5px; color:var(--ink-soft);}
-
-  /* De methode, donker, want dat is het vertrouwensblok. */
-  .methode-blok{background:var(--ink); color:var(--paper); border-radius:18px;
-                padding:38px 42px;}
-  .methode-blok h2{font-family:var(--disp); font-weight:400; font-size:36px;
-                   letter-spacing:-0.02em; margin-bottom:22px; color:var(--paper);}
-  .methode-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:20px 44px;}
-  .methode-grid h3{font-family:var(--body); font-weight:600; font-size:16px;
-                   margin-bottom:5px; color:var(--paper);}
-  .methode-grid p{font-size:15px; color:#C9C7D1; margin:0; line-height:1.6;}
-
+  /* De zes dingen. Eén omlijnd raster met genummerde vakken, geen losse
+     kaartjes met schaduw. Vak 04 is zwart: dat is het enige dat de rest van
+     de markt niet doet. */
+  .zes{display:grid; grid-template-columns:repeat(3,1fr); gap:0;
+       border:1px solid var(--line); border-radius:10px; overflow:hidden;}
+  .zeskaart{padding:26px 28px; border-right:1px solid var(--line);
+            border-bottom:1px solid var(--line);}
+  .zeskaart:nth-child(3n){border-right:none;}
+  .zeskaart:nth-child(n+4){border-bottom:none;}
+  .zeskaart .nr{font-family:var(--mono); font-size:10.5px; color:var(--ink-grijs);
+                margin-bottom:10px;}
+  .zeskaart h3{font-family:var(--body); font-weight:600; font-size:16.5px;
+               margin-bottom:5px; color:var(--ink);}
+  .zeskaart p{font-size:14.5px; color:var(--ink-soft); margin:0; line-height:1.55;}
+  .zeskaart.donker{background:var(--ink);}
+  .zeskaart.donker .nr{color:var(--coral-licht);}
+  .zeskaart.donker h3{color:#fff;}
+  .zeskaart.donker p{color:#C6C6CE;}
   @media(max-width:860px){
     .zes{grid-template-columns:1fr 1fr;}
-    .methode-grid{grid-template-columns:1fr;}
-    header.hero h1{font-size:44px;}
-    .sectiekop h2{font-size:32px;}
+    .zeskaart:nth-child(3n){border-right:1px solid var(--line);}
+    .zeskaart:nth-child(2n){border-right:none;}
+    .zeskaart:nth-child(n+4){border-bottom:1px solid var(--line);}
+    .zeskaart:nth-child(n+5){border-bottom:none;}
   }
   @media(max-width:560px){
     .zes{grid-template-columns:1fr;}
-    .hero-cijfers{gap:26px;}
-    .hero-cijfers .landen{margin-left:0; text-align:left;}
-    .idx-rij .g{width:70px;} .idx-rij .a{width:60px;}
+    .zeskaart{border-right:none !important; border-bottom:1px solid var(--line) !important;}
+    .zeskaart:last-child{border-bottom:none !important;}
   }
 
-  /* VANGNET. Instrument Serif bestaat in EEN dikte. Vraag je om vet, dan maakt
-     de browser er zelf nepvet van door de letters dikker te tekenen, en dat
-     ziet er plomp uit. Dit zet dat overal uit. */
-  h1, h2, .idx-rij .p, .dash-groot .nr, .hero-cijfers .n,
-  .sectiekop h2, .dash-tekst h2, .methode-blok h2{
-    font-weight:400 !important; -webkit-font-smoothing:antialiased;
-  }
+  /* Het dashboardblok en de methode: allebei omlijnd, niet gevuld. */
+  .dash-blok{border:1px solid var(--line); border-radius:10px; padding:32px 36px;
+             display:flex; gap:44px; align-items:center; flex-wrap:wrap;}
+  .dash-tekst{flex:1 1 340px;}
+  .dash-tekst h2{font-family:var(--disp); font-weight:700; font-size:34px;
+                 letter-spacing:-0.035em; line-height:1.06; margin-bottom:10px;}
+  .dash-tekst p{font-size:16px; color:var(--ink-soft); margin-bottom:20px;}
+  .knop-donker{display:inline-block; background:var(--coral); color:#fff;
+               text-decoration:none; font-weight:600; font-size:14.5px;
+               padding:12px 22px; border-radius:7px;}
+  .knop-donker:hover{background:var(--coral-tekst); color:#fff;}
+  .dash-note{font-family:var(--mono); font-size:11px; color:var(--ink-grijs);
+             margin-top:12px; letter-spacing:0.06em;}
+  .dash-kaart{flex:1 1 320px; border:1px solid var(--line); border-radius:10px;
+              padding:22px 24px; background:var(--zand);}
+  .dash-label{font-family:var(--mono); font-size:10.5px; color:var(--ink-grijs);
+              letter-spacing:0.1em; margin-bottom:12px;}
+  .dash-groot{display:flex; align-items:baseline; gap:12px; margin-bottom:14px;}
+  .dash-groot .nr{font-family:var(--disp); font-weight:700; font-size:46px;
+                  letter-spacing:-0.04em; line-height:1;}
+  .dash-groot .van{font-size:16px; color:var(--ink-soft);}
+  .dash-regel{font-size:14.5px; color:var(--ink-soft);}
 
-  /* WAT ER OP DE DONKERE HERO ANDERS MOET.
-     De scanknop en het voorbeeldkaartje waren allebei bijna zwart. Op de oude
-     lichte achtergrond klopte dat; op de donkere hero verdwijnen ze. */
-  header.hero .scan-form button{background:var(--coral); color:#fff;}
-  header.hero .scan-form button:hover{background:#C93A26;}
-  header.hero .sim-card{background:#17171E; border:1px solid #2A2A33;}
-  header.hero .sim-topbar{color:#9C9AA6;}
-  header.hero .sim-dot{background:#35D6A4;}
+  .methode-blok{border:1.5px solid var(--ink); border-radius:12px; padding:36px 40px;}
+  .methode-blok h2{font-family:var(--disp); font-weight:700; font-size:34px;
+                   letter-spacing:-0.035em; margin-bottom:20px; color:var(--ink);}
+  .methode-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:18px 44px;}
+  .methode-grid h3{font-family:var(--body); font-weight:600; font-size:15.5px;
+                   margin-bottom:4px; color:var(--ink);}
+  .methode-grid p{font-size:14.5px; color:var(--ink-soft); margin:0; line-height:1.55;}
 
-  /* De middelste prijskaart is de keuze die wij aanraden, dus die is donker.
-     Dat is ook wat elke concurrent doet met het pakket waar ze je naartoe
-     willen hebben, en het werkt omdat je oog er vanzelf naartoe gaat. */
-  .price-card.featured{background:var(--ink); border:1px solid var(--ink);}
-  .price-card.featured .price-name,
-  .price-card.featured .price-amount{color:var(--paper);}
-  .price-card.featured .price-amount span{color:#C9C7D1;}
-  .price-card.featured .price-feats li{color:#C9C7D1;}
-  .price-card.featured .price-feats li strong{color:var(--paper);}
+  /* De prijskaarten. De middelste is omlijnd in het accent in plaats van
+     zwart gevuld: in optie B trekt een lijn de aandacht, geen vlak. */
+  .price-card.featured{background:#fff; border:1.5px solid var(--coral);}
+  .price-card.featured .price-name{color:var(--coral);}
+  .price-card.featured .price-amount{color:var(--ink);}
+  .price-card.featured .price-amount span{color:var(--ink-grijs);}
+  .price-card.featured .price-feats li{color:var(--ink-soft);}
+  .price-card.featured .price-feats li strong{color:var(--ink);}
   .price-card.featured .price-feats li::before{color:var(--coral);}
   .price-card.featured .price-badge{background:var(--coral); color:#fff;}
   .price-card.featured .price-btn.solid{background:var(--coral); color:#fff;}
+  .price-card .price-amount{font-family:var(--disp); font-weight:700;
+                            letter-spacing:-0.04em;}
 
   .prijs-voet{display:grid; grid-template-columns:1fr 1fr; gap:18px 36px;
-              margin-top:26px; font-size:14.5px; color:var(--ink-soft); line-height:1.6;}
+              margin-top:22px; font-size:14px; color:var(--ink-grijs); line-height:1.6;}
   .prijs-voet strong{color:var(--ink);}
   @media(max-width:700px){ .prijs-voet{grid-template-columns:1fr;} }
 
-  .eigen-cijfer{display:grid; grid-template-columns:auto 1fr; gap:14px 26px;
-                align-items:start; background:var(--paper-raised);
-                border:1px solid var(--lijn, var(--line)); border-radius:16px;
-                padding:32px 36px;}
-  .eigen-cijfer .ec-groot{font-family:var(--disp); font-weight:400; font-size:54px;
-                          line-height:1; color:var(--coral);}
-  .eigen-cijfer .ec-groot.klein{font-size:44px;}
-  .eigen-cijfer .ec-tekst{font-size:16px; color:var(--ink-soft); line-height:1.6;
-                          max-width:640px;}
-  .eigen-cijfer .ec-tekst span{display:block; color:var(--ink-grijs, #6E6E7A);
-                               font-size:14.5px; margin-top:4px;}
-  .eigen-cijfer .ec-scheiding{grid-column:1 / -1; height:1px;
-                              background:var(--line); margin:6px 0;}
+  /* De voettekst is zwart over de volle breedte: dat sluit de pagina af. */
+  /* De voettekst is zwart over de volle breedte. Alles wat erin staat moet dus
+     licht zijn; de regels hierboven waren geschreven voor een lichte voet en
+     maken de links onzichtbaar. */
+  footer{background:var(--ink); color:#fff; margin-top:74px; padding:44px 0 30px;
+         border-top:none;}
+  footer .logo{color:#fff;}
+  footer .logo .tag{color:#9C9AA6;}
+  .footer-brand p{color:#9C9AA6;}
+  .footer-col h4{color:#6E7079;}
+  .footer-col a{color:#C6C6CE;}
+  .footer-col a:hover{color:#fff;}
+  .footer-bottom{border-top:1px solid #23232A; color:#6E7079;}
+  .footer-bottom .flinks a{color:#9C9AA6;}
+  .footer-bottom .flinks a:hover{color:#fff;}
+
+  @media(max-width:900px){
+    .hero-grid{grid-template-columns:1fr;}
+    h1{font-size:52px;}
+    .methode-grid{grid-template-columns:1fr;}
+    .sectiekop h2{font-size:30px;}
+  }
   @media(max-width:560px){
-    .eigen-cijfer{grid-template-columns:1fr; padding:26px 24px;}
+    h1{font-size:40px;}
+    .idx-rij .c{display:none;}
+    .idx-rij .g{width:70px;} .idx-rij .a{width:60px;}
   }
 </style>
 </head>
 <body>
 
+{# DE KOERSBALK. Het eerste dat iemand ziet: wat er vandaag gemeten is, met de
+   winkel die bovenaan staat. Alles uit de database. Is er nog niets gemeten,
+   dan valt de balk weg in plaats van dat er verzonnen regels staan. #}
+{% if index and index.ticker %}
+<div class="ticker">
+  <div class="wrap">
+    <span class="merk">KRILLO INDEX</span>
+    {% for r in index.ticker %}
+    <span>{{ r.categorie | upper }} {{ r.land | upper }}
+      {% if r.leider %}<span class="goed">{{ r.leider | upper }} {{ r.genoemd }}/{{ r.telbaar }}</span>
+      {% else %}<span class="bezig">MEASURING</span>{% endif %}</span>
+    {% endfor %}
+    {% if index.gemeten_op %}
+    <span class="datum">UPDATED {{ index.gemeten_op.strftime('%d %b %Y') | upper }}</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <nav>
   <div class="wrap">
-    <div class="logo"><span class="logo-dot"></span>Krillo</div>
+    <div class="logo">KRILLO <span class="tag">INDEX</span></div>
     <div class="navlinks">
       <a href="/index">Index</a>
       <a href="/demo">Product</a>
@@ -827,63 +898,54 @@
   </div>
 </nav>
 
-{# DE HERO. Precies zoals optie A: donker, over de volle breedte, een vraag als
-   kop en direct het invoerveld eronder. Geen tweede kolom meer met een
-   voorbeeldantwoord: dat leidde af van het enige dat hier moet gebeuren, en het
-   stond niet in het ontwerp dat we gekozen hebben. #}
+{# DE HERO. Links de belofte en het invoerveld, rechts de index van vandaag in
+   een omlijnd kaartje. Het bewijs staat naast de belofte en niet eronder. #}
 <header class="hero" id="scan">
   <div class="wrap hero-grid">
     <div>
-      <div class="eyebrow">The AI shopping index</div>
-      <h1>When AI picks the shop,<br>who does it <em>name?</em></h1>
-      <p class="hero-sub">We ask AI assistants what buyers ask. Every month, every category. Find out where you stand.</p>
+      <div class="eyebrow">AI visibility for online stores</div>
+      <h1>Rank in the answer, not on page one.</h1>
+      <p class="hero-sub">We measure which stores AI assistants recommend, in every category, every month. Then we fix what keeps you out.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
-        <button type="button" id="scanButton">See my rank</button>
+        <button type="button" id="scanButton">Get my rank</button>
       </div>
-      <div class="hero-note" id="scanNote">FREE &middot; NO ACCOUNT &middot; RESULT IN ABOUT A MINUTE{% if gescand %} &middot; USED {{ gescand }} TIMES{% endif %}</div>
+      <div class="hero-note" id="scanNote">FREE &middot; NO ACCOUNT{% if gescand %} &middot; USED {{ gescand }} TIMES{% endif %}</div>
       <div id="scanResult" class="scan-result"></div>
     </div>
-  </div>
 
-  {# De cijferstrook hoort BINNEN de donkere hero, tegen de onderrand. Zo is het
-     een voetregel onder de belofte en niet een los blok dat ergens zweeft. #}
-  <div class="wrap">
-    <div class="hero-cijfers">
+    <div class="indexkaart">
+      <div class="kop">THE INDEX TODAY</div>
       {% if index and index.cijfers %}
-      <div><span class="n">{{ index.cijfers.categorieen }}</span><span class="l">CATEGORIES</span></div>
-      <div><span class="n">{{ index.cijfers.winkels }}</span><span class="l">STORES RANKED</span></div>
-      <div><span class="n">{{ index.cijfers.antwoorden }}</span><span class="l">ANSWERS ON RECORD</span></div>
+      <div class="rij"><span class="naam">Categories</span><span class="getal">{{ index.cijfers.categorieen }}</span></div>
+      <div class="rij"><span class="naam">Stores ranked</span><span class="getal">{{ index.cijfers.winkels }}</span></div>
+      <div class="rij"><span class="naam">Answers on record</span><span class="getal">{{ index.cijfers.antwoorden }}</span></div>
       {% endif %}
-      {# ONS EIGEN CIJFER. Het sterkste getal dat wij hebben is niet geleend van
-         een Amerikaans onderzoek maar van onze eigen metingen. Zolang wij te
-         weinig winkels gemeten hebben staat er iets dat altijd waar is: wat wij
-         per winkel doen. Nooit een extern percentage zonder bron. #}
+      {# ONS EIGEN CIJFER. Het sterkste getal dat wij hebben is van onszelf en
+         niet geleend uit een Amerikaans onderzoek. Staat er nog te weinig
+         gemeten, dan staat er iets dat altijd waar is. #}
       {% if eigen_cijfer %}
-      <div><span class="n">{{ eigen_cijfer.deel }}%</span><span class="l">OF {{ eigen_cijfer.gemeten }} DUTCH STORES WE MEASURED OURSELVES, NEVER NAMED</span></div>
+      <div class="rij"><span class="naam">Never named, of {{ eigen_cijfer.gemeten }} Dutch stores we measured</span><span class="getal">{{ eigen_cijfer.deel }}%</span></div>
       {% else %}
-      <div><span class="n">30</span><span class="l">BUYING QUESTIONS WE ASK PER STORE</span></div>
+      <div class="rij"><span class="naam">Buying questions per store</span><span class="getal">30</span></div>
       {% endif %}
       <div class="landen">
-        {% if index and index.landen %}LIVE {% for l in index.landen %}{{ l.land | upper }}{% if not loop.last %} {% endif %}{% endfor %}<br>
-        {% if index.binnenkort %}<span class="later">NEXT
-          {% for c in index.binnenkort %}{{ c | upper }}{% if not loop.last %} {% endif %}{% endfor %}</span>{% endif %}{% endif %}
+        {% if index and index.landen %}LIVE <strong>{% for l in index.landen %}{{ l.land | upper }}{% if not loop.last %} {% endif %}{% endfor %}</strong><br>{% endif %}
+        {% if index and index.binnenkort %}NEXT {% for c in index.binnenkort %}{{ c | upper }}{% if not loop.last %} {% endif %}{% endfor %}{% endif %}
       </div>
     </div>
   </div>
 </header>
 
-{# DE INDEX ALS BEWIJS. Staat direct onder de hero: een bezoeker moet zien dat er
-   echt gemeten wordt voordat hij iets hoeft te geloven. Alles komt uit de
-   database, dus er staat nooit een verouderd getal. Is er nog niets gemeten,
-   dan valt het hele blok weg in plaats van dat er nullen staan. #}
+{# DE INDEX ALS BEWIJS. Alles uit de database. Is er nog niets gemeten, dan valt
+   het hele blok weg in plaats van dat er nullen staan. #}
 {% if index and index.top and index.top.rijen %}
 <section id="index" class="vlak">
   <div class="wrap">
     <div class="sectiekop">
       <div>
-        <h2>The index is open</h2>
-        <p>Every ranking we publish is free to read. No account, no email.</p>
+        <h2>Open to everyone</h2>
+        <p>Every ranking is free to read. No account, no email.</p>
       </div>
       <a class="meer" href="/index">{% if index.cijfers %}All {{ index.cijfers.categorieen }} categories{% else %}All categories{% endif %} &rarr;</a>
     </div>
@@ -895,12 +957,14 @@
       </div>
       <div class="idx-rij idx-hoofd">
         <span class="p">#</span><span class="w">STORE</span>
+        <span class="c">CATEGORY</span>
         <span class="g">NAMED</span><span class="a">RECOMMENDED</span>
       </div>
       {% for r in index.top.rijen %}
-      <div class="idx-rij {% if r.positie <= 3 %}top{% endif %}">
+      <div class="idx-rij">
         <span class="p">{{ r.positie }}</span>
         <span class="w">{{ r.naam or r.webshop_url | replace('https://','') }}</span>
+        <span class="c">{{ index.top.naam }} {{ index.top.land | upper }}</span>
         <span class="g">{{ r.genoemd }} / {{ index.top.telbaar }}</span>
         <span class="a">{{ r.aanbevolen }}</span>
       </div>
@@ -914,48 +978,54 @@
 </section>
 {% endif %}
 
-{# WAT JE KRIJGT. Zes blokken, elk een regel. De hele markt verkoopt rapporten;
-   het enige dat Krillo anders doet is het uitvoeren, dus dat blok is donker. #}
+{# WAT JE KRIJGT. Zes genummerde vakken in één raster. De hele markt verkoopt
+   rapporten; het enige dat Krillo anders doet is het uitvoeren, dus dat vak is
+   zwart. #}
 <section id="wat-je-krijgt" class="vlak">
   <div class="wrap">
     <div class="sectiekop">
       <div>
         <h2>Everyone else reports. We fix.</h2>
-        <p>Six things happen every month. You do none of them.</p>
+        <p>Six things every month. You do none of them.</p>
       </div>
     </div>
     <div class="zes">
       <div class="zeskaart">
+        <div class="nr">01</div>
         <h3>Your rank</h3>
         <p>Where you stand in your category, and who moved past you.</p>
       </div>
       <div class="zeskaart">
+        <div class="nr">02</div>
         <h3>The questions you lose</h3>
         <p>The real answer, and the competitor named instead of you.</p>
       </div>
       <div class="zeskaart">
+        <div class="nr">03</div>
         <h3>The blockers</h3>
         <p>Thirteen checks on your store. Most shops miss several without knowing.</p>
       </div>
       <div class="zeskaart donker">
+        <div class="nr">04</div>
         <h3>The fix, installed</h3>
-        <p>We write it and put it live in your store. You press approve, and the old text is kept.</p>
+        <p>We write it and put it live. You press approve, the old text is kept.</p>
       </div>
       <div class="zeskaart">
+        <div class="nr">05</div>
         <h3>Proof it worked</h3>
-        <p>Four weeks later we measure again, with the same questions, and show the difference.</p>
+        <p>Four weeks later we measure again, with the same questions.</p>
       </div>
       <div class="zeskaart">
+        <div class="nr">06</div>
         <h3>A warning when you drop</h3>
-        <p>You hear it from us, not from your sales figures, with whether it was you or the market.</p>
+        <p>From us, not from your sales figures, with whether it was you or the market.</p>
       </div>
     </div>
   </div>
 </section>
 
 {# HET DASHBOARD. Met een knop naar een ECHT dashboard van een echte winkel.
-   Een schermafbeelding is over twee maanden verouderd en niemand gelooft hem;
-   dit is echte data die zichzelf bijwerkt. #}
+   Een schermafbeelding is over twee maanden verouderd en niemand gelooft hem. #}
 <section id="dashboard" class="vlak">
   <div class="wrap">
     <div class="dash-blok">
@@ -981,8 +1051,7 @@
 </section>
 
 {# HOE JE ONS KAN CONTROLEREN. Wij hebben geen keurmerk en geen bekende klanten,
-   dus de methode IS het vertrouwen. Dit is precies wat de grote spelers in deze
-   markt ook doen, en het kost niets. #}
+   dus de methode IS het vertrouwen. #}
 <section id="methode" class="vlak">
   <div class="wrap">
     <div class="methode-blok">
@@ -990,7 +1059,7 @@
       <div class="methode-grid">
         <div>
           <h3>Every question is published</h3>
-          <p>The exact buying questions behind each ranking sit on the page. Ask them yourself and you get the same.</p>
+          <p>The exact buying questions behind each ranking sit on the page. Ask them yourself.</p>
         </div>
         <div>
           <h3>No paid positions</h3>
@@ -1002,7 +1071,7 @@
         </div>
         <div>
           <h3>Every answer kept in full</h3>
-          <p>{% if index and index.cijfers and index.cijfers.antwoorden %}{{ index.cijfers.antwoorden }} complete answers are on record. That is how we can show movement.{% else %}Every answer is kept in full, with the date it was given. That is how we can show movement.{% endif %}</p>
+          <p>{% if index and index.cijfers and index.cijfers.antwoorden %}{{ index.cijfers.antwoorden }} complete answers are on record. That is how we show movement.{% else %}Every answer is kept in full, with the date it was given.{% endif %}</p>
         </div>
       </div>
     </div>
@@ -1013,8 +1082,8 @@
   <div class="wrap">
     <div class="sectiekop">
       <div>
-        <h2>The others hand you a dashboard. We do the work.</h2>
-        <p>Seeing your rank is free and stays free. Cancel any month, no contract.</p>
+        <h2>Pricing</h2>
+        <p>The others hand you a dashboard. We do the work.</p>
       </div>
     </div>
 
@@ -1093,7 +1162,7 @@
       <input type="email" id="checkoutEmail" placeholder="you@yourstore.com">
     </div>
     <div class="checkout-field">
-      <label for="checkoutBedrijf">Company name <span style="color:#3B3D57; font-weight:400;">(optional, for your invoice)</span></label>
+      <label for="checkoutBedrijf">Company name <span style="color:#6E7079; font-weight:400;">(optional, for your invoice)</span></label>
       <input type="text" id="checkoutBedrijf" placeholder="Your Store Ltd">
     </div>
     <div class="checkout-error" id="checkoutError"></div>
@@ -1108,10 +1177,6 @@
       </label>
     </div>
     <button class="checkout-submit" id="checkoutSubmit">Continue to payment</button>
-    {# De garantie stond alleen in de voorwaarden en op de uitkomstpagina. Hier
-       staat hij op het moment dat het ertoe doet: iemand die een onbekend
-       bedrijf geld gaat geven en net het vinkje over zijn herroepingsrecht
-       heeft gezet. #}
     {# De regel hieronder wordt per product ingevuld door het script, want de
        drie producten hebben verschillende voorwaarden. Een vaste zin die dertig
        dagen geld terug belooft klopt alleen bij de audit. #}
@@ -1124,7 +1189,7 @@
   <div class="wrap">
     <div class="footer-top">
       <div class="footer-brand">
-        <div class="logo"><span class="logo-dot"></span>Krillo</div>
+        <div class="logo">KRILLO <span class="tag">INDEX</span></div>
         <p>We show whether your store is named and recommended by ChatGPT, Gemini and other AI assistants, and we fix what holds you back. Built for Dutch and Belgian stores.</p>
       </div>
       <div class="footer-col">

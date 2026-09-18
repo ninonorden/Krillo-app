@@ -28,12 +28,12 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#12142B; --ink-soft:#3B3D57; --paper:#F6F5F1; --paper-raised:#FFFFFF;
-    --line:#E4E2DA; --coral:#FF4B3E; --coral-tekst:#D42E22; --teal:#1FB6A4;
-    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Inter', sans-serif;
+    --ink:#0A0A0B; --ink-soft:#4A4A55; --paper:#FFFFFF; --paper-raised:#FFFFFF;
+    --line:#E8E8EC; --coral:#1B3FE0; --coral-tekst:#142FA8; --teal:#0B7C5E;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Space Grotesk', sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6; -webkit-font-smoothing:antialiased;}
@@ -71,13 +71,22 @@
   a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
     outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
   }
+  /* OPTIE B, 18 september 2026: het woordmerk. Hoofdletters, strak
+     gespatieerd, met INDEX ernaast in de schrijfmachineletter. De stip van
+     optie A is weg. */
+  .logo{font-family:var(--disp); font-weight:700; font-size:21px;
+        letter-spacing:-0.04em; text-transform:uppercase; display:flex;
+        align-items:baseline; gap:9px; color:var(--ink); text-decoration:none;}
+  .logo .tag{font-family:var(--mono); font-size:10.5px; color:#6E7079;
+             letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
+  .logo-dot{display:none;}
 </style>
 </head>
 <body>
 
 <nav>
   <div class="wrap">
-    <a class="logo" href="/"><span class="logo-dot"></span>Krillo</a>
+    <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
     <a class="nav-cta" href="/#scan">Gratis scan</a>
   </div>
 </nav>

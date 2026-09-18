@@ -5,19 +5,24 @@
    en loopt de site langzaam uit elkaar. Nu staat het hier, en een sjabloon
    haalt het op met {% include "_stijl.html" %}.
 
-   Vastgelegd op 17 september 2026. Zie krillo-huisstijl in het project. #}
+   Vastgelegd op 18 september 2026: OPTIE B. Wit, Space Grotesk in zwaar en
+   strak gespatieerd, een blauw accent en dunne lijnen in plaats van vlakken.
+   Zie krillo-huisstijl in het project. #}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#101014; --ink-zacht:#4A4A55; --ink-grijs:#6E6E7A;
-    --papier:#FBFAF8; --wit:#FFFFFF; --zand:#F6F4EF;
-    --lijn:#E6E2D8; --lijn-licht:#F0EDE5;
-    --vermiljoen:#E0452F; --vermiljoen-licht:#FF6A52; --vermiljoen-tekst:#B8351F;
-    --groen:#0F5C52; --groen-licht:#F4FAF8; --groen-dim:#DFF0EC;
-    --disp:'Instrument Serif', Georgia, serif;
-    --body:'Archivo', system-ui, sans-serif;
+    --ink:#0A0A0B; --ink-zacht:#4A4A55; --ink-grijs:#6E7079;
+    --papier:#FFFFFF; --wit:#FFFFFF; --zand:#F7F7F9;
+    --lijn:#E8E8EC; --lijn-licht:#F1F1F4;
+    /* Het accent is blauw. De namen zijn blijven staan zodat er niet in twintig
+       sjablonen tegelijk gezocht en vervangen hoefde te worden; de waarde is
+       wat telt. */
+    --vermiljoen:#1B3FE0; --vermiljoen-licht:#7F8CFF; --vermiljoen-tekst:#142FA8;
+    --groen:#0B7C5E; --groen-licht:#F3FAF7; --groen-dim:#DFF3EC;
+    --disp:'Space Grotesk', system-ui, sans-serif;
+    --body:'Space Grotesk', system-ui, sans-serif;
     --mono:'IBM Plex Mono', monospace;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -32,24 +37,32 @@
   nav{border-bottom:1px solid var(--lijn); background:var(--papier);}
   nav .wrap{display:flex; align-items:center; justify-content:space-between;
             min-height:72px; gap:16px; flex-wrap:wrap;}
-  .logo{font-family:var(--disp); font-size:25px; display:flex; align-items:center;
-        gap:10px; color:var(--ink); text-decoration:none; letter-spacing:-0.01em;}
-  .stip{width:10px; height:10px; background:var(--vermiljoen); border-radius:50%;
-        display:inline-block; flex-shrink:0;}
+  /* Het merk is een woordmerk in hoofdletters, strak gespatieerd, met INDEX
+     ernaast in de schrijfmachineletter. Geen stip meer: die hoorde bij optie A. */
+  .logo{font-family:var(--disp); font-weight:700; font-size:21px; display:flex;
+        align-items:baseline; gap:9px; color:var(--ink); text-decoration:none;
+        letter-spacing:-0.04em; text-transform:uppercase;}
+  .logo .tag{font-family:var(--mono); font-size:10.5px; color:var(--ink-grijs);
+             letter-spacing:0.1em; text-transform:uppercase; font-weight:400;}
+  .stip{display:none;}
   nav .links{display:flex; align-items:center; gap:26px; font-size:14.5px; flex-wrap:wrap;}
   nav .links a{color:var(--ink-zacht); text-decoration:none;}
   .knop{display:inline-block; text-decoration:none; font-weight:600; font-size:15px;
         padding:12px 22px; border-radius:8px; border:none; cursor:pointer;
         font-family:var(--body);}
   .knop.vol{background:var(--vermiljoen); color:#fff;}
-  .knop.donker{background:var(--ink); color:var(--papier);}
+  .knop.vol:hover{background:var(--vermiljoen-tekst);}
+  /* In optie B is de hoofdactie blauw, ook in de navigatie. De naam donker
+     is blijven staan omdat hij in tien sjablonen gebruikt wordt. */
+  .knop.donker{background:var(--vermiljoen); color:#fff;}
+  .knop.donker:hover{background:var(--vermiljoen-tekst); color:#fff;}
   .knop.leeg{border:1.5px solid var(--ink); color:var(--ink); background:transparent;}
 
   main{padding:48px 0 80px;}
-  h1{font-family:var(--disp); font-weight:400; font-size:52px; line-height:1.06;
-     letter-spacing:-0.025em; margin-bottom:18px;}
-  h2{font-family:var(--disp); font-weight:400; font-size:34px; line-height:1.12;
-     letter-spacing:-0.02em; margin:0 0 12px;}
+  h1{font-family:var(--disp); font-weight:700; font-size:54px; line-height:0.99;
+     letter-spacing:-0.045em; margin-bottom:18px;}
+  h2{font-family:var(--disp); font-weight:700; font-size:34px; line-height:1.08;
+     letter-spacing:-0.035em; margin:0 0 12px;}
   h3{font-family:var(--body); font-weight:600; font-size:16px; margin-bottom:6px;}
   p{margin-bottom:14px; color:var(--ink-zacht);}
   .kruimels{font-family:var(--mono); font-size:12.5px; color:var(--ink-grijs);
@@ -61,7 +74,8 @@
   .strook{background:var(--ink); color:var(--papier); border-radius:14px;
           padding:24px 28px; display:flex; gap:44px; align-items:center;
           flex-wrap:wrap; margin-bottom:34px;}
-  .strook .getal{font-family:var(--disp); font-size:32px; line-height:1;}
+  .strook .getal{font-family:var(--disp); font-weight:700; font-size:30px;
+                 letter-spacing:-0.035em; line-height:1;}
   .strook .bij{font-family:var(--mono); font-size:11px; color:#9C9AA6; margin-top:4px;}
   .strook .landen{margin-left:auto; font-family:var(--mono); font-size:12px;
                   color:#C9C7D1; text-align:right; line-height:1.8;}
@@ -74,9 +88,10 @@
      border-bottom:1px solid var(--lijn); background:var(--zand);}
   td{padding:14px 20px; font-size:15px; border-bottom:1px solid var(--lijn-licht);}
   tr:last-child td{border-bottom:none;}
-  td.pos{font-family:var(--disp); font-size:24px; width:58px;}
+  td.pos{font-family:var(--disp); font-weight:700; font-size:19px; width:58px;}
   td.getal{text-align:right; font-family:var(--mono); font-size:13.5px;}
-  tr.top td{background:var(--groen-licht);}
+  /* Geen gekleurde rijen meer: in optie B doen de lijnen het werk. */
+  tr.top td{background:transparent;}
   .aanbevolen{color:var(--groen);}
   .adres{font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs);}
   .merk{font-weight:600;}
@@ -87,7 +102,8 @@
   .kaart{background:var(--wit); border:1px solid var(--lijn); border-radius:14px;
          padding:20px 22px; text-decoration:none; color:var(--ink); display:block;}
   .kaart:hover{border-color:var(--vermiljoen); color:var(--ink);}
-  .kaart .naam{font-family:var(--disp); font-size:21px; margin-bottom:4px;}
+  .kaart .naam{font-family:var(--disp); font-weight:700; font-size:20px;
+               letter-spacing:-0.03em; margin-bottom:4px;}
   .kaart .bij{font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs);}
 
   .blok{background:var(--wit); border:1px solid var(--lijn); border-radius:14px;
