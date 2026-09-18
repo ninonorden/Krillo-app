@@ -124,7 +124,7 @@ def _haal_winkelinfo_op(webshop_url, extra_paginas=None):
     for pagina_url in urls[:4]:
         url = pagina_url if pagina_url.startswith(("http://", "https://")) else "https://" + pagina_url
         try:
-            resp = requests.get(url, headers={"User-Agent": "KrilloBot/0.4 (+https://www.krillo.nl)"}, timeout=10)
+            resp = requests.get(url, headers={"User-Agent": "KrilloBot/0.4 (+https://krilloai.com)"}, timeout=10)
             soup = BeautifulSoup(resp.text, "html.parser")
             titel = soup.title.string.strip() if soup.title and soup.title.string else ""
             omschrijving_tag = soup.find("meta", attrs={"name": "description"})

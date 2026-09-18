@@ -932,7 +932,7 @@ def send_opvolging_gratis_test(to_email, webshop_url, site_url=None, taal="nl"):
 
     Geen tweede opvolging. Wie na een herinnering niets doet, wil het niet, en
     doorgaan levert alleen spamklachten op."""
-    basis = (site_url or "https://krillo.nl").rstrip("/")
+    basis = (site_url or "https://krilloai.com").rstrip("/")
     winkel = _kaal_adres(webshop_url)
     heen = f"{basis}/?winkel={quote(webshop_url or '')}#prijzen"
 

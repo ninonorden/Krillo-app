@@ -6,13 +6,13 @@
 <title>Krillo: when AI picks the shop, who does it name?</title>
 <meta name="google-site-verification" content="-rhhZoHmZMYdIbtYgGXCj-Zg4FY0j0lSAQdJOPTtEwQ" />
 <meta name="description" content="Krillo asks AI assistants the questions buyers ask and publishes who gets named. Check your store for free, and we fix what holds you back. For Dutch and Belgian stores.">
-<link rel="canonical" href="https://www.krillo.nl/">
+<link rel="canonical" href="{{ basis_url }}/">
 
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://www.krillo.nl/">
+<meta property="og:url" content="{{ basis_url }}/">
 <meta property="og:title" content="Krillo: when AI picks the shop, who does it name?">
 <meta property="og:description" content="Check for free whether AI assistants name and recommend your store, and let us fix what holds you back.">
-<meta property="og:image" content="https://www.krillo.nl/static/krillo-share.png">
+<meta property="og:image" content="{{ basis_url }}/static/krillo-share.png">
 <meta property="og:locale" content="en_GB">
 <meta property="og:site_name" content="Krillo">
 
@@ -25,7 +25,7 @@
   "@context": "https://schema.org",
   "@type": "Organization",
   "name": "Krillo",
-  "url": "https://www.krillo.nl",
+  "url": "{{ basis_url }}",
   "email": "hallo@krillo.nl",
   "description": "Krillo shows store owners whether AI assistants such as ChatGPT and Gemini find and recommend their store, and fixes what holds them back.",
   "address": {
@@ -44,7 +44,7 @@
   "@context": "https://schema.org",
   "@type": "Service",
   "name": "AI visibility for online stores",
-  "provider": {"@type": "Organization", "name": "Krillo", "url": "https://www.krillo.nl"},
+  "provider": {"@type": "Organization", "name": "Krillo", "url": "{{ basis_url }}"},
   "description": "Shows whether AI assistants such as ChatGPT and Gemini name and recommend an online store, and installs the fixes in that store.",
   "areaServed": ["NL", "BE"],
   "offers": [
@@ -1742,7 +1742,14 @@
   var closeBtn = document.getElementById('checkoutClose');
   // Standaard de uitvoering, want de losse audit is geen keuze meer op de
   // pagina. De audit-tak in dit script blijft bestaan voor oude links.
-  var currentType = 'uitvoering';
+  // Stond op 'uitvoering': de eenmalige opknapbeurt van 149 euro, en dat
+  // product is op 11 september vervallen. In de praktijk ging dat goed, want
+  // openModal() zet deze waarde als eerste regel over. Maar een betaalstroom
+  // met een vervallen product als beginwaarde is een ongeluk dat op je wacht,
+  // en 149 eenmalig tegenover 149 per maand is precies het soort verschil dat
+  // een onjuiste mededeling over een betalingsverplichting oplevert.
+  // Nu gelijk aan payments.STANDAARD_PAKKET.
+  var currentType = 'fix';
 
   var includesContent = {
     audit: {

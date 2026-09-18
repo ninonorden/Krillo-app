@@ -90,7 +90,73 @@ def get_base_url():
     # verderop opgevangen en de winkel blijft gewoon op zijn oude stand staan.
     if has_request_context():
         return request.url_root.rstrip("/")
-    return "https://krillo.nl"
+    return "https://krilloai.com"
+
+
+# ---------------------------------------------------------------------------
+# DE VERHUIZING NAAR KRILLOAI.COM, 18 september 2026
+#
+# Waarom wij verhuisd zijn staat in krillo-domeinbesluit-18-09-2026: kort
+# gezegd is een .nl voor Google een landdomein en kun je dat signaal niet
+# uitzetten, en Krillo gaat naar het buitenland.
+#
+# Krillo.nl blijft bestaan en wordt nooit opgezegd. Hij stuurt alles door met
+# een 301, want dat is het enige antwoord waarmee een zoekmachine begrijpt dat
+# een pagina VERHUISD is en niet tijdelijk ergens anders staat. Bij een 302
+# blijft het oude adres in de zoekresultaten staan en begint de nieuwe bij nul.
+#
+# LET OP: /.well-known/ gaat er BEWUST niet doorheen. Daar komen de controles
+# binnen waarmee een beveiligingscertificaat vernieuwd wordt. Sturen wij die
+# door, dan kan het certificaat van krillo.nl op een dag niet vernieuwd worden,
+# en dan werkt juist de doorverwijzing zelf niet meer over https. Dat is een
+# fout die pas maanden later opvalt.
+# ---------------------------------------------------------------------------
+OUDE_DOMEINEN = {"krillo.nl", "www.krillo.nl"}
+
+
+@app.before_request
+def stuur_oud_domein_door():
+    host = (request.host or "").split(":")[0].lower()
+    if host not in OUDE_DOMEINEN:
+        return None
+    if request.path.startswith("/.well-known/"):
+        return None
+    # DE NOODREM.
+    #
+    # Staat BASE_URL nog op het OUDE domein, dan zou deze functie krillo.nl
+    # naar krillo.nl sturen. Dat is geen foutmelding maar een lus: de browser
+    # blijft doorsturen tot hij het opgeeft, en de site is weg. Precies het
+    # soort storing van vanochtend, en dan door onszelf veroorzaakt.
+    #
+    # Dat kan echt gebeuren: de code wordt geupload voordat BASE_URL in Render
+    # omgezet is, en tussen die twee momenten zit een deploy. Daarom hangt dit
+    # niet af van de juiste volgorde, maar controleert de code het zelf. Staat
+    # het doel op een oud domein, dan sturen wij niemand door en blijft de site
+    # gewoon werken op het oude adres tot de instelling klopt.
+    doelhost = get_base_url().split("//")[-1].split("/")[0].split(":")[0].lower()
+    if doelhost in OUDE_DOMEINEN or not doelhost:
+        return None
+    # Het pad en de zoekopdracht blijven staan. Iemand die op een ranglijst
+    # uitkomt via een oude link hoort op diezelfde ranglijst te landen en niet
+    # op de homepage: een doorverwijzing naar de voorpagina telt voor Google
+    # als een verdwenen pagina.
+    doel = get_base_url().rstrip("/") + request.path
+    if request.query_string:
+        doel += "?" + request.query_string.decode("utf-8", "ignore")
+    return redirect(doel, code=301)
+
+
+@app.context_processor
+def zet_basis_url_klaar():
+    """Maakt basis_url in ELK sjabloon beschikbaar.
+
+    Waarom dit er is: bij de verhuizing bleek dat de canonical van de homepage,
+    de og:url van elke pagina en de adressen in de gestructureerde gegevens
+    hardgecodeerd op www.krillo.nl stonden. Een canonical die naar het oude
+    domein wijst vertelt Google dat de echte pagina daar staat, en dan doet de
+    hele verhuizing niets. Nu komt het adres overal uit BASE_URL, zodat een
+    volgende verhuizing een instelling is en geen zoektocht."""
+    return {"basis_url": get_base_url().rstrip("/")}
 
 
 # Vanaf hoeveel gescande webshops wij dat aantal op de site zetten.
@@ -427,7 +493,13 @@ def robots_txt():
     # meeste robots pakken dan alleen de eerste groep en negeren de tweede, en
     # dan staan de privépagina's alsnog open. Nieuwe verboden horen dus hier
     # bij de eerste groep en niet onderaan in een tweede.
-    inhoud = """User-agent: *
+    # Het adres van de sitemap komt uit BASE_URL en staat hier niet vast. Bij
+    # de verhuizing naar krilloai.com bleek dit een van de plekken waar het
+    # oude domein nog hardgecodeerd stond, en een robots.txt die naar de
+    # sitemap van een ander domein wijst is precies het soort stille fout waar
+    # wij bij klanten op controleren.
+    basis = get_base_url().rstrip("/")
+    inhoud = f"""User-agent: *
 Allow: /
 Disallow: /uitkomst/
 Disallow: /monitoring/
@@ -451,7 +523,7 @@ Allow: /
 User-agent: OAI-SearchBot
 Allow: /
 
-Sitemap: https://www.krillo.nl/sitemap.xml
+Sitemap: {basis}/sitemap.xml
 """
     return Response(inhoud, mimetype="text/plain")
 
@@ -491,8 +563,13 @@ def sitemap_xml():
         # Een sitemap zonder de index is vervelend; een sitemap die een foutmelding
         # teruggeeft is erger, want dan verdwijnt ook de rest uit Google.
         print(f"Index in sitemap overslaan: {e}")
+    # Het adres komt uit BASE_URL. Stond hier vast op www.krillo.nl, en dan
+    # dient een verhuisde site een sitemap in met adressen van het oude domein.
+    # Search Console keurt zo'n sitemap af, want een sitemap mag alleen gaan
+    # over het eigendom waar hij onder ingediend wordt.
+    basis = get_base_url().rstrip("/")
     urls = "".join(
-        f"<url><loc>https://www.krillo.nl{p}</loc>"
+        f"<url><loc>{basis}{p}</loc>"
         f"<lastmod>{datum}</lastmod><changefreq>weekly</changefreq></url>"
         for p, datum in regels
     )
@@ -502,23 +579,70 @@ def sitemap_xml():
 
 @app.route("/llms.txt")
 def llms_txt():
+    # HERSCHREVEN 18 september 2026, want dit bestand stond vol met dingen die
+    # niet meer waar waren. Er stond:
+    #   - "Volledige audit: 79 euro eenmalig". Dat product is op 11 september
+    #     vervallen en staat nergens meer op de site.
+    #   - "De betaalde eenmalige opknapbeurt". Ook vervallen; het is nu een
+    #     maandabonnement.
+    #   - "Het monitoring-abonnement meet elke week opnieuw". Dubbel fout:
+    #     monitoring bestaat niet meer EN de keten draait maandelijks, niet
+    #     wekelijks. Diezelfde onwaarheid is op 18 september uit de
+    #     veelgestelde vragen gehaald, maar hier bleef hij staan.
+    #   - Geen woord over de index, terwijl dat inmiddels het kernproduct is.
+    #
+    # Waarom dat erger is dan een verouderde pagina: dit bestand is geschreven
+    # OM door AI-assistenten gelezen te worden. Krillo verkoopt dat AI jouw
+    # winkel goed beschrijft. Dan is je eigen machineleesbare beschrijving vol
+    # producten die niet bestaan precies de fout waar wij anderen op
+    # controleren.
+    #
+    # De prijzen worden nu UIT payments.PAKKETTEN opgebouwd in plaats van
+    # overgetypt. Zo kan dit bestand nooit meer iets anders beweren dan het
+    # bestelscherm, ook niet als de prijzen weer veranderen.
+    def _euro(sleutel):
+        return int(float(payments.PAKKETTEN[sleutel]["prijs"]["value"]))
+
+    prijsregels = "\n".join([
+        "- Gratis check: 0 euro, geen account en geen betaalgegevens nodig",
+        f"- Watch: {_euro('watch')} euro per maand, elke maand je positie in de "
+        "ranglijst, de koopvragen waar je niet in voorkomt met het echte "
+        "antwoord, en de oplossingen uitgeschreven om zelf te doen",
+        f"- Fix: {_euro('fix')} euro per maand, alles uit Watch plus Krillo "
+        "voert de oplossingen uit in de webshop, met een nameting na vier "
+        "weken. Maandelijks opzegbaar.",
+        f"- Merken en bureaus: {_euro('merken')} euro per maand, tot 25 "
+        "winkels in een overzicht",
+        f"- Een extra land voor dezelfde winkel: {_euro('watch')} euro per maand",
+    ])
+
     inhoud = """# Krillo
 
-> Krillo laat eigenaren van Nederlandse en Belgische webshops zien of AI-assistenten
-> zoals ChatGPT, Gemini en Perplexity hun webshop vinden en aanbevelen, en lost de
-> gevonden verbeterpunten op.
+> Krillo meet of AI-assistenten zoals ChatGPT en Gemini webshops noemen en aanbevelen
+> bij echte koopvragen, publiceert daar openbare ranglijsten van, en lost voor
+> betalende klanten op wat hen buiten die antwoorden houdt.
 
 ## Wat Krillo doet
-Krillo scant een webshop op dertien punten, verdeeld over toegang, leesbaarheid,
-structuur en inhoud. De gratis scan toont de score en alle bevindingen. Daarnaast is
-er een gratis zichtbaarheidstest: die stelt vijf koopvragen aan ChatGPT en Gemini,
-zoals een koper ze zou stellen, en laat zien bij hoeveel vragen de webshop genoemd
-wordt en welke andere winkels er in het antwoord staan. De betaalde
-eenmalige opknapbeurt schrijft voor elk verbeterpunt een oplossing uit, toegespitst op de
-producten van die specifieke webshop, en Krillo voert die zelf uit in de winkel, met
-achteraf een overzicht van elke wijziging en de oude tekst erbij zodat alles terug te
-draaien is. Het monitoring-abonnement meet elke week opnieuw en voert de verbeteringen
-ook uit; geeft de eigenaar geen toegang, dan krijgt hij ze kant en klaar om zelf te doen.
+Krillo stelt per categorie dertig koopvragen aan meerdere AI-modellen, zoals een koper
+ze echt zou stellen, en bewaart elk volledig antwoord. Uit die antwoorden wordt gelezen
+welke winkels genoemd worden, op welke plek, en of ze alleen genoemd of ook echt
+aanbevolen worden. Daaruit komt een openbare ranglijst per categorie per land, die
+gratis te lezen is zonder account.
+
+Daarnaast scant Krillo een webshop op dertien punten, verdeeld over toegang,
+leesbaarheid, structuur en inhoud. Die gratis check toont de score en alle bevindingen,
+met daarna een voorproef van koopvragen aan AI.
+
+Meten gebeurt elke maand, niet vaker. Betalende klanten krijgen elke maand hun positie,
+de koopvragen waar ze niet in voorkomen met het echte antwoord erbij, en welke
+concurrent er wel genoemd werd. Bij het Fix-pakket voert Krillo de oplossingen zelf uit
+in de winkel, bewaart de oude tekst zodat terugdraaien altijd kan, en meet vier weken
+later opnieuw.
+
+## Wat Krillo niet belooft
+Krillo belooft geen resultaat. Of een AI je winkel noemt hangt ook af van dingen buiten
+je eigen site: wat anderen over je schrijven, reviews, vergelijkingssites en
+merkbekendheid. Dat meet Krillo niet en doet Krillo ook niet alsof.
 
 ## Voor wie
 Eigenaren van webshops in Nederland en Belgie, zonder marketingbureau en zonder
@@ -526,17 +650,13 @@ technische kennis. Ze kunnen het zelf doen met de uitgeschreven oplossingen, of 
 door Krillo laten uitvoeren.
 
 ## Prijzen
-- Gratis scan: 0 euro, geen account nodig
-- Volledige audit: 79 euro eenmalig, alle oplossingen uitgeschreven om zelf te doen
-- Watch: 49 euro per maand, elke maand je positie in de ranglijst, de koopvragen
-  waar je niet in voorkomt, en de oplossingen uitgeschreven om zelf te doen
-- Fix: 149 euro per maand, alles uit Watch plus Krillo voert de oplossingen uit in
-  de webshop, met een nameting na vier weken. Maandelijks opzegbaar.
-- Merken en bureaus: 490 euro per maand, tot 25 winkels in een overzicht
-- Een extra land voor dezelfde winkel: 49 euro per maand
+""" + prijsregels + """
 
 ## Belangrijke pagina's
-- Homepage, gratis scan en gratis zichtbaarheidstest: https://www.krillo.nl/
+- Homepage, gratis check en gratis zichtbaarheidstest: https://www.krillo.nl/
+- De openbare index: alle gemeten categorieen en ranglijsten, gratis te lezen
+  zonder account: https://www.krillo.nl/index
+- Voorbeeld van een klantdashboard, zonder account: https://www.krillo.nl/demo
 - Artikelen over AI-zichtbaarheid: https://www.krillo.nl/artikelen
 - Hoe we meten: https://www.krillo.nl/zo-meten-we
 - Veelgestelde vragen: https://www.krillo.nl/veelgestelde-vragen
@@ -552,6 +672,19 @@ door Krillo laten uitvoeren.
 ## Contact
 hallo@krillo.nl
 """
+    # Alle adressen in een keer naar het huidige domein trekken.
+    #
+    # Waarom een vervanging en geen f-string: dit bestand is een lap tekst van
+    # duizenden tekens met accolades erin. Die een voor een ontwijken om er een
+    # f-string van te maken is precies het soort wijziging waarbij je een
+    # accolade over het hoofd ziet en de pagina stil omvalt. Een vervanging
+    # achteraf raakt alleen de adressen en laat de rest met rust.
+    #
+    # Het MAILADRES blijft bewust hallo@krillo.nl: dat adres bestaat en werkt,
+    # en hello@krilloai.com nog niet. Een adres op de site zetten waar niets
+    # aankomt is erger dan een adres op het oude domein.
+    basis = get_base_url().rstrip("/")
+    inhoud = inhoud.replace("https://www.krillo.nl", basis)
     return Response(inhoud, mimetype="text/plain")
 
 

@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ artikel.titel }} | Krillo</title>
 <meta name="description" content="{{ artikel.samenvatting }}">
-<link rel="canonical" href="https://www.krillo.nl/artikelen/{{ artikel.slug }}">
+<link rel="canonical" href="{{ basis_url }}/artikelen/{{ artikel.slug }}">
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <meta property="og:type" content="article">
-<meta property="og:url" content="https://www.krillo.nl/artikelen/{{ artikel.slug }}">
+<meta property="og:url" content="{{ basis_url }}/artikelen/{{ artikel.slug }}">
 <meta property="og:title" content="{{ artikel.titel }}">
 <meta property="og:description" content="{{ artikel.samenvatting }}">
-<meta property="og:image" content="https://www.krillo.nl/static/krillo-share.png">
+<meta property="og:image" content="{{ basis_url }}/static/krillo-share.png">
 <meta property="og:locale" content="nl_NL">
 <meta name="twitter:card" content="summary_large_image">
 
@@ -25,10 +25,10 @@
   "datePublished": "{{ artikel.datum }}",
   "dateModified": "{{ artikel.datum }}",
   "inLanguage": "nl-NL",
-  "mainEntityOfPage": {"@type": "WebPage", "@id": "https://www.krillo.nl/artikelen/{{ artikel.slug }}"},
-  "author": {"@type": "Organization", "name": "Krillo", "url": "https://www.krillo.nl"},
-  "publisher": {"@type": "Organization", "name": "Krillo", "url": "https://www.krillo.nl"},
-  "image": "https://www.krillo.nl/static/krillo-share.png"
+  "mainEntityOfPage": {"@type": "WebPage", "@id": "{{ basis_url }}/artikelen/{{ artikel.slug }}"},
+  "author": {"@type": "Organization", "name": "Krillo", "url": "{{ basis_url }}"},
+  "publisher": {"@type": "Organization", "name": "Krillo", "url": "{{ basis_url }}"},
+  "image": "{{ basis_url }}/static/krillo-share.png"
 }
 </script>
 
@@ -37,9 +37,9 @@
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
   "itemListElement": [
-    {"@type": "ListItem", "position": 1, "name": "Krillo", "item": "https://www.krillo.nl/"},
-    {"@type": "ListItem", "position": 2, "name": "Artikelen", "item": "https://www.krillo.nl/artikelen"},
-    {"@type": "ListItem", "position": 3, "name": {{ artikel.titel | tojson }}, "item": "https://www.krillo.nl/artikelen/{{ artikel.slug }}"}
+    {"@type": "ListItem", "position": 1, "name": "Krillo", "item": "{{ basis_url }}/"},
+    {"@type": "ListItem", "position": 2, "name": "Artikelen", "item": "{{ basis_url }}/artikelen"},
+    {"@type": "ListItem", "position": 3, "name": {{ artikel.titel | tojson }}, "item": "{{ basis_url }}/artikelen/{{ artikel.slug }}"}
   ]
 }
 </script>

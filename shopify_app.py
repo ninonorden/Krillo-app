@@ -104,11 +104,11 @@ WEBHOOKS = [
 #
 #     [[webhooks.subscriptions]]
 #     compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
-#     uri = "https://www.krillo.nl/shopify/webhooks/naleving"
+#     uri = "https://krilloai.com/shopify/webhooks/naleving"
 #
 #     [[webhooks.subscriptions]]
 #     topics = [ "app/uninstalled" ]
-#     uri = "https://www.krillo.nl/shopify/webhooks/verwijderd"
+#     uri = "https://krilloai.com/shopify/webhooks/verwijderd"
 #
 # Let op het woord compliance_topics. Met gewoon "topics" worden deze drie
 # geweigerd, en dat is de fout waar de meeste mensen op vastlopen.
