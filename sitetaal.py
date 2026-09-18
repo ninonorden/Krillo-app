@@ -228,3 +228,45 @@ def teksten(taal="nl"):
     basis = dict(T["en"])
     basis.update(T.get(taal) or {})
     return basis
+
+
+# ---------------------------------------------------------------------------
+# WELKE TAAL EEN BEZOEKER KRIJGT, EN WAAROM DAT AAN HET DOMEIN HANGT
+# ---------------------------------------------------------------------------
+#
+# krillo.nl is Nederlands. krilloai.com is Engels. Zelfde code, zelfde ontwerp,
+# alleen andere taal.
+#
+# Waarom niet alles Engels op krillo.nl: achter de knop zit een Nederlandse
+# trechter. De uitslag van de scan, de mails, de facturen, de voorwaarden en de
+# omschrijving op het bankafschrift van Mollie zijn Nederlands. Een Engelse
+# voorkant op een Nederlandse achterkant is erger dan consequent Nederlands,
+# want de bezoeker klikt en valt dan alsnog in het Nederlands.
+#
+# Waarom niet alles Nederlands: de groei komt uit andere landen, en krilloai.com
+# ligt er al. Zo doet dat domein eindelijk iets.
+#
+# Een ?taal=en achter het adres wint altijd, zodat jij beide kanten kunt
+# bekijken zonder een ander domein te openen.
+DOMEIN_TAAL = {
+    "krillo.nl": "nl",
+    "www.krillo.nl": "nl",
+    "krilloai.com": "en",
+    "www.krilloai.com": "en",
+}
+
+
+def taal_van_domein(host, standaard=None):
+    """De taal die bij dit domein hoort.
+
+    Onbekend domein (een testomgeving, een voorbeeldadres van Render) valt terug
+    op de standaard. Nooit omvallen: een bezoeker hoort een pagina te krijgen,
+    geen foutmelding, ook als het adres nieuw is."""
+    kaal = (host or "").split(":")[0].strip().lower()
+    if kaal in DOMEIN_TAAL:
+        return DOMEIN_TAAL[kaal]
+    if kaal.endswith(".nl") or kaal.endswith(".be"):
+        return "nl"
+    if kaal.endswith(".com") or kaal.endswith(".co.uk"):
+        return "en"
+    return standaard or STANDAARD
