@@ -151,8 +151,8 @@ klopt("het betaalscherm noemt de toegang",
       "access to your store" in index)
 faq = lees("templates/faq.html")
 klopt("de veelgestelde vragen zijn omgezet",
-      "Je krijgt elke week een lijstje" not in faq)
-klopt("en zeggen dat wij het uitvoeren", "voeren wij uit in je winkel" in faq)
+      "Je krijgt elke week een lijstje" not in faq and "elke week" not in faq)
+klopt("en zeggen dat wij het uitvoeren", "we install those in your store" in faq)
 
 print("\n== de klantpagina zegt het in allebei de talen ==")
 for taal in ("nl", "en"):

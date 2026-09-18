@@ -100,8 +100,10 @@ zo("een index van Nederland staat in het Nederlands", sitetaal.taal_van_land("nl
 zo("een index van het VK in het Engels", sitetaal.taal_van_land("uk"), "en")
 nlpagina = k.get(f"/index/nl/{CAT}", headers={"Accept-Language": "en-US,en"})
 zo("een Engelse bezoeker wordt NIET omgeleid", nlpagina.status_code, 200)
-klopt("en krijgt de Nederlandse indexpagina",
-      'html lang="nl"' in nlpagina.get_data(as_text=True))
+# De pagina zelf staat in het Engels; de koopvragen en de categorienaam blijven
+# in de taal van het land, want dat is de meting en niet de opmaak.
+klopt("en krijgt de pagina in het Engels",
+      'html lang="en"' in nlpagina.get_data(as_text=True))
 
 print("\n== STAP 16: alle cijfers uit de database ==")
 cijfers = db.index_cijfers()
@@ -110,20 +112,22 @@ thuis = k.get("/").get_data(as_text=True)
 klopt("de homepage toont het aantal categorieen uit de database",
       f'>{cijfers["categorieen"]}</span>' in thuis or
       f'>{cijfers["categorieen"]}<' in thuis)
-strook = thuis[thuis.find("hero-cijfers"):thuis.find("</header>")]
+strook = thuis[thuis.find("indexkaart"):thuis.find("</header>")]
 klopt("in de cijferstrook staat geen plaatshouder tussen haakjes",
       not re.search(r"\[\d", strook))
 klopt("welke landen live zijn komt uit de database",
       "LIVE" in strook and "NL" in strook)
 
-print("\n== STAP 17: nieuwe homepage in stijl A ==")
-klopt("de schreefletter van optie A wordt geladen", "Instrument+Serif" in thuis)
-klopt("de tekstletter van optie A ook", "family=Archivo" in thuis)
-klopt("de oude letters zijn weg",
-      "Space+Grotesk" not in thuis and "family=Inter:" not in thuis)
-klopt("de hero is donker over de volle breedte",
-      "header.hero{background:var(--ink)" in index)
-for stuk in ("hero-cijfers", "idx-kaart", "zeskaart", "dash-blok", "methode-blok"):
+print("\n== STAP 17: nieuwe homepage in stijl B ==")
+# OPTIE B: wit, één letter (Space Grotesk) in zwaar en strak gespatieerd, dunne
+# lijnen in plaats van gekleurde vlakken, en een blauw accent.
+klopt("de letter van optie B wordt geladen", "Space+Grotesk" in thuis)
+klopt("de letters van optie A zijn weg",
+      "Instrument+Serif" not in thuis and "family=Archivo" not in thuis
+      and "family=Inter:" not in thuis)
+klopt("het accent is blauw", "--coral:#1B3FE0" in index)
+klopt("de koersbalk staat bovenaan", 'class="ticker"' in index)
+for stuk in ("indexkaart", "idx-kaart", "zeskaart", "dash-blok", "methode-blok"):
     klopt(f"de nieuwe sectie {stuk} staat er", stuk in thuis)
 for oud in ('id="probleem"', 'id="hoe"', 'id="voorbeeld"',
             'id="wij-doen-het"', 'id="monitoring"'):
@@ -135,14 +139,15 @@ print("\n== STAP 18: indexpagina per land in de nieuwe stijl ==")
 zo("Nederland heeft een eigen pagina", k.get(f"/index/nl/{CAT}").status_code, 200)
 zo("Belgie ook", k.get(f"/index/be/{CAT}").status_code, 200)
 pagina = k.get(f"/index/nl/{CAT}").get_data(as_text=True)
-klopt("in de nieuwe huisstijl", "Instrument+Serif" in pagina)
+klopt("in de huisstijl van optie B", "Space+Grotesk" in pagina
+      and "Instrument+Serif" not in pagina)
 klopt("met een marktkiezer", "marktkiezer" in pagina)
 klopt("de gestelde vragen staan erop", "waar koop ik online een stapartikel" in pagina)
 
 print("\n== STAP 19: SEO-fundament ==")
 klopt("er staat een canonical",
       f'rel="canonical" href="https://www.krillo.nl/index/nl/{CAT}"' in pagina)
-klopt("er staat hreflang naar het Nederlands", 'hreflang="nl"' in pagina)
+klopt("er staat hreflang voor de Nederlandse markt", 'hreflang="en-NL"' in pagina)
 klopt("en naar het Belgische adres", f'/index/be/{CAT}' in pagina)
 blokken = re.findall(r'<script type="application/ld\+json">(.*?)</script>', pagina, re.S)
 import json  # noqa: E402
@@ -162,8 +167,8 @@ demo = k.get("/demo")
 zo("/demo bestaat", demo.status_code, 200)
 dtekst = demo.get_data(as_text=True)
 klopt("zonder inloggen", "wachtwoord" not in dtekst.lower() or "voorbeeld" in dtekst.lower())
-klopt("het zegt dat het een voorbeeld is", "voorbeeld" in dtekst.lower())
-klopt("er staat een positie op", "POSITIE" in dtekst.upper())
+klopt("het zegt dat het een voorbeeld is", "this is an example" in dtekst.lower())
+klopt("er staat een positie op", "YOUR POSITION" in dtekst.upper())
 klopt("en de homepage linkt ernaartoe", '/demo' in thuis)
 
 print("\n== STAP 21: klantdashboard ==")
@@ -179,8 +184,8 @@ klopt("de klant heeft een geheime link", bool(token))
 mijn = k.get(f"/mijn/{token}")
 zo("die link geeft een dashboard", mijn.status_code, 200)
 mtekst = mijn.get_data(as_text=True)
-klopt("met zijn positie erop", "POSITIE" in mtekst.upper())
-klopt("en de vragen die hij verliest", "verliest" in mtekst.lower())
+klopt("met zijn positie erop", "YOUR POSITION" in mtekst.upper())
+klopt("en de vragen die hij verliest", "questions you lose" in mtekst.lower())
 klopt("met de concurrent die wel genoemd werd", "stap1.nl" in mtekst)
 klopt("hij staat niet in Google", 'name="robots" content="noindex"' in mtekst)
 zo("een verkeerde link geeft 404", k.get("/mijn/bestaatniet").status_code, 404)

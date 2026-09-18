@@ -149,7 +149,7 @@ print("\n== de bedanktpagina liegt niet meer ==")
 bedankt = open(os.path.join(TEMPLATES, "bedankt.html")).read()
 klopt("het vinkje hangt aan een echte betaling", "{% if gelukt %}" in bedankt)
 klopt("bij een afgebroken betaling staat er geen bedankje",
-      "De betaling is niet afgerond" in BRON)
+      "The payment was not completed" in BRON)
 betaal = open(os.path.join(APP, "payments.py")).read()
 klopt("het betaalkenmerk gaat mee in de terugkeerlink",
       "_zet_terugkeerlink_met_kenmerk" in betaal)

@@ -82,7 +82,7 @@ print("\n== zonder meting is er geen pagina ==")
 antwoord = klant.get(f"/index/nl/{CAT}")
 zo("een ongemeten categorie geeft 404", antwoord.status_code, 404)
 klopt("met uitleg in plaats van een kale foutpagina",
-      "nog niet gemeten" in antwoord.get_data(as_text=True))
+      "not been measured here yet" in antwoord.get_data(as_text=True))
 overzicht = klant.get("/index/nl").get_data(as_text=True)
 klopt("en hij staat niet in het overzicht", f"/index/nl/{CAT}" not in overzicht)
 
@@ -118,15 +118,15 @@ klopt("de tweede ook", "ookgenoemd.nl" in tekst)
 
 print("\n== niet-genoemde winkels worden niet bij naam genoemd ==")
 klopt("de stille winkel staat er niet bij naam op", "nooitgenoemd.nl" not in tekst)
-klopt("maar het aantal staat er wel", "overige 3" in tekst)
+klopt("maar het aantal staat er wel", "other 3 stores" in tekst)
 
 print("\n== de methode staat erbij ==")
-klopt("de meetdatum staat erop", "gemeten op" in tekst.lower())
+klopt("de meetdatum staat erop", "measured on" in tekst.lower())
 klopt("de gestelde vragen staan erop", VRAAG_A in tekst and VRAAG_B in tekst)
 klopt("de vraag die niet meetelde staat er niet op",
       "beste merk testartikelen" not in tekst)
 klopt("welke assistenten er bevraagd zijn", "model-een" in tekst)
-klopt("er staat dat niemand zich kan inkopen", "inkopen" in tekst)
+klopt("er staat dat niemand zich kan inkopen", "buy its way in" in tekst)
 
 print("\n== de gestructureerde gegevens zijn geldige JSON ==")
 blokken = re.findall(

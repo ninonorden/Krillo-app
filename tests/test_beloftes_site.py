@@ -118,8 +118,9 @@ import inspect      # noqa: E402
 bron = inspect.getsource(scan_engine.run_scan)
 punten = bron.split("checks = [")[1].split("]")[0].count("check_")
 zo("dertien controlepunten, en de site zegt dertien", punten, 13)
+# De methodepagina staat sinds 18 september in het Engels.
 klopt("en dat getal staat ook echt op de site",
-      "dertien" in TEKSTEN.get("zo-meten-we.html", "").lower())
+      "thirteen" in TEKSTEN.get("zo-meten-we.html", "").lower())
 
 zo("hoogstens drie acties per ronde", actieplan.MAX_ACTIES, 3)
 # De homepage noemt dit aantal sinds de verbouwing van 17 september niet meer;
@@ -131,8 +132,8 @@ klopt("en de site belooft er niet meer",
 
 standaard = inspect.signature(koopvragen.genereer_koopvragen).parameters["aantal"].default
 zo("dertig koopvragen per winkel", standaard, 30)
-klopt("en de site zegt dertig", "dertig" in TEKSTEN.get("faq.html", "").lower()
-      or "30 koopvragen" in TEKSTEN.get("index.html", ""))
+klopt("en de site zegt dertig", "thirty buying questions" in TEKSTEN.get("faq.html", "").lower()
+      or "buying questions per store" in TEKSTEN.get("index.html", "").lower())
 
 print("\n== wat er nooit beloofd mag worden ==")
 # Hier is bewust nooit iets over beloofd en dat moet zo blijven. Niemand kan
@@ -143,7 +144,7 @@ for zin in verboden:
     nergens(f"geen resultaatgarantie: {zin!r}", zin)
 
 klopt("en de methodepagina zegt met zoveel woorden dat we geen resultaat beloven",
-      "beloven daarom geen resultaat" in TEKSTEN.get("zo-meten-we.html", ""))
+      "we promise no result" in TEKSTEN.get("zo-meten-we.html", "").lower())
 klopt("de voorwaarden ook", "resultaatgarantie" in TEKSTEN.get("voorwaarden.html", ""))
 
 print("\n== de mails beloven hetzelfde als de site ==")

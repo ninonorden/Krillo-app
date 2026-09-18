@@ -208,13 +208,20 @@ zo("een Nederlandse bezoeker krijgt gewoon de pagina", antwoord.status_code, 200
 antwoord = klant.get(f"/index/nl/{CAT}", headers={"Accept-Language": "en-US,en"})
 zo("en een Engelse bezoeker op een Nederlandse index ook", antwoord.status_code, 200)
 tekst = antwoord.get_data(as_text=True)
-klopt("die pagina blijft in het Nederlands", 'html lang="nl"' in tekst)
+# EEN ADRES, EEN TAAL. De site staat in het Engels, ook de ranglijst van
+# Nederland, en de taalkop van de browser verandert daar niets aan. Zou die kop
+# wel meetellen, dan krijgt Google (die geen taalkop stuurt) iets anders te zien
+# dan een Nederlandse bezoeker op hetzelfde adres. Nederlands kan alleen met een
+# uitdrukkelijke ?taal=nl in het adres.
+klopt("de pagina staat in het Engels", 'html lang="en"' in tekst)
+nederlands = klant.get(f"/index/nl/{CAT}?taal=nl").get_data(as_text=True)
+klopt("en met ?taal=nl in het Nederlands", 'html lang="nl"' in nederlands)
 
 print("\n== wat een zoekmachine nodig heeft ==")
 tekst = klant.get(f"/index/nl/{CAT}").get_data(as_text=True)
 klopt("er staat een canonical",
       f'rel="canonical" href="https://www.krillo.nl/index/nl/{CAT}"' in tekst)
-klopt("er staat een hreflang naar het Nederlands", 'hreflang="nl"' in tekst)
+klopt("er staat een hreflang voor de Nederlandse markt", 'hreflang="en-NL"' in tekst)
 klopt("en een naar het Belgische adres", f'/index/be/{CAT}' in tekst)
 
 import json  # noqa: E402
@@ -241,7 +248,7 @@ klopt("de index juist niet", "Disallow: /index" not in robots)
 print("\n== het openbare voorbeeld en de klantlink ==")
 zo("het voorbeelddashboard staat er", klant.get("/demo").status_code, 200)
 demo = klant.get("/demo").get_data(as_text=True)
-klopt("en zegt dat het een voorbeeld is", "voorbeeld" in demo.lower())
+klopt("en zegt dat het een voorbeeld is", "this is an example" in demo.lower())
 zo("een onbekende klantlink geeft 404", klant.get("/mijn/bestaatniet").status_code, 404)
 zo("het formulier voor een nieuwe link bestaat", klant.get("/mijn-link").status_code, 200)
 a = klant.post("/mijn-link", data={"email": "nietbekend@example.com"})
@@ -258,10 +265,12 @@ for naam in ("index_overzicht.html", "index_categorie.html", "dashboard.html"):
 
 print("\n== de homepage: nieuwe stijl, werkende scan ==")
 thuis = klant.get("/").get_data(as_text=True)
-klopt("de nieuwe schreefletter wordt geladen", "Instrument+Serif" in thuis)
-klopt("en de nieuwe tekstletter", "family=Archivo" in thuis)
-klopt("de oude letters zijn weg",
-      "Space+Grotesk" not in thuis and "family=Inter:" not in thuis)
+# OPTIE B, 18 september 2026: één letter, Space Grotesk, zwaar en strak
+# gespatieerd. De schreefletter van optie A is eruit.
+klopt("de letter van optie B wordt geladen", "Space+Grotesk" in thuis)
+klopt("de letters van optie A zijn weg",
+      "Instrument+Serif" not in thuis and "family=Archivo" not in thuis
+      and "family=Inter:" not in thuis)
 
 # DIT IS HET BELANGRIJKSTE VAN DEZE TEST. De homepage is verbouwd terwijl de
 # scan, de bestelschermen en de zichtbaarheidstest erin bleven staan. Die
@@ -274,13 +283,13 @@ for stuk in ("scanUrlInput", "scanButton", "scanResult", "checkoutOverlay",
     klopt(f"de homepage heeft nog {stuk}", f'id="{stuk}"' in thuis)
 
 klopt("de index staat op de homepage", "idx-kaart" in thuis)
-klopt("met de cijfers in de hero", "hero-cijfers" in thuis)
+klopt("met de index van vandaag naast de belofte", "indexkaart" in thuis)
 klopt("met een link naar de ranglijst zelf", "/index/nl/" in thuis)
 klopt("en met een link naar de index in het menu", 'href="/index"' in thuis)
 
 print("\n== de cijfers op de homepage zijn niet verzonnen ==")
 import re as _re  # noqa: E402
-blok = thuis[thuis.find("hero-cijfers"):thuis.find("idx-kaart")]
+blok = thuis[thuis.find("indexkaart"):thuis.find("idx-kaart")]
 klopt("in het cijferblok staat geen plaatshouder", "[" not in blok)
 klopt("het aantal categorieen komt uit de database",
       str(db.index_cijfers().get("categorieen")) in blok)

@@ -117,8 +117,12 @@ faq = open(os.path.join(TEMPLATES, "faq.html"), encoding="utf-8").read()
 blokken = BLOK.findall(faq)
 klopt("faq.html heeft een JSON-LD blok", blokken)
 if blokken:
-    klopt('de vraag over "wij doen het" staat met ontsnapte aanhalingstekens',
-          '\\"wij doen het\\"' in blokken[0])
+    # De aanhalingstekens IN een waarde moeten ontsnapt zijn, anders breekt het
+    # blok. Op 16 september ging dat een keer mis en dat was onzichtbaar tot
+    # Google het meldde. De Engelse tekst heeft ze in het antwoord over Search
+    # Console staan.
+    klopt("aanhalingstekens in een waarde zijn ontsnapt",
+          '\\"you could also look at X\\"' in blokken[0])
 
 print()
 if fouten:

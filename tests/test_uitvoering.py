@@ -189,7 +189,8 @@ zo("een winkel zonder opdracht geeft niets",
    krillo._laatste_uitvoering("https://bestaatniet.nl"), None)
 
 print("\n== de bedankpagina per soort ==")
-for soort, moet in [("uitvoering", "toegang"), ("audit", "audit"), ("monitoring", "meting")]:
+for soort, moet in [("uitvoering", "access to your store"), ("audit", "audit"),
+                    ("monitoring", "first measurement")]:
     tekst = client.get(f"/bedankt?type={soort}").get_data(as_text=True)
     zo(f"bedankt voor {soort}", moet in tekst, True)
 
