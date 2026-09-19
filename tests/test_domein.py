@@ -157,6 +157,15 @@ klopt("niet meer 'elke week' meten", "elke week" not in llms)
 klopt("de index staat er wel in, want dat is het kernproduct",
       "/index" in llms)
 
+print("\n== SEARCH CONSOLE KAN BEIDE EIGENDOMMEN VERIFIEREN ==")
+# De oude code is voor www.krillo.nl, de nieuwe voor krilloai.com. Zolang de
+# adreswijziging loopt moeten ze er allebei staan; zie de uitleg in index.html.
+_thuis = k.get("/", headers={"Host": "krilloai.com"}).get_data(as_text=True)
+klopt("de verificatie voor krillo.nl staat er nog",
+      "-rhhZoHmZMYdIbtYgGXCj-Zg4FY0j0lSAQdJOPTtEwQ" in _thuis)
+klopt("de verificatie voor krilloai.com staat erbij",
+      "f9WynjVD3AdJuRowJY7s4cFcZEFKDNJybRKC9zz3XDQ" in _thuis)
+
 print("\n== DE BEGINWAARDE VAN HET BESTELSCHERM ==")
 thuis = lees("templates/index.html")
 klopt("het bestelscherm begint niet op een vervallen product",
