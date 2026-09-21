@@ -53,9 +53,9 @@ TEKSTEN = {
                             "terug met de tekst hierboven, of mail ons en wij doen het."),
 
         # taken
-        "niets_kop": "Niets te doen deze week",
+        "niets_kop": "Nu niets te doen",
         "niets_tekst": ("Je site is in orde en op de plekken die we nakeken sta je erbij. "
-                        "We blijven elke week meten en zodra er iets verandert staat het hier."),
+                        "We meten je categorie elke maand opnieuw en je site elke week, en zodra er iets verandert staat het hier."),
         "letterlijk": "Neem dit letterlijk over",
         "kopieer": "Kopieer",
         # Deze stonden hardgecodeerd in het script van de oude klantpagina, en
@@ -68,13 +68,13 @@ TEKSTEN = {
         "waarom": "Waarom deze taak, en hoe weten we dat",
 
         # niets gemeten
-        "niets_gemeten_kop": "Deze week konden we niets meten",
+        "niets_gemeten_kop": "Deze ronde konden we niets meten",
         "niets_gemeten_tekst": ("Er is deze ronde geen bruikbare meting uit de AI-modellen "
                                 "gekomen, dus we laten liever niets zien dan een cijfer waar "
                                 "je niets aan hebt. We proberen het bij de volgende ronde "
                                 "opnieuw. Je vorige metingen staan er nog gewoon bij."),
         "eerste_kop": "De eerste meting loopt nog",
-        "eerste_tekst": ("We stellen deze week koopvragen aan ChatGPT en Gemini om te zien "
+        "eerste_tekst": ("We stellen nu koopvragen aan ChatGPT en Gemini om te zien "
                          "of jouw winkel genoemd wordt. Zodra dat klaar is staat hier wat "
                          "je kan doen. Reken op ongeveer een kwartier."),
         "nognietgemeten_kop": "Er is nog niet gemeten",
@@ -145,7 +145,7 @@ TEKSTEN = {
 
         # word je genoemd
         "d_vermeld_kop": "Word je genoemd als iemand het aan AI vraagt?",
-        "d_vermeld_uitleg_a": "We stellen elke week",
+        "d_vermeld_uitleg_a": "We stellen elke maand",
         "d_vermeld_uitleg_b": ("koopvragen die kopers in jouw categorie echt stellen. Deze "
                                "meting liep via"),
         "d_en": "en",
@@ -319,10 +319,10 @@ TEKSTEN = {
         "wijziging_terug": ("If you want something back the way it was, you can. Put it back "
                             "yourself using the text above, or email us and we will do it."),
 
-        "niets_kop": "Nothing to do this week",
+        "niets_kop": "Nothing to do right now",
         "niets_tekst": ("Your site is in order and you show up in the places we checked. We "
-                        "keep measuring every week and the moment something changes it "
-                        "appears here."),
+                        "measure your category again every month and your site every week, "
+                        "and the moment something changes it appears here."),
         "letterlijk": "Copy this exactly",
         "kopieer": "Copy",
         "gekopieerd": "Copied",
@@ -332,13 +332,13 @@ TEKSTEN = {
         "wat_je_doet": "What to do",
         "waarom": "Why this task, and how we know",
 
-        "niets_gemeten_kop": "We could not measure anything this week",
+        "niets_gemeten_kop": "We could not measure anything this round",
         "niets_gemeten_tekst": ("This round produced no usable measurement from the AI "
                                 "models, so we would rather show you nothing than a number "
                                 "that means nothing. We will try again next round. Your "
                                 "earlier measurements are still there."),
         "eerste_kop": "The first measurement is still running",
-        "eerste_tekst": ("This week we are asking ChatGPT and Gemini buying questions to see "
+        "eerste_tekst": ("We are now asking ChatGPT and Gemini buying questions to see "
                          "whether your store gets mentioned. As soon as that is done you "
                          "will see what you can do here. Expect about fifteen minutes."),
         "nognietgemeten_kop": "Nothing measured yet",
@@ -401,7 +401,7 @@ TEKSTEN = {
                    "ready."),
 
         "d_vermeld_kop": "Do you get mentioned when someone asks AI?",
-        "d_vermeld_uitleg_a": "Every week we ask",
+        "d_vermeld_uitleg_a": "Every month we ask",
         "d_vermeld_uitleg_b": ("buying questions that shoppers in your category really ask. "
                                "This measurement ran through"),
         "d_en": "and",

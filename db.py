@@ -4651,23 +4651,41 @@ def categorieen_om_te_meten(minimum=10, ouder_dan_dagen=30):
     try:
         with conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # TWEE WIJZIGINGEN OP 21 SEPTEMBER.
+                #
+                # 1. count(DISTINCT) in plaats van count(*). Door de koppeling
+                #    met de meetrondes werd elke winkel een keer per ronde
+                #    geteld. Na drie rondes haalde een categorie met twee
+                #    winkels dus zes, en daarmee de ondergrens.
+                #
+                # 2. Een categorie met een KLANT erin gaat voor. Sinds stap 66
+                #    komt de positie van een klant uit de index en niet meer
+                #    uit een eigen wekelijkse meting. Staat zijn categorie
+                #    achteraan in de rij, dan ziet hij weken geen positie
+                #    terwijl hij wel betaalt.
                 cur.execute("""
                     SELECT b.categorie,
-                           count(*) AS aantal,
-                           max(r.afgerond_op) AS laatst_gemeten
+                           count(DISTINCT b.webshop_url) AS aantal,
+                           max(r.afgerond_op) AS laatst_gemeten,
+                           bool_or(k.klant_token IS NOT NULL) AS met_klant
                       FROM benadering b
                       LEFT JOIN categorie_rondes r
                              ON r.categorie = b.categorie
                             AND r.afgerond_op IS NOT NULL
+                      LEFT JOIN klanten k ON k.webshop_url = b.webshop_url
                      WHERE b.categorie IS NOT NULL
                        AND b.categorie <> 'overig'
                        AND b.afgemeld = FALSE
                        AND b.soort = 'winkel'
                      GROUP BY b.categorie
-                    HAVING count(*) >= %s
+                    HAVING count(DISTINCT b.webshop_url) >= %s
                        AND (max(r.afgerond_op) IS NULL
                             OR max(r.afgerond_op) < now() - (%s || ' days')::interval)
-                     ORDER BY max(r.afgerond_op) ASC NULLS FIRST
+                     -- Alles wat hier doorkomt is al aan de beurt (zie HAVING).
+                     -- Een klant gaat dus voor op alles wat aan de beurt is,
+                     -- niet alleen op categorieen die nog nooit gemeten zijn.
+                     ORDER BY bool_or(k.klant_token IS NOT NULL) DESC,
+                              max(r.afgerond_op) ASC NULLS FIRST
                 """, (minimum, str(ouder_dan_dagen)))
                 return [dict(r) for r in cur.fetchall()]
     except Exception as e:

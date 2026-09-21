@@ -1967,7 +1967,20 @@ def _shopify_automatisch_aanvullen(winkel, base_url):
 
 
 def _draai_wekelijkse_scans(base_url, alles=False):
-    """Doet de scans op de achtergrond. Draait los van het verzoek, zodat de
+    """STAP 66, 21 SEPTEMBER: alleen nog de scan, geen eigen AI-meting en geen mail.
+
+    Tot 21 september kreeg elke betalende klant hier elke week een eigen
+    AI-meting van zijn winkel en een wekelijkse mail: het model van voor de
+    index. Sindsdien kreeg dezelfde klant OOK het maandbericht met zijn positie
+    uit de index. Twee metingen, twee soorten mail, en de eigen meting kostte per
+    klant per week geld terwijl het omzetmodel rekent met ongeveer een euro per
+    Watch-klant per maand. Op de site wordt alleen maandelijks meten beloofd.
+
+    Wat blijft: de scan van de dertien punten (geen AI, kost niets), het rapport
+    dat daarbij bewaard wordt (daaraan ziet het dashboard dat er een abonnement
+    loopt), en het automatisch aanvullen bij Shopify-winkels.
+
+    Doet de scans op de achtergrond. Draait los van het verzoek, zodat de
     aanroeper niet hoeft te wachten en er niets vastloopt, ook niet als er
     straks honderd abonnees zijn.
 
@@ -1990,43 +2003,15 @@ def _draai_wekelijkse_scans(base_url, alles=False):
 
                 db.zet_platform(c["webshop_url"], scan_result.get("platform"))
                 klant_token = db.get_or_create_klant(c["webshop_url"], c["email"])
-                vorige = db.get_previous_score(c["webshop_url"])
-                vorige_score = vorige["score"] if vorige else None
-
                 db.save_report("monitoring", c["webshop_url"], c["email"], scan_result.get("score", 0),
                                 scan_result.get("checks", []), None, None, klant_token)
-                monitoring_url = f"{base_url}/mijn/{klant_token}" if klant_token else None
-
-                # Fase 5 stap 3: dezelfde ronde meteen gebruiken om de
-                # koopvragen aan de AI-modellen te stellen.
-                #
-                # Dit gebeurde eerst NA de mail, zodat een storing bij een
-                # AI-aanbieder de wekelijkse update nooit kon tegenhouden. Die
-                # zorg is terecht, maar de prijs was hoog: de mail ging dan over
-                # de meting van vorige week, en kon dus alleen het technische
-                # cijfer melden. "Je score is nog steeds 51 van 100, er is niets
-                # veranderd" is geen reden om elke maand te betalen. Waar
-                # een klant voor betaalt is of AI hem noemt.
-                #
-                # Nu meten wij eerst en mailen daarna. De zorg blijft opgelost
-                # doordat de mail hieronder buiten deze try staat: mislukt de
-                # meting, dan gaat de mail gewoon uit, alleen zonder het blok
-                # over vermeldingen.
-                try:
-                    _meet_en_beoordeel(c["webshop_url"], c["email"], klant_token, base_url)
-                except Exception as e:
-                    print(f"Meting mislukt voor {c['webshop_url']}: {e}")
-
-                vermeldingen = None
-                try:
-                    vermeldingen = (_klantgegevens(c["webshop_url"]) or {}).get("vermeldingen")
-                except Exception as e:
-                    print(f"Vermeldingen ophalen mislukt voor {c['webshop_url']}: {e}")
-
-                emailing.send_weekly_update_email(
-                    c["email"], c["webshop_url"], scan_result, monitoring_url, vorige_score,
-                    taal=_mailtaal(c["webshop_url"]), vermeldingen=vermeldingen,
-                )
+                # Hier stonden tot 21 september de eigen AI-meting van deze
+                # winkel en de wekelijkse mail. De reden stond erbij: "waar een
+                # klant voor betaalt is of AI hem noemt." Dat klopt nog steeds,
+                # maar dat antwoord komt sinds de index uit de maandelijkse
+                # meting van zijn categorie, met het maandbericht erbij. Twee
+                # metingen en twee soorten mail over dezelfde vraag verwarren
+                # een klant en kosten per week geld. Zie stap 66 bovenaan.
 
                 # Is dit een Shopify-winkel met een abonnement, dan vullen wij
                 # ook uit onszelf aan. Dat staat op de prijskaart en zonder dit
