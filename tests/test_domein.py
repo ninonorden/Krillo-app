@@ -76,6 +76,21 @@ print("\n== /.well-known GAAT ER BUITEN ==")
 a = k.get("/.well-known/acme-challenge/proef", headers={"Host": "www.krillo.nl"})
 klopt("de certificaatcontrole wordt NIET doorgestuurd", a.status_code != 301)
 
+print("\n== robots.txt OP HET OUDE DOMEIN ANTWOORDT DIRECT ==")
+# Google eist dat robots.txt op het oude domein direct 200 of 404 geeft. Kreeg
+# hij een doorverwijzing, dan faalde de adreswijziging in Search Console met
+# "kan de pagina niet ophalen" voor elke pagina. Gebeurd op 21 september.
+for host in ("krillo.nl", "www.krillo.nl"):
+    a = k.get("/robots.txt", headers={"Host": host})
+    zo(f"robots.txt op {host} geeft 200 en geen doorverwijzing", a.status_code, 200)
+    t = a.get_data(as_text=True)
+    klopt(f"robots.txt op {host} laat Google overal bij", "Allow: /" in t)
+    klopt(f"robots.txt op {host} wijst naar de sitemap op het nieuwe domein",
+          f"Sitemap: {BASIS}/sitemap.xml" in t)
+# En de rest van het oude domein stuurt nog steeds gewoon door.
+zo("de homepage van het oude domein stuurt nog door",
+   k.get("/", headers={"Host": "www.krillo.nl"}).status_code, 301)
+
 print("\n== DE NOODREM: BASE_URL NOG OP HET OUDE DOMEIN ==")
 # Wordt de code geupload voordat BASE_URL in Render omgezet is, dan zou
 # krillo.nl naar krillo.nl sturen. Dat is een lus en de site is weg. De code
