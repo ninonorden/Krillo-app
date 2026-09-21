@@ -121,6 +121,21 @@ def stuur_oud_domein_door():
         return None
     if request.path.startswith("/.well-known/"):
         return None
+    # robots.txt WORDT OOK NIET DOORGESTUURD. Toegevoegd op 21 september.
+    #
+    # De adreswijziging in Search Console faalde met "kan de pagina niet
+    # ophalen", voor de homepage en voor elke voorbeeldpagina, terwijl de 301
+    # zelf gewoon werkte. De oorzaak: Google haalt van een domein altijd EERST
+    # robots.txt op, en eist dat die op het oude domein direct antwoordt met een
+    # 200 of een 404. Kreeg hij een doorverwijzing, dan behandelde hij het hele
+    # oude domein als onbereikbaar.
+    #
+    # Dus hier geen doorverwijzing maar gewoon de robots.txt. Die staat alles
+    # toe, en dat is precies wat moet: Google moet de oude adressen kunnen
+    # ophalen om de 301's erachter te zien. Blokkeer je ze, dan ziet hij de
+    # verhuizing nooit.
+    if request.path == "/robots.txt":
+        return None
     # DE NOODREM.
     #
     # Staat BASE_URL nog op het OUDE domein, dan zou deze functie krillo.nl
