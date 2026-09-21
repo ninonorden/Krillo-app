@@ -38,6 +38,42 @@ import kosten
 MODEL = os.environ.get("BEOORDEEL_MODEL", "claude-sonnet-4-6")
 
 
+
+# Domeinextensies die een model soms achter een winkelnaam zet. Zonder dit
+# telde de gratis test op 21 september "Pararius (3x)" en "Pararius.nl (1x)"
+# als twee winkels: een winkel met vier vermeldingen stond er dan als twee
+# kleinere, en de lijst "wie er wel genoemd werd" was een regel te lang.
+_EXTENSIES = (".co.uk", ".nl", ".be", ".com", ".de", ".eu", ".fr", ".shop",
+              ".store", ".net", ".org", ".io")
+
+
+def naamsleutel(naam):
+    """De sleutel waarop twee schrijfwijzen van dezelfde winkel samenvallen.
+
+    Kleine letters, geen www ervoor en geen domeinextensie erachter. Dus
+    "Pararius", "pararius.nl" en "www.Pararius.nl" worden een winkel. Bewust
+    niet slimmer dan dat: "Funda Huur" en "funda.nl" blijven twee regels,
+    want raden welke naam bij welk domein hoort is precies waar een telling
+    onbetrouwbaar van wordt."""
+    k = (naam or "").strip().lower()
+    if k.startswith("www."):
+        k = k[4:]
+    for ext in _EXTENSIES:
+        if k.endswith(ext) and len(k) > len(ext) + 1:
+            k = k[: -len(ext)]
+            break
+    return k.strip()
+
+
+def _voorkeursnaam(huidig, nieuw):
+    """Welke schrijfwijze we tonen: die zonder extensie, want zo noemt een
+    mens een winkel. Pararius en niet Pararius.nl."""
+    if not huidig:
+        return nieuw
+    if "." in huidig and "." not in nieuw:
+        return nieuw
+    return huidig
+
 def _get_client():
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -271,7 +307,8 @@ def vat_samen(beoordelingen):
         for w in (b.get("winkels") or []):
             naam = (w.get("naam") or "").strip()
             if naam:
-                bekende_winkels.setdefault(naam.lower(), naam)
+                sl = naamsleutel(naam)
+                bekende_winkels[sl] = _voorkeursnaam(bekende_winkels.get(sl), naam)
 
     concurrenten = {}
     for b in telbaar:
@@ -279,6 +316,7 @@ def vat_samen(beoordelingen):
             naam = (w.get("naam") or "").strip()
             if not naam:
                 continue
+            naam = bekende_winkels.get(naamsleutel(naam), naam)
             regel = concurrenten.setdefault(naam, {"naam": naam, "genoemd": 0, "aanbevolen": 0})
             regel["genoemd"] += 1
         for naam in (b.get("aanbevolen_winkels") or []):
@@ -288,7 +326,7 @@ def vat_samen(beoordelingen):
             # Koppelen op de schrijfwijze die we al kennen. Het model wisselt
             # tussen "fonQ" en "FonQ", en dan kreeg je twee regels in de tabel:
             # een met de vermeldingen en een met de aanbevelingen.
-            bekend = bekende_winkels.get(naam.lower())
+            bekend = bekende_winkels.get(naamsleutel(naam))
             if not bekend:
                 continue
             regel = concurrenten.setdefault(bekend, {"naam": bekend, "genoemd": 0, "aanbevolen": 0})
@@ -391,7 +429,8 @@ def klantbeeld(webshop_url, beoordelingen):
         for w in (b.get("winkels") or []):
             naam = (w.get("naam") or "").strip()
             if naam:
-                bekende_namen.setdefault(naam.lower(), naam)
+                sl = naamsleutel(naam)
+                bekende_namen[sl] = _voorkeursnaam(bekende_namen.get(sl), naam)
     for b in beoordelingen:
         vraag = b.get("vraag")
         if not vraag or not b.get("winkel_kon_genoemd"):
@@ -406,7 +445,7 @@ def klantbeeld(webshop_url, beoordelingen):
             # aanbeveling hangt dan aan maar een van de twee, de sortering
             # klopt niet meer, en de bronanalyse zoekt twee keer naar dezelfde
             # winkel.
-            winkels_per_vraag.setdefault(bekende_namen.get(naam.lower(), naam),
+            winkels_per_vraag.setdefault(bekende_namen.get(naamsleutel(naam), naam),
                                          set()).add(vraag)
         for naam in (b.get("aanbevolen_winkels") or []):
             naam = (naam or "").strip()
@@ -414,7 +453,7 @@ def klantbeeld(webshop_url, beoordelingen):
             # Anders belandde "Bijenkorf" niet bij "de Bijenkorf" en kwam de
             # kolom aanbevolen op nul te staan, terwijl daar op gesorteerd
             # wordt en de bronanalyse daarop selecteert.
-            bekend = bekende_namen.get(naam.lower()) if naam else None
+            bekend = bekende_namen.get(naamsleutel(naam)) if naam else None
             if bekend:
                 aanbevolen_per_vraag.setdefault(bekend, set()).add(vraag)
 

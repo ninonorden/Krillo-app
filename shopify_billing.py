@@ -23,10 +23,30 @@ import requests
 
 import shopify_app
 
-# Het betaalde plan. Eén plan, één prijs, geen trapjes: bij drie prijzen gaat
-# een winkelier vergelijken in plaats van beslissen.
-PLAN_NAAM = "Krillo monitoring"
-PLAN_PRIJS = "39.00"
+# DE PLANNEN, sinds 21 september twee in plaats van een.
+#
+# Tot 21 september was hier een plan: "Krillo monitoring", 39 dollar. Dat was
+# het tarief van voor de index. De site verkoopt sinds 17 september Watch (49
+# euro) en Fix (149 euro). Een winkelier die de site naast de app legt zag dus
+# een ander product en een andere prijs, en de voorwaarden beschrijven Watch en
+# Fix. Besluit Nino, 21 september: 55 en 165 dollar.
+#
+# Waarom geen 49 en 149 dollar: Shopify rekent alleen in dollars en zet het om
+# naar de munt van de winkelier. Met 55 en 165 dollar komt een Nederlandse
+# winkelier ongeveer uit op de europrijs van de site, en betaalt hij via de app
+# niet structureel minder dan via de site.
+#
+# Wat het verschil is IN DE APP:
+#   watch : meten, positie, de oplossingen uitgeschreven om zelf over te nemen.
+#           Toepassen met een klik blijft beperkt tot de gratis wijzigingen die
+#           iedereen krijgt. Geen automatisch aanvullen.
+#   fix   : elke wijziging met een klik, en elke week uit onszelf aanvullen
+#           (uit te zetten, alles terug te draaien).
+PLANNEN = {
+    "watch": {"naam": "Krillo Watch", "prijs": "55.00"},
+    "fix": {"naam": "Krillo Fix", "prijs": "165.00"},
+}
+STANDAARD_PLAN = "fix"
 PLAN_VALUTA = "USD"
 # Dit KAN niet in euro's, hoe graag wij ook zouden willen. Shopify accepteert
 # bij een app-abonnement alleen dollars en geeft anders letterlijk de fout
@@ -34,8 +54,22 @@ PLAN_VALUTA = "USD"
 #
 # Wat er wel gebeurt: Shopify zet het bedrag om naar de munt van de rekening van
 # de winkelier. Een Nederlandse winkelier ziet dus euro's op zijn Shopify-factuur,
-# alleen niet precies 39. Dat moet op het scherm staan, anders denkt iemand die
-# krillo.nl naast de app legt dat het hetzelfde bedrag is.
+# alleen niet precies de europrijs van de site. Dat moet op het scherm staan.
+
+
+def plan_van_abonnement(abonnement):
+    """Welk plan een lopend abonnement is: 'watch' of 'fix'.
+
+    Op naam, want dat is wat Shopify ons teruggeeft. Het oude plan "Krillo
+    monitoring" (van voor 21 september) gaf automatisch aanvullen en onbeperkt
+    toepassen, dus dat telt als fix. Er is op dat plan nooit iemand geweest,
+    maar een onbekende naam mag iemand die betaalt niet stilletjes minder geven."""
+    naam = ((abonnement or {}).get("name") or "").lower()
+    if "watch" in naam:
+        return "watch"
+    return "fix"
+
+
 PROEFDAGEN = 7
 
 
@@ -97,13 +131,14 @@ def huidig_abonnement(winkel, sleutel):
     uit = _graphql(winkel, sleutel, VRAAG_HUIDIG)
     if not uit["gelukt"]:
         print(f"Abonnement opvragen mislukt voor {winkel}: {uit['fout']}")
-        return {"actief": False, "abonnement": None, "fout": uit["fout"]}
+        return {"actief": False, "abonnement": None, "plan": None, "fout": uit["fout"]}
     lopend = (((uit["gegevens"] or {}).get("currentAppInstallation") or {})
               .get("activeSubscriptions") or [])
     levend = [a for a in lopend if (a.get("status") or "").upper() == "ACTIVE"]
     if not levend:
-        return {"actief": False, "abonnement": None, "fout": None}
-    return {"actief": True, "abonnement": levend[0], "fout": None}
+        return {"actief": False, "abonnement": None, "plan": None, "fout": None}
+    return {"actief": True, "abonnement": levend[0],
+            "plan": plan_van_abonnement(levend[0]), "fout": None}
 
 
 OPDRACHT_START = """
@@ -131,7 +166,7 @@ mutation maakAbonnement($naam: String!, $terugUrl: URL!, $test: Boolean!,
 """
 
 
-def start_abonnement(winkel, sleutel, terug_url, proefdagen=None):
+def start_abonnement(winkel, sleutel, terug_url, proefdagen=None, plan=STANDAARD_PLAN):
     """Vraagt Shopify om een abonnement. Geeft de bevestigingslink terug.
 
     De proefperiode kan je op nul zetten. Dat is nodig omdat een winkel die
@@ -145,12 +180,17 @@ def start_abonnement(winkel, sleutel, terug_url, proefdagen=None):
     geabonneerd'."""
     if not terug_url:
         return {"gelukt": False, "fout": "Er ontbreekt een adres om naar terug te keren."}
+    if plan not in PLANNEN:
+        return {"gelukt": False, "fout": "Onbekend plan."}
+    # Heeft de winkel al een ander plan, dan vervangt Shopify dat zelf zodra
+    # de winkelier akkoord geeft (replacementBehavior staat standaard op
+    # STANDARD). Er lopen dus nooit twee abonnementen tegelijk.
     uit = _graphql(winkel, sleutel, OPDRACHT_START, {
-        "naam": PLAN_NAAM,
+        "naam": PLANNEN[plan]["naam"],
         "terugUrl": terug_url,
         "test": testmodus(),
         "proefdagen": PROEFDAGEN if proefdagen is None else max(0, int(proefdagen)),
-        "bedrag": PLAN_PRIJS,
+        "bedrag": PLANNEN[plan]["prijs"],
         "valuta": PLAN_VALUTA,
     })
     if not uit["gelukt"]:
@@ -166,7 +206,7 @@ def start_abonnement(winkel, sleutel, terug_url, proefdagen=None):
         return {"gelukt": False, "fout": "Shopify gaf geen bevestigingslink terug."}
     return {"gelukt": True, "link": link,
             "abonnement": blok.get("appSubscription") or {},
-            "test": testmodus()}
+            "plan": plan, "test": testmodus()}
 
 
 OPDRACHT_STOP = """

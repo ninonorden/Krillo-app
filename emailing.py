@@ -83,41 +83,69 @@ def send_email(to_email, subject, html_body, koppen=None):
         return False
 
 
-# TWEETALIG, op dezelfde manier als in actieplan.py en verklaring.py. Alleen de
-# mails die een KLANT na een meting krijgt zijn tweetalig: de wekelijkse
-# update, de welkomstmail van de monitoring, het bericht over de vermeldingen
-# en de audit. De onderzoeksmail en de factuurmail blijven met opzet Nederlands.
-# De factuur omdat hij een Nederlandse factuur is, de onderzoeksmail omdat het
-# onderzoek over Nederlandse en Belgische webshops gaat.
+# ALLES ENGELS, SINDS 21 SEPTEMBER (stap 51).
 #
-# Alles wat niet "en" is wordt Nederlands. Voor een bestaande klant verandert er
-# daardoor niets, ook niet als er ooit een taal langskomt die we niet kennen.
+# De taalregel van 18 september: een adres, een taal, en krilloai.com is
+# Engels. Tot 21 september koos elke mail zijn taal op het domein van de winkel
+# (.nl werd Nederlands). Dan kreeg iemand die op een Engelse site betaalde een
+# Nederlandse factuur, een Nederlandse welkomstmail en een Nederlandse uitslag
+# van de gratis test, met daaronder beloftes van het oude model. De mail is een
+# deel van de site; hij spreekt dezelfde taal.
+#
+# Wat WEL in de taal van de markt blijft: de koopvragen zelf. Dat is de meting,
+# en een Nederlandse koper stelt zijn vraag in het Nederlands. Een Engelse mail
+# met een Nederlandse vraag erin is dus juist goed.
+#
+# De parameter taal blijft bestaan in de functies, zodat oude aanroepen niet
+# omvallen. Hij verandert niets meer.
 
-# De voettekst onder elke mail. Staat hier apart omdat hij anders in het Engels
-# Nederlands zou blijven, en dat is precies het soort halve vertaling waaraan
-# een klant ziet dat hij niet de bedoeling was.
-VOETTEKST = {
-    "nl": "Vragen? Mail gewoon terug naar dit adres.<br>Krillo, KVK 78439620",
-    "en": "Questions? Just reply to this email.<br>Krillo, Dutch chamber of commerce 78439620",
-}
+# De huisstijl van de site, in kleuren die ook in een mailprogramma werken.
+# Zelfde namen als in _stijl.html, zodat je ze terugvindt.
+INKT = "#0A0A0B"
+INKT_ZACHT = "#4A4A55"
+LIJN = "#E8E8EC"
+VLAK = "#F4F5F8"
+BLAUW = "#1B3FE0"
+BLAUW_TEKST = "#142FA8"
+GOED = "#0B7C5E"
+MIS = "#B42318"
+
+VOETTEKST = ("Questions? Just reply to this email, a person reads it.<br>"
+             "Krillo &middot; Gerard Doustraat 22-3V, 1072 VW Amsterdam &middot; "
+             "Chamber of Commerce 78439620")
 
 
-def _base_html(title, intro, body_html, taal="nl"):
-    voet = VOETTEKST.get("en" if taal == "en" else "nl", VOETTEKST["nl"])
+def _base_html(title, intro, body_html, taal="en"):
+    """Het kader om elke mail: het woordmerk, een kop, een inleiding, en de
+    voettekst. Zelfde woordmerk als op de site (KRILLO met INDEX erachter), niet
+    meer de rode stip van het ontwerp van voor 18 september."""
     return f"""
-    <div style="font-family: -apple-system, Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #12142B;">
-      <div style="padding: 24px 0 8px;">
-        <span style="display:inline-block; width:9px; height:9px; background:#FF4B3E; border-radius:50%; margin-right:8px;"></span>
-        <strong style="font-size:18px;">Krillo</strong>
+    <div style="background:#FFFFFF; padding:8px 0;">
+    <div style="font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width:560px;
+                margin:0 auto; color:{INKT}; padding:0 16px;">
+      <div style="padding:24px 0 8px;">
+        <span style="font-weight:700; font-size:19px; letter-spacing:-0.04em; color:{INKT};">KRILLO</span>
+        <span style="font-family:'Courier New', monospace; font-size:10.5px; color:#6E7079;
+                     letter-spacing:0.1em; margin-left:6px;">INDEX</span>
       </div>
-      <h2 style="font-size: 22px; margin: 20px 0 8px;">{title}</h2>
-      <p style="color:#3B3D57; font-size:14.5px; line-height:1.6;">{intro}</p>
+      <h1 style="font-size:22px; line-height:1.3; margin:22px 0 8px; letter-spacing:-0.01em;">{title}</h1>
+      <p style="color:{INKT_ZACHT}; font-size:14.5px; line-height:1.6; margin:0 0 18px;">{intro}</p>
       {body_html}
-      <p style="color:#3B3D57; font-size:13px; margin-top:32px;">
-        {voet}
+      <p style="color:{INKT_ZACHT}; font-size:12.5px; line-height:1.6; margin-top:36px;
+                padding-top:16px; border-top:1px solid {LIJN};">
+        {VOETTEKST}
       </p>
     </div>
+    </div>
     """
+
+
+def _p(tekst, zacht=False):
+    """Een gewone alinea. Op een plek, zodat elke mail dezelfde maat en
+    regelafstand heeft."""
+    kleur = INKT_ZACHT if zacht else INKT
+    maat = "13.5px" if zacht else "14.5px"
+    return f'<p style="font-size:{maat}; line-height:1.6; color:{kleur}; margin:0 0 14px;">{tekst}</p>'
 
 
 BEDRIJFSGEGEVENS = {
@@ -131,10 +159,14 @@ BEDRIJFSGEGEVENS = {
 
 
 def send_factuur_email(to_email, factuurnummer, omschrijving, bedrag, bedrijfsnaam=None, datum=None):
-    """Stuurt een betaalbevestiging met factuur. Of er BTW op staat hangt af van
-    de instelling BTW_REGELING in Render: 'kor' betekent geen BTW berekenen
+    """Stuurt een betaalbevestiging met factuur. Of er btw op staat hangt af van
+    de instelling BTW_REGELING in Render: 'kor' betekent geen btw berekenen
     (kleineondernemersregeling), 'btw' betekent wel. Zet die op 'btw' zodra je
-    boven de KOR-grens komt, dan verandert de factuur vanzelf mee."""
+    boven de KOR-grens komt, dan verandert de factuur vanzelf mee.
+
+    In het Engels sinds 21 september. Een Engelse factuur van een Nederlandse
+    onderneming is gewoon geldig; wat erop moet staan (nummer, datum, KVK,
+    bedragen en de reden dat er geen btw op staat) staat er."""
     regeling = os.environ.get("BTW_REGELING", "kor").lower()
     datum = datum or datetime.now().strftime("%d-%m-%Y")
     factuurnr = f"KR-{datetime.now().year}-{factuurnummer:04d}"
@@ -143,62 +175,60 @@ def send_factuur_email(to_email, factuurnummer, omschrijving, bedrag, bedrijfsna
         excl = round(bedrag / 1.21, 2)
         btw_bedrag = round(bedrag - excl, 2)
         bedragen_html = f"""
-        <tr><td style="padding:6px 0; color:#3B3D57;">Bedrag exclusief btw</td>
+        <tr><td style="padding:6px 0; color:{INKT_ZACHT};">Amount excluding VAT</td>
             <td style="padding:6px 0; text-align:right;">&euro; {excl:.2f}</td></tr>
-        <tr><td style="padding:6px 0; color:#3B3D57;">Btw 21%</td>
+        <tr><td style="padding:6px 0; color:{INKT_ZACHT};">VAT 21%</td>
             <td style="padding:6px 0; text-align:right;">&euro; {btw_bedrag:.2f}</td></tr>
-        <tr><td style="padding:10px 0 0; border-top:1px solid #E4E2DA;"><strong>Totaal betaald</strong></td>
-            <td style="padding:10px 0 0; border-top:1px solid #E4E2DA; text-align:right;"><strong>&euro; {bedrag:.2f}</strong></td></tr>
+        <tr><td style="padding:10px 0 0; border-top:1px solid {LIJN};"><strong>Total paid</strong></td>
+            <td style="padding:10px 0 0; border-top:1px solid {LIJN}; text-align:right;"><strong>&euro; {bedrag:.2f}</strong></td></tr>
         """
-        btw_regel = f"<p style='font-size:12px; color:#3B3D57;'>Btw-identificatienummer: {BEDRIJFSGEGEVENS['btw']}</p>"
+        btw_regel = f"<p style='font-size:12px; color:{INKT_ZACHT};'>VAT number: {BEDRIJFSGEGEVENS['btw']}</p>"
     else:
         bedragen_html = f"""
-        <tr><td style="padding:10px 0 0;"><strong>Totaal betaald</strong></td>
+        <tr><td style="padding:10px 0 0;"><strong>Total paid</strong></td>
             <td style="padding:10px 0 0; text-align:right;"><strong>&euro; {bedrag:.2f}</strong></td></tr>
         """
-        btw_regel = ("<p style='font-size:12px; color:#3B3D57;'>Geen btw in rekening gebracht op grond van "
-                      "de kleineondernemersregeling.</p>")
+        btw_regel = (f"<p style='font-size:12px; color:{INKT_ZACHT};'>No VAT charged under the "
+                     f"Dutch small business scheme (kleineondernemersregeling).</p>")
 
-    klantregel = (f"<div style='font-size:13px; color:#3B3D57;'>{veilig(bedrijfsnaam)}</div>"
+    klantregel = (f"<div style='font-size:13px; color:{INKT_ZACHT};'>{veilig(bedrijfsnaam)}</div>"
                   if bedrijfsnaam else "")
 
-    body = f"""
-    <p style="font-size:14.5px;">Je betaling is gelukt. Hieronder vind je de factuur, bewaar deze voor je administratie.</p>
-
-    <div style="background:#FFFFFF; border:1px solid #E4E2DA; border-radius:12px; padding:24px; margin:20px 0;">
+    body = _p("Your payment went through. Your invoice is below; keep it for your records.") + f"""
+    <div style="border:1px solid {LIJN}; border-radius:12px; padding:22px; margin:18px 0;">
       <table style="width:100%; font-size:13px; margin-bottom:18px;">
         <tr>
           <td style="vertical-align:top;">
             <strong style="font-size:14px;">{BEDRIJFSGEGEVENS['naam']}</strong><br>
-            <span style="color:#3B3D57;">{BEDRIJFSGEGEVENS['adres']}<br>
-            {BEDRIJFSGEGEVENS['plaats']}<br>
-            KVK {BEDRIJFSGEGEVENS['kvk']}</span>
+            <span style="color:{INKT_ZACHT};">{BEDRIJFSGEGEVENS['adres']}<br>
+            {BEDRIJFSGEGEVENS['plaats']}, the Netherlands<br>
+            Chamber of Commerce {BEDRIJFSGEGEVENS['kvk']}</span>
           </td>
           <td style="vertical-align:top; text-align:right;">
-            <span style="color:#3B3D57;">Factuurnummer</span><br>
+            <span style="color:{INKT_ZACHT};">Invoice number</span><br>
             <strong>{factuurnr}</strong><br>
-            <span style="color:#3B3D57;">Datum</span><br>
+            <span style="color:{INKT_ZACHT};">Date</span><br>
             {datum}
           </td>
         </tr>
       </table>
 
-      <div style="font-size:12px; color:#3B3D57; margin-bottom:4px;">Aan</div>
+      <div style="font-size:12px; color:{INKT_ZACHT}; margin-bottom:4px;">To</div>
       {klantregel}
-      <div style="font-size:13px; color:#3B3D57; margin-bottom:18px;">{to_email}</div>
+      <div style="font-size:13px; color:{INKT_ZACHT}; margin-bottom:18px;">{veilig(to_email)}</div>
 
-      <table style="width:100%; font-size:13.5px; border-top:1px solid #E4E2DA; padding-top:10px;">
-        <tr><td style="padding:10px 0 6px;">{omschrijving}</td>
+      <table style="width:100%; font-size:13.5px; border-top:1px solid {LIJN}; padding-top:10px;">
+        <tr><td style="padding:10px 0 6px;">{veilig(omschrijving)}</td>
             <td style="padding:10px 0 6px; text-align:right;">&euro; {bedrag:.2f}</td></tr>
         {bedragen_html}
       </table>
 
       <div style="margin-top:16px;">{btw_regel}</div>
-      <p style="font-size:12px; color:#3B3D57; margin:0;">Dit bedrag is al voldaan, je hoeft niets meer te doen.</p>
+      <p style="font-size:12px; color:{INKT_ZACHT}; margin:0;">This amount has already been paid. You do not need to do anything.</p>
     </div>
     """
-    html = _base_html("Je betaling is gelukt", "Bedankt voor je aankoop bij Krillo.", body)
-    return send_email(to_email, f"Je factuur van Krillo ({factuurnr})", html)
+    html = _base_html("Your payment went through", "Thank you for choosing Krillo.", body)
+    return send_email(to_email, f"Your Krillo invoice ({factuurnr})", html)
 
 
 def send_herroeping_bevestiging(to_email, nummer, webshop_url=None):
@@ -209,16 +239,16 @@ def send_herroeping_bevestiging(to_email, nummer, webshop_url=None):
     Een Engels formulier met een Nederlandse bevestiging erachter is precies
     het soort breuk waardoor iemand gaat twijfelen of het wel aangekomen is."""
     kenmerk = f"HR-{datetime.now().year}-{nummer:04d}" if nummer else "unknown"
-    shop = f"<p style='font-size:13.5px; color:#3B3D57;'>Concerning: {veilig(webshop_url)}</p>" if webshop_url else ""
+    shop = f"<p style='font-size:13.5px; color:{INKT_ZACHT};'>Concerning: {veilig(webshop_url)}</p>" if webshop_url else ""
     body = f"""
     <p style="font-size:14.5px;">We received your withdrawal on {datetime.now().strftime('%d-%m-%Y')}.</p>
-    <div style="background:#F6F5F1; border-radius:10px; padding:16px 18px; margin:16px 0;">
-      <div style="font-family:'Courier New',monospace; font-size:11px; color:#3B3D57; text-transform:uppercase;">Reference</div>
+    <div style="background:{VLAK}; border-radius:10px; padding:16px 18px; margin:16px 0;">
+      <div style="font-family:'Courier New',monospace; font-size:11px; color:{INKT_ZACHT}; text-transform:uppercase;">Reference</div>
       <strong style="font-size:15px;">{kenmerk}</strong>
       {shop}
     </div>
     <p style="font-size:14.5px;">We handle this within fourteen days. If you already paid and are entitled to a refund, we pay it back through the same payment method you used. You do not have to do anything else.</p>
-    <p style="font-size:13.5px; color:#3B3D57;">Something not right? Just reply to this email.</p>
+    <p style="font-size:13.5px; color:{INKT_ZACHT};">Something not right? Just reply to this email.</p>
     """
     html = _base_html("We received your withdrawal", "Thank you for your message.", body)
     return send_email(to_email, f"Confirmation of your withdrawal ({kenmerk})", html)
@@ -250,29 +280,39 @@ def send_herroeping_melding(beheerder_email, klant_email, webshop_url, toelichti
 
 
 def send_opzegging_bevestiging(to_email, webshop_url):
-    body = f"""
-    <p style="font-size:14.5px;">Je monitoring voor {webshop_url} is opgezegd.</p>
-    <p style="font-size:14.5px;">Je houdt toegang tot het einde van de periode die je al betaald hebt. Daarna wordt er niets meer afgeschreven en stoppen de wekelijkse scans.</p>
-    <p style="font-size:13.5px; color:#3B3D57;">Wil je later weer starten, dan kan dat gewoon via krilloai.com. Je oude rapporten blijven bewaard.</p>
-    """
-    html = _base_html("Je abonnement is opgezegd", "Bedankt dat je Krillo gebruikt hebt.", body)
-    return send_email(to_email, "Bevestiging: je Krillo-abonnement is opgezegd", html)
+    """De bevestiging van een opzegging. Kort, en zonder poging om iemand
+    over te halen: wie opzegt en dan een verkoopmail krijgt, komt niet terug."""
+    winkel = _kaal_adres(webshop_url)
+    body = (
+        _p(f"Your subscription for <strong>{veilig(winkel)}</strong> has been cancelled.")
+        + _p("Nothing more is charged from now on, and you will not get your monthly "
+             "position email anymore. Your dashboard link keeps working, with your last "
+             "measurement on it.")
+        + _p("Want to start again later? You can, at krilloai.com.", zacht=True)
+    )
+    html = _base_html("Your subscription is cancelled", "Thank you for using Krillo.", body)
+    return send_email(to_email, "Confirmation: your Krillo subscription is cancelled", html)
 
 
-def _score_button(report_url, label="Bekijk het volledige rapport"):
+def _score_button(report_url, label="Open your dashboard"):
+    """De knop. Blauw, zoals op de site, en een gewone link eronder voor wie
+    in een mailprogramma zit dat knoppen niet goed toont."""
     if not report_url:
         return ""
     return f"""
-    <a href="{report_url}" style="display:inline-block; background:#FF4B3E; color:#fff; text-decoration:none;
-       padding:12px 24px; border-radius:8px; font-weight:600; font-size:14px; margin-top:16px;">{label} &rarr;</a>
+    <p style="margin:22px 0 6px;">
+      <a href="{report_url}" style="display:inline-block; background:{BLAUW}; color:#FFFFFF;
+         text-decoration:none; padding:12px 22px; border-radius:8px; font-weight:600;
+         font-size:14px;">{label} &rarr;</a>
+    </p>
     """
 
 
 def send_audit_email(to_email, webshop_url, scan_result, fix_previews, report_url=None, taal="nl"):
     score = scan_result.get("score", 0)
     problemen = [c for c in scan_result.get("checks", []) if c["status"] != "ok"]
-    score_color = "#1FB6A4" if score >= 80 else ("#C77D00" if score >= 40 else "#FF4B3E")
-    engels = taal == "en"
+    score_color = "#1FB6A4" if score >= 80 else ("#C77D00" if score >= 40 else MIS)
+    engels = True  # sinds 21 september: alle mails Engels
 
     if engels:
         kopje = "AI readability"
@@ -318,90 +358,92 @@ def send_audit_email(to_email, webshop_url, scan_result, fix_previews, report_ur
 # het hele product: hier haakt een klant af die net betaald heeft. Daarom overal
 # de echte menunamen en nooit "ga naar de instellingen".
 TOEGANG_UITLEG = {
+    # De menunamen in het Engels, met de Nederlandse naam erachter waar het
+    # beheerscherm van een Nederlandse winkel meestal in het Nederlands staat.
+    # Een klant zoekt op wat hij op zijn scherm ziet, niet op wat wij schrijven.
     "Shopify": """
-      <li>Wij sturen je een verzoek voor een samenwerkersaccount. Dat is de
-          standaardmanier waarop bureaus in een Shopify-winkel werken.</li>
-      <li>Je krijgt er een mail over van Shopify. Klik op goedkeuren.</li>
-      <li>Staat er in je beheerscherm een viercijferige code onder
-          Instellingen, Gebruikers, dan hebben we die van je nodig. Mail hem terug.</li>
-      <li>Je bepaalt zelf welke onderdelen we mogen zien, en je kunt de toegang
-          met een klik weer intrekken. Het telt niet mee voor je aantal
-          medewerkers en het kost je niets.</li>""",
+      <li>We send you a collaborator request. That is the standard way agencies
+          work in a Shopify store.</li>
+      <li>Shopify emails you about it. Click approve.</li>
+      <li>If your admin shows a four digit collaborator code under Settings, Users
+          (Instellingen, Gebruikers), we need that code. Just reply with it.</li>
+      <li>You decide which parts we can see, and you can remove our access in one
+          click. It does not count towards your staff accounts and costs you nothing.</li>""",
     "WooCommerce": """
-      <li>Ga in WordPress naar Gebruikers, Nieuwe gebruiker.</li>
-      <li>Maak een gebruiker aan op access@krilloai.com met de rol Beheerder.</li>
-      <li>Vink aan dat WordPress de gebruiker een mail stuurt.</li>
-      <li>Als we klaar zijn kun je die gebruiker gewoon verwijderen.</li>""",
+      <li>In WordPress, go to Users, Add New User (Gebruikers, Nieuwe gebruiker).</li>
+      <li>Create a user for access@krilloai.com with the role Administrator (Beheerder).</li>
+      <li>Tick the box that sends the new user an email.</li>
+      <li>When we are done, you can simply delete that user.</li>""",
     "WordPress": """
-      <li>Ga in WordPress naar Gebruikers, Nieuwe gebruiker.</li>
-      <li>Maak een gebruiker aan op access@krilloai.com met de rol Beheerder.</li>
-      <li>Vink aan dat WordPress de gebruiker een mail stuurt.</li>
-      <li>Als we klaar zijn kun je die gebruiker gewoon verwijderen.</li>""",
+      <li>In WordPress, go to Users, Add New User (Gebruikers, Nieuwe gebruiker).</li>
+      <li>Create a user for access@krilloai.com with the role Administrator (Beheerder).</li>
+      <li>Tick the box that sends the new user an email.</li>
+      <li>When we are done, you can simply delete that user.</li>""",
     "Lightspeed": """
-      <li>Ga in je Lightspeed-beheerscherm naar Instellingen en dan Gebruikers.</li>
-      <li>Klik op een nieuwe gebruiker toevoegen en vul access@krilloai.com in.</li>
-      <li>Geef die gebruiker rechten op producten, pagina's en instellingen. Rechten op
-          bestellingen en klanten heb je ons niet te geven, die hebben we niet nodig.</li>
-      <li>Als we klaar zijn kun je de gebruiker verwijderen.</li>""",
+      <li>In your Lightspeed admin, go to Settings, Users (Instellingen, Gebruikers).</li>
+      <li>Add a new user and fill in access@krilloai.com.</li>
+      <li>Give that user rights to products, pages and settings. We do not need
+          rights to orders or customers, so please do not give them.</li>
+      <li>When we are done, you can delete the user.</li>""",
     "Shopware": """
-      <li>Ga in je Shopware-beheerscherm naar Instellingen, Systeem, Gebruikers en rechten.</li>
-      <li>Maak een gebruiker aan op access@krilloai.com.</li>
-      <li>Geef die gebruiker rechten op producten en inhoud. Bestellingen en klanten
-          hoeven niet.</li>
-      <li>Als we klaar zijn kun je de gebruiker verwijderen.</li>""",
+      <li>In your Shopware admin, go to Settings, System, Users &amp; permissions.</li>
+      <li>Create a user for access@krilloai.com.</li>
+      <li>Give that user rights to products and content. Orders and customers are
+          not needed.</li>
+      <li>When we are done, you can delete the user.</li>""",
     "CCV Shop": """
-      <li>Ga in je CCV Shop-beheerscherm naar Instellingen en dan Gebruikers.</li>
-      <li>Maak een gebruiker aan op access@krilloai.com.</li>
-      <li>Geef die gebruiker rechten op producten en pagina's. Bestellingen en klanten
-          hoeven niet.</li>
-      <li>Als we klaar zijn kun je de gebruiker verwijderen.</li>""",
+      <li>In your CCV Shop admin, go to Settings, Users (Instellingen, Gebruikers).</li>
+      <li>Create a user for access@krilloai.com.</li>
+      <li>Give that user rights to products and pages. Orders and customers are
+          not needed.</li>
+      <li>When we are done, you can delete the user.</li>""",
     "PrestaShop": """
-      <li>Ga in je PrestaShop-beheerscherm naar Geavanceerde instellingen, Team.</li>
-      <li>Maak een medewerker aan op access@krilloai.com.</li>
-      <li>Geef die medewerker rechten op catalogus en ontwerp. Bestellingen en klanten
-          hoeven niet.</li>
-      <li>Als we klaar zijn kun je de medewerker verwijderen.</li>""",
+      <li>In your PrestaShop admin, go to Advanced Parameters, Team
+          (Geavanceerde instellingen, Team).</li>
+      <li>Create an employee for access@krilloai.com.</li>
+      <li>Give that employee rights to catalog and design. Orders and customers
+          are not needed.</li>
+      <li>When we are done, you can delete the employee.</li>""",
 }
 
 TOEGANG_ALGEMEEN = """
-      <li>Geef ons een account in het beheerscherm van je webshop, met genoeg
-          rechten om teksten en pagina's aan te passen. Ons adres is
-          access@krilloai.com.</li>
-      <li>Weet je niet hoe dat moet, mail dan terug met de naam van je
-          webshopsysteem, dan sturen we de stappen voor jouw systeem.</li>
-      <li>Laat je site door een bouwer beheren, stuur deze mail dan aan hem
-          door. Wij regelen het verder met hem.</li>"""
+      <li>Give us an account in the admin of your store, with enough rights to
+          change texts and pages. Our address is access@krilloai.com.</li>
+      <li>Not sure how? Reply with the name of your store software and we send
+          you the steps for your system.</li>
+      <li>Does a developer manage your site? Forward this email to them. We
+          sort out the rest with them.</li>"""
 
 
 def send_uitvoering_welkom(to_email, webshop_url, platform=None, monitoring_url=None):
-    """De mail direct na de betaling van "wij voeren het uit".
+    """De mail waarin we om toegang vragen. Gaat alleen naar Fix (en naar de
+    oude eenmalige uitvoering); Watch doet het werk zelf en krijgt hem niet.
 
-    Deze mail heeft één taak: zorgen dat we toegang krijgen. Alles wat daarna
-    komt kunnen wij zelf, maar zonder toegang staat de opdracht stil en heeft de
-    klant wel betaald. Daarom staat er precies één vraag in en verder niets."""
+    Deze mail heeft een taak: zorgen dat we toegang krijgen. Zonder toegang
+    staat de opdracht stil terwijl de klant wel betaalt. Daarom staat er een
+    vraag in en verder niets."""
+    winkel = _kaal_adres(webshop_url)
     stappen = TOEGANG_UITLEG.get(platform or "", TOEGANG_ALGEMEEN)
     platform_zin = (
-        f"Je webshop draait op {platform}, dus zo werkt het bij jou:"
+        f"Your store runs on {platform}, so this is how it works for you:"
         if platform in TOEGANG_UITLEG else
-        "Zo geef je ons toegang:"
+        "This is how you give us access:"
     )
-    body = f"""
-    <p style="font-size:14.5px;">Je betaling is binnen. We gaan aan de slag met
-      {webshop_url} zodra we in je webshop kunnen.</p>
-    <p style="font-size:14.5px;"><strong>{platform_zin}</strong></p>
-    <ul style="font-size:14px; color:#3B3D57; line-height:1.7;">{stappen}</ul>
-    <p style="font-size:14.5px;">Zodra we binnen zijn hoor je niets meer van ons
-      tot het klaar is. Dat duurt meestal twee tot vijf werkdagen. Daarna krijg
-      je een overzicht van precies wat er veranderd is, en wat de oude tekst
-      was, zodat je alles kunt terugdraaien.</p>
-    <p style="font-size:13.5px; color:#3B3D57;">We veranderen niets aan je
-      prijzen, je voorraad, je bestellingen of je vormgeving. Alleen de teksten
-      en instellingen waardoor AI je winkel beter kan lezen.</p>
-    {_score_button(monitoring_url, "Bekijk je pagina") if monitoring_url else ""}
-    """
-    html = _base_html("We hebben nog één ding van je nodig",
-                      f"Bedankt voor je opdracht voor {webshop_url}.", body)
-    return send_email(to_email, "Krillo: we hebben toegang tot je webshop nodig", html)
+    body = (
+        _p(f"Your payment came through. We start on <strong>{veilig(winkel)}</strong> as "
+           f"soon as we can get into your store.")
+        + _p(f"<strong>{platform_zin}</strong>")
+        + f'<ul style="font-size:14px; color:{INKT_ZACHT}; line-height:1.7; padding-left:20px; margin:0 0 16px;">{stappen}</ul>'
+        + _p("Once we are in, you will not hear from us until it is done. That usually "
+             "takes two to five working days. Then you get an overview of exactly what "
+             "changed and what the old text was, so you can put anything back.")
+        + _p("We never touch your prices, stock, orders or design. Only the texts and "
+             "settings that help AI read your store.", zacht=True)
+        + (_score_button(monitoring_url, "Open your dashboard") if monitoring_url else "")
+    )
+    html = _base_html("One thing we need from you",
+                      f"Thank you for your order for {veilig(winkel)}.", body)
+    return send_email(to_email, "Krillo: we need access to your store", html)
 
 
 def _veilig(tekst, maxlengte=1200):
@@ -429,37 +471,36 @@ def send_oplevering(to_email, webshop_url, wijzigingen, monitoring_url=None):
     if not wijzigingen:
         print("Oplevering niet verstuurd: er is niets vastgelegd.")
         return False
+    winkel = _kaal_adres(webshop_url)
 
     blokken = []
     for i, w in enumerate(wijzigingen, start=1):
         oud = _veilig(w.get("oude_waarde"))
         nieuw = _veilig(w.get("nieuwe_waarde"))
         blokken.append(f"""
-        <div style="border:1px solid #E4E2DA; border-radius:10px; padding:16px 18px; margin-bottom:14px;">
+        <div style="border:1px solid {LIJN}; border-radius:10px; padding:16px 18px; margin-bottom:14px;">
           <div style="font-weight:600; font-size:15px; margin-bottom:4px;">{i}. {_veilig(w.get('wat'), 200)}</div>
-          {f'<div style="font-size:13px; color:#3B3D57; margin-bottom:10px;">Waar: {_veilig(w.get("waar"), 300)}</div>' if w.get('waar') else ''}
-          {f'<div style="font-size:13px; margin-bottom:8px;"><strong>Wat er nu staat:</strong><br>{nieuw}</div>' if nieuw else ''}
-          <div style="font-size:13px; color:#3B3D57;"><strong>Wat er stond:</strong><br>
-            {oud if oud else '<em>Hier stond nog niets, dit is nieuw toegevoegd.</em>'}</div>
+          {f'<div style="font-size:13px; color:{INKT_ZACHT}; margin-bottom:10px;">Where: {_veilig(w.get("waar"), 300)}</div>' if w.get('waar') else ''}
+          {f'<div style="font-size:13px; margin-bottom:8px;"><strong>What is there now:</strong><br>{nieuw}</div>' if nieuw else ''}
+          <div style="font-size:13px; color:{INKT_ZACHT};"><strong>What was there:</strong><br>
+            {oud if oud else '<em>Nothing was here yet, this is new.</em>'}</div>
         </div>""")
 
-    body = f"""
-    <p style="font-size:14.5px;">We zijn klaar met {webshop_url}. Hieronder staat
-      precies wat we veranderd hebben, en wat er stond voordat we begonnen.</p>
-    {''.join(blokken)}
-    <p style="font-size:14.5px;">Wil je iets terug hebben zoals het was, dan staat
-      de oude tekst hierboven. Je kunt hem zelf terugzetten, of mail ons en dan
-      doen wij het.</p>
-    <p style="font-size:13.5px; color:#3B3D57;">We hebben niets aangepast aan je
-      prijzen, voorraad, bestellingen of vormgeving. Het duurt een paar weken
-      voordat AI-modellen je nieuwe teksten hebben opgepikt, dus verwacht niet
-      morgen al een ander antwoord.</p>
-    {_score_button(monitoring_url, "Bekijk je pagina") if monitoring_url else ""}
-    """
-    html = _base_html("Je webshop is klaar",
-                      f"Hierbij het overzicht van wat we voor {webshop_url} gedaan hebben.",
-                      body)
-    return send_email(to_email, f"Klaar: wat we aangepast hebben aan {webshop_url}", html)
+    body = (
+        _p(f"We are done with <strong>{veilig(winkel)}</strong>. Below is exactly what we "
+           f"changed, and what was there before we started.")
+        + "".join(blokken)
+        + _p("Want something back the way it was? The old text is above. You can put it "
+             "back yourself, or reply to this email and we do it.")
+        + _p("We did not change your prices, stock, orders or design. It takes a few weeks "
+             "before AI models pick up new texts, so do not expect a different answer "
+             "tomorrow. At the next monthly measurement of your category we show you the "
+             "difference.", zacht=True)
+        + (_score_button(monitoring_url, "Open your dashboard") if monitoring_url else "")
+    )
+    html = _base_html("Your store is done",
+                      f"The overview of what we did for {veilig(winkel)}.", body)
+    return send_email(to_email, f"Done: what we changed on {winkel}", html)
 
 
 def _kaal_adres(webshop_url):
@@ -758,398 +799,206 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
                       html, koppen=koppen)
 
 
-def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None, taal="nl"):
-    score = scan_result.get("score", 0)
-    if taal == "en":
-        body_en = f"""
-    <p style="font-size:14.5px;"><strong>Starting score: {score}/100</strong> for {webshop_url}</p>
-    <p style="font-size:13.5px; color:#3B3D57;">
-      This is your baseline. Every week we scan again and you get a message with the new
-      standing, and a clear warning if your score has dropped. From that measurement we pick
-      at most three things a week that gain you the most, and we carry those out in your store
-      for you. Afterwards you get an overview of every change with the old text next to it, so
-      you can always put it back. Your page stays at the same address; keep the link below.
-    </p>
-    <p style="font-size:13.5px; color:#3B3D57;">
-      <strong>We need one thing from you: access to your store.</strong> Without access we
-      cannot carry anything out for you. We will send you a separate email about that. If you
-      would rather do it yourself, that is fine too: your page then shows exactly what needs to
-      happen, with the text ready to use and the route through your own admin.
-    </p>
-    <p style="font-size:13.5px; color:#3B3D57;">
-      We are also busy with your first measurement at ChatGPT and Gemini. We come up with thirty
-      buying questions that shoppers in your category really ask, and check whether your store is
-      in the answer. That takes about fifteen minutes. Have another look at your page after that:
-      you will see in how many questions you are mentioned, in how many you are really
-      recommended, and which stores come out above you on the same questions.
-    </p>
-    {_score_button(report_url, "Open your monitoring page")}
-    """
-        html_en = _base_html(
-            "Welcome to Krillo monitoring",
-            f"Your monitoring for {webshop_url} has started.",
-            body_en,
-            taal="en",
+def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None,
+                                  taal="en", pakket="fix"):
+    """De welkomstmail na de eerste betaling van Watch of Fix.
+
+    HERSCHREVEN 21 SEPTEMBER. Hiervoor heette dit "Welcome to Krillo monitoring"
+    en beloofde hij het model van voor de index: elke week meten, elke week
+    hoogstens drie dingen uitvoeren, en voor iedereen een aanvraag om toegang.
+    Nu:
+    - de naam van het pakket dat iemand echt kocht;
+    - de maandmeting van zijn categorie, want daar komt zijn positie vandaan;
+    - de wekelijkse scan van de dertien punten, want die draait wel wekelijks;
+    - bij Fix dat er een aparte mail over toegang komt, bij Watch dat de
+      oplossingen klaarstaan om zelf te doen. Watch krijgt geen toegangsmail.
+
+    De eerste eigen meting bij de start (dertig koopvragen, ongeveer een
+    kwartier) is gebleven: een nieuwe klant moet meteen iets zien."""
+    winkel = _kaal_adres(webshop_url)
+    score = (scan_result or {}).get("score", 0)
+    is_watch = (pakket or "").lower() == "watch"
+    # Het pakket voor merken en bureaus doet het werk, net als Fix, maar heet
+    # anders. Hier stond eerst "Fix" voor alles wat geen Watch was.
+    naam = {"watch": "Watch", "merken": "for brands and agencies"}.get(
+        (pakket or "").lower(), "Fix")
+
+    if is_watch:
+        werk = _p("<strong>Your fixes.</strong> From your first measurement your dashboard "
+                  "shows at most three fixes that gain you the most, written out for your "
+                  "store: the text ready to copy, and where it goes in your own admin.")
+    else:
+        werk = (
+            _p("<strong>Your fixes, installed.</strong> From your first measurement we pick at "
+               "most three fixes that gain you the most, and we install them in your store. "
+               "Every change keeps the old text, so it can always be put back.")
+            + _p("For that we need access to your store. You get a separate email with the "
+                 "steps for your platform. Would you rather do it yourself? That is fine too: "
+                 "your dashboard shows every fix ready to copy.", zacht=True)
         )
-        return send_email(to_email, "Welcome to Krillo monitoring", html_en)
 
-    body = f"""
-    <p style="font-size:14.5px;"><strong>Startscore: {score}/100</strong> voor {webshop_url}</p>
-    <p style="font-size:13.5px; color:#3B3D57;">
-      Dit is je nulmeting. Elke week meten we opnieuw, en uit die meting halen wij
-      hoogstens drie dingen die het meeste opleveren. Die voeren wij voor je uit in je
-      webshop, en achteraf krijg je een overzicht van wat er veranderd is met de oude
-      tekst erbij, zodat je alles kunt terugdraaien. Je eigen pagina blijft op hetzelfde
-      adres staan; bewaar de link hieronder.
-    </p>
-    <p style="font-size:13.5px; color:#3B3D57;">
-      <strong>Een ding hebben we van je nodig: toegang tot je webshop.</strong> Zonder
-      toegang kunnen wij niets voor je uitvoeren. We sturen je daar zo een aparte mail
-      over. Wil je het liever zelf doen, dan is dat ook goed: dan staat op je pagina
-      precies wat er moet gebeuren, met de tekst er kant en klaar bij en de route door
-      jouw beheerscherm.
-    </p>
-    <p style="font-size:13.5px; color:#3B3D57;">
-      We zijn nu ook bezig met je eerste meting bij ChatGPT en Gemini. We bedenken dertig
-      koopvragen die kopers in jouw categorie echt stellen, en kijken of jouw webshop in het
-      antwoord staat. Dat duurt ongeveer een kwartier. Kijk daarna nog eens op je pagina: je ziet
-      dan bij hoeveel vragen je genoemd wordt, bij hoeveel je ook echt aanbevolen wordt, en welke
-      winkels er bij dezelfde vragen boven je staan.
-    </p>
-    {_score_button(report_url, "Open je monitoringpagina")}
-    """
-    html = _base_html(
-        "Welkom bij Krillo monitoring",
-        f"Je monitoring voor {webshop_url} is gestart.",
-        body,
+    # Wat het dashboard na een kwartier laat zien is het werk (de oplossingen).
+    # De cijfers en de winkels boven je komen uit de maandmeting van je
+    # categorie. Hier stond eerst dat die er na een kwartier al zouden staan
+    # (gevonden bij de controle van 21 september).
+    dashboard = ("Your dashboard is at the button below. There is no password: the link is "
+                 "your key, so keep this email." if report_url else
+                 "We email you the link to your dashboard separately.")
+    body = (
+        _p(f"Welcome. Your {naam} plan for <strong>{veilig(winkel)}</strong> has started. "
+           f"{dashboard}")
+        + _p("<strong>Right now.</strong> We are running your first measurement: thirty "
+             "buying questions that shoppers in your category really ask, put to ChatGPT and "
+             "Gemini. That takes about fifteen minutes, and then your first fixes are on your "
+             "dashboard. Your rank, how often you are named and which stores come out ahead "
+             "of you appear once your category has been measured; for a category we do not "
+             "measure yet, that can take a few days.")
+        + _p("<strong>Every month.</strong> We measure your whole category again, and that is "
+             "where your rank in the index comes from. You get a message with your position, "
+             "and a message when you drop three places or more. Your store also gets the "
+             "thirteen technical checks every week; it scores "
+             f"{score} of 100 on them today.")
+        + werk
+        + _score_button(report_url, "Open your dashboard")
     )
-    return send_email(to_email, "Welkom bij Krillo monitoring", html)
+    html = _base_html(f"Welcome to Krillo {naam}", "Thank you for choosing Krillo.", body)
+    return send_email(to_email, f"Welcome to Krillo {naam}", html)
 
 
-def _vermeldingenblok(vermeldingen, taal="nl"):
-    """Het cijfer waar een klant echt voor betaalt, bovenaan de wekelijkse mail.
-
-    De mail ging tot nu toe alleen over de technische score. "Je score is nog
-    steeds 51 van 100, er is niets veranderd" is waar, maar het is geen reden om
-    elke maand te blijven betalen. Waar iemand voor betaalt is of AI zijn
-    winkel noemt, en dat stond er niet in.
-
-    Geeft een lege tekst terug als er niets te melden valt. Een blok met nullen
-    erin leest als een slechte uitkomst, terwijl er alleen nog niet gemeten is,
-    en dat is precies het verschil dat een klant niet kan zien."""
-    v = vermeldingen or {}
-    telbaar = v.get("telbaar") or 0
-    if telbaar < 1:
-        return ""
-    genoemd = v.get("genoemd") or 0
-    aanbevolen = v.get("aanbevolen") or 0
-
-    if taal == "en":
-        if genoemd:
-            kern = (f"You were mentioned in <strong>{genoemd} of {telbaar}</strong> "
-                    f"buying questions this week")
-            kern += (f", and actually recommended in {aanbevolen}." if aanbevolen
-                     else ", but not recommended in any of them.")
-        else:
-            kern = (f"You were not mentioned in a single one of the {telbaar} buying "
-                    f"questions this week.")
-        staart = "Your page shows which questions, and what AI said word for word."
-    else:
-        if genoemd:
-            kern = (f"Je bent deze week genoemd bij <strong>{genoemd} van de "
-                    f"{telbaar}</strong> koopvragen")
-            kern += (f", en bij {aanbevolen} ook echt aangeraden." if aanbevolen
-                     else ", maar bij geen enkele ook echt aangeraden.")
-        else:
-            kern = (f"Je bent deze week bij geen van de {telbaar} koopvragen "
-                    f"genoemd.")
-        staart = "Op je pagina zie je bij welke vragen, en wat AI letterlijk zei."
-
-    return (f'<div style="background:#F3F1EA; border-radius:10px; padding:16px 18px; '
-            f'margin-bottom:16px;">'
-            f'<p style="font-size:14.5px; margin:0;">{kern}</p>'
-            f'<p style="font-size:13px; color:#5B5850; margin:6px 0 0;">{staart}</p>'
-            f'</div>')
-
-
-def _weekly_en(to_email, webshop_url, score, report_url, vorige_score,
-               vermeldingen=None):
-    """De Engelse tegenhanger van send_weekly_update_email.
-
-    Dezelfde drie gevallen in dezelfde volgorde: gedaald, gestegen, gelijk.
-    Het cijfer, de kleuren en de knop staan op dezelfde plek, alleen de woorden
-    zijn anders."""
-    if vorige_score is None:
-        onderwerp = f"Your weekly Krillo update ({score}/100)"
-        kop = "Your weekly update"
-        melding = (f"<p style='font-size:14.5px;'><strong>Current score: {score}/100</strong> "
-                   f"for {webshop_url}</p>")
-    else:
-        verschil = score - vorige_score
-        if verschil < 0:
-            onderwerp = f"Heads up: your Krillo score dropped to {score}/100"
-            kop = "Your score has dropped"
-            melding = f"""
-            <div style="background:#FFE3E0; border-radius:10px; padding:16px 18px; margin-bottom:16px;">
-              <strong style="font-size:15px; color:#993C1D;">Down from {vorige_score} to {score}</strong>
-              <p style="font-size:13.5px; color:#993C1D; margin:6px 0 0;">
-                Something changed on your website that makes it harder for AI to read your shop.
-                Your monitoring page shows exactly what is new.
-              </p>
-            </div>
-            """
-        elif verschil > 0:
-            onderwerp = f"Good news: your Krillo score is now {score}/100"
-            kop = "Your score has gone up"
-            melding = f"""
-            <div style="background:#DFF5F1; border-radius:10px; padding:16px 18px; margin-bottom:16px;">
-              <strong style="font-size:15px; color:#085041;">Up from {vorige_score} to {score}</strong>
-              <p style="font-size:13.5px; color:#085041; margin:6px 0 0;">
-                Your page shows which points stand better than last week.
-              </p>
-            </div>
-            """
-        else:
-            onderwerp = f"Your weekly Krillo update ({score}/100)"
-            kop = "Your weekly update"
-            melding = f"""
-            <p style="font-size:14.5px;"><strong>Your score is still {score}/100</strong> for {webshop_url}.
-            Nothing changed this week.</p>
-            """
-
-    body = (_vermeldingenblok(vermeldingen, "en") + melding
-            + _score_button(report_url, "See your monitoring page"))
-    html = _base_html(kop, f"The latest scan for {webshop_url}.", body, taal="en")
-    return send_email(to_email, onderwerp, html)
-
-
-def send_opvolging_gratis_test(to_email, webshop_url, site_url=None, taal="nl"):
-    """Een tweede bericht aan iemand die zelf de gratis test aanvroeg.
-
-    Dit is het warmste publiek dat Krillo heeft en het werd nooit gebruikt:
-    iemand vulde zijn mailadres in, kreeg zijn uitkomst, en hoorde daarna nooit
-    meer iets.
+def send_opvolging_gratis_test(to_email, webshop_url, site_url=None, taal="en"):
+    """Een tweede bericht aan iemand die zelf de gratis test aanvroeg EN het
+    vinkje zette dat we later nog iets mochten sturen (sinds 21 september, zie
+    db.leads_om_op_te_volgen).
 
     Bewust kort en zonder verkooppraat. Deze mensen weten al wat Krillo doet en
-    hebben hun eigen cijfer gezien. Wat ze niet weten is dat AI-antwoorden per
-    week veranderen en dat er iets aan te doen is. Dat is de hele boodschap.
+    hebben hun eigen cijfer gezien. Wat ze niet weten is dat AI-antwoorden
+    veranderen en dat er iets aan te doen is. Dat is de hele boodschap.
 
     Geen tweede opvolging. Wie na een herinnering niets doet, wil het niet, en
     doorgaan levert alleen spamklachten op."""
     basis = (site_url or "https://krilloai.com").rstrip("/")
     winkel = _kaal_adres(webshop_url)
     heen = f"{basis}/?winkel={quote(webshop_url or '')}#prijzen"
-
-    if taal == "en":
-        onderwerp = f"Your Krillo results for {winkel}"
-        kop = "One thing worth knowing"
-        body = (
-            f"<p style='font-size:14.5px;'>A little while ago you had us check whether "
-            f"AI assistants mention <strong>{veilig(winkel)}</strong>. You saw the result.</p>"
-            f"<p style='font-size:14.5px;'>What that measurement does not show: those "
-            f"answers change from week to week. A store that gets named today can be gone "
-            f"next month, without anything changing on your own site. It depends on what "
-            f"AI reads about you elsewhere.</p>"
-            f"<p style='font-size:14.5px;'>If you want, we measure your category every month "
-            f"and we fix what we find, in your store, ourselves. You see exactly what changed "
-            f"and you can put anything back.</p>"
-            + _score_button(heen, "See what that costs")
-            + "<p style='font-size:13px; color:#5B5850;'>Not interested? Then just ignore "
-              "this. You will not hear from us again about this. Want no email from us "
-              "at all? Reply to this email and we remove your address.</p>"
-        )
-    else:
-        onderwerp = f"Je Krillo-uitkomst voor {winkel}"
-        kop = "Een ding dat de moeite waard is om te weten"
-        body = (
-            f"<p style='font-size:14.5px;'>Een tijdje terug liet je bij ons nakijken of "
-            f"AI-assistenten <strong>{veilig(winkel)}</strong> noemen. Je hebt die uitkomst "
-            f"gezien.</p>"
-            f"<p style='font-size:14.5px;'>Wat die meting niet laat zien: die antwoorden "
-            f"veranderen per week. Een winkel die er vandaag bij staat kan er volgende maand "
-            f"uit liggen, zonder dat er iets aan je eigen site verandert. Het hangt af van "
-            f"wat AI elders over je leest.</p>"
-            f"<p style='font-size:14.5px;'>Wil je het bijhouden, dan meten wij je categorie elke maand en "
-            f"zetten wij de verbeteringen er zelf in, in je eigen winkel. Je ziet precies "
-            f"wat er veranderd is en je kunt alles terugdraaien.</p>"
-            + _score_button(heen, "Bekijk wat dat kost")
-            + "<p style='font-size:13px; color:#5B5850;'>Niet interessant? Dan laat je deze "
-              "gewoon liggen. Hier hoor je ons niet nog een keer over. Wil je helemaal geen "
-              "mail meer van ons? Antwoord op deze mail en we halen je adres weg.</p>"
-        )
-
-    html = _base_html(kop, f"Over {veilig(winkel)}.", body, taal=taal)
-    return send_email(to_email, onderwerp, html)
+    body = (
+        _p(f"A little while ago you had us check whether AI assistants mention "
+           f"<strong>{veilig(winkel)}</strong>. You saw the result.")
+        + _p("What that test does not show: those answers change. A store that gets named "
+             "today can be gone next month, without anything changing on your own site. It "
+             "depends on what AI reads about you elsewhere.")
+        + _p("If you want, we measure your category every month and show you where you rank. "
+             "With Fix we also install the fixes in your store ourselves. You see exactly what "
+             "changed and you can put anything back.")
+        + _score_button(heen, "See the plans")
+        + _p("Not interested? Then just ignore this. You will not hear from us again about "
+             "this. Want no email from us at all? Reply to this email and we remove your "
+             "address.", zacht=True)
+    )
+    html = _base_html("One thing worth knowing", f"About {veilig(winkel)}.", body)
+    return send_email(to_email, f"Your Krillo result for {winkel}", html)
 
 
-def send_weekly_update_email(to_email, webshop_url, scan_result, report_url=None,
-                             vorige_score=None, taal="nl", vermeldingen=None):
-    score = scan_result.get("score", 0)
+def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None, taal="en",
+                             onderwerp=None, kop=None):
+    """Een bericht over je positie of je vermeldingen bij AI.
 
-    if taal == "en":
-        return _weekly_en(to_email, webshop_url, score, report_url, vorige_score,
-                          vermeldingen)
+    Wordt gebruikt voor het maandbericht (meldingen.py, met zijn eigen
+    onderwerp en kop), voor een melding na de eerste meting, en om iemand zijn
+    link opnieuw te sturen. De tekst komt van de aanroeper; hier komt alleen
+    de opmaak omheen.
 
-    if vorige_score is None:
-        onderwerp = f"Je wekelijkse Krillo-update ({score}/100)"
-        kop = "Je wekelijkse update"
-        melding = f"<p style='font-size:14.5px;'><strong>Huidige score: {score}/100</strong> voor {webshop_url}</p>"
-    else:
-        verschil = score - vorige_score
-        if verschil < 0:
-            onderwerp = f"Let op: je Krillo-score is gedaald naar {score}/100"
-            kop = "Je score is gedaald"
-            melding = f"""
-            <div style="background:#FFE3E0; border-radius:10px; padding:16px 18px; margin-bottom:16px;">
-              <strong style="font-size:15px; color:#993C1D;">Gedaald van {vorige_score} naar {score}</strong>
-              <p style="font-size:13.5px; color:#993C1D; margin:6px 0 0;">
-                Er is iets veranderd aan je website waardoor AI je shop minder goed kan lezen.
-                Op je monitoringpagina zie je precies wat er nieuw is.
-              </p>
-            </div>
-            """
-        elif verschil > 0:
-            onderwerp = f"Goed nieuws: je Krillo-score staat nu op {score}/100"
-            kop = "Je score is gestegen"
-            melding = f"""
-            <div style="background:#DFF5F1; border-radius:10px; padding:16px 18px; margin-bottom:16px;">
-              <strong style="font-size:15px; color:#085041;">Gestegen van {vorige_score} naar {score}</strong>
-              <p style="font-size:13.5px; color:#085041; margin:6px 0 0;">
-                Op je pagina zie je welke punten er beter staan dan vorige week.
-              </p>
-            </div>
-            """
-        else:
-            onderwerp = f"Je wekelijkse Krillo-update ({score}/100)"
-            kop = "Je wekelijkse update"
-            melding = f"""
-            <p style="font-size:14.5px;"><strong>Je score staat nog steeds op {score}/100</strong> voor {webshop_url}.
-            Er is deze week niets veranderd.</p>
-            """
-
-    body = (_vermeldingenblok(vermeldingen, "nl") + melding
-            + _score_button(report_url, "Bekijk je monitoringpagina"))
-    html = _base_html(kop, f"De nieuwste scan voor {webshop_url}.", body)
-    return send_email(to_email, onderwerp, html)
-
-
-def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None, taal="nl"):
-    """Fase 5 stap 10. Een bericht over de vermeldingen bij AI, en alleen als er
-    iets veranderd is dat de moeite waard is.
-
-    Bewust los van de wekelijkse scanmail. Die gaat over je site, deze gaat over
-    wat AI over je zegt. Twee verschillende dingen door elkaar in een mail leest
-    niemand meer.
-
-    De tekst komt uit waarschuwing.bericht(), inclusief de duiding of het aan de
-    klant lag of aan de markt. Hier zetten we er alleen opmaak omheen."""
+    Geeft de aanroeper geen onderwerp mee, dan leiden we de richting af uit de
+    eerste zin: omhoog, omlaag of gelijk."""
     if not tekst:
         return False
+    winkel = _kaal_adres(webshop_url)
 
-    # De richting uit de eerste zin halen. Die zin komt uit waarschuwing.bericht
-    # en staat daar in dezelfde taal, dus we kijken naar de woorden van die taal.
     eerste = tekst.split("\n\n")[0].lower()
-    engels = taal == "en"
-
-    if engels:
-        if "gone down" in eerste:
-            onderwerp = f"AI mentions you less often ({webshop_url})"
-            kop = "Your mentions have gone down"
-        elif "gone up" in eerste:
-            onderwerp = f"AI mentions you more often ({webshop_url})"
-            kop = "Your mentions have gone up"
-        else:
-            onderwerp = f"Update on your AI mentions ({webshop_url})"
-            kop = "Update on your mentions"
-        knop = "See what you can do about it"
-        intro = f"What AI said about {webshop_url} this week, and what you do about it."
+    if "dropped" in eerste or "gone down" in eerste:
+        standaard_onderwerp = f"AI mentions {winkel} less often"
+        standaard_kop = "Your position has dropped"
+    elif "moved up" in eerste or "gone up" in eerste:
+        standaard_onderwerp = f"AI mentions {winkel} more often"
+        standaard_kop = "Your position has gone up"
     else:
-        if "gedaald" in eerste:
-            onderwerp = f"Je wordt minder genoemd door AI ({webshop_url})"
-            kop = "Je vermeldingen zijn gedaald"
-        elif "gestegen" in eerste:
-            onderwerp = f"Je wordt vaker genoemd door AI ({webshop_url})"
-            kop = "Je vermeldingen zijn gestegen"
-        else:
-            onderwerp = f"Update over je AI-vermeldingen ({webshop_url})"
-            kop = "Update over je vermeldingen"
-        knop = "Bekijk wat je hieraan kan doen"
-        intro = f"Wat AI deze week over {webshop_url} zei, en wat je eraan doet."
+        standaard_onderwerp = f"An update on {winkel}"
+        standaard_kop = "An update on your store"
 
-    alineas = "".join(
-        f'<p style="font-size:14.5px; line-height:1.6;">{stuk}</p>'
-        for stuk in tekst.split("\n\n") if stuk.strip()
-    )
-    # De knop wijst naar de takenlijst en niet naar de cijfers. Iemand die deze
-    # mail opent wil weten wat hij eraan doet, niet nog een tabel zien.
-    body = alineas + _score_button(monitoring_url, knop)
-    html = _base_html(kop, intro, body, taal=taal)
-    return send_email(to_email, onderwerp, html)
+    alineas = "".join(_p(veilig(stuk)) for stuk in tekst.split("\n\n") if stuk.strip())
+    # De knop wijst naar het dashboard, met het werk erin. Iemand die dit
+    # opent wil weten wat hij eraan doet, niet nog een tabel zien.
+    body = alineas + _score_button(monitoring_url, "Open your dashboard")
+    html = _base_html(kop or standaard_kop, f"The latest on {veilig(winkel)}.", body)
+    return send_email(to_email, onderwerp or standaard_onderwerp, html)
 
 
 def send_zichtbaarheidstest(to_email, webshop_url, resultaat, zin, site_url=None):
     """De uitslag van de gratis zichtbaarheidstest.
 
     Deze mail is gevraagd: iemand vulde zijn adres in om hem te krijgen. Dat is
-    de reden dat er geen afmeldlink onderin hoeft voor deze ene mail. Ga je deze
-    mensen later ook iets anders sturen, dan mag dat alleen als ze daar apart
-    akkoord voor gaven, en dan hoort er wel een afmeldlink in.
+    de reden dat er geen afmeldlink onderin hoeft voor deze ene mail.
+
+    HERSCHREVEN 21 SEPTEMBER, na de testmail van Nino. Wat er mis was:
+    - Nederlands op een Engelse site;
+    - "dit zijn vijf vragen" terwijl er drie in de mail stonden. Er worden er
+      vijf gesteld, maar alleen vragen waarbij AI winkels noemt tellen mee. Nu
+      staat er hoeveel er gesteld zijn en hoeveel er meetelden;
+    - "wat er verandert zie je pas als je elke week meet" en "dertig vragen per
+      week": het model van voor de index. Nu: elke maand je hele categorie;
+    - de knop ging naar de homepage zonder te zeggen waarheen;
+    - rood, uit het oude ontwerp.
 
     De toon is bewust vlak. De cijfers zijn hard genoeg."""
     if not resultaat:
         return False
 
+    winkel = _kaal_adres(webshop_url)
     telbaar = resultaat.get("telbaar") or 0
+    gesteld = resultaat.get("gesteld") or telbaar
     genoemd = resultaat.get("genoemd") or 0
     aanbevolen = resultaat.get("aanbevolen") or 0
 
-    cijfers = f"""
-    <table style="width:100%; border-collapse:collapse; margin:20px 0;">
-      <tr>
-        <td style="padding:14px; background:#F6F5F1; border-radius:8px; text-align:center; width:33%;">
-          <div style="font-size:26px; font-weight:700;">{genoemd}</div>
-          <div style="font-size:11px; color:#3B3D57;">van de {telbaar} vragen genoemd</div>
-        </td>
-        <td style="width:8px;"></td>
-        <td style="padding:14px; background:#F6F5F1; border-radius:8px; text-align:center; width:33%;">
-          <div style="font-size:26px; font-weight:700;">{aanbevolen}</div>
-          <div style="font-size:11px; color:#3B3D57;">daarvan echt aanbevolen</div>
-        </td>
-        <td style="width:8px;"></td>
-        <td style="padding:14px; background:#F6F5F1; border-radius:8px; text-align:center; width:33%;">
-          <div style="font-size:26px; font-weight:700;">{telbaar - genoemd}</div>
-          <div style="font-size:11px; color:#3B3D57;">vragen waar je niet bij stond</div>
-        </td>
-      </tr>
-    </table>
-    """
+    def vak(getal, onder):
+        return (f'<td style="padding:14px 8px; background:{VLAK}; border-radius:8px; '
+                f'text-align:center; width:33%;">'
+                f'<div style="font-size:26px; font-weight:700; color:{INKT};">{getal}</div>'
+                f'<div style="font-size:11.5px; color:{INKT_ZACHT}; line-height:1.4;">{onder}</div></td>')
+
+    cijfers = (
+        '<table role="presentation" style="width:100%; border-collapse:separate; '
+        'border-spacing:8px 0; margin:18px 0;"><tr>'
+        + vak(genoemd, f"of {telbaar} questions where you were named")
+        + vak(aanbevolen, "of those, really recommended")
+        + vak(telbaar - genoemd, "questions where you were missing")
+        + "</tr></table>"
+    )
 
     regels = ""
     for r in (resultaat.get("regels") or [])[:5]:
-        merk = "#1FB6A4" if r.get("genoemd") else "#FF4B3E"
-        label = "aanbevolen" if r.get("aanbevolen") else ("genoemd" if r.get("genoemd") else "niet genoemd")
+        merk = GOED if r.get("genoemd") else MIS
+        label = ("recommended" if r.get("aanbevolen")
+                 else ("named" if r.get("genoemd") else "not named"))
         regels += (
             f'<div style="border-left:3px solid {merk}; padding:8px 12px; margin-bottom:10px;">'
-            f'<div style="font-size:14px;">{r.get("vraag","")}</div>'
-            f'<div style="font-size:11.5px; color:#3B3D57; text-transform:uppercase; '
-            f'letter-spacing:0.04em; margin-top:3px;">{label}</div></div>'
+            f'<div style="font-size:14px; color:{INKT};">{veilig(r.get("vraag", ""))}</div>'
+            f'<div style="font-size:11px; color:{INKT_ZACHT}; text-transform:uppercase; '
+            f'letter-spacing:0.05em; margin-top:3px;">{label}</div></div>'
         )
 
     anderen = [c for c in (resultaat.get("concurrenten") or []) if not c.get("wij")][:5]
     concurrenten = ""
     if anderen:
         namen = "".join(
-            f'<li style="margin-bottom:3px;">{c["naam"]} <span style="color:#3B3D57;">'
+            f'<li style="margin-bottom:3px;">{veilig(c["naam"])} <span style="color:{INKT_ZACHT};">'
             f'({c["genoemd"]}x)</span></li>' for c in anderen
         )
         concurrenten = (
-            '<h3 style="font-size:15px; margin:24px 0 8px;">Wie er wel genoemd werd</h3>'
-            f'<ul style="font-size:14px; line-height:1.6; padding-left:18px;">{namen}</ul>'
+            f'<h3 style="font-size:15px; margin:24px 0 8px;">Who was named instead</h3>'
+            f'<ul style="font-size:14px; line-height:1.6; padding-left:18px; margin:0;">{namen}</ul>'
         )
 
-    # De bronanalyse. Dit is het deel dat zegt waar het vandaan komt, en het
-    # enige stuk van deze mail waar iemand morgen zelf iets mee kan. Het staat
-    # er alleen als er echt pagina's gevonden zijn.
+    # De bronanalyse: waar een concurrent wel staat en jij niet. Het enige
+    # stuk van deze mail waar iemand morgen zelf iets mee kan. Alleen als er
+    # echt pagina's gevonden zijn.
     bronblok = ""
     br = resultaat.get("bronnen") or {}
     bronpaginas = br.get("gemiste_paginas") or []
@@ -1158,118 +1007,96 @@ def send_zichtbaarheidstest(to_email, webshop_url, resultaat, zin, site_url=None
         for g in bronpaginas:
             namen = ", ".join(g.get("concurrenten") or [])
             rijen += (
-                '<div style="border-left:3px solid #FF4B3E; padding:8px 12px; margin-bottom:10px;">'
-                f'<div style="font-size:14px;">'
-                f'{_html.escape(str(g.get("titel") or g.get("domein") or ""))}</div>'
-                f'<div style="font-size:11.5px; color:#3B3D57; margin-top:3px;">'
-                f'{_html.escape(str(g.get("domein") or ""))}'
-                + (f' &middot; hier staat wel: {_html.escape(namen)}' if namen else "")
+                f'<div style="border-left:3px solid {BLAUW}; padding:8px 12px; margin-bottom:10px;">'
+                f'<div style="font-size:14px;">{veilig(g.get("titel") or g.get("domein") or "")}</div>'
+                f'<div style="font-size:11.5px; color:{INKT_ZACHT}; margin-top:3px;">'
+                f'{veilig(g.get("domein") or "")}'
+                + (f' &middot; listed here: {veilig(namen)}' if namen else "")
                 + '</div></div>'
             )
         over = (br.get("gemist") or 0) - len(bronpaginas)
-        rest = ""
-        if over > 0:
-            rest = (f'<p style="font-size:14px; line-height:1.6; color:#3B3D57;">'
-                    f'En nog {over} van dit soort pagina\'s. Ze bestaan al, je hoeft ze '
-                    f'niet te maken.</p>')
+        rest = (_p(f"And {over} more pages like these. They already exist; you do not have "
+                   f"to make them.", zacht=True) if over > 0 else "")
         bronblok = (
-            '<h3 style="font-size:15px; margin:26px 0 8px;">Waar je concurrent wel staat '
-            'en jij niet</h3>'
-            f'<p style="font-size:14px; line-height:1.6; color:#3B3D57;">'
-            f'{_html.escape(str(br.get("conclusie") or ""))}</p>'
+            '<h3 style="font-size:15px; margin:26px 0 8px;">Where a competitor is listed '
+            'and you are not</h3>'
+            + (_p(veilig(br.get("conclusie")), zacht=True) if br.get("conclusie") else "")
             + rijen + rest
         )
 
-    slot = f"""
-    <h3 style="font-size:15px; margin:26px 0 8px;">Wat dit wel en niet is</h3>
-    <p style="font-size:14px; line-height:1.6; color:#3B3D57;">
-      Dit zijn vijf vragen op een moment. AI-antwoorden wisselen van dag tot dag, dus een
-      losse meting is een momentopname en geen oordeel. Wat er verandert zie je pas als je
-      elke week meet.
-    </p>
-    <p style="font-size:14px; line-height:1.6; color:#3B3D57;">
-      We hebben je niet verteld wat er op je eigen site aan schort, welke pagina's het nog
-      meer zijn, of wat AI over je zegt klopt. Dat zit in het betaalde deel, samen met
-      dertig vragen per week in plaats van vijf.
-    </p>
-    """
+    vragen_zin = (f"We asked {gesteld} buying questions. In {telbaar} of them AI named "
+                  f"stores, and those are the ones that count."
+                  if gesteld != telbaar else
+                  f"We asked {gesteld} buying questions.")
+    slot = (
+        '<h3 style="font-size:15px; margin:26px 0 8px;">What this is, and what it is not</h3>'
+        + _p(f"{vragen_zin} This is one moment. AI answers change from day to day, so a "
+             f"single test is a snapshot and not a verdict.", zacht=True)
+        + _p("With Watch we measure your whole category every month, with thirty questions, "
+             "and show you where you rank against the other stores, which questions you "
+             "miss, and what to fix. With Fix we also install those fixes in your store.",
+             zacht=True)
+    )
 
-    body = cijfers + '<h3 style="font-size:15px; margin:24px 0 10px;">De vragen</h3>' + regels
-    body += concurrenten + bronblok + slot
+    body = (cijfers + '<h3 style="font-size:15px; margin:24px 0 10px;">The questions</h3>'
+            + regels + concurrenten + bronblok + slot)
     if site_url:
-        body += _score_button(site_url, "Bekijk wat er nog meer mogelijk is")
+        heen = f"{site_url.rstrip('/')}/?winkel={quote(webshop_url or '')}#prijzen"
+        body += _score_button(heen, "See the plans")
 
-    html = _base_html("Dit zei AI over je webshop", zin, body)
-    return send_email(to_email, f"Wat AI over {webshop_url} zegt", html)
+    html = _base_html("What AI said about your store", veilig(zin), body)
+    return send_email(to_email, f"What AI says about {winkel}", html)
 
 
-def send_shopify_bijgewerkt(to_email, webshop_url, wijzigingen, app_url=None, taal="nl"):
-    """Wat wij uit onszelf in de winkel van een abonnee hebben aangevuld.
+def send_shopify_bijgewerkt(to_email, webshop_url, wijzigingen, app_url=None, taal="en"):
+    """Wat wij uit onszelf in de winkel van een Fix-klant hebben aangevuld.
 
     Deze mail is niet optioneel en ook geen nieuwsbrief. Wij hebben zonder te
     vragen in zijn winkel geschreven, want dat is wat hij koopt. Dan is het
     minste wat wij kunnen doen: precies opsommen wat er veranderd is, en er de
-    weg bij zetten om het terug te draaien. Zonder dit bericht zou hij op een
-    dag een tekst tegenkomen die hij niet herkent, en dat is het moment waarop
-    iemand opzegt.
-    """
+    weg bij zetten om het terug te draaien.
+
+    Sinds 21 september gaat alles wat uit de winkel komt (productnaam, tekst)
+    door veilig(). Een productnaam met punthaken erin kon de mail slopen, of
+    een link in de mail zetten die eruitzag alsof hij van ons kwam."""
     if not to_email or not wijzigingen:
         return False
 
-    engels = taal == "en"
     winkel = _kaal_adres(webshop_url)
     aantal = len(wijzigingen)
 
     regels = []
     for w in wijzigingen[:25]:
-        wat = (w.get("wat") or "").strip()
-        waar = (w.get("waar") or "").strip()
+        wat = veilig((w.get("wat") or "").strip())
+        waar = veilig((w.get("waar") or "").strip())
         nieuw = (w.get("nieuw") or "").strip()
         if len(nieuw) > 220:
             nieuw = nieuw[:220].rsplit(" ", 1)[0] + "..."
+        nieuw = veilig(nieuw)
         regels.append(f"""
-        <tr><td style="padding:12px 0; border-bottom:1px solid #E4E2DA;">
-          <div style="font-size:14.5px; font-weight:600; color:#12142B;">{waar}</div>
-          <div style="font-size:12.5px; color:#6B6D85; margin:2px 0 6px;">{wat}</div>
-          <div style="font-size:13.5px; color:#3B3D57;">{nieuw}</div>
+        <tr><td style="padding:12px 0; border-bottom:1px solid {LIJN};">
+          <div style="font-size:14.5px; font-weight:600; color:{INKT};">{waar}</div>
+          <div style="font-size:12.5px; color:{INKT_ZACHT}; margin:2px 0 6px;">{wat}</div>
+          <div style="font-size:13.5px; color:{INKT_ZACHT};">{nieuw}</div>
         </td></tr>""")
-    meer = ""
-    if aantal > 25:
-        meer = (f"<p style='font-size:13px; color:#6B6D85;'>"
-                f"{'And ' + str(aantal - 25) + ' more.' if engels else 'En nog ' + str(aantal - 25) + '.'}</p>")
+    meer = (_p(f"And {aantal - 25} more.", zacht=True) if aantal > 25 else "")
+    meervoud = "s" if aantal != 1 else ""
 
-    if engels:
-        onderwerp = f"We filled in {aantal} thing{'s' if aantal != 1 else ''} in {winkel}"
-        kop = f"We filled in {aantal} thing{'s' if aantal != 1 else ''} for you"
-        inleiding = (f"Your plan covers this: we look at {winkel} every week and write the "
-                     f"text that is missing. Here is exactly what changed this week. We filled in "
-                     f"empty places and replaced product descriptions that were very short. "
-                     f"The old text is kept for every change.")
-        slot = ("Not happy with one of these? Open Krillo and press Undo next to it, and it "
-                "goes back to how it was. You can also switch this off there if you would "
-                "rather approve every change yourself.")
-        knop = "See it in Krillo"
-    else:
-        onderwerp = f"We hebben {aantal} ding{'en' if aantal != 1 else ''} ingevuld in {winkel}"
-        kop = f"We hebben {aantal} ding{'en' if aantal != 1 else ''} voor je ingevuld"
-        inleiding = (f"Dat hoort bij je abonnement: wij kijken elke week naar {winkel} en "
-                     f"schrijven de tekst die ontbreekt. Hieronder staat precies wat er deze "
-                     f"week veranderd is. Wij hebben lege plekken ingevuld en heel korte "
-                     f"productteksten vervangen. Van elke wijziging bewaren wij de oude tekst.")
-        slot = ("Ben je het ergens niet mee eens? Open Krillo en klik op Terugzetten "
-                "ernaast, dan staat het weer zoals het was. Je kunt het daar ook uitzetten "
-                "als je liever elke wijziging zelf goedkeurt.")
-        knop = "Bekijk het in Krillo"
+    body = (
+        _p(f"Your Fix plan covers this: every week we look at {veilig(winkel)} and write the "
+           f"text that is missing. Here is exactly what changed. We filled in empty places "
+           f"and replaced product descriptions that were very short. The old text is kept "
+           f"for every change.")
+        + f"""<table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+               style="margin:18px 0;">{''.join(regels)}</table>"""
+        + meer
+        + (_score_button(app_url, "See it in Krillo") if app_url else "")
+        + _p("Not happy with one of these? Open Krillo and press Undo next to it, and it goes "
+             "back to how it was. You can also switch this off there if you would rather "
+             "approve every change yourself.", zacht=True)
+    )
+    html = _base_html(f"We filled in {aantal} thing{meervoud} for you",
+                      f"This week in {veilig(winkel)}.", body)
+    return send_email(to_email, f"We filled in {aantal} thing{meervoud} in {winkel}", html)
 
-    knop_html = _score_button(app_url, knop) if app_url else ""
 
-    body = f"""
-    <p style="font-size:14.5px;">{inleiding}</p>
-    <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
-           style="margin:18px 0;">{''.join(regels)}</table>
-    {meer}
-    {knop_html}
-    <p style="font-size:13px; color:#3B3D57; margin-top:22px;">{slot}</p>
-    """
-    html = _base_html(kop, "", body, taal=taal)
-    return send_email(to_email, onderwerp, html)

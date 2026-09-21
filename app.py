@@ -623,6 +623,7 @@ def api_opzeggen(klant_token):
     if "error" in resultaat:
         return jsonify(resultaat), 400
 
+    db.zet_klant_opgezegd(klant["webshop_url"])
     emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"])
     beheerder = os.environ.get("BEHEERDER_EMAIL")
     if beheerder:
@@ -881,11 +882,16 @@ def _herkomst():
 
 
 def _mailtaal(webshop_url):
-    """"nl" of "en" voor deze winkel.
+    """De taal van een mail: sinds 21 september altijd Engels.
 
-    Een winkel in Texas hoort geen Nederlandse weekmail te krijgen. De taal
-    staat in het winkelprofiel; is die onbekend, dan wordt het Nederlands, want
-    daar zit bijna elke klant."""
+    De taalregel van 18 september is een adres, een taal, en krilloai.com is
+    Engels. Tot 21 september kreeg een .nl-winkel hier Nederlands terug, en dan
+    kreeg iemand die op een Engelse site betaalde Nederlandse post. De mail is
+    een deel van de site. Zie ook emailing.py bovenaan.
+
+    De oude bepaling op markt staat er nog onder voor het geval de taalregel
+    ooit per markt wordt; hij wordt nu niet bereikt."""
+    return "en"
     if not webshop_url:
         return "nl"
     try:
@@ -1181,8 +1187,30 @@ def api_zichtbaarheidstest_status(kenmerk):
     return jsonify(antwoord)
 
 
+def _oude_kassa_dicht():
+    """De losse audit (79 euro) en de eenmalige uitvoering (149 euro).
+
+    Allebei van de site verdwenen (11 en 17 september), maar hun kassa stond
+    nog open. Met een oude link kon iemand ze dus nog kopen, terwijl de
+    voorwaarden sinds 21 september alleen Watch, Fix en het pakket voor merken
+    beschrijven. Een product verkopen waar geen voorwaarden bij staan is precies
+    het soort ding dat in een geschil tegen je werkt.
+
+    Dicht met een schakelaar in plaats van weggehaald: de betaalketen erachter
+    (factuur, toegangsmail, werklijst) wordt ook door Fix gebruikt, en de tests
+    die die keten bewaken zetten OUDE_KASSA_AAN=ja. In Render staat hij niet, en
+    dan is de deur dicht."""
+    if (os.environ.get("OUDE_KASSA_AAN") or "").strip().lower() == "ja":
+        return None
+    return jsonify({"error": "This product is no longer available. See our plans at "
+                             "krilloai.com/#prijzen."}), 410
+
+
 @app.route("/api/checkout/audit", methods=["POST"])
 def checkout_audit():
+    dicht = _oude_kassa_dicht()
+    if dicht:
+        return dicht
     data = request.get_json(silent=True) or {}
     webshop_url = scan_engine.normalize_url((data.get("url") or "").strip())
     email = (data.get("email") or "").strip()
@@ -1221,7 +1249,12 @@ def checkout_uitvoering():
     klant zijn herroepingsrecht niet meer inroepen voor het deel dat af is.
 
     Het platform komt uit een eerdere scan als we die hebben. Weten we het niet,
-    dan gaat er algemene uitleg mee in plaats van een gok."""
+    dan gaat er algemene uitleg mee in plaats van een gok.
+
+    Sinds 21 september dicht, zie _oude_kassa_dicht."""
+    dicht = _oude_kassa_dicht()
+    if dicht:
+        return dicht
     data = request.get_json(silent=True) or {}
     webshop_url = scan_engine.normalize_url((data.get("url") or "").strip())
     email = (data.get("email") or "").strip()
@@ -1329,6 +1362,18 @@ def _meld_aan_beheer(kop, bericht):
         return False
 
 
+def _zet_in_index(webshop_url):
+    """Een klant op de winkellijst, met het land uit zijn domein. Mag nooit een
+    betaling of een ronde laten omvallen, dus fouten worden alleen gelogd."""
+    try:
+        if webshop_url and webshop_url.startswith("http"):
+            land = categoriemeting._land_bij_domein(
+                categoriemeting._schoon_domein(webshop_url) or "")
+            db.zet_klant_op_lijst(scan_engine.normalize_url(webshop_url), land=land)
+    except Exception as e:
+        print(f"Klant in de index zetten mislukt voor {webshop_url}: {e}")
+
+
 def _meld_nieuwe_klant(soort, webshop_url, email, bedrag, extra=None):
     """Een bericht naar je eigen adres zodra er iemand betaald heeft.
 
@@ -1341,6 +1386,13 @@ def _meld_nieuwe_klant(soort, webshop_url, email, bedrag, extra=None):
     Bij "wij doen het" is dat niet alleen jammer maar ook riskant: daar moet jij
     binnen een paar dagen echt aan de slag, en de klant zit te wachten. Daarom
     staat in dit bericht meteen waar je heen moet klikken."""
+    # Elke nieuwe klant op de winkellijst, zodat zijn categorie gemeten wordt
+    # en hij een positie krijgt. Zie db.zet_klant_op_lijst voor het waarom.
+    # Hier, omdat dit de ene plek is waar elke nieuwe klant langskomt, via
+    # Mollie en via Shopify.
+    _zet_in_index(webshop_url)
+    # Wie eerder opzegde en terugkomt, krijgt weer zijn maandbericht.
+    db.zet_klant_opgezegd(webshop_url, opgezegd=False)
     basis = get_base_url()
     sleutel = (os.environ.get("ADMIN_KEY") or "").strip()
     achter = f"?key={quote(sleutel)}&url={quote(webshop_url)}" if sleutel else ""
@@ -1489,12 +1541,15 @@ def _verwerk_betaling(payment_id, base_url):
         # Eerst de betaalbevestiging met factuur, die hoort er meteen te zijn.
         # De audit zelf duurt langer omdat er gescand en geschreven moet worden.
         if email:
+            # In het Engels en met de naam van wat iemand echt kocht. Hier stond
+            # "Krillo monitoring, eerste maand", ook voor wie Watch of Fix nam.
             if payment_type == "audit":
-                omschrijving = f"Krillo volledige audit voor {webshop_url}"
+                omschrijving = f"Krillo full audit for {webshop_url}"
             elif payment_type == "uitvoering":
-                omschrijving = f"Krillo voert de verbeteringen uit voor {webshop_url}"
+                omschrijving = f"Krillo carries out the improvements for {webshop_url}"
             else:
-                omschrijving = f"Krillo monitoring, eerste maand, voor {webshop_url}"
+                pakketnaam = payments.pakket_van(metadata.get("pakket"))["naam"]
+                omschrijving = f"Krillo {pakketnaam}, first month, for {webshop_url}"
             bedrag = status.get("bedrag")
             if bedrag is not None:
                 factuurnummer = db.maak_factuur(payment_id, email, bedrijfsnaam,
@@ -1662,9 +1717,10 @@ def _verwerk_betaling(payment_id, base_url):
                     db.save_report("monitoring", webshop_url, email, scan_result.get("score", 0),
                                     scan_result.get("checks", []), None, payment_id, klant_token)
                     monitoring_url = f"{base_url}/mijn/{klant_token}" if klant_token else None
+                    pakket = (metadata.get("pakket") or payments.STANDAARD_PAKKET).lower()
                     emailing.send_monitoring_welcome_email(
                         email, webshop_url, scan_result, monitoring_url,
-                        taal=_mailtaal(webshop_url))
+                        taal=_mailtaal(webshop_url), pakket=pakket)
                     # En meteen om toegang vragen. Sinds 11 september voeren wij
                     # de verbeteringen ook bij het abonnement uit, en zonder
                     # toegang kan dat niet. Dezelfde mail als bij "wij doen het",
@@ -1673,12 +1729,29 @@ def _verwerk_betaling(payment_id, base_url):
                     # Mislukt die mail, dan is dat geen ramp: op zijn eigen
                     # pagina staat dan gewoon wat er moet gebeuren, kant en
                     # klaar om zelf te doen. Daarom geen alarm hier.
-                    try:
-                        emailing.send_uitvoering_welkom(
-                            email, webshop_url, scan_result.get("platform"),
-                            monitoring_url)
-                    except Exception as e:
-                        print(f"Toegangsmail bij monitoring mislukt voor {webshop_url}: {e}")
+                    #
+                    # ALLEEN BIJ FIX (sinds 21 september). Watch is "de
+                    # oplossingen uitgeschreven, om zelf te doen"; een Watch-klant
+                    # die een mail krijgt dat wij toegang tot zijn winkel nodig
+                    # hebben, denkt dat hij iets anders gekocht heeft.
+                    if pakket != "watch":
+                        # Op de werklijst, net als de oude eenmalige uitvoering.
+                        # Dit ontbrak (gevonden 21 september): zonder regel op
+                        # de werklijst kan het overzicht van wat we veranderd
+                        # hebben niet verstuurd worden, en komt er nooit een
+                        # nameting, want die hangt aan de opleverdatum.
+                        if not db.start_uitvoering(payment_id, webshop_url, email,
+                                                   scan_result.get("platform")):
+                            _meld_aan_beheer(
+                                "Fix niet op de werklijst",
+                                f"{webshop_url} nam Fix, maar de opdracht staat NIET op "
+                                f"de werklijst. Zet hem er met de hand op.")
+                        try:
+                            emailing.send_uitvoering_welkom(
+                                email, webshop_url, scan_result.get("platform"),
+                                monitoring_url)
+                        except Exception as e:
+                            print(f"Toegangsmail bij Fix mislukt voor {webshop_url}: {e}")
                     _meld_nieuwe_klant(
                         "Abonnement", webshop_url, email, "maandpakket",
                         extra=(f'Zijn pagina: <a href="{monitoring_url}">{monitoring_url}</a>'
@@ -1879,7 +1952,7 @@ def _shopify_abonnees():
                   f"geen weekbericht. Vul het aan in de database.")
             continue
         uit.append({"webshop_url": rij["webshop_url"], "email": adres,
-                    "winkel": rij["winkel"]})
+                    "winkel": rij["winkel"], "plan": stand.get("plan")})
     if uit:
         print(f"{len(uit)} betalende Shopify-winkel(s) meegenomen in de ronde.")
     return uit
@@ -2003,6 +2076,9 @@ def _draai_wekelijkse_scans(base_url, alles=False):
 
                 db.zet_platform(c["webshop_url"], scan_result.get("platform"))
                 klant_token = db.get_or_create_klant(c["webshop_url"], c["email"])
+                # Vangnet: staat een betalende klant nog niet op de winkellijst,
+                # dan komt hij er nu op. Zonder dit krijgt hij nooit een positie.
+                _zet_in_index(c["webshop_url"])
                 db.save_report("monitoring", c["webshop_url"], c["email"], scan_result.get("score", 0),
                                 scan_result.get("checks", []), None, None, klant_token)
                 # Hier stonden tot 21 september de eigen AI-meting van deze
@@ -2013,10 +2089,11 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                 # metingen en twee soorten mail over dezelfde vraag verwarren
                 # een klant en kosten per week geld. Zie stap 66 bovenaan.
 
-                # Is dit een Shopify-winkel met een abonnement, dan vullen wij
-                # ook uit onszelf aan. Dat staat op de prijskaart en zonder dit
-                # is het een belofte zonder dekking.
-                if c.get("winkel"):
+                # Is dit een Shopify-winkel met Fix, dan vullen wij ook uit
+                # onszelf aan. Dat staat op de prijskaart van Fix en zonder dit
+                # is het een belofte zonder dekking. Watch krijgt dit bewust
+                # niet: Watch is "de oplossingen uitgeschreven, om zelf te doen".
+                if c.get("winkel") and c.get("plan") == "fix":
                     try:
                         _shopify_automatisch_aanvullen(c["winkel"], base_url)
                     except Exception as e:
@@ -3277,8 +3354,9 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
     # niets veranderd is, leert een klant om je mail weg te klikken.
     try:
         beweging = waarschuwing.vergelijk(
-            [dict(b) for b in db.get_beoordelingen_rondes(webshop_url, rondes=2)], winkelnaam)
-        tekst = waarschuwing.bericht(webshop_url, beweging, controle_samenvatting)
+            [dict(b) for b in db.get_beoordelingen_rondes(webshop_url, rondes=2)], winkelnaam,
+            taal="en")
+        tekst = waarschuwing.bericht(webshop_url, beweging, controle_samenvatting, taal="en")
         if tekst and email:
             monitoring_url = f"{base_url}/mijn/{klant_token}" if (base_url and klant_token) else None
             emailing.send_vermeldingen_update(email, webshop_url, tekst, monitoring_url,
@@ -4273,10 +4351,11 @@ def link_opnieuw():
             if klant:
                 emailing.send_vermeldingen_update(
                     klant["email"], klant["webshop_url"],
-                    "Hier is je link naar je Krillo-dashboard. Bewaar hem, want "
-                    "hij is je sleutel: er komt geen wachtwoord aan te pas.",
+                    "Here is the link to your Krillo dashboard. Keep it, because "
+                    "it is your key: there is no password.",
                     monitoring_url=f"{get_base_url().rstrip('/')}/mijn/{klant['klant_token']}",
-                    taal="nl")
+                    taal="en", onderwerp="Your Krillo dashboard link",
+                    kop="Your dashboard link")
         except Exception as e:
             print(f"Link opnieuw sturen mislukt: {e}")
         return redirect("/mijn-link?m=verstuurd")
@@ -5425,6 +5504,7 @@ def _shopify_scherm(winkel, rij):
         stand=_stand_in_taal(_shopify_status.get(winkel), _markt_van(webshop_url)
                              if webshop_url else None),
         gratis_totaal=shopify_werk.GRATIS_WIJZIGINGEN,
+        plannen=shopify_billing.PLANNEN,
     )
 
 
@@ -5676,8 +5756,11 @@ def _shopify_voorstellen_maken(winkel, sleutel, webshop_url):
         try:
             rij = db.get_shopify_winkel(winkel) or {}
             if rij.get("toegangssleutel"):
-                betaalt = shopify_billing.huidig_abonnement(
-                    winkel, _shopify_sleutel(rij))["actief"]
+                # Onbeperkt toepassen hoort bij Fix. Watch is de oplossingen
+                # uitgeschreven om zelf te doen, en krijgt net als iedereen de
+                # gratis wijzigingen met een klik.
+                stand_nu = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
+                betaalt = stand_nu["actief"] and stand_nu.get("plan") == "fix"
         except Exception as e:
             print(f"Abonnement nakijken mislukt voor {winkel}: {e}")
         rij_nu = db.get_shopify_winkel(winkel) or {}
@@ -5759,7 +5842,10 @@ def shopify_api_toepassen():
     # Hoeveel er gratis nog in mogen. Wij tellen wat er al echt in de winkel
     # staat, niet wat er in deze ronde gevraagd wordt: anders kan iemand door
     # de knop vaker in te drukken alsnog alles gratis krijgen.
-    betaalt = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))["actief"]
+    # Onbeperkt toepassen is Fix. Watch houdt de gratis wijzigingen die iedereen
+    # krijgt, en de rest staat uitgeschreven om zelf over te nemen.
+    stand_nu = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
+    betaalt = stand_nu["actief"] and stand_nu.get("plan") == "fix"
     al_gedaan = len([w for w in db.get_wijzigingen(webshop_url)
                      if (w.get("taak_id") or "").startswith("shopify:")])
     # De teller loopt alleen op. Hier stond eerder het aantal wijzigingen dat NU
@@ -5881,16 +5967,18 @@ def shopify_api_abonnement():
         # abonnement zien, dus de goede plek voor een bericht aan onszelf. Bij
         # Shopify komt er geen melding van Mollie binnen, dus zonder dit zou een
         # abonnee via de app pas bij de wekelijkse ronde opvallen.
+        plan_nu = shopify_billing.PLANNEN.get(stand.get("plan") or "fix")
         _meld_nieuwe_klant(
-            "Monitoring via de Shopify-app", rij.get("webshop_url") or winkel,
+            f"{plan_nu['naam']} via de Shopify-app", rij.get("webshop_url") or winkel,
             rij.get("email") or "onbekend, via Shopify",
-            f"{shopify_billing.PLAN_PRIJS} {shopify_billing.PLAN_VALUTA} per maand",
+            f"{plan_nu['prijs']} {shopify_billing.PLAN_VALUTA} per maand",
             extra=f"Winkel in Shopify: {winkel}")
         rij = db.get_shopify_winkel(winkel) or rij
     return jsonify({
         "actief": stand["actief"],
         "abonnement": stand["abonnement"],
-        "prijs": shopify_billing.PLAN_PRIJS,
+        "plan": stand.get("plan"),
+        "prijzen": {k: v["prijs"] for k, v in shopify_billing.PLANNEN.items()},
         "valuta": shopify_billing.PLAN_VALUTA,
         "proefdagen": 0 if rij.get("proef_gehad_op") else shopify_billing.PROEFDAGEN,
         "test": shopify_billing.testmodus(),
@@ -5909,11 +5997,16 @@ def shopify_api_abonneren():
     if not winkel or not rij or not rij.get("toegangssleutel"):
         return jsonify({"error": "Niet toegestaan."}), 401
 
+    plan = ((request.get_json(silent=True) or {}).get("plan") or "").strip().lower()
+    if plan not in shopify_billing.PLANNEN:
+        return jsonify({"error": "Choose Watch or Fix."}), 400
+
     bestaand = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
-    if bestaand["actief"]:
-        # Twee abonnementen naast elkaar betekent twee keer betalen. Dat mag
-        # nooit gebeuren door een dubbele klik.
-        return jsonify({"error": "Je hebt al een lopend abonnement.",
+    if bestaand["actief"] and bestaand.get("plan") == plan:
+        # Twee keer hetzelfde plan betekent twee keer betalen. Dat mag nooit
+        # gebeuren door een dubbele klik. Een ANDER plan mag wel: dan vervangt
+        # Shopify het lopende abonnement zelf, er lopen er nooit twee tegelijk.
+        return jsonify({"error": "You are already on this plan.",
                         "actief": True}), 409
 
     # Terug naar het INGEBEDDE app-scherm in het beheerscherm van Shopify, niet
@@ -5926,8 +6019,11 @@ def shopify_api_abonneren():
     # gaf anders telkens zeven nieuwe gratis dagen, en dat kan eindeloos.
     al_gehad = bool(rij.get("proef_gehad_op"))
     proefdagen = 0 if al_gehad else None
+    # Wie al betaalt en van plan wisselt, krijgt geen nieuwe proefperiode.
+    if bestaand["actief"]:
+        proefdagen = 0
     uit = shopify_billing.start_abonnement(winkel, _shopify_sleutel(rij), terug,
-                                           proefdagen=proefdagen)
+                                           proefdagen=proefdagen, plan=plan)
     if not uit["gelukt"]:
         return jsonify({"error": uit["fout"]}), 502
     # Hier stond dat de proefperiode nu verbruikt was. Dat is te vroeg: op dit
@@ -5938,8 +6034,9 @@ def shopify_api_abonneren():
     #
     # Het verbruiken gebeurt nu pas als er echt een lopend abonnement is, zie
     # de route hieronder die de stand opvraagt.
-    return jsonify({"link": uit["link"], "test": uit["test"],
-                    "proefdagen": 0 if al_gehad else shopify_billing.PROEFDAGEN})
+    return jsonify({"link": uit["link"], "test": uit["test"], "plan": plan,
+                    "proefdagen": 0 if (al_gehad or bestaand["actief"])
+                    else shopify_billing.PROEFDAGEN})
 
 
 @app.route("/shopify/api/opzeggen", methods=["POST"])
@@ -5962,6 +6059,8 @@ def shopify_api_opzeggen():
                                  (stand["abonnement"] or {}).get("id"))
     if not uit["gelukt"]:
         return jsonify({"error": uit["fout"]}), 502
+    if rij.get("webshop_url"):
+        db.zet_klant_opgezegd(rij["webshop_url"])
     return jsonify({"ok": True})
 
 
@@ -6192,7 +6291,11 @@ def shopify_verwijderd():
     winkel, gegevens = _webhook_binnen("app/uninstalled")
     if winkel is None:
         return "", 401
+    rij_weg = db.get_shopify_winkel(winkel) or {}
     db.shopify_verwijderd(winkel)
+    # App eruit is ook opzeggen: Shopify stopt het abonnement dan zelf.
+    if rij_weg.get("webshop_url"):
+        db.zet_klant_opgezegd(rij_weg["webshop_url"])
     print(f"Shopify-app verwijderd uit {winkel}, sleutel gewist.")
     return "", 200
 

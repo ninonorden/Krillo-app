@@ -251,6 +251,11 @@ def ronde():
     _stand["stap"] = "meten"
     verslag["meten"] = stap_meten()
 
+    # Stap 71: wat langer bewaard is dan het privacybeleid belooft, weg. Elke
+    # nacht, want dan is niets ooit meer dan een dag over zijn termijn.
+    _stand["stap"] = "bewaartermijnen"
+    verslag["bewaartermijnen"] = db.ruim_verlopen_gegevens(12)
+
     _stand["stap"] = "klaar"
     verslag["kosten_vandaag"] = kosten.mag_doorgaan()
     return verslag

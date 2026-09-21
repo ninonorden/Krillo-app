@@ -157,16 +157,21 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
         stand = (f"You are number {p} of {van} in {categorienaam}. {beweging} "
                  f"You were named in {genoemd} of {telbaar} buying questions, "
                  f"and recommended in {aanbevolen}.")
+        # 21 september: "four weeks ago" en "you will get the fixes for
+        # approval" eruit. De nameting is de eerstvolgende maandmeting na een
+        # oplevering (26 tot 70 dagen, zie hierboven), en een goedkeurknop
+        # voor oplossingen bestaat niet.
         if soort == "nameting":
-            return (f"Four weeks ago we made changes to your store. We have now "
-                    f"measured again, with the same questions.\n\n{stand}\n\n"
+            return (f"Since your last measurement we made changes to your store. We "
+                    f"have now measured your category again."
+                    f"\n\n{stand}\n\n"
                     f"This is the whole point of the re-measure: not our opinion "
-                    f"that it worked, but the same measurement before and after.")
+                    f"that it worked, but the measurement before and after.")
         if soort == "daling":
             return (f"Your position dropped, so we are telling you before you "
                     f"notice it in your sales.\n\n{stand}\n\n"
-                    f"We are already looking at which questions you lost and what "
-                    f"changed in the answers. You will get the fixes for approval.")
+                    f"Your dashboard shows which questions you lost, which stores "
+                    f"took your place, and the fixes that gain you the most.")
         return (f"We measured {categorienaam} again this month.\n\n{stand}")
 
     stand = (f"Je staat op plaats {p} van de {van} in {categorienaam}. {beweging} "
@@ -183,6 +188,14 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
                 f"Wij kijken al na bij welke vragen je weggevallen bent en wat er in "
                 f"de antwoorden veranderd is. De oplossingen krijg je ter goedkeuring.")
     return (f"We hebben {categorienaam} deze maand opnieuw gemeten.\n\n{stand}")
+
+
+# De kop boven in de mail, per soort bericht. Het onderwerp staat hieronder.
+KOPPEN = {
+    "nameting": "The re-measure is in",
+    "daling": "Your position dropped",
+    "maand": "Your position this month",
+}
 
 
 def onderwerp(keuze, categorienaam, taal="nl"):
@@ -261,7 +274,9 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
             emailing.send_vermeldingen_update(
                 klant["email"], klant["webshop_url"],
                 tekst(klant, keuze, naam, taal=taal),
-                monitoring_url=link, taal=taal)
+                monitoring_url=link, taal=taal,
+                onderwerp=onderwerp(keuze, naam, taal=taal),
+                kop=KOPPEN.get(keuze["soort"], "Your position this month"))
             verslag["verstuurd"] += 1
         except Exception as e:
             print(f"Bericht versturen mislukt voor {klant['webshop_url']}: {e}")
@@ -271,9 +286,10 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
 
 
 def _taal_van(webshop_url):
-    """Nederlands voor een .nl of .be winkel, anders Engels.
+    """Sinds 21 september altijd Engels: een adres, een taal (zie emailing.py).
 
-    Bewust simpel: het adres is het enige dat we van iedere winkel zeker weten.
-    Zodra er landen bijkomen hangt dit aan het land van de meting."""
+    Hiervoor: Nederlands voor een .nl of .be winkel. Dan kreeg een klant die op
+    de Engelse site betaalde een Nederlands maandbericht."""
+    return "en"
     kaal = (webshop_url or "").lower()
     return "nl" if (".nl" in kaal or ".be" in kaal) else "en"

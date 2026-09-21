@@ -98,8 +98,8 @@
   .stap h3{font-size:14px; font-weight:650; margin-bottom:4px;}
   .stap p{font-size:13.5px; color:var(--tekst-zacht); margin:0;}
 
-  .prijzen{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
-  @media(max-width:680px){ .prijzen{grid-template-columns:1fr;} }
+  .prijzen{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
+  @media(max-width:860px){ .prijzen{grid-template-columns:1fr;} }
   .prijs{background:var(--vlak); border:1px solid var(--lijn); border-radius:var(--rond-groot);
          box-shadow:var(--schaduw); padding:18px; display:flex; flex-direction:column;}
   .prijs.nu{border-color:var(--lijn-sterk);}
@@ -338,8 +338,8 @@
 
   <div class="blok">
   <h2>Plans</h2>
-  <p class="onder">You can start for free. The plan below is only for stores that want
-    to keep it up to date without thinking about it.</p>
+  <p class="onder">You can start for free. Watch keeps an eye on your store every month.
+    With Fix we also do the work in your store.</p>
   <div class="prijzen">
     <div class="prijs nu" id="planvrij">
       <div class="naam">Free <span class="nulabel" id="vrijlabel">your plan</span></div>
@@ -351,34 +351,54 @@
         <li>The first {{ gratis_totaal }} changes written and applied for you</li>
       </ul>
     </div>
-    <div class="prijs" id="planbetaald">
-      <div class="naam">Monitoring <span class="nulabel" id="betaaldlabel" style="display:none;">your plan</span></div>
-      <div class="bedrag">$39 <small>/ month</small></div>
-      {# Waarom dit er expliciet bij staat: Shopify laat een app alleen in
-         dollars afrekenen. Een winkelier die krillo.nl naast dit scherm legt
-         ziet daar 39 euro staan en hier 39 dollar, en denkt dat het hetzelfde
-         is. Dat is het niet, en dat hoort hij van ons te horen en niet van
-         zijn eigen factuur. #}
+    {# TWEE PLANNEN SINDS 21 SEPTEMBER, gelijk aan de site (Watch en Fix).
+       Hiervoor stond hier "Monitoring, $39": het tarief en de naam van voor de
+       index. De prijzen komen uit shopify_billing.PLANNEN, zodat scherm en
+       afrekening nooit uit elkaar lopen.
+
+       Waarom "In US dollars" erbij staat: Shopify laat een app alleen in
+       dollars afrekenen. Wie de site ernaast legt ziet euro's, en dat verschil
+       hoort hij van ons te horen en niet van zijn eigen factuur. #}
+    <div class="prijs" id="planwatch">
+      <div class="naam">Watch <span class="nulabel" id="watchlabel" style="display:none;">your plan</span></div>
+      <div class="bedrag">${{ plannen.watch.prijs | int }} <small>/ month</small></div>
       <div style="font-size:12.5px; color:var(--tekst-licht); margin:-8px 0 12px;">
         In US dollars. Shopify converts this to the currency on your Shopify invoice.
       </div>
       <ul>
-        <li>Every remaining change written and applied for you</li>
-        <li>New products picked up and filled in every week, without you asking</li>
-        <li>Measured again every week, so you see whether it helped</li>
-        <li>An alert when something actually changes</li>
+        <li>Your rank every month, in your category and your country</li>
+        <li>The shopping questions you do not appear in, with the real answer</li>
+        <li>Which competitor was named instead of you</li>
+        <li>Every fix written out, ready to copy into your store yourself</li>
         <li>Cancel any time, from here</li>
       </ul>
       <div class="voet">
         <div class="knoprij">
-          <button id="abonneerknop" style="display:none;">Start 7 day free trial</button>
-          <button id="opzegknop" class="rustig" style="display:none;">Cancel subscription</button>
+          <button class="abonneerknop" data-plan="watch" style="display:none;">Start Watch</button>
         </div>
-        <p id="abonnementuitleg" style="font-size:13px; color:var(--tekst-zacht); margin:10px 0 0;"></p>
+      </div>
+    </div>
+    <div class="prijs" id="planfix">
+      <div class="naam">Fix <span class="nulabel" id="fixlabel" style="display:none;">your plan</span></div>
+      <div class="bedrag">${{ plannen.fix.prijs | int }} <small>/ month</small></div>
+      <div style="font-size:12.5px; color:var(--tekst-licht); margin:-8px 0 12px;">
+        In US dollars. Shopify converts this to the currency on your Shopify invoice.
+      </div>
+      <ul>
+        <li>Everything in Watch</li>
+        <li>Every change written and applied for you, in one click</li>
+        <li>New products picked up and filled in every week, without you asking</li>
+        <li>At the next monthly measurement we show you the difference</li>
+        <li>Every change can be undone, cancel any time</li>
+      </ul>
+      <div class="voet">
+        <div class="knoprij">
+          <button class="abonneerknop" data-plan="fix" style="display:none;">Start Fix</button>
+        </div>
         {# De schakelaar voor het uit onszelf aanvullen. Staat hier en niet
            verstopt in een instellingenscherm, want dit is het enige punt waarop
            wij in zijn winkel schrijven zonder dat hij kijkt. Dat mag geen
-           verrassing zijn. #}
+           verrassing zijn. Alleen zichtbaar bij Fix, want alleen Fix vult aan. #}
         <div id="autoblok" style="display:none; margin-top:14px; padding-top:12px;
              border-top:1px solid var(--lijn);">
           <label style="display:flex; gap:9px; align-items:flex-start; font-size:13px;
@@ -393,6 +413,10 @@
       </div>
     </div>
   </div>
+  <div class="knoprij" style="margin-top:12px;">
+    <button id="opzegknop" class="rustig" style="display:none;">Cancel subscription</button>
+  </div>
+  <p id="abonnementuitleg" style="font-size:13px; color:var(--tekst-zacht); margin:10px 0 0;"></p>
   <div id="abonnementfout" style="display:none;" class="misgegaan"><span id="abonnementfouttekst"></span></div>
   </div>
 
@@ -862,11 +886,12 @@
   // De stand komt elke keer vers van Shopify. Wij bewaren hem niet: een
   // winkelier kan opzeggen in zijn eigen scherm zonder dat wij iets horen, en
   // dan zouden wij zeggen dat hij betaalt terwijl dat niet zo is.
-  var abonneerKnop = document.getElementById('abonneerknop');
+  var abonneerKnoppen = Array.prototype.slice.call(document.querySelectorAll('.abonneerknop'));
   var opzegKnop = document.getElementById('opzegknop');
   var abonnementUitleg = document.getElementById('abonnementuitleg');
   var vrijLabel = document.getElementById('vrijlabel');
-  var betaaldLabel = document.getElementById('betaaldlabel');
+  var planLabels = {watch: document.getElementById('watchlabel'), fix: document.getElementById('fixlabel')};
+  var planNamen = {watch: 'Watch', fix: 'Fix'};
   var abonnementFout = document.getElementById('abonnementfout');
   var abonnementFoutTekst = document.getElementById('abonnementfouttekst');
 
@@ -875,60 +900,74 @@
     abonnementFout.style.display = 'block';
   }
 
+  // Twee plannen. Per knop: verborgen als dit je plan al is, anders "Start"
+  // (met proefperiode als die er nog is) of "Switch to" als je al een ander
+  // plan hebt. Wisselen vervangt het lopende abonnement bij Shopify, er lopen
+  // er nooit twee tegelijk.
   function haalAbonnement(){
     metKaartje(function(kaartje){
       fetch('/shopify/api/abonnement', {headers: {'Authorization': 'Bearer ' + kaartje}})
         .then(function(r){ return r.json(); })
         .then(function(d){
           if (d.error) { return; }
-          if (d.actief){
-            vrijLabel.style.display = 'none';
-            betaaldLabel.style.display = 'inline-block';
-            abonneerKnop.style.display = 'none';
-            opzegKnop.style.display = 'inline-block';
-            if (autoBlok) { autoBlok.style.display = 'block'; haalAutomatisch(); }
+          var plan = d.actief ? (d.plan || 'fix') : null;
+          vrijLabel.style.display = plan ? 'none' : 'inline-block';
+          Object.keys(planLabels).forEach(function(k){
+            planLabels[k].style.display = (plan === k) ? 'inline-block' : 'none';
+          });
+          abonneerKnoppen.forEach(function(knop){
+            var k = knop.getAttribute('data-plan');
+            var prijs = (d.prijzen || {})[k];
+            if (plan === k) { knop.style.display = 'none'; return; }
+            knop.style.display = 'inline-block';
+            if (plan) {
+              knop.textContent = 'Switch to ' + planNamen[k];
+            } else if (d.proefdagen > 0) {
+              knop.textContent = 'Start ' + planNamen[k] + ', ' + d.proefdagen + ' days free';
+            } else {
+              knop.textContent = 'Start ' + planNamen[k] + ' for $' + parseInt(prijs, 10) + ' a month';
+            }
+          });
+          opzegKnop.style.display = plan ? 'inline-block' : 'none';
+          if (autoBlok) {
+            autoBlok.style.display = (plan === 'fix') ? 'block' : 'none';
+            if (plan === 'fix') { haalAutomatisch(); }
+          }
+          if (plan) {
             abonnementUitleg.textContent = d.test
               ? 'This is a test subscription. No money is charged.'
-              : 'Billed through Shopify, on your regular Shopify invoice.';
+              : 'You are on ' + planNamen[plan] + '. Billed through Shopify, on your regular Shopify invoice.';
+          } else if (d.proefdagen > 0) {
+            abonnementUitleg.textContent = 'Both plans are free for the first ' + d.proefdagen
+              + ' days, then charged monthly on your Shopify invoice. Cancel any time from this page.';
           } else {
-            vrijLabel.style.display = 'inline-block';
-            betaaldLabel.style.display = 'none';
-            abonneerKnop.style.display = 'inline-block';
-            opzegKnop.style.display = 'none';
-            if (autoBlok) { autoBlok.style.display = 'none'; }
-            if (d.proefdagen > 0){
-              abonneerKnop.textContent = 'Start ' + d.proefdagen + ' day free trial';
-              abonnementUitleg.textContent = 'Free for the first ' + d.proefdagen
-                + ' days, then $' + d.prijs + ' a month on your Shopify invoice. '
-                + 'Cancel any time from this page.';
-            } else {
-              // De proefperiode is al eens gebruikt. Dan moet de knop dat ook
-              // zeggen, anders belooft hij iets wat hij niet levert.
-              abonneerKnop.textContent = 'Subscribe for $' + d.prijs + ' a month';
-              abonnementUitleg.textContent = '$' + d.prijs
-                + ' a month on your Shopify invoice. You have already used the free '
-                + 'trial for this store. Cancel any time from this page.';
-            }
+            // De proefperiode is al eens gebruikt. Dan moet de tekst dat ook
+            // zeggen, anders belooft hij iets wat hij niet levert.
+            abonnementUitleg.textContent = 'Charged monthly on your Shopify invoice. You have '
+              + 'already used the free trial for this store. Cancel any time from this page.';
           }
         })
         .catch(function(){ /* geen ramp, dan blijft het blok zoals het staat */ });
     });
   }
 
-  if (abonneerKnop){
-    abonneerKnop.addEventListener('click', function(){
-      abonneerKnop.disabled = true;
-      abonneerKnop.textContent = 'One moment…';
+  abonneerKnoppen.forEach(function(knop){
+    knop.addEventListener('click', function(){
+      var plan = knop.getAttribute('data-plan');
+      var oud = knop.textContent;
+      knop.disabled = true;
+      knop.textContent = 'One moment…';
       abonnementFout.style.display = 'none';
       metKaartje(function(kaartje){
         fetch('/shopify/api/abonneren', {
           method: 'POST',
-          headers: {'Authorization': 'Bearer ' + kaartje, 'Content-Type': 'application/json'}
+          headers: {'Authorization': 'Bearer ' + kaartje, 'Content-Type': 'application/json'},
+          body: JSON.stringify({plan: plan})
         })
         .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
         .then(function(res){
-          abonneerKnop.disabled = false;
-          haalAbonnement();
+          knop.disabled = false;
+          knop.textContent = oud;
           if (!res.ok) { abonnementFoutTonen(res.data.error || 'We could not start the subscription.'); haalAbonnement(); return; }
           // Naar het BOVENSTE venster. Shopify weigert zijn betaalpagina in
           // het venstertje waar onze app in draait, en dan ziet de winkelier
@@ -937,13 +976,14 @@
           else { window.top.location.href = res.data.link; }
         })
         .catch(function(){
-          abonneerKnop.disabled = false;
+          knop.disabled = false;
+          knop.textContent = oud;
           haalAbonnement();
           abonnementFoutTonen('Something went wrong. Please try again.');
         });
       });
     });
-  }
+  });
 
   if (opzegKnop){
     opzegKnop.addEventListener('click', function(){

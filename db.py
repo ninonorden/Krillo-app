@@ -238,6 +238,11 @@ def init_db():
                         aangemaakt_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+                # Wanneer een klant opzegde. Tot 21 september werd dat nergens
+                # vastgelegd, en dan bleef iemand die opzegde elke maand zijn
+                # positie per mail krijgen: het maandbericht keek alleen of je
+                # ooit klant was. Leeg betekent: loopt nog.
+                cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS opgezegd_op TIMESTAMPTZ;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS facturen (
                         factuurnummer SERIAL PRIMARY KEY,
@@ -4008,6 +4013,132 @@ BENADER_STANDEN = ("nieuw", "geen_adres", "adres", "meten", "gemeten", "gemaild"
                    "gereageerd", "klant", "afgevallen")
 
 
+def ruim_verlopen_gegevens(maanden=12):
+    """Verwijdert wat langer bewaard is dan het privacybeleid belooft.
+
+    WAAROM DIT BESTAAT (stap 71, 21 september). Het privacybeleid noemt twaalf
+    maanden voor de gratis check en de gratis zichtbaarheidstest. Er stond
+    nergens code die iets verwijderde; een controle van het beleid tegen de
+    code vond dat. Een termijn beloven die je niet uitvoert is erger dan geen
+    termijn noemen.
+
+    Wat er verwijderd wordt, en waarom precies dit:
+    - gratis_scans ouder dan de termijn: helemaal weg. Er staat een webadres,
+      een score en een herkomst in; niets wat we daarna nog nodig hebben.
+    - zichtbaarheidstests ouder dan de termijn ZONDER vinkje: helemaal weg,
+      met e-mailadres en uitslag.
+    - zichtbaarheidstests ouder dan de termijn MET vinkje: de uitslag weg, het
+      adres blijft. Het beleid zegt: met vinkje bewaren we je adres tot je je
+      afmeldt.
+    - rapporten ouder dan de termijn van een winkel die nooit klant was
+      (demo's, oude audits zonder klantrecord): weg.
+
+    Wat er BEWUST blijft: rapporten van (oud-)klanten. Wanneer iemand is
+    gestopt staat bij Mollie en Shopify, niet hier, en een rapport weggooien
+    van iemand die nog betaalt is erger dan een rapport te lang bewaren. Dat
+    deel gebeurt met de hand, en zo staat het ook in het privacybeleid.
+
+    Geeft de aantallen terug, voor het nachtverslag."""
+    uit = {"gratis_scans": 0, "tests_weg": 0, "tests_uitslag_weg": 0, "rapporten": 0}
+    conn = _get_connection()
+    if conn is None:
+        return uit
+    grens = f"{int(maanden)} months"
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM gratis_scans "
+                            "WHERE gedaan_op < now() - %s::interval", (grens,))
+                uit["gratis_scans"] = cur.rowcount
+                cur.execute("DELETE FROM zichtbaarheidstests "
+                            "WHERE aangevraagd_op < now() - %s::interval "
+                            "AND nieuwsbrief_akkoord IS NOT TRUE", (grens,))
+                uit["tests_weg"] = cur.rowcount
+                cur.execute("UPDATE zichtbaarheidstests SET resultaat = NULL "
+                            "WHERE aangevraagd_op < now() - %s::interval "
+                            "AND nieuwsbrief_akkoord IS TRUE AND resultaat IS NOT NULL",
+                            (grens,))
+                uit["tests_uitslag_weg"] = cur.rowcount
+                cur.execute("DELETE FROM rapporten r "
+                            "WHERE r.aangemaakt_op < now() - %s::interval "
+                            "AND NOT EXISTS (SELECT 1 FROM klanten k "
+                            "                WHERE k.webshop_url = r.webshop_url)",
+                            (grens,))
+                uit["rapporten"] = cur.rowcount
+        return uit
+    except Exception as e:
+        print(f"Verlopen gegevens opruimen mislukt: {e}")
+        return uit
+    finally:
+        conn.close()
+
+
+def zet_klant_opgezegd(webshop_url, opgezegd=True):
+    """Legt vast dat een klant opzegde, of (opgezegd=False) dat hij weer klant is.
+
+    Zonder dit kreeg een klant die opzegde elke maand nog zijn positie per mail
+    (zie klanten_in_ronde). Terug op False bij een nieuwe betaling, zodat wie
+    terugkomt ook weer post krijgt."""
+    if not webshop_url:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE klanten SET opgezegd_op = "
+                            + ("now()" if opgezegd else "NULL")
+                            + " WHERE webshop_url = %s", (webshop_url,))
+        return True
+    except Exception as e:
+        print(f"Opzegging vastleggen mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def zet_klant_op_lijst(webshop_url, land=None):
+    """Zet een betalende klant op de winkellijst, zodat hij in de index komt.
+
+    WAAROM DIT BESTAAT (gevonden 21 september). De positie van een klant komt
+    uit de maandmeting van zijn categorie. Een categorie krijgt een winkel
+    alleen als die op de winkellijst (benadering) staat: het indelen en het
+    meten kijken nergens anders. Een klant die daar niet al op stond, kwam dus
+    nooit in een categorie en kreeg nooit een positie, terwijl Watch precies
+    dat verkoopt.
+
+    Met stand 'klant'. De benadering loopt langs de standen nieuw, adres,
+    meten en gemeten; 'klant' komt daar nergens in voor, dus een klant krijgt
+    nooit de koude benaderingsmail. Stond hij er al en is hij nooit gemaild,
+    dan gaat hij ook naar 'klant'. Is hij al eens gemaild, dan blijft zijn
+    stand staan: dat is geschiedenis, en er gaat geen tweede mail uit.
+
+    Geeft True als hij er nu op staat."""
+    if not webshop_url:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO benadering (webshop_url, land, branche, stand)
+                       VALUES (%s, %s, 'klant', 'klant')
+                       ON CONFLICT (webshop_url) DO UPDATE
+                          SET stand = CASE WHEN benadering.gemaild_op IS NULL
+                                           THEN 'klant' ELSE benadering.stand END,
+                              afgemeld = FALSE""",
+                    (webshop_url, land))
+        return True
+    except Exception as e:
+        print(f"Klant op de winkellijst zetten mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
 def voeg_benadering_toe(webshop_url, naam=None, land=None, branche=None):
     """Zet een winkel op de lijst. Stond hij er al, dan verandert er niets.
 
@@ -5437,6 +5568,7 @@ def klanten_in_ronde(ronde):
                              WHERE y.ronde = u.ronde)           AS van
                       FROM categorie_uitkomsten u
                       JOIN klanten k ON k.webshop_url = u.webshop_url
+                                    AND k.opgezegd_op IS NULL
                  LEFT JOIN categorie_uitkomsten v
                         ON v.webshop_url = u.webshop_url
                        AND v.ronde = (SELECT id FROM vorige)
