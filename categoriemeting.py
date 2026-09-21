@@ -40,6 +40,8 @@ DRIE KEUZES MET REDEN:
 """
 import json
 import os
+import socket
+import re
 import threading
 import time
 
@@ -293,11 +295,16 @@ aanbevolen. In een rij staan is genoemd, niet aanbevolen.
 POSITIE is de volgorde waarin de winkels in het antwoord voorkomen, te beginnen
 bij 1.
 
+WEBADRES. Zet bij elke winkel het domein van zijn webshop, zonder https en
+zonder www, zoals "fonq.nl". Alleen als het in het antwoord staat of als je het
+zeker weet. Twijfel je, zet dan null. Nooit gokken: een verzonnen adres is erger
+dan geen adres.
+
 Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
 
 {{
   "winkel_kon_genoemd": true,
-  "winkels": [{{"naam": "fonQ", "positie": 1}}],
+  "winkels": [{{"naam": "fonQ", "adres": "fonq.nl", "positie": 1}}],
   "aanbevolen": ["fonQ"]
 }}"""
 
@@ -424,12 +431,120 @@ def winkels_uit_antwoord(vraag, antwoord):
     for w in data.get("winkels", []):
         naam = (w.get("naam") or "").strip()
         if naam:
-            winkels.append({"naam": naam, "positie": w.get("positie")})
+            # Het webadres gaat mee de database in. Daarmee kan een winkel die
+            # AI noemt maar die wij nog niet kenden later aan de lijst worden
+            # toegevoegd (zie nieuwe_winkels_uit_antwoorden).
+            winkels.append({"naam": naam, "positie": w.get("positie"),
+                            "adres": _schoon_domein(w.get("adres"))})
     return {
         "winkel_kon_genoemd": bool(data.get("winkel_kon_genoemd")),
         "winkels": winkels,
         "aanbevolen": [n.strip() for n in data.get("aanbevolen", []) if (n or "").strip()],
     }
+
+
+# ---------------------------------------------------------------------------
+# Stap 62: winkels die AI noemt maar die wij nog niet kenden
+# ---------------------------------------------------------------------------
+#
+# WAT ER MIS WAS. Het leesmodel haalt uit elk antwoord welke winkels genoemd
+# worden. Daarna legde koppel_aan_winkels die namen naast ONZE lijst, en elke
+# naam die daar niet op stond viel stil weg. Terwijl dat juist de interessantste
+# winkels zijn: de winkels die AI zelf aanraadt. En het maakte de ranglijst
+# minder waar: een winkel die twintig keer genoemd werd maar toevallig niet op
+# onze lijst stond, kwam er niet op, en dan is onze nummer 1 niet de echte
+# nummer 1. Gevonden op 19 september, toen het plan om met Google Custom Search
+# winkels te zoeken niet door kon (die dienst stopt).
+#
+# WAT ER NU GEBEURT. Het leesmodel geeft bij elke winkel ook het webadres. Na
+# een meting gaan de genoemde winkels die wij nog niet kennen de lijst op, in
+# deze categorie, en de ranglijst wordt meteen opnieuw geteld uit dezelfde
+# bewaarde antwoorden. Dat kost niets: die antwoorden zijn al betaald.
+#
+# DE REMMEN:
+# - Alleen een domein dat eruitziet als een domein EN echt bestaat (DNS). Een
+#   model dat toch een adres verzint, komt zo meestal niet door.
+# - Een winkel die al op de lijst staat wordt NOOIT verhuisd naar een andere
+#   categorie. Een winkel hoort in precies een categorie (zie db.zet_categorie).
+# - Hoogstens MAX_NIEUWE_WINKELS per ronde, zodat een rare meting de lijst niet
+#   in een keer volgooit.
+# - Wat merk of winkel is, en welke adressen een keten vormen, zoekt de
+#   nachtronde daarna zelf uit (stap_opschonen). Daar hoeven wij hier niet te
+#   raden.
+
+MAX_NIEUWE_WINKELS = int(os.environ.get("MAX_NIEUWE_WINKELS", "25"))
+
+_DOMEIN = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+
+
+def _schoon_domein(adres):
+    """Maakt van wat het model als adres gaf een kaal domein, of None."""
+    if not adres or not isinstance(adres, str):
+        return None
+    d = adres.strip().lower()
+    for voor in ("https://", "http://"):
+        if d.startswith(voor):
+            d = d[len(voor):]
+    d = d.split("/")[0].split("?")[0].split("#")[0].strip(".")
+    if d.startswith("www."):
+        d = d[4:]
+    if not _DOMEIN.match(d) or len(d) > 100:
+        return None
+    return d
+
+
+def _domein_bestaat(domein):
+    """Of het domein in DNS bestaat. Een verzonnen adres valt hier meestal af."""
+    try:
+        socket.getaddrinfo(domein, 443)
+        return True
+    except Exception:
+        return False
+
+
+def _land_bij_domein(domein, standaard="NL"):
+    if domein.endswith(".be"):
+        return "BE"
+    if domein.endswith(".nl"):
+        return "NL"
+    return standaard
+
+
+def nieuwe_winkels_uit_antwoorden(genoemden, winkels, slug, bestaat=None):
+    """Zet de winkels die AI noemde maar die wij nog niet kenden op de lijst.
+
+    genoemden: wat winkels_uit_antwoord per antwoord teruggaf.
+    Geeft de lijst met webadressen die echt nieuw zijn toegevoegd.
+    `bestaat` is er voor de test, zodat die geen echte DNS-vragen stelt."""
+    bestaat = bestaat or _domein_bestaat
+    bekende_domeinen = {_schoon_domein(w["webshop_url"]) for w in winkels}
+    kandidaten = {}
+    for genoemde in genoemden:
+        if not genoemde or not genoemde.get("winkel_kon_genoemd"):
+            continue
+        gekoppeld = {hoe["als_naam"] for hoe in
+                     koppel_aan_winkels(genoemde, winkels).values()
+                     if hoe.get("als_naam")}
+        for w in genoemde.get("winkels", []):
+            domein = w.get("adres")
+            if not domein or w["naam"] in gekoppeld or domein in bekende_domeinen:
+                continue
+            kandidaten.setdefault(domein, w["naam"])
+
+    toegevoegd = []
+    for domein, naam in kandidaten.items():
+        if len(toegevoegd) >= MAX_NIEUWE_WINKELS:
+            break
+        if not bestaat(domein):
+            continue
+        url = scan_engine.normalize_url(domein)
+        # Alleen als hij echt NIEUW is een categorie geven. Stond hij er al,
+        # dan laten wij hem staan waar hij staat.
+        if db.voeg_benadering_toe(url, naam=naam, land=_land_bij_domein(domein),
+                                  branche="ai-antwoord"):
+            db.zet_categorie(url, slug)
+            toegevoegd.append(url)
+    return toegevoegd
 
 
 def koppel_aan_winkels(genoemde, onze_winkels):
@@ -886,6 +1001,8 @@ def meet_categorie(slug, max_vragen=None):
     telling = {w["webshop_url"]: {"genoemd": set(), "aanbevolen": set(),
                                   "beste_positie": None} for w in winkels}
     telbaar = set()
+    # Alles wat het leesmodel deze ronde uit de antwoorden haalde, voor stap 62.
+    alle_genoemde = []
 
     for vraag in vragen:
         for aanbieder in aanbieders:
@@ -914,6 +1031,7 @@ def meet_categorie(slug, max_vragen=None):
                 ronde, slug, vraag["vraag"], aanbieder["model"],
                 uitkomst["antwoord"], genoemde)
             _stand["antwoorden"] += 1
+            alle_genoemde.append(genoemde)
 
             if not genoemde["winkel_kon_genoemd"]:
                 # Een vraag waar geen enkele webshop in kon voorkomen telt niet
@@ -931,6 +1049,21 @@ def meet_categorie(slug, max_vragen=None):
                 if hoe["aanbevolen"]:
                     telling[url]["aanbevolen"].add(vraag["vraag"])
 
+    # Stap 62: winkels die AI noemde maar die wij nog niet kenden gaan de lijst
+    # op, en dan tellen wij opnieuw uit DEZELFDE bewaarde antwoorden. Zo staan
+    # ze meteen in deze ranglijst en niet pas over dertig dagen. Geen enkele
+    # extra modelaanroep. Mislukt dit, dan blijft de gewone telling staan: een
+    # onvolledige ranglijst is beter dan geen ranglijst.
+    nieuw = []
+    try:
+        _stand["stap"] = "nieuwe winkels uit de antwoorden toevoegen"
+        nieuw = nieuwe_winkels_uit_antwoorden(alle_genoemde, winkels, slug)
+        if nieuw:
+            winkels = db.winkels_in_categorie_met_kinderen(slug)
+            telling, telbaar = tel_uit_antwoorden(db.antwoorden_van_ronde(ronde), winkels)
+    except Exception as e:
+        print(f"Nieuwe winkels toevoegen mislukt voor {slug}: {e}")
+
     rangen = maak_ranglijst(telling, winkels)
     db.bewaar_categorie_uitkomsten(ronde, slug, rangen, len(telbaar))
 
@@ -946,6 +1079,7 @@ def meet_categorie(slug, max_vragen=None):
             "uitgezette_vragen": gesnoeid.get("uitgezet", 0),
             "vragen": len(vragen), "telbaar": len(telbaar),
             "antwoorden": _stand["antwoorden"], "mislukt": _stand["mislukt"],
+            "nieuwe_winkels": nieuw,
             "ranglijst": rangen}
 
 

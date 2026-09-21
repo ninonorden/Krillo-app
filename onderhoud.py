@@ -207,6 +207,8 @@ def stap_meten(hoeveel=None):
             "winkels": uit.get("winkels"),
             "telbaar": uit.get("telbaar"),
             "fout": uit.get("fout"),
+            # Stap 62: hoeveel winkels AI noemde die wij nog niet kenden.
+            "nieuwe_winkels": len(uit.get("nieuwe_winkels") or []),
         }
 
         # Meteen na de meting de berichten. Alleen HIER wordt er echt verstuurd;

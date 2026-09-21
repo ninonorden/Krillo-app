@@ -12,6 +12,7 @@ Starten:
 Ga daarna naar http://127.0.0.1:5000 in je browser.
 """
 
+import copy
 import hashlib
 import hmac
 import json
@@ -381,6 +382,47 @@ def _thuisgegevens():
         if starten:
             threading.Thread(target=_ververs_thuis, daemon=True).start()
     return _thuis["waarde"]
+
+
+# Hetzelfde onthouden, maar dan per gegeven, voor de indexpagina's. Die stelden
+# 10 tot 11 databasevragen per bezoek, om dezelfde reden als de homepage: de
+# cijfers veranderen maar een keer per nacht. Onthouden per GEGEVEN en niet per
+# pagina, want de pagina hangt ook af van de taal en het voorgekozen land.
+# Elke aanroeper krijgt een kopie, zodat een route die een lijst sorteert of
+# een veld toevoegt niet het onthouden origineel verandert.
+_bewaard_opslag = {}
+_bewaard_slot = threading.Lock()
+
+
+def _bewaard(sleutel, functie, *args):
+    if not _thuis_onthouden_aan():
+        return functie(*args)
+    with _bewaard_slot:
+        vak = _bewaard_opslag.setdefault(
+            sleutel, {"waarde": None, "op": 0.0, "bezig": False, "gevuld": False})
+    if not vak["gevuld"]:
+        waarde = functie(*args)
+        # Leeg is verdacht (database even weg): over een minuut opnieuw.
+        op = time.time() if waarde else time.time() - THUIS_VERS_SECONDEN + 60
+        vak.update(waarde=waarde, op=op, gevuld=True)
+        return copy.deepcopy(waarde)
+    if time.time() - vak["op"] > THUIS_VERS_SECONDEN:
+        with _bewaard_slot:
+            starten = not vak["bezig"]
+            if starten:
+                vak["bezig"] = True
+        if starten:
+            def _ververs():
+                try:
+                    w = functie(*args)
+                    op = time.time() if w else time.time() - THUIS_VERS_SECONDEN + 60
+                    vak.update(waarde=w, op=op)
+                except Exception as e:
+                    print(f"Verversen van {sleutel} mislukt: {e}")
+                finally:
+                    vak["bezig"] = False
+            threading.Thread(target=_ververs, daemon=True).start()
+    return copy.deepcopy(vak["waarde"])
 
 
 @app.route("/")
@@ -3981,7 +4023,7 @@ def openbare_index():
     tonen. Het land dat voorgekozen staat in het keuzemenu mag de browser wel
     bepalen: dat verandert de pagina niet. Er wordt nooit doorgestuurd op
     IP-adres. Zie de uitleg bovenin sitetaal.py."""
-    landen = [r["land"] for r in db.landen_in_index()]
+    landen = [r["land"] for r in _bewaard(("landen",), db.landen_in_index)]
     taal = sitetaal.kies_taal(pad_taal=request.args.get("taal"))
     voorkeur = (request.args.get("markt") or "").lower()
     if voorkeur not in landen:
@@ -4000,7 +4042,7 @@ def openbare_index_stuk(stuk):
     terug en een tijdelijke verwijzing laat Google beide adressen aanhouden."""
     kort = (stuk or "").lower()
     if kort in sitetaal.LANDEN:
-        landen = [r["land"] for r in db.landen_in_index()]
+        landen = [r["land"] for r in _bewaard(("landen",), db.landen_in_index)]
         if kort not in landen:
             return render_template(
                 "fout.html", titel="This country is not in the index yet",
@@ -4015,10 +4057,10 @@ def openbare_index_stuk(stuk):
 def _indexoverzicht(land, taal, canonical="/index"):
     """Het overzicht, voor een land of zonder land."""
     t = sitetaal.teksten(taal)
-    cijfers = db.index_cijfers()
-    landen = db.landen_in_index()
-    rijen = (db.categorieen_per_land(land, MINIMUM_PER_LAND) if land
-             else db.openbare_categorieen(minimum_winkels=MINIMUM_PER_LAND))
+    cijfers = _bewaard(("cijfers",), db.index_cijfers)
+    landen = _bewaard(("landen",), db.landen_in_index)
+    rijen = (_bewaard(("perland", land), db.categorieen_per_land, land, MINIMUM_PER_LAND) if land
+             else _bewaard(("openbaar",), db.openbare_categorieen, MINIMUM_PER_LAND))
     for r in rijen:
         r["naam"] = categorieen.naam_van(r["categorie"])
     rijen.sort(key=lambda r: r["naam"])
@@ -4057,7 +4099,7 @@ def openbare_categorie(land, slug):
 
     taal = sitetaal.kies_taal(pad_taal=request.args.get("taal"))
     t = sitetaal.teksten(taal)
-    lijst = db.ranglijst_per_land(slug, land, limiet=100)
+    lijst = _bewaard(("ranglijst", slug, land), db.ranglijst_per_land, slug, land, 100)
     if (not lijst or not lijst.get("ronde")
             or len(lijst["rijen"]) < MINIMUM_PER_LAND):
         return render_template(
@@ -4074,12 +4116,12 @@ def openbare_categorie(land, slug):
     # zodat een zoekmachine weet dat dit dezelfde pagina voor een ander land is
     # en ze niet als kopieen van elkaar behandelt.
     anders = []
-    for rij in db.landen_in_index():
+    for rij in _bewaard(("landen",), db.landen_in_index):
         code = rij["land"]
         if code == land or code not in sitetaal.LANDEN:
             continue
         if any(c["categorie"] == slug
-               for c in db.categorieen_per_land(code, MINIMUM_PER_LAND)):
+               for c in _bewaard(("perland", code), db.categorieen_per_land, code, MINIMUM_PER_LAND)):
             anders.append({"code": code,
                            "taal": sitetaal.taal_van_land(code),
                            "naam": sitetaal.landnaam(code, taal)})
@@ -4109,8 +4151,8 @@ def openbare_categorie(land, slug):
         totaal=len(lijst["rijen"]),
         telbaar=lijst["telbaar"],
         gemeten_op=(genoemd[0].get("gemeten_op") if genoemd else None),
-        vragen=db.gemeten_vragen_van_ronde(lijst["ronde"]),
-        modellen=db.modellen_van_ronde(lijst["ronde"]),
+        vragen=_bewaard(("vragen", lijst["ronde"]), db.gemeten_vragen_van_ronde, lijst["ronde"]),
+        modellen=_bewaard(("modellen", lijst["ronde"]), db.modellen_van_ronde, lijst["ronde"]),
         canonical=f"/index/{land}/{slug}",
         basis_url=basis_url,
         basis=get_base_url(),
