@@ -99,7 +99,7 @@ klopt("allebei naar de abonnementsroute",
       "watch: '/api/checkout/monitoring'" in index and "fix: '/api/checkout/monitoring'" in index)
 klopt("en het pakket gaat mee in het verzoek", "pakket: pakketten[currentType]" in index)
 klopt("merken en bureaus gaat naar de mail, niet naar een kassa",
-      "mailto:hallo@krillo.nl" in prijzenblok)
+      "mailto:hello@krilloai.com" in prijzenblok)
 
 print("\n== de gestructureerde gegevens kloppen ==")
 klopt("Watch staat erin met 49",

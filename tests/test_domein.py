@@ -146,13 +146,11 @@ for pad in paginas:
         klopt(f"{pad} heeft een canonical op het nieuwe domein",
               m.group(1).startswith(BASIS))
 
-print("\n== HET MAILADRES BLIJFT BEWUST STAAN ==")
-# hallo@krillo.nl bestaat en werkt; hello@krilloai.com nog niet. Een adres op
-# de site zetten waar niets aankomt is erger dan een adres op het oude domein.
-# Deze test legt die keuze vast, zodat niemand hem per ongeluk omzet voordat
-# het nieuwe postvak echt bestaat.
+print("\n== HET MAILADRES STAAT OP HET NIEUWE DOMEIN ==")
 a = k.get("/over-ons", headers={"Host": "krilloai.com"}).get_data(as_text=True)
-klopt("over-ons noemt nog het werkende mailadres", "hallo@krillo.nl" in a)
+# Sinds 21 september is hello@krilloai.com het enige adres (besluit Nino).
+# hallo@krillo.nl ontvangt niets meer, dus het mag nergens meer staan.
+klopt("over-ons noemt het nieuwe mailadres", "hello@krilloai.com" in a and "hallo@krillo.nl" not in a)
 
 print("\n== DE PRIJZEN IN llms.txt KOMEN UIT DE CODE ==")
 import payments  # noqa: E402

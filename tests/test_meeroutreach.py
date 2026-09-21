@@ -130,7 +130,7 @@ klopt("de kop belooft niet meer een lijstje",
 # op 17 september vervangen is. Dezelfde belofte staat nu in de zes blokken en
 # op de prijskaart, en dat is waar iemand hem leest voordat hij betaalt.
 klopt("maar dat wij het bijhouden",
-      "Four weeks later we measure again" in index)
+      "At the next monthly measurement we ask the same questions again" in index)
 # Per week en niet per maand. Op de regel eronder stond al "hoogstens drie
 # dingen per week", en de keten draait wekelijks, dus "elke maand" was een
 # tweede tempo voor hetzelfde werk.

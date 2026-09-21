@@ -62,8 +62,11 @@ UNIEK = datetime.now().strftime("%H%M%S%f")
 
 
 def zet_test(url, email, dagen_geleden, status="klaar"):
-    """Een aanvraag van de gratis test neerzetten, zoveel dagen geleden."""
-    uit = db.start_zichtbaarheidstest(url, email)
+    """Een aanvraag van de gratis test neerzetten, zoveel dagen geleden.
+
+    Met het vinkje aan. Sinds 21 september krijgt alleen wie het vinkje zette
+    een herinnering (zie tests/test_juridisch.py voor wie het niet zette)."""
+    uit = db.start_zichtbaarheidstest(url, email, nieuwsbrief=True)
     if not uit:
         return None
     # Geeft {"id": ..., "kenmerk": ...} terug, niet een kaal nummer.

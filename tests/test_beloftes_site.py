@@ -128,7 +128,7 @@ zo("hoogstens drie acties per ronde", actieplan.MAX_ACTIES, 3)
 # ergens op de site een getal staat en dat dat getal klopt met de code.
 klopt("en de site belooft er niet meer",
       "hoogstens drie" in TEKSTEN.get("faq.html", "").lower()
-      or "hoogstens drie" in TEKSTEN.get("voorwaarden.html", "").lower())
+      or "at most three" in TEKSTEN.get("voorwaarden.html", "").lower())
 
 standaard = inspect.signature(koopvragen.genereer_koopvragen).parameters["aantal"].default
 zo("dertig koopvragen per winkel", standaard, 30)
@@ -145,7 +145,7 @@ for zin in verboden:
 
 klopt("en de methodepagina zegt met zoveel woorden dat we geen resultaat beloven",
       "we promise no result" in TEKSTEN.get("zo-meten-we.html", "").lower())
-klopt("de voorwaarden ook", "resultaatgarantie" in TEKSTEN.get("voorwaarden.html", ""))
+klopt("de voorwaarden ook", "we promise no result" in TEKSTEN.get("voorwaarden.html", "").lower())
 
 print("\n== de mails beloven hetzelfde als de site ==")
 klopt("de welkomstmail noemt de grens van drie ook in het engels",

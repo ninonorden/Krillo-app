@@ -115,27 +115,31 @@ zo("zegt niet meer dat klanten het zelf regelen", "die dit zelf regelen" in t, F
 zo("verwijst naar het onderzoek", "/onderzoek" in t, True)
 
 print("\n== voorwaarden en privacy ==")
+# Sinds 21 september in het Engels. Dezelfde beloften worden bewaakt, nu in de
+# taal waarin ze op de site staan.
 v = open(os.path.join(MAP, "templates/voorwaarden.html"), encoding="utf-8").read()
-zo("kent vier vormen", "vier vormen" in v, True)
-zo("heeft een artikel over de uitvoering", "De uitvoering in je webshop" in v, True)
-zo("noemt de terugdraairegeling", "draaien wij hem terug" in v, True)
-zo("noemt aansprakelijkheid bij ons eigen werk", "een fout in ons eigen werk" in v, True)
+zo("noemt de pakketten van nu", all(n in v for n in ("Watch", "Fix", "Brands and agencies")), True)
+zo("heeft een artikel over werken in de winkel", "When we work in your store" in v, True)
+zo("noemt de terugdraairegeling", "we roll it back" in v, True)
+zo("noemt aansprakelijkheid bij ons eigen werk", "an error in our own work" in v, True)
 zo("verwijst niet meer naar het opgeheven ODR-platform",
    "consumers/odr" in v, False)
 zo("belooft geen weeklimiet die er niet is",
-   "maximaal één keer per week per website" in v, False)
+   "once per week per website" in v, False)
+zo("belooft geen goedkeuringsknop die de code niet kent", "You press approve" in v, False)
 
 pb = open(os.path.join(MAP, "templates/privacybeleid.html"), encoding="utf-8").read()
-zo("zegt dat ook de gratis scan naar ChatGPT gaat",
-   "bij de gratis scan, de gratis zichtbaarheidstest en het monitoringabonnement" in pb, True)
+zo("zegt dat ook de gratis test naar ChatGPT gaat",
+   "for the free visibility test and for the index" in pb, True)
 zo("noemt Google Fonts", "Google Fonts" in pb, True)
-zo("legt de toegang tot een webshop uit", "Als wij in je webshop werken" in pb, True)
-zo("biedt een verwerkersovereenkomst aan", "verwerkersovereenkomst" in pb, True)
+zo("legt de toegang tot een webshop uit", "When we work in your store" in pb, True)
+zo("biedt een verwerkersovereenkomst aan", "data processing agreement" in pb, True)
 zo("noemt het herkomstlabel in de browser", "utm_source" in pb, True)
+zo("noemt het doorsturen van mail", "ImprovMX" in pb, True)
 
 hr = open(os.path.join(MAP, "templates/herroepen.html"), encoding="utf-8").read()
-zo("herroepen noemt de uitvoering", "uitvoering in je webshop" in hr, True)
-zo("en het abonnement", "maandabonnement" in hr, True)
+zo("herroepen noemt het werk in de winkel", "work we do in your store" in hr, True)
+zo("en de eerste maand terug", "first month back" in hr, True)
 
 print("\n== de toegangsmail kent de platforms die op de site staan ==")
 import emailing

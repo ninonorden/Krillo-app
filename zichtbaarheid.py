@@ -98,13 +98,13 @@ def mag_starten():
     vandaag = db.tel_tests_vandaag()
     if vandaag >= MAX_TESTS_PER_DAG:
         return False, ("De gratis test is vandaag heel vaak gedaan en staat tot morgen uit. "
-                       "Mail hallo@krillo.nl, dan sturen we hem alsnog.")
+                       "Mail hello@krilloai.com, dan sturen we hem alsnog.")
 
     # De gewone rem: is de dag al helemaal op, dan gaat er sowieso niets meer.
     rem = kosten.mag_doorgaan()
     if not rem["mag"]:
         return False, ("De gratis test staat even uit. Probeer het later vandaag nog eens, "
-                       "of mail hallo@krillo.nl.")
+                       "of mail hello@krilloai.com.")
 
     # En de eigen, lagere grens, zodat er altijd budget overblijft voor de
     # metingen van klanten die ervoor betalen.
@@ -112,7 +112,7 @@ def mag_starten():
     uitgegeven = (db.kosten_vandaag() or {}).get("kosten") or 0
     if plafond and uitgegeven >= plafond:
         return False, ("De gratis test staat voor vandaag uit. Probeer het morgen nog eens, "
-                       "of mail hallo@krillo.nl.")
+                       "of mail hello@krilloai.com.")
     return True, None
 
 
