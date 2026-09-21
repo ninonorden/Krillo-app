@@ -263,15 +263,123 @@ def _tel_bezoek(antwoord):
         ua = (request.headers.get("User-Agent", "") or "").lower()
         if not ua or any(r in ua for r in BEZOEK_ROBOTS):
             return antwoord
-        db.noteer_bezoek(pad, herkomst=_herkomst(),
-                         bezoeker=_bezoeker_kenmerk(), apparaat=_apparaat())
+        # De gegevens NU uit het verzoek halen, want de achtergrondtaak
+        # hieronder draait buiten het verzoek en kan er dan niet meer bij.
+        gegevens = {"herkomst": _herkomst(), "bezoeker": _bezoeker_kenmerk(),
+                    "apparaat": _apparaat()}
+
+        # Het wegschrijven gebeurt op de achtergrond, sinds 19 september.
+        # Daarvoor wachtte elke bezoeker tot deze regel bij Neon in Frankfurt
+        # stond voordat hij zijn pagina kreeg, en als Neon net sliep kon dat
+        # seconden duren. Een teller mag nooit de reden zijn dat iemand wacht.
+        # Bij het testen wel meteen, want de test kijkt direct daarna in de tabel.
+        def _schrijf():
+            try:
+                db.noteer_bezoek(pad, **gegevens)
+            except Exception as fout:
+                print(f"Bezoek wegschrijven mislukt: {fout}")
+
+        if app.testing:
+            _schrijf()
+        else:
+            threading.Thread(target=_schrijf, daemon=True).start()
     except Exception as e:
         print(f"Bezoek tellen mislukt: {e}")
     return antwoord
 
 
+# ---------------------------------------------------------------------------
+# DE HOMEPAGE ONTHOUDT ZIJN CIJFERS, 19 september 2026
+#
+# Wat er misging: Google Search Console kon krilloai.com niet verifieren, met
+# de melding "time-out bij de verbinding met uw server". Nino zag hetzelfde als
+# bezoeker: tien seconden voordat de homepage er stond.
+#
+# De oorzaak: elk bezoek aan de homepage stelde 24 vragen aan de database. Bij
+# het testen merk je dat niet, want daar staat de database op dezelfde machine
+# en duren 24 vragen samen 12 milliseconden. Live staat de database bij Neon in
+# Frankfurt en is elke vraag een reis over het internet. Bovendien valt Neon op
+# een klein plan na een paar minuten stilte in slaap, en de eerste bezoeker
+# daarna moet hem wakker maken. Vierentwintig keer.
+#
+# Terwijl die cijfers maar EEN KEER PER NACHT veranderen, na de meting.
+#
+# Wat er nu gebeurt: de cijfers worden onthouden. Een bezoeker krijgt altijd
+# meteen de onthouden versie. Is die ouder dan THUIS_VERS_SECONDEN, dan wordt hij
+# op de achtergrond ververst, zonder dat iemand daarop wacht. Alleen de allereerste
+# bezoeker na een herstart wacht een keer op de database.
+#
+# Waarom niet gewoon tien minuten onthouden en dan opnieuw opvragen: dan is om
+# de tien minuten een bezoeker de klos, en dat is precies de bezoeker die Neon
+# net in slaap heeft zien vallen. Zo wacht er nooit iemand op het verversen.
+# ---------------------------------------------------------------------------
+THUIS_VERS_SECONDEN = int(os.environ.get("THUIS_VERS_SECONDEN", "600"))
+
+# Bij het testen staat het onthouden uit. Tests vullen de database en kijken
+# daarna meteen of de homepage het laat zien; met een geheugen ertussen zien ze
+# de stand van een vorige test. Een test die het geheugen zelf wil bewaken zet
+# dit op True (zie tests/test_snelheid.py).
+THUIS_ONTHOUDEN = None  # None: aan, behalve bij het testen
+
+_thuis = {"waarde": None, "op": 0.0, "bezig": False}
+_thuis_slot = threading.Lock()
+
+
+def _thuis_onthouden_aan():
+    if THUIS_ONTHOUDEN is not None:
+        return THUIS_ONTHOUDEN
+    return not app.testing
+
+
+def _ververs_thuis():
+    """Rekent de homepage opnieuw uit en onthoudt het resultaat."""
+    try:
+        waarde = _bereken_thuis()
+        op = time.time()
+        # Kwam er geen index uit, omdat de database even weg was of omdat er
+        # nog niets gemeten is, dan niet tien minuten lang die lege versie
+        # laten zien. Over een minuut opnieuw proberen.
+        if not waarde.get("index"):
+            op = op - THUIS_VERS_SECONDEN + 60
+        _thuis.update(waarde=waarde, op=op)
+        return waarde
+    finally:
+        _thuis["bezig"] = False
+
+
+def _thuisgegevens():
+    if not _thuis_onthouden_aan():
+        return _bereken_thuis()
+    if _thuis["waarde"] is None:
+        # De allereerste keer na een herstart is er niets om te laten zien,
+        # dan wacht deze ene bezoeker wel.
+        with _thuis_slot:
+            if _thuis["waarde"] is None:
+                _thuis["bezig"] = True
+                return _ververs_thuis()
+        return _thuis["waarde"]
+    if time.time() - _thuis["op"] > THUIS_VERS_SECONDEN:
+        with _thuis_slot:
+            starten = not _thuis["bezig"]
+            if starten:
+                _thuis["bezig"] = True
+        if starten:
+            threading.Thread(target=_ververs_thuis, daemon=True).start()
+    return _thuis["waarde"]
+
+
 @app.route("/")
 def home():
+    g = _thuisgegevens()
+    return render_template("index.html",
+                           gescand=g["gescand"],
+                           index=g["index"],
+                           eigen_cijfer=g["eigen_cijfer"])
+
+
+def _bereken_thuis():
+    """Alles wat de homepage uit de database nodig heeft. Wordt onthouden, zie
+    de uitleg bij THUIS_VERS_SECONDEN hierboven."""
     # Het aantal gescande webshops als sociaal bewijs. Onder een ondergrens
     # laten wij het weg: "wij scanden al 3 webshops" is slechter dan niets, want
     # het zegt precies hoe klein je bent op de plek waar je vertrouwen wilt
@@ -349,10 +457,9 @@ def home():
     except Exception as e:
         print(f"Index op homepage overslaan: {e}")
 
-    return render_template("index.html",
-                           gescand=gescand if gescand >= MINIMUM_VOOR_TELLER else None,
-                           index=index,
-                           eigen_cijfer=_eigen_benchmarkcijfer())
+    return {"gescand": gescand if gescand >= MINIMUM_VOOR_TELLER else None,
+            "index": index,
+            "eigen_cijfer": _eigen_benchmarkcijfer()}
 
 
 def _eigen_benchmarkcijfer():
