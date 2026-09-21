@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Je aankoop herroepen | Krillo</title>
+<title>Withdraw your purchase | Krillo</title>
 <link rel="canonical" href="{{ basis_url }}/herroepen">
-<meta name="description" content="Herroep hier je aankoop bij Krillo. Vul je gegevens in en we handelen het binnen veertien dagen af.">
+<meta name="description" content="Withdraw your purchase from Krillo. Fill in your details and we handle it within fourteen days.">
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -81,32 +81,32 @@
 <nav><div class="wrap"><a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a></div></nav>
 
 <main>
-  <h1>Je aankoop herroepen</h1>
-  <p class="intro">Wil je je aankoop ongedaan maken, vul dan dit formulier in. Je hoeft geen reden op te geven.</p>
+  <h1>Withdraw your purchase</h1>
+  <p class="intro">Want to undo your purchase? Fill in this form. You do not have to give a reason.</p>
 
   <div class="uitleg">
-    <strong>Goed om te weten</strong>
-    Als consument heb je veertien dagen bedenktijd. Bij de audit vervalt dat recht zodra de audit volledig geleverd is, en alleen als je daar bij het bestellen uitdrukkelijk mee akkoord bent gegaan. Bij de uitvoering in je webshop geldt hetzelfde: het recht vervalt zodra het werk af is. Herroep je terwijl we halverwege zijn, dan betaal je alleen het deel dat we al gedaan hebben. Bij het maandabonnement heb je gewoon veertien dagen bedenktijd en krijg je je geld terug. Twijfel je of dat op jou van toepassing is, vul dit formulier dan gewoon in, dan kijken we ernaar en laten we het je weten.
+    <strong>Good to know</strong>
+    If you cancel within fourteen days of your first payment, you get that first month back, whether you are a consumer or a business. As a consumer you also have a legal cooling-off period of fourteen days. For work we do in your store (Fix), that right ends once the work is fully delivered, and only if you explicitly agreed to that when ordering. If you withdraw while we are halfway, you only pay for the part we already did. Not sure whether this applies to you? Just fill in the form, we will look at it and let you know.
   </div>
 
   <div class="veld">
-    <label for="hEmail">E-mailadres waarmee je hebt besteld</label>
-    <input type="email" id="hEmail" placeholder="jij@jouwwebshop.nl">
+    <label for="hEmail">Email address you ordered with</label>
+    <input type="email" id="hEmail" placeholder="you@yourstore.com">
   </div>
   <div class="veld">
-    <label for="hUrl">Webshop-URL uit je bestelling <span class="optioneel">(als je die nog weet)</span></label>
-    <input type="text" id="hUrl" placeholder="jouwwebshop.nl">
+    <label for="hUrl">Store address from your order <span class="optioneel">(if you remember it)</span></label>
+    <input type="text" id="hUrl" placeholder="yourstore.com">
   </div>
   <div class="veld">
-    <label for="hToelichting">Toelichting <span class="optioneel">(niet verplicht)</span></label>
-    <textarea id="hToelichting" placeholder="Bijvoorbeeld welke bestelling het betreft."></textarea>
+    <label for="hToelichting">Note <span class="optioneel">(optional)</span></label>
+    <textarea id="hToelichting" placeholder="For example which order this is about."></textarea>
   </div>
 
-  <button class="knop" id="hVerstuur">Herroeping versturen</button>
+  <button class="knop" id="hVerstuur">Send withdrawal</button>
   <div class="melding" id="hMelding"></div>
 </main>
 
-<footer>© 2026 Krillo &middot; <a href="mailto:hallo@krillo.nl">hallo@krillo.nl</a> &middot; <a href="/voorwaarden">Algemene voorwaarden</a></footer>
+<footer>© 2026 Krillo &middot; <a href="mailto:hello@krilloai.com">hello@krilloai.com</a> &middot; <a href="/voorwaarden">Terms and conditions</a></footer>
 
 <script>
 (function(){
@@ -117,11 +117,11 @@
     var email = document.getElementById('hEmail').value.trim();
     if(!email){
       melding.className = 'melding fout';
-      melding.textContent = 'Vul het e-mailadres in waarmee je hebt besteld.';
+      melding.textContent = 'Fill in the email address you ordered with.';
       return;
     }
     knop.disabled = true;
-    knop.textContent = 'Bezig...';
+    knop.textContent = 'Sending...';
     fetch('/api/herroepen', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -135,20 +135,20 @@
     .then(function(res){
       if(!res.ok){
         melding.className = 'melding fout';
-        melding.textContent = res.data.error || 'Er ging iets mis. Mail anders naar hallo@krillo.nl.';
+        melding.textContent = res.data.error || 'Something went wrong. Email hello@krilloai.com instead.';
         knop.disabled = false;
-        knop.textContent = 'Herroeping versturen';
+        knop.textContent = 'Send withdrawal';
         return;
       }
       melding.className = 'melding goed';
-      melding.textContent = 'Je herroeping is ontvangen. Je krijgt een bevestiging per e-mail. We handelen dit binnen veertien dagen af en storten een eventueel betaald bedrag terug op dezelfde manier als je hebt betaald.';
-      knop.textContent = 'Verstuurd';
+      melding.textContent = 'We received your withdrawal. You get a confirmation by email. We handle it within fourteen days and refund any amount you paid in the same way you paid.';
+      knop.textContent = 'Sent';
     })
     .catch(function(){
       melding.className = 'melding fout';
-      melding.textContent = 'Er ging iets mis. Mail anders naar hallo@krillo.nl.';
+      melding.textContent = 'Something went wrong. Email hello@krilloai.com instead.';
       knop.disabled = false;
-      knop.textContent = 'Herroeping versturen';
+      knop.textContent = 'Send withdrawal';
     });
   });
 })();

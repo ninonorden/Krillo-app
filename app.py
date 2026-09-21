@@ -588,7 +588,7 @@ def api_herroepen():
     webshop_url = scan_engine.normalize_url((data.get("url") or "").strip())
     toelichting = (data.get("toelichting") or "").strip()
     if not email:
-        return jsonify({"error": "Vul het e-mailadres in waarmee je hebt besteld."}), 400
+        return jsonify({"error": "Fill in the email address you ordered with."}), 400
 
     nummer = db.leg_herroeping_vast(email, webshop_url, toelichting)
     if nummer is None:
@@ -598,9 +598,9 @@ def api_herroepen():
         print(f"HERROEPING NIET VASTGELEGD voor {email} ({webshop_url}). "
               f"Toelichting: {toelichting}")
         return jsonify({
-            "error": "Het opslaan is niet gelukt. Mail je herroeping naar "
-                     "hallo@krillo.nl, dan verwerken we hem handmatig. "
-                     "Je herroepingsrecht blijft gewoon geldig."
+            "error": "Saving did not work. Email your withdrawal to "
+                     "hello@krilloai.com and we will handle it by hand. "
+                     "Your right of withdrawal stays valid."
         }), 500
     emailing.send_herroeping_bevestiging(email, nummer, webshop_url)
     beheerder = os.environ.get("BEHEERDER_EMAIL")
@@ -617,7 +617,7 @@ def api_opzeggen(klant_token):
 
     abonnement = payments.zoek_abonnement(klant["webshop_url"])
     if abonnement is None:
-        return jsonify({"error": "We konden geen lopend abonnement vinden. Mail hallo@krillo.nl, dan zoeken we het uit."}), 400
+        return jsonify({"error": "We konden geen lopend abonnement vinden. Mail hello@krilloai.com, dan zoeken we het uit."}), 400
 
     resultaat = payments.zeg_abonnement_op(abonnement["customer_id"], abonnement["subscription_id"])
     if "error" in resultaat:
@@ -817,24 +817,24 @@ door Krillo laten uitvoeren.
 """ + prijsregels + """
 
 ## Belangrijke pagina's
-- Homepage, gratis check en gratis zichtbaarheidstest: https://www.krillo.nl/
+- Homepage, gratis check en gratis zichtbaarheidstest: https://krilloai.com/
 - De openbare index: alle gemeten categorieen en ranglijsten, gratis te lezen
-  zonder account: https://www.krillo.nl/index
-- Voorbeeld van een klantdashboard, zonder account: https://www.krillo.nl/demo
-- Artikelen over AI-zichtbaarheid: https://www.krillo.nl/artikelen
-- Hoe we meten: https://www.krillo.nl/zo-meten-we
-- Veelgestelde vragen: https://www.krillo.nl/veelgestelde-vragen
-- Over Krillo en contact: https://www.krillo.nl/over-ons
-- Onderzoek naar AI-antwoorden over Nederlandse webshops: https://www.krillo.nl/onderzoek
+  zonder account: https://krilloai.com/index
+- Voorbeeld van een klantdashboard, zonder account: https://krilloai.com/demo
+- Artikelen over AI-zichtbaarheid: https://krilloai.com/artikelen
+- Hoe we meten: https://krilloai.com/zo-meten-we
+- Veelgestelde vragen: https://krilloai.com/veelgestelde-vragen
+- Over Krillo en contact: https://krilloai.com/over-ons
+- Onderzoek naar AI-antwoorden over Nederlandse webshops: https://krilloai.com/onderzoek
 
 ## Artikelen
 """ + "\n".join(
-        f"- {a['titel']}: https://www.krillo.nl/artikelen/{a['slug']}"
+        f"- {a['titel']}: https://krilloai.com/artikelen/{a['slug']}"
         for a in artikelen.ARTIKELEN
     ) + """
 
 ## Contact
-hallo@krillo.nl
+hello@krilloai.com
 """
     # Alle adressen in een keer naar het huidige domein trekken.
     #
@@ -844,11 +844,11 @@ hallo@krillo.nl
     # accolade over het hoofd ziet en de pagina stil omvalt. Een vervanging
     # achteraf raakt alleen de adressen en laat de rest met rust.
     #
-    # Het MAILADRES blijft bewust hallo@krillo.nl: dat adres bestaat en werkt,
+    # Het MAILADRES blijft bewust hello@krilloai.com: dat adres bestaat en werkt,
     # en hello@krilloai.com nog niet. Een adres op de site zetten waar niets
     # aankomt is erger dan een adres op het oude domein.
     basis = get_base_url().rstrip("/")
-    inhoud = inhoud.replace("https://www.krillo.nl", basis)
+    inhoud = inhoud.replace("https://krilloai.com", basis)
     return Response(inhoud, mimetype="text/plain")
 
 
@@ -1074,7 +1074,7 @@ def api_voorproef():
 
     # Zonder e-mailadres, dus met een vaste plaatsaanduiding. Dat is geen
     # persoonsgegeven en er gaat nooit mail heen.
-    aanvraag = db.start_zichtbaarheidstest(url, "voorproef@krillo.nl", False, _herkomst(),
+    aanvraag = db.start_zichtbaarheidstest(url, "voorproef@krilloai.com", False, _herkomst(),
                                            soort="voorproef")
     if not aanvraag:
         return jsonify({"status": "uit"}), 200
@@ -1282,7 +1282,7 @@ def checkout_monitoring():
         if payments.zoek_abonnement(webshop_url):
             return jsonify({
                 "error": "Op deze webshop loopt al een abonnement. Kijk in je mail naar "
-                         "je eigen pagina, of mail hallo@krillo.nl als je die kwijt bent."
+                         "je eigen pagina, of mail hello@krilloai.com als je die kwijt bent."
             }), 400
     except Exception as e:
         # Kunnen wij het niet nakijken, dan gaan wij door. Iemand tegenhouden
@@ -5566,7 +5566,7 @@ def shopify_start():
             "fout.html",
             titel="De Shopify-app is nog niet actief",
             bericht=("We zijn de app aan het klaarzetten. Probeer het later opnieuw, "
-                     "of mail hallo@krillo.nl.")), 503
+                     "of mail hello@krilloai.com.")), 503
 
     # Geval 1: Shopify heeft het installeren zelf gedaan en stuurt ons een
     # kaartje mee. Dan is dit geen installatiepagina maar het scherm van de app.
@@ -5579,7 +5579,7 @@ def shopify_start():
             return render_template(
                 "fout.html", titel="We konden je winkel niet openen",
                 bericht=("Verwijder de app en installeer hem opnieuw. Blijft het "
-                         "misgaan, mail dan hallo@krillo.nl.")), 502
+                         "misgaan, mail dan hello@krilloai.com.")), 502
         return _shopify_scherm(echte_winkel, rij)
 
     if not winkel:
@@ -5587,7 +5587,7 @@ def shopify_start():
             "fout.html",
             titel="Installeren vanuit je Shopify-winkel",
             bericht=("Deze pagina hoort geopend te worden vanuit de Shopify App Store "
-                     "of vanuit je eigen beheerscherm. Ga naar krillo.nl als je wilt "
+                     "of vanuit je eigen beheerscherm. Ga naar krilloai.com als je wilt "
                      "zien wat Krillo doet.")), 400
 
     if not shopify_app.geldige_winkel(winkel):
@@ -5613,7 +5613,7 @@ def shopify_start():
     if not link:
         return render_template(
             "fout.html", titel="Installeren lukt nu niet",
-            bericht="Probeer het zo nog eens, of mail hallo@krillo.nl."), 503
+            bericht="Probeer het zo nog eens, of mail hello@krilloai.com."), 503
 
     # NIET met een gewone doorverwijzing. Shopify weigert zijn eigen
     # toestemmingspagina in een venster binnen het beheerscherm, en dan ziet de
@@ -6029,7 +6029,7 @@ def shopify_callback():
         print(f"Shopify-sleutel ophalen mislukt voor {winkel}: {uitkomst.get('fout')}")
         return render_template(
             "fout.html", titel="Installeren is niet gelukt",
-            bericht="Probeer het nog eens. Blijft het misgaan, mail dan hallo@krillo.nl."), 502
+            bericht="Probeer het nog eens. Blijft het misgaan, mail dan hello@krilloai.com."), 502
 
     sleutel = uitkomst["sleutel"]
     gegevens = shopify_app.winkelgegevens(winkel, sleutel) or {}
@@ -6047,7 +6047,7 @@ def shopify_callback():
         print(f"LET OP: Shopify-winkel {winkel} is NIET opgeslagen.")
         return render_template(
             "fout.html", titel="Installeren is half gelukt",
-            bericht="Verwijder de app en installeer hem opnieuw, of mail hallo@krillo.nl."), 500
+            bericht="Verwijder de app en installeer hem opnieuw, of mail hello@krilloai.com."), 500
 
     # De taal en het land van de winkel vastleggen. Vergeet je dit, dan valt
     # alles terug op Nederlands en krijgt een winkel in Texas dertig Nederlandse
@@ -6380,7 +6380,7 @@ def bedankt():
             title="The payment was not completed",
             message=("Nothing was charged. That happens: cancelled, refused by the bank, "
                      "or expired. You can simply try again."),
-            note="Stuck every time? Email hallo@krillo.nl and we sort it out by hand.")
+            note="Stuck every time? Email hello@krilloai.com and we sort it out by hand.")
 
     if checkout_type == "monitoring":
         return render_template(
@@ -6390,7 +6390,7 @@ def bedankt():
                      "within about fifteen minutes you get an email with the link to your "
                      "own page. That page says what to do first."),
             note=("If nothing was charged and no email arrives, the payment was not "
-                  "completed. You can simply try again, or email hallo@krillo.nl."))
+                  "completed. You can simply try again, or email hello@krilloai.com."))
     if checkout_type == "uitvoering":
         return render_template(
             "bedankt.html", gelukt=betaald,
@@ -6401,7 +6401,7 @@ def bedankt():
                      "minutes."),
             note=("Nothing received? Check your spam folder first. If nothing was charged "
                   "either, the payment was not completed and you can try again. Otherwise "
-                  "email hallo@krillo.nl."))
+                  "email hello@krilloai.com."))
     return render_template(
         "bedankt.html", gelukt=betaald,
         title="Your payment went through Mollie",
@@ -6409,7 +6409,7 @@ def bedankt():
                  "audit by email within a few minutes."),
         note=("Nothing received? Check your spam folder first. If nothing was charged "
               "either, the payment was not completed and you can try again. Otherwise "
-              "email hallo@krillo.nl."))
+              "email hello@krilloai.com."))
 
 
 if __name__ == "__main__":

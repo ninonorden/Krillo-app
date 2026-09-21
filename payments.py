@@ -229,7 +229,7 @@ def zeg_abonnement_op(customer_id, subscription_id):
         return {"ok": True}
     except (MollieError, Exception) as e:
         print(f"Abonnement opzeggen mislukt: {e}")
-        return {"error": "Het opzeggen is niet gelukt. Mail hallo@krillo.nl, dan regelen we het handmatig."}
+        return {"error": "Het opzeggen is niet gelukt. Mail hello@krilloai.com, dan regelen we het handmatig."}
 
 
 def _zet_terugkeerlink_met_kenmerk(client, payment, base_url, soort):

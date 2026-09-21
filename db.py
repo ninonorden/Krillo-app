@@ -3546,7 +3546,14 @@ def leads_om_op_te_volgen(na_dagen=3, hoeveel=5):
     klant krijgt zijn eigen wekelijkse post al.
 
     Per e-mailadres maar een keer, ook als iemand drie winkels getest heeft.
-    Drie mails op een dag naar hetzelfde adres is hoe je in de spammap komt."""
+    Drie mails op een dag naar hetzelfde adres is hoe je in de spammap komt.
+
+    EN ALLEEN WIE HET VINKJE ZETTE (sinds 21 september). Tot dan kreeg ook
+    iemand die het vinkje "jullie mogen me later iets sturen" leeg liet deze
+    herinnering. Het privacybeleid zegt al sinds augustus: zonder dat vinkje
+    krijg je alleen je uitslag en verder niets. Een herinnering die verkoopt
+    is een reclamemail, en daarvoor is toestemming nodig. Gevonden door de
+    controle van de juridische teksten tegen de code."""
     conn = _get_connection()
     if conn is None:
         return []
@@ -3559,6 +3566,7 @@ def leads_om_op_te_volgen(na_dagen=3, hoeveel=5):
                          FROM zichtbaarheidstests z
                     LEFT JOIN klanten k ON k.webshop_url = z.webshop_url
                         WHERE z.status = 'klaar'
+                          AND z.nieuwsbrief_akkoord = TRUE
                           AND z.opgevolgd_op IS NULL
                           AND z.email IS NOT NULL AND z.email <> ''
                           AND z.aangevraagd_op < now() - (%s || ' days')::interval

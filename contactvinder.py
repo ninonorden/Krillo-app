@@ -116,10 +116,17 @@ def _bruikbaar(adres, winkeldomein):
     if not (eigen_domein or vrij):
         return None
     # Algemeen of persoonlijk. Alleen het deel voor de @ telt.
-    kaal = re.split(r"[.\-_+0-9]", gebruiker)
-    if not any(deel in ALGEMEEN for deel in kaal if deel):
-        return {"adres": adres, "algemeen": False, "eigen_domein": eigen_domein}
-    return {"adres": adres, "algemeen": True, "eigen_domein": eigen_domein}
+    #
+    # ELK stuk moet algemeen zijn (of de naam van de winkel zelf), niet een
+    # stuk. Tot 21 september was een algemeen stuk genoeg, en dan telde
+    # jan.info@winkel.nl als algemeen adres: er zit "info" in. Dat is het adres
+    # van Jan. In Belgie mag je daar niet ongevraagd heen mailen, en het
+    # privacybeleid belooft dat wij nooit een adres met een naam erin gebruiken.
+    kaal = [d for d in re.split(r"[.\-_+0-9]", gebruiker) if d]
+    winkelnaam = (winkeldomein or "").split(".")[0]
+    algemeen = (any(deel in ALGEMEEN for deel in kaal)
+                and all(deel in ALGEMEEN or deel == winkelnaam for deel in kaal))
+    return {"adres": adres, "algemeen": algemeen, "eigen_domein": eigen_domein}
 
 
 def _uit_pagina(html, basis_url, winkeldomein):

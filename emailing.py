@@ -11,7 +11,7 @@ Vereist deze omgevingsvariabele in Render:
   (dit is een andere sleutel dan de SMTP-sleutel die we eerst gebruikten)
 
 Optioneel:
-- SMTP_FROM_EMAIL: het afzenderadres (standaard: hallo@krillo.nl)
+- SMTP_FROM_EMAIL: het afzenderadres (standaard: hello@krilloai.com)
 """
 
 from urllib.parse import quote
@@ -39,11 +39,11 @@ def send_email(to_email, subject, html_body, koppen=None):
         print("E-mail niet verstuurd: BREVO_API_KEY ontbreekt nog.")
         return False
 
-    from_email = os.environ.get("SMTP_FROM_EMAIL", "hallo@krillo.nl")
+    from_email = os.environ.get("SMTP_FROM_EMAIL", "hello@krilloai.com")
 
     # Waar een antwoord heen gaat. Onder elke mail staat "mail gewoon terug naar
     # dit adres", en dat moet waar zijn. Brevo verstuurt wel maar ontvangt niet:
-    # zonder MX-records op krillo.nl komt een antwoord op hallo@krillo.nl
+    # zonder MX-records op krillo.nl komt een antwoord op hello@krilloai.com
     # nergens aan, en dan is een klantvraag stilletjes weg.
     #
     # Zet SMTP_REPLY_TO in Render op een adres dat je echt leest, bijvoorbeeld
@@ -126,7 +126,7 @@ BEDRIJFSGEGEVENS = {
     "plaats": "1072 VW Amsterdam",
     "kvk": "78439620",
     "btw": "NL855820627B01",
-    "email": "hallo@krillo.nl",
+    "email": "hello@krilloai.com",
 }
 
 
@@ -203,21 +203,25 @@ def send_factuur_email(to_email, factuurnummer, omschrijving, bedrag, bedrijfsna
 
 def send_herroeping_bevestiging(to_email, nummer, webshop_url=None):
     """Bevestiging aan de klant dat zijn herroeping is ontvangen. Wettelijk
-    verplicht om te bevestigen, en het geeft de klant iets in handen."""
-    kenmerk = f"HR-{datetime.now().year}-{nummer:04d}" if nummer else "onbekend"
-    shop = f"<p style='font-size:13.5px; color:#3B3D57;'>Betreft: {webshop_url}</p>" if webshop_url else ""
+    verplicht om te bevestigen, en het geeft de klant iets in handen.
+
+    In het Engels sinds 21 september, net als het formulier op /herroepen.
+    Een Engels formulier met een Nederlandse bevestiging erachter is precies
+    het soort breuk waardoor iemand gaat twijfelen of het wel aangekomen is."""
+    kenmerk = f"HR-{datetime.now().year}-{nummer:04d}" if nummer else "unknown"
+    shop = f"<p style='font-size:13.5px; color:#3B3D57;'>Concerning: {veilig(webshop_url)}</p>" if webshop_url else ""
     body = f"""
-    <p style="font-size:14.5px;">We hebben je herroeping ontvangen op {datetime.now().strftime('%d-%m-%Y')}.</p>
+    <p style="font-size:14.5px;">We received your withdrawal on {datetime.now().strftime('%d-%m-%Y')}.</p>
     <div style="background:#F6F5F1; border-radius:10px; padding:16px 18px; margin:16px 0;">
-      <div style="font-family:'Courier New',monospace; font-size:11px; color:#3B3D57; text-transform:uppercase;">Kenmerk</div>
+      <div style="font-family:'Courier New',monospace; font-size:11px; color:#3B3D57; text-transform:uppercase;">Reference</div>
       <strong style="font-size:15px;">{kenmerk}</strong>
       {shop}
     </div>
-    <p style="font-size:14.5px;">We handelen dit binnen veertien dagen af. Heb je al betaald en heb je recht op terugbetaling, dan storten we het bedrag terug via dezelfde betaalmethode als waarmee je hebt betaald. Je hoeft verder niets te doen.</p>
-    <p style="font-size:13.5px; color:#3B3D57;">Klopt er iets niet, mail dan gewoon terug naar dit adres.</p>
+    <p style="font-size:14.5px;">We handle this within fourteen days. If you already paid and are entitled to a refund, we pay it back through the same payment method you used. You do not have to do anything else.</p>
+    <p style="font-size:13.5px; color:#3B3D57;">Something not right? Just reply to this email.</p>
     """
-    html = _base_html("Je herroeping is ontvangen", "Bedankt voor je bericht.", body)
-    return send_email(to_email, f"Bevestiging van je herroeping ({kenmerk})", html)
+    html = _base_html("We received your withdrawal", "Thank you for your message.", body)
+    return send_email(to_email, f"Confirmation of your withdrawal ({kenmerk})", html)
 
 
 def veilig(tekst):
@@ -249,7 +253,7 @@ def send_opzegging_bevestiging(to_email, webshop_url):
     body = f"""
     <p style="font-size:14.5px;">Je monitoring voor {webshop_url} is opgezegd.</p>
     <p style="font-size:14.5px;">Je houdt toegang tot het einde van de periode die je al betaald hebt. Daarna wordt er niets meer afgeschreven en stoppen de wekelijkse scans.</p>
-    <p style="font-size:13.5px; color:#3B3D57;">Wil je later weer starten, dan kan dat gewoon via krillo.nl. Je oude rapporten blijven bewaard.</p>
+    <p style="font-size:13.5px; color:#3B3D57;">Wil je later weer starten, dan kan dat gewoon via krilloai.com. Je oude rapporten blijven bewaard.</p>
     """
     html = _base_html("Je abonnement is opgezegd", "Bedankt dat je Krillo gebruikt hebt.", body)
     return send_email(to_email, "Bevestiging: je Krillo-abonnement is opgezegd", html)
@@ -325,35 +329,35 @@ TOEGANG_UITLEG = {
           medewerkers en het kost je niets.</li>""",
     "WooCommerce": """
       <li>Ga in WordPress naar Gebruikers, Nieuwe gebruiker.</li>
-      <li>Maak een gebruiker aan op toegang@krillo.nl met de rol Beheerder.</li>
+      <li>Maak een gebruiker aan op access@krilloai.com met de rol Beheerder.</li>
       <li>Vink aan dat WordPress de gebruiker een mail stuurt.</li>
       <li>Als we klaar zijn kun je die gebruiker gewoon verwijderen.</li>""",
     "WordPress": """
       <li>Ga in WordPress naar Gebruikers, Nieuwe gebruiker.</li>
-      <li>Maak een gebruiker aan op toegang@krillo.nl met de rol Beheerder.</li>
+      <li>Maak een gebruiker aan op access@krilloai.com met de rol Beheerder.</li>
       <li>Vink aan dat WordPress de gebruiker een mail stuurt.</li>
       <li>Als we klaar zijn kun je die gebruiker gewoon verwijderen.</li>""",
     "Lightspeed": """
       <li>Ga in je Lightspeed-beheerscherm naar Instellingen en dan Gebruikers.</li>
-      <li>Klik op een nieuwe gebruiker toevoegen en vul toegang@krillo.nl in.</li>
+      <li>Klik op een nieuwe gebruiker toevoegen en vul access@krilloai.com in.</li>
       <li>Geef die gebruiker rechten op producten, pagina's en instellingen. Rechten op
           bestellingen en klanten heb je ons niet te geven, die hebben we niet nodig.</li>
       <li>Als we klaar zijn kun je de gebruiker verwijderen.</li>""",
     "Shopware": """
       <li>Ga in je Shopware-beheerscherm naar Instellingen, Systeem, Gebruikers en rechten.</li>
-      <li>Maak een gebruiker aan op toegang@krillo.nl.</li>
+      <li>Maak een gebruiker aan op access@krilloai.com.</li>
       <li>Geef die gebruiker rechten op producten en inhoud. Bestellingen en klanten
           hoeven niet.</li>
       <li>Als we klaar zijn kun je de gebruiker verwijderen.</li>""",
     "CCV Shop": """
       <li>Ga in je CCV Shop-beheerscherm naar Instellingen en dan Gebruikers.</li>
-      <li>Maak een gebruiker aan op toegang@krillo.nl.</li>
+      <li>Maak een gebruiker aan op access@krilloai.com.</li>
       <li>Geef die gebruiker rechten op producten en pagina's. Bestellingen en klanten
           hoeven niet.</li>
       <li>Als we klaar zijn kun je de gebruiker verwijderen.</li>""",
     "PrestaShop": """
       <li>Ga in je PrestaShop-beheerscherm naar Geavanceerde instellingen, Team.</li>
-      <li>Maak een medewerker aan op toegang@krillo.nl.</li>
+      <li>Maak een medewerker aan op access@krilloai.com.</li>
       <li>Geef die medewerker rechten op catalogus en ontwerp. Bestellingen en klanten
           hoeven niet.</li>
       <li>Als we klaar zijn kun je de medewerker verwijderen.</li>""",
@@ -362,7 +366,7 @@ TOEGANG_UITLEG = {
 TOEGANG_ALGEMEEN = """
       <li>Geef ons een account in het beheerscherm van je webshop, met genoeg
           rechten om teksten en pagina's aan te passen. Ons adres is
-          toegang@krillo.nl.</li>
+          access@krilloai.com.</li>
       <li>Weet je niet hoe dat moet, mail dan terug met de naam van je
           webshopsysteem, dan sturen we de stappen voor jouw systeem.</li>
       <li>Laat je site door een bouwer beheren, stuur deze mail dan aan hem
@@ -531,7 +535,7 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
                     "en het is dezelfde dag weg.")
 
     g = BEDRIJFSGEGEVENS
-    afzender = os.environ.get("SMTP_FROM_EMAIL", "hallo@krillo.nl")
+    afzender = os.environ.get("SMTP_FROM_EMAIL", "hello@krilloai.com")
 
     # WAT ER IN HET KADER STAAT, EN WAAROM DAT OP 12 SEPTEMBER VERANDERD IS.
     #
@@ -946,12 +950,13 @@ def send_opvolging_gratis_test(to_email, webshop_url, site_url=None, taal="nl"):
             f"answers change from week to week. A store that gets named today can be gone "
             f"next month, without anything changing on your own site. It depends on what "
             f"AI reads about you elsewhere.</p>"
-            f"<p style='font-size:14.5px;'>If you want, we keep measuring every week and "
-            f"we fix what we find, in your store, ourselves. You see exactly what changed "
+            f"<p style='font-size:14.5px;'>If you want, we measure your category every month "
+            f"and we fix what we find, in your store, ourselves. You see exactly what changed "
             f"and you can put anything back.</p>"
             + _score_button(heen, "See what that costs")
             + "<p style='font-size:13px; color:#5B5850;'>Not interested? Then just ignore "
-              "this. You will not hear from us again about this.</p>"
+              "this. You will not hear from us again about this. Want no email from us "
+              "at all? Reply to this email and we remove your address.</p>"
         )
     else:
         onderwerp = f"Je Krillo-uitkomst voor {winkel}"
@@ -964,12 +969,13 @@ def send_opvolging_gratis_test(to_email, webshop_url, site_url=None, taal="nl"):
             f"veranderen per week. Een winkel die er vandaag bij staat kan er volgende maand "
             f"uit liggen, zonder dat er iets aan je eigen site verandert. Het hangt af van "
             f"wat AI elders over je leest.</p>"
-            f"<p style='font-size:14.5px;'>Wil je het bijhouden, dan meten wij elke week en "
+            f"<p style='font-size:14.5px;'>Wil je het bijhouden, dan meten wij je categorie elke maand en "
             f"zetten wij de verbeteringen er zelf in, in je eigen winkel. Je ziet precies "
             f"wat er veranderd is en je kunt alles terugdraaien.</p>"
             + _score_button(heen, "Bekijk wat dat kost")
             + "<p style='font-size:13px; color:#5B5850;'>Niet interessant? Dan laat je deze "
-              "gewoon liggen. Hier hoor je ons niet nog een keer over.</p>"
+              "gewoon liggen. Hier hoor je ons niet nog een keer over. Wil je helemaal geen "
+              "mail meer van ons? Antwoord op deze mail en we halen je adres weg.</p>"
         )
 
     html = _base_html(kop, f"Over {veilig(winkel)}.", body, taal=taal)
@@ -1236,8 +1242,9 @@ def send_shopify_bijgewerkt(to_email, webshop_url, wijzigingen, app_url=None, ta
         onderwerp = f"We filled in {aantal} thing{'s' if aantal != 1 else ''} in {winkel}"
         kop = f"We filled in {aantal} thing{'s' if aantal != 1 else ''} for you"
         inleiding = (f"Your plan covers this: we look at {winkel} every week and write the "
-                     f"text that is missing. Here is exactly what changed this week. We only "
-                     f"filled in empty places, we did not touch anything you wrote yourself.")
+                     f"text that is missing. Here is exactly what changed this week. We filled in "
+                     f"empty places and replaced product descriptions that were very short. "
+                     f"The old text is kept for every change.")
         slot = ("Not happy with one of these? Open Krillo and press Undo next to it, and it "
                 "goes back to how it was. You can also switch this off there if you would "
                 "rather approve every change yourself.")
@@ -1247,8 +1254,8 @@ def send_shopify_bijgewerkt(to_email, webshop_url, wijzigingen, app_url=None, ta
         kop = f"We hebben {aantal} ding{'en' if aantal != 1 else ''} voor je ingevuld"
         inleiding = (f"Dat hoort bij je abonnement: wij kijken elke week naar {winkel} en "
                      f"schrijven de tekst die ontbreekt. Hieronder staat precies wat er deze "
-                     f"week veranderd is. Wij hebben alleen lege plekken ingevuld en niets "
-                     f"aangeraakt wat jij zelf geschreven hebt.")
+                     f"week veranderd is. Wij hebben lege plekken ingevuld en heel korte "
+                     f"productteksten vervangen. Van elke wijziging bewaren wij de oude tekst.")
         slot = ("Ben je het ergens niet mee eens? Open Krillo en klik op Terugzetten "
                 "ernaast, dan staat het weer zoals het was. Je kunt het daar ook uitzetten "
                 "als je liever elke wijziging zelf goedkeurt.")

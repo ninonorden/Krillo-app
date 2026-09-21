@@ -34,7 +34,7 @@ TEKSTEN = {
         "wacht_tekst": ("We kunnen pas beginnen als we in je winkel kunnen. In de mail "
                         "die je na je betaling kreeg staat precies hoe je dat regelt, "
                         "het kost je twee minuten. Kwijtgeraakt of loopt het vast? Mail "
-                        "hallo@krillo.nl, dan helpen we je erdoorheen."),
+                        "hello@krilloai.com, dan helpen we je erdoorheen."),
         "bezig_kop": "We zijn bezig in je webshop",
         "bezig_tekst": ("Je hoeft nu even niets te doen. Zodra we klaar zijn krijg je een "
                         "overzicht van alles wat er veranderd is, met de oude tekst erbij, "
@@ -282,10 +282,10 @@ TEKSTEN = {
                               "met de beheersleutel."),
         "d_opzeg_bevestig": ("Weet je zeker dat je je abonnement wil opzeggen? Je houdt toegang "
                              "tot het einde van de al betaalde periode."),
-        "d_opzeg_mislukt": ("Het opzeggen is niet gelukt. Mail hallo@krillo.nl, dan regelen we "
+        "d_opzeg_mislukt": ("Het opzeggen is niet gelukt. Mail hello@krilloai.com, dan regelen we "
                             "het."),
         "d_opgezegd": "Opgezegd",
-        "d_opzeg_fout": "Er ging iets mis. Mail hallo@krillo.nl, dan regelen we het.",
+        "d_opzeg_fout": "Er ging iets mis. Mail hello@krilloai.com, dan regelen we het.",
     },
     "en": {
         "titel_bezig": "We are working on your store",
@@ -300,7 +300,7 @@ TEKSTEN = {
         "wacht_kop": "We are still waiting for access to your store",
         "wacht_tekst": ("We can only start once we can get into your store. The email you "
                         "received after your payment explains exactly how to arrange that, "
-                        "it takes two minutes. Lost it, or stuck? Email hallo@krillo.nl and "
+                        "it takes two minutes. Lost it, or stuck? Email hello@krilloai.com and "
                         "we will walk you through it."),
         "bezig_kop": "We are working in your store",
         "bezig_tekst": ("There is nothing for you to do right now. As soon as we are done "
@@ -531,10 +531,10 @@ TEKSTEN = {
                               "the admin key."),
         "d_opzeg_bevestig": ("Are you sure you want to cancel your subscription? You keep access "
                              "until the end of the period you already paid for."),
-        "d_opzeg_mislukt": ("Cancelling did not work. Email hallo@krillo.nl and we will sort it "
+        "d_opzeg_mislukt": ("Cancelling did not work. Email hello@krilloai.com and we will sort it "
                             "out."),
         "d_opgezegd": "Cancelled",
-        "d_opzeg_fout": "Something went wrong. Email hallo@krillo.nl and we will sort it out.",
+        "d_opzeg_fout": "Something went wrong. Email hello@krilloai.com and we will sort it out.",
     },
 }
 

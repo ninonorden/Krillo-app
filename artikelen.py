@@ -25,7 +25,7 @@ ARTIKELEN = [
             ("Waarom veel webshops onzichtbaar zijn", "De meeste webshops zijn gebouwd voor mensen, niet voor machines. Dat klinkt logisch, maar het heeft gevolgen. Een moderne webshop bouwt zijn inhoud vaak pas op nadat de pagina geladen is. Een bezoeker merkt daar niets van, maar de meeste AI-robots wachten daar niet op. Die zien een lege pagina en gaan verder."),
             ("", "Daar komt bij dat veel shops per ongeluk de robots buitensluiten die ChatGPT en Gemini gebruiken. Niet uit onwil, maar omdat in een instellingsbestand ooit een regel is gezet die alle onbekende bezoekers weert. Het gevolg is hetzelfde: je bestaat niet voor die assistent."),
             ("Wat je er zelf aan kan doen", "Begin met drie dingen. Check of je site AI-robots binnenlaat. Zorg dat je belangrijkste tekst gewoon in de pagina staat en niet pas later verschijnt. En geef je producten machine-leesbare informatie mee, zodat een assistent zeker weet wat iets is en wat het kost."),
-            ("", "Wil je weten hoe je er nu voor staat, dan kan je op krillo.nl gratis je webshop laten scannen. Je krijgt binnen een minuut je score en alle bevindingen te zien, zonder account en zonder betaalgegevens."),
+            ("", "Wil je weten hoe je er nu voor staat, dan kan je op krilloai.com gratis je webshop laten scannen. Je krijgt binnen een minuut je score en alle bevindingen te zien, zonder account en zonder betaalgegevens."),
         ],
     },
     {
@@ -57,7 +57,7 @@ ARTIKELEN = [
             ("Wat het oplevert", "Webshops met goede machine-leesbare productinformatie worden vaker en met meer zekerheid genoemd. Niet omdat een AI ze aardiger vindt, maar omdat hij bij die shops zeker weet wat hij zegt. Een assistent die twijfelt, kiest de bron waar hij niet over hoeft te twijfelen."),
             ("Waar het meestal misgaat", "Twee dingen zien we het vaakst. Ten eerste: de informatie staat wel op de productpagina's, maar niet op de homepage of de categoriepagina's. Ten tweede: er staat helemaal niets, meestal omdat het webshopsysteem het niet automatisch meestuurt en niemand het ooit heeft toegevoegd."),
             ("", "Gebruik je Shopify of WooCommerce, dan zit een deel hiervan er vaak al standaard in. Heb je een op maat gemaakte webshop, dan is de kans groter dat het ontbreekt, want dan moet iemand het bewust hebben ingebouwd."),
-            ("Hoe je erachter komt", "Je hoeft dit niet zelf uit te zoeken. Een gratis scan op krillo.nl checkt onder andere dit punt, en kijkt daarvoor ook op je product- en categoriepagina's, niet alleen op je homepage. Je ziet dan meteen of het er staat en waar het ontbreekt."),
+            ("Hoe je erachter komt", "Je hoeft dit niet zelf uit te zoeken. Een gratis scan op krilloai.com checkt onder andere dit punt, en kijkt daarvoor ook op je product- en categoriepagina's, niet alleen op je homepage. Je ziet dan meteen of het er staat en waar het ontbreekt."),
         ],
     },
     {
@@ -89,7 +89,7 @@ ARTIKELEN = [
             ("", "Kijk daarnaast in je bezoekersstatistieken of er verkeer binnenkomt vanaf chatgpt.com, perplexity.ai of gemini.google.com. Is dat er, dan word je al genoemd in AI-antwoorden. Is het er niet, dan zegt dat op zichzelf nog niet dat je nergens genoemd wordt: veel mensen lezen een aanbeveling en typen daarna je naam gewoon in."),
             ("Wat je er wel en niet aan kan doen", "Het eerlijke antwoord is dat je die klik niet terugkrijgt. Wat je wel kan doen is zorgen dat je in het antwoord staat. Word je genoemd, dan onthoudt iemand je naam en komt hij later alsnog, alleen niet meer via de weg die je gewend was te meten."),
             ("", "Dat begint bij drie dingen die je zelf kan controleren. Laat je site AI-robots binnen. Staat je belangrijkste tekst gewoon in de pagina, of verschijnt hij pas later? En kan een machine zien wat een product is, wat het kost en of het op voorraad ligt?"),
-            ("", "Wil je weten of je nu genoemd wordt, dan kan je dat op krillo.nl gratis laten testen. We stellen vijf koopvragen aan AI zoals een klant ze zou stellen, en je ziet bij hoeveel daarvan jouw winkel in het antwoord stond en welke winkels er wel stonden."),
+            ("", "Wil je weten of je nu genoemd wordt, dan kan je dat op krilloai.com gratis laten testen. We stellen vijf koopvragen aan AI zoals een klant ze zou stellen, en je ziet bij hoeveel daarvan jouw winkel in het antwoord stond en welke winkels er wel stonden."),
         ],
     },
     {
@@ -106,7 +106,7 @@ ARTIKELEN = [
             ("", "Een koper vraagt niet 'is winkel X goed'. Hij vraagt 'waar koop ik een goede regenjas voor op de fiets' en noemt jouw naam helemaal niet. Precies daar wil je weten of je in het antwoord staat."),
             ("Tel per vraag, niet per antwoord", "Nog iets waar je jezelf mee voor de gek kan houden. Als je dezelfde vraag aan twee assistenten stelt en je staat in allebei de antwoorden, dan is dat een vraag waarbij je genoemd wordt en niet twee. Reken je per antwoord, dan lijkt je uitkomst twee keer zo goed als hij is."),
             ("Genoemd is niet aanbevolen", "Let ten slotte op het verschil tussen erin voorkomen en aangeraden worden. 'Je kan ook eens bij X kijken' is iets anders dan 'de regenjassen van X zijn de beste keuze'. Alleen het tweede levert klanten op."),
-            ("", "Wil je dit niet handmatig doen, dan kan je op krillo.nl een gratis test draaien. Wij bedenken vijf koopvragen op basis van wat jij verkoopt, stellen die zonder voorgeschiedenis aan AI, en laten zien bij hoeveel vragen je genoemd werd en wie er nog meer stond."),
+            ("", "Wil je dit niet handmatig doen, dan kan je op krilloai.com een gratis test draaien. Wij bedenken vijf koopvragen op basis van wat jij verkoopt, stellen die zonder voorgeschiedenis aan AI, en laten zien bij hoeveel vragen je genoemd werd en wie er nog meer stond."),
         ],
     },
     {
