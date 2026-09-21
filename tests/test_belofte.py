@@ -1,6 +1,6 @@
 """Kloppen de beloftes op de prijskaart van de Shopify-app?
 
-Op die kaart staat wat iemand voor 39 dollar per maand koopt. Elke regel
+Op die kaart staat wat iemand voor Fix (165 dollar per maand) koopt. Elke regel
 daarvan hoort in de code te staan, en niet alleen op het scherm. Dit bestand
 loopt ze een voor een langs.
 
@@ -167,6 +167,14 @@ zo("met abonnement wel", len(mee), 1)
 zo("met het winkeladres erbij zodat de ronde kan aanvullen",
    mee[0].get("winkel"), WINKEL)
 zo("en het echte mailadres", mee[0]["email"], "eigenaar@testwinkel.nl")
+
+print("\n== alleen Fix wordt uit onszelf aangevuld ==")
+# Sinds 21 september zijn er twee plannen. Watch belooft de oplossingen om zelf
+# te doen, Fix belooft dat wij het doen. De wekelijkse ronde moet dat verschil
+# maken, anders krijgt Watch gratis wat Fix kost.
+bron_app = open(os.path.join(APP, "app.py"), encoding="utf-8").read()
+zo("de ronde vult alleen aan bij Fix",
+   'if c.get("winkel") and c.get("plan") == "fix":' in bron_app, True)
 
 print("\n== zonder mailadres gaat er geen post naar een verzonnen adres ==")
 # Hier stond eerder shopify@<winkel>. Dat ziet eruit als "we hebben hem bericht"

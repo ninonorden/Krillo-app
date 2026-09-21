@@ -174,7 +174,7 @@ bron = lees("app.py")
 klopt("de toegangsmail gaat ook bij monitoring uit",
       bron.count("emailing.send_uitvoering_welkom(") >= 2)
 klopt("en een mislukte toegangsmail breekt de betaling niet",
-      "Toegangsmail bij monitoring mislukt" in bron)
+      "Toegangsmail bij Fix mislukt" in bron)
 
 print("\n== de dagpot rekent met de JUISTE prijs per benadering ==")
 # Dit was een stille rem waar niemand om gevraagd had. De dagpot bepaalt hoeveel

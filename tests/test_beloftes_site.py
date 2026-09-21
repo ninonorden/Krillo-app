@@ -148,11 +148,13 @@ klopt("en de methodepagina zegt met zoveel woorden dat we geen resultaat beloven
 klopt("de voorwaarden ook", "we promise no result" in TEKSTEN.get("voorwaarden.html", "").lower())
 
 print("\n== de mails beloven hetzelfde als de site ==")
-klopt("de welkomstmail noemt de grens van drie ook in het engels",
-      "at most three things a week" in MAILS)
-klopt("en in het nederlands", "hoogstens drie dingen" in MAILS)
+# Sinds 21 september zijn alle klantmails Engels (stap 51) en meet het
+# abonnement per maand. De grens van drie staat nu per meetronde in de mail.
+klopt("de welkomstmail noemt de grens van drie",
+      "at most three" in " ".join(MAILS.split()))
+klopt("en belooft geen wekelijkse ronde meer", "three things a week" not in MAILS)
 klopt("de opleveringsmail waarschuwt dat AI tijd nodig heeft",
-      "voordat AI-modellen je nieuwe teksten hebben opgepikt" in " ".join(MAILS.split()))
+      "before AI models pick up new texts" in " ".join(MAILS.split()))
 klopt("de onderzoeksmail belooft alleen openbare informatie te gebruiken",
       "alleen openbare informatie van je website gebruikt en niets aan je site veranderd" in " ".join(MAILS.split()))
 

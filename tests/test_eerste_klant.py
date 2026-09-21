@@ -11,6 +11,10 @@ import os
 import re
 import sys
 
+# Sinds 21 september staan de oude kassa's dicht; deze test bewaakt de
+# adrescontrole erachter, dus hier gaat de deur bewust open.
+os.environ["OUDE_KASSA_AAN"] = "ja"
+
 HIER = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HIER)
 from pad import APP, TEMPLATES  # noqa: E402

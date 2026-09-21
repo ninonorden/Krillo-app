@@ -104,6 +104,12 @@ shop.abonnementen = [{"id": "gid://1", "name": "Krillo monitoring", "status": "A
 stand = shopify_billing.huidig_abonnement(WINKEL, SLEUTEL)
 zo("met abonnement wel actief", stand["actief"], True)
 zo("met de gegevens erbij", stand["abonnement"]["name"], "Krillo monitoring")
+# Het oude plan (van voor 21 september) telt als Fix: het gaf onbeperkt
+# toepassen en automatisch aanvullen. Een betalende mag nooit stil minder krijgen.
+zo("het oude plan telt als fix", stand["plan"], "fix")
+shop.abonnementen = [{"id": "gid://2", "name": "Krillo Watch", "status": "ACTIVE"}]
+zo("Watch wordt als watch herkend",
+   shopify_billing.huidig_abonnement(WINKEL, SLEUTEL)["plan"], "watch")
 
 shop.abonnementen = [{"id": "gid://1", "name": "Krillo monitoring", "status": "PENDING",
                       "test": False}]
@@ -129,10 +135,18 @@ uit = shopify_billing.start_abonnement(WINKEL, SLEUTEL, "https://www.krillo.nl/s
 zo("gelukt", uit["gelukt"], True)
 zo("met een bevestigingslink", uit["link"].startswith("https://"), True)
 v = shop.laatste_variabelen
-zo("de prijs klopt", v["bedrag"], "39.00")
+zo("standaard is het Fix, 165 dollar", v["bedrag"], "165.00")
+zo("met de naam van Fix", v["naam"], "Krillo Fix")
 zo("de valuta klopt", v["valuta"], "USD")
 zo("de proefperiode klopt", v["proefdagen"], 7)
 zo("het terugkeeradres is meegegeven", v["terugUrl"], "https://www.krillo.nl/shopify")
+
+shopify_billing.start_abonnement(WINKEL, SLEUTEL, "https://www.krillo.nl/shopify", plan="watch")
+zo("Watch kost 55 dollar", shop.laatste_variabelen["bedrag"], "55.00")
+zo("met de naam van Watch", shop.laatste_variabelen["naam"], "Krillo Watch")
+zo("een onbekend plan begint niets",
+   shopify_billing.start_abonnement(WINKEL, SLEUTEL, "https://k.nl/t", plan="goud")["gelukt"],
+   False)
 
 print("\n== testmodus staat standaard uit ==")
 zo("niet in testmodus", shopify_billing.testmodus(), False)
@@ -197,17 +211,23 @@ shop.abonnementen = []
 r = client.get("/shopify/api/abonnement")
 zo("de stand komt door", r.status_code, 200)
 zo("nog niet actief", r.get_json()["actief"], False)
-zo("met de prijs erbij", r.get_json()["prijs"], "39.00")
+zo("met de prijzen erbij", r.get_json()["prijzen"], {"watch": "55.00", "fix": "165.00"})
 
-r = client.post("/shopify/api/abonneren")
+zo("abonneren zonder plan wordt geweigerd",
+   client.post("/shopify/api/abonneren").status_code, 400)
+r = client.post("/shopify/api/abonneren", json={"plan": "fix"})
 zo("abonneren geeft een link", r.status_code, 200)
 zo("en die link is van Shopify",
    "myshopify.com" in r.get_json()["link"], True)
 
 shop.abonnementen = [{"id": "gid://1", "name": "Krillo monitoring", "status": "ACTIVE"}]
-r = client.post("/shopify/api/abonneren")
-zo("een tweede abonnement wordt geweigerd", r.status_code, 409)
-zo("met uitleg", "al een lopend" in r.get_json()["error"], True)
+r = client.post("/shopify/api/abonneren", json={"plan": "fix"})
+zo("hetzelfde plan nog een keer wordt geweigerd", r.status_code, 409)
+zo("met uitleg", "already on this plan" in r.get_json()["error"], True)
+r = client.post("/shopify/api/abonneren", json={"plan": "watch"})
+zo("wisselen naar een ander plan mag", r.status_code, 200)
+zo("zonder nieuwe proefperiode", r.get_json()["proefdagen"], 0)
+zo("en Shopify krijgt nul proefdagen", shop.laatste_variabelen["proefdagen"], 0)
 
 r = client.post("/shopify/api/opzeggen")
 zo("opzeggen lukt", r.status_code, 200)
@@ -223,6 +243,7 @@ mee = krillo._shopify_abonnees()
 zo("met abonnement wel in de ronde", len(mee), 1)
 zo("met het gewone webadres", mee[0]["webshop_url"], "https://testwinkel.nl")
 zo("en het mailadres van de winkel", mee[0]["email"], "eigenaar@testwinkel.nl")
+zo("en het plan, want alleen Fix wordt automatisch aangevuld", mee[0]["plan"], "fix")
 
 db.shopify_verwijderd(WINKEL)
 zo("een verwijderde app telt niet meer mee", krillo._shopify_abonnees(), [])
@@ -274,7 +295,15 @@ r = client.post("/shopify/api/toepassen", json={"ids": ["shopify:tekst:4"]})
 zo("nog een poging levert niets op", len(r.get_json()["gedaan"]), 0)
 zo("en schrijft ook niets", len(gezet), 3)
 
-print("\n== met een abonnement mag alles ==")
+print("\n== met Watch blijft het bij de gratis wijzigingen ==")
+# Watch is "de oplossingen uitgeschreven, om zelf te doen". Onbeperkt met een
+# klik toepassen is precies wat Fix meer kost. Lekt dat, dan koopt niemand Fix.
+shop.abonnementen = [{"id": "gid://2", "name": "Krillo Watch", "status": "ACTIVE"}]
+r = client.post("/shopify/api/toepassen", json={"ids": ["shopify:tekst:4"]})
+zo("met Watch gaat er niets meer in", len(r.get_json()["gedaan"]), 0)
+zo("en schrijft ook niets", len(gezet), 3)
+
+print("\n== met Fix mag alles ==")
 shop.abonnementen = [{"id": "gid://1", "name": "Krillo monitoring", "status": "ACTIVE"}]
 r = client.post("/shopify/api/toepassen",
                 json={"ids": [f"shopify:tekst:{i}" for i in range(4, 7)]})

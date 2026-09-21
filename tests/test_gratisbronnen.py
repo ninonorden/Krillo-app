@@ -158,7 +158,7 @@ klopt("met een kop die zegt waar het over gaat",
 klopt("en zet de namen door de ontsmetter", "veilig(g.titel" in pagina)
 mail = lees("emailing.py")
 klopt("de mail leest het veld uit", 'resultaat.get("bronnen")' in mail)
-klopt("en ontsmet de tekst die erin komt", "_html.escape(namen)" in mail)
+klopt("en ontsmet de tekst die erin komt", "veilig(namen)" in mail)
 klopt("het blok zit ook echt in de mail", "+ bronblok +" in mail)
 # De belofte onderaan moet blijven kloppen. Stond er eerst "we hebben je niet
 # verteld waarom het zo is", en dat is niet meer waar zodra dit erin zit.

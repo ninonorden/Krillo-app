@@ -157,7 +157,7 @@ zo("naar de klant", verstuurd[0]["to"], "eigenaar@voorbeeldwinkel.nl")
 zo("de oude tekst staat in de mail", "Bel ons voor vragen, ma t/m vr." in verstuurd[0]["html"], True)
 zo("en de nieuwe ook", "Blauwe emaille mok" in verstuurd[0]["html"], True)
 zo("bij een lege oude waarde staat er uitleg",
-   "dit is nieuw toegevoegd" in verstuurd[0]["html"], True)
+   "this is new" in verstuurd[0]["html"], True)
 zo("de opdracht staat nu op opgeleverd", db.get_uitvoeringen(WINKEL)[0]["stand"], "opgeleverd")
 
 print("\n== als de mail mislukt blijft de stand staan ==")

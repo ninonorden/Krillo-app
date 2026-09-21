@@ -135,9 +135,9 @@ klopt("de Engelse tekst is echt Engels", "dropped" in en and "plaats" not in en)
 klopt("het onderwerp verschilt per soort",
       meldingen.onderwerp(keuze, "Speelgoed") != meldingen.onderwerp(keuze_n, "Speelgoed"))
 
-print("\n== taal volgt het adres ==")
-zo("een .nl winkel krijgt Nederlands", meldingen._taal_van("https://winkel.nl"), "nl")
-zo("een .be winkel ook", meldingen._taal_van("https://winkel.be"), "nl")
+print("\n== een adres, een taal: het maandbericht is Engels (sinds 21 sep) ==")
+zo("een .nl winkel krijgt Engels", meldingen._taal_van("https://winkel.nl"), "en")
+zo("een .be winkel ook", meldingen._taal_van("https://winkel.be"), "en")
 zo("een .com winkel krijgt Engels", meldingen._taal_van("https://shop.com"), "en")
 
 # ---------------------------------------------------------------------------

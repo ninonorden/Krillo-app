@@ -56,7 +56,8 @@ print("\n== alle drie de manieren waarop iemand klant wordt ==")
 for soort, herkenning in (
         ("wij doen het", '_meld_nieuwe_klant("Wij doen het"'),
         ("monitoring via Mollie", '_meld_nieuwe_klant(\n                        "Abonnement"'),
-        ("monitoring via de Shopify-app", '"Monitoring via de Shopify-app"')):
+        # Sinds 21 september twee plannen in de app; de naam komt uit het plan.
+        ("een plan via de Shopify-app", "f\"{plan_nu['naam']} via de Shopify-app\"")):
     klopt(f"{soort} geeft een bericht", herkenning in bron)
 
 print("\n== bij wij doen het staat erbij waar hij op draait ==")

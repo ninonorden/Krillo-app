@@ -9,6 +9,10 @@ import os
 import sys
 import types
 
+# Sinds 21 september staan de oude kassa's (audit, eenmalige uitvoering) dicht.
+# Deze test bewaakt de betaalketen erachter, die Fix ook gebruikt, dus hier
+# gaat de deur bewust open. Dat de deur standaard dicht is bewaakt test_mails.
+os.environ["OUDE_KASSA_AAN"] = "ja"
 os.environ["DATABASE_URL"] = "postgresql://krillo@/postgres?host=/tmp&port=5599"
 os.environ["ADMIN_KEY"] = "testsleutel"
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

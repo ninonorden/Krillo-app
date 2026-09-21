@@ -294,7 +294,8 @@ print("\n== het scherm is Engels en legt uit wat het doet ==")
 p = client.get("/shopify?id_token=" + maak_kaartje(winkel="ustest.myshopify.com")).get_data(as_text=True)
 for moet in ["Does ChatGPT mention your store?", "How it works", "Plans",
              "Questions people ask us", "Does this change anything in my store?",
-             "Will this get me mentioned by ChatGPT?", "$39", "Cancel any time"]:
+             "Will this get me mentioned by ChatGPT?", "$55", "$165", "Watch", "Fix",
+             "Cancel any time"]:
     zo(f"bevat {moet!r}", moet in p, True)
 zo("noemt de taal van deze winkel", "English (US)" in p, True)
 zo("belooft geen vermeldingen", "We cannot promise that" in p, True)

@@ -339,30 +339,35 @@ def _winkelnaam(webshop_url):
 
 
 def samenvattingszin(resultaat, webshop_url=None):
-    """De ene zin die bovenaan de uitslag staat en in de mail.
+    """De ene zin die bovenaan de uitslag staat, op de pagina en in de mail.
+
+    In het Engels sinds 21 september: de pagina is Engels, en deze zin stond er
+    als enige Nederlandse regel tussen.
 
     Geen percentages en geen opsmuk. Als het slecht is, staat dat er gewoon,
     want dat is precies waarom iemand hierna verder klikt."""
     if not resultaat:
-        return "De test kon niet afgemaakt worden."
+        return "The test could not be completed."
 
     telbaar = resultaat.get("telbaar") or 0
     genoemd = resultaat.get("genoemd") or 0
     aanbevolen = resultaat.get("aanbevolen") or 0
-    modellen = " en ".join(resultaat.get("modellen") or []) or "AI"
+    modellen = " and ".join(resultaat.get("modellen") or []) or "AI"
 
     if not telbaar:
-        return ("Bij deze vragen noemde AI helemaal geen winkels, dus er valt over deze ronde "
-                "niets te zeggen. Dat gebeurt soms.")
+        return ("For these questions AI named no stores at all, so there is nothing to say "
+                "about this round. That happens sometimes.")
 
     if genoemd == 0:
-        return (f"Je werd bij geen van de {telbaar} koopvragen genoemd door {modellen}. "
-                f"Bij vragen waar wel winkels genoemd werden, stond jij er niet bij.")
+        return (f"{modellen} did not name you in any of the {telbaar} buying questions. "
+                f"Where stores were named, you were not among them.")
 
     if aanbevolen:
-        return (f"Je werd bij {genoemd} van de {telbaar} koopvragen genoemd door {modellen}, "
-                f"en bij {aanbevolen} daarvan ook echt aanbevolen.")
+        return (f"{modellen} named you in {genoemd} of the {telbaar} buying questions, "
+                f"and really recommended you in {aanbevolen} of them.")
 
-    return (f"Je werd bij {genoemd} van de {telbaar} koopvragen genoemd door {modellen}, "
-            f"maar bij geen enkele echt aanbevolen. Genoemd worden is niet hetzelfde als "
-            f"aangeraden worden.")
+    return (f"{modellen} named you in {genoemd} of the {telbaar} buying questions, "
+            f"but did not really recommend you in any. Being named is not the same as "
+            f"being recommended.")
+
+

@@ -298,13 +298,13 @@ def bericht(webshop_url, uitkomst, controle_samenvatting=None, taal="nl"):
         if engels:
             regels.append(
                 f"On top of that, AI says something about your store {aantal} times that does not "
-                f"match what your site says. That is on your monitoring page, with the sentence "
+                f"match what your site says. That is on your dashboard, with the sentence "
                 f"itself."
             )
         else:
             regels.append(
                 f"Daarnaast zegt AI {aantal} keer iets over je winkel dat niet klopt met wat er op "
-                f"je site staat. Dat staat op je monitoringpagina, met de zin erbij."
+                f"je site staat. Dat staat op je dashboard, met de zin erbij."
             )
 
     return "\n\n".join(regels) if regels else None

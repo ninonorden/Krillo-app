@@ -130,7 +130,8 @@ nl_mail = laatste()
 emailing.send_audit_email("a@b.nl", "https://winkel.nl", SCAN, [], "https://k.nl/r/x",
                           taal="en")
 en_mail = laatste()
-zo("het onderwerp verschilt", nl_mail["onderwerp"] != en_mail["onderwerp"], True)
+# Sinds 21 september Engels, welke taal er ook meegegeven wordt.
+zo("ook zonder taal is het onderwerp engels", nl_mail["onderwerp"], en_mail["onderwerp"])
 zo("het engelse onderwerp is engels", lijkt_engels(en_mail["onderwerp"])
    or not lijkt_nederlands(en_mail["onderwerp"]), True)
 zo("de body is engels", lijkt_engels(en_mail["html"]), True)
@@ -145,22 +146,15 @@ nl_mail = laatste()
 emailing.send_monitoring_welcome_email("a@b.nl", "https://winkel.nl", SCAN, "https://k.nl/m/x",
                                        taal="en")
 en_mail = laatste()
-zo("de body verschilt", nl_mail["html"] != en_mail["html"], True)
+# Sinds 21 september is elke klantmail Engels, wat de taal ook zegt.
+zo("ook zonder taal is hij engels", lijkt_engels(nl_mail["html"]), True)
 zo("de engelse is engels", lijkt_engels(en_mail["html"]), True)
 zo("zonder gedachtestreepjes", "—" in en_mail["html"], False)
 zo("de link staat er in beide in",
    "https://k.nl/m/x" in nl_mail["html"] and "https://k.nl/m/x" in en_mail["html"], True)
 
-print("\n== de weekmail ==")
-verstuurd.clear()
-emailing.send_weekly_update_email("a@b.nl", "https://winkel.nl", SCAN, "https://k.nl/m/x", 70)
-nl_mail = laatste()
-emailing.send_weekly_update_email("a@b.nl", "https://winkel.nl", SCAN, "https://k.nl/m/x", 70,
-                                  taal="en")
-en_mail = laatste()
-zo("het onderwerp verschilt", nl_mail["onderwerp"] != en_mail["onderwerp"], True)
-zo("de body is engels", lijkt_engels(en_mail["html"]), True)
-zo("zonder gedachtestreepjes", "—" in en_mail["html"], False)
+print("\n== de weekmail bestaat niet meer (stap 66) ==")
+zo("weg", hasattr(emailing, "send_weekly_update_email"), False)
 
 print("\n== de vermeldingen-update ==")
 verstuurd.clear()
@@ -170,7 +164,7 @@ nl_mail = laatste()
 emailing.send_vermeldingen_update("a@b.nl", "https://winkel.nl", "Something changed.",
                                   "https://k.nl/m/x", taal="en")
 en_mail = laatste()
-zo("het onderwerp verschilt", nl_mail["onderwerp"] != en_mail["onderwerp"], True)
+zo("het kader is engels", lijkt_engels(en_mail["html"]), True)
 zo("zonder gedachtestreepjes", "—" in en_mail["html"], False)
 
 # ---------------------------------------------------------------------------
@@ -201,19 +195,16 @@ zo("de engelse kop is engels", lijkt_engels(plan_en["kop"]), True)
 zo("zonder gedachtestreepjes", "—" in str(plan_en), False)
 
 # ---------------------------------------------------------------------------
-print("\n== welke taal krijgt welke winkel ==")
-zo("zonder profiel nederlands", krillo._mailtaal("https://onbekend.nl"), "nl")
-db.zet_markt("https://amerikaans.nl", "en-US", "US")
-zo("een amerikaanse winkel engels", krillo._mailtaal("https://amerikaans.nl"), "en")
-db.zet_markt("https://hollands.nl", "nl-NL", "NL")
-zo("een nederlandse winkel nederlands", krillo._mailtaal("https://hollands.nl"), "nl")
-db.zet_markt("https://vlaams.nl", "nl-BE", "BE")
-zo("een vlaamse winkel ook nederlands", krillo._mailtaal("https://vlaams.nl"), "nl")
-db.zet_markt("https://duits.nl", "de-DE", "DE")
-zo("een duitse winkel krijgt engels en geen nederlands",
-   krillo._mailtaal("https://duits.nl"), "en")
-zo("zonder webadres nederlands", krillo._mailtaal(None), "nl")
-zo("met een leeg webadres nederlands", krillo._mailtaal(""), "nl")
+print("\n== welke taal krijgt welke winkel: altijd Engels (sinds 21 sep) ==")
+# De taalregel van 18 september: een adres, een taal. De mail hoort bij de
+# site en de site is Engels. Tot 21 september kreeg een .nl-winkel hier
+# Nederlands, en dan kwam er Nederlandse post na een Engelse kassa.
+for adres, markt in (("https://onbekend.nl", None), ("https://hollands.nl", ("nl-NL", "NL")),
+                     ("https://vlaams.nl", ("nl-BE", "BE")), ("https://duits.nl", ("de-DE", "DE"))):
+    if markt:
+        db.zet_markt(adres, *markt)
+    zo(f"{adres} krijgt Engels", krillo._mailtaal(adres), "en")
+zo("zonder webadres ook", krillo._mailtaal(None), "en")
 
 print()
 if fouten:
