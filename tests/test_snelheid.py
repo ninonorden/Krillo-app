@@ -124,6 +124,40 @@ finally:
     app.THUIS_ONTHOUDEN = None
     app._thuis.update(waarde=None, op=0.0, bezig=False)
 
+print("\n== DE INDEXPAGINA'S RAKEN DE DATABASE OOK NIET MEER ==")
+# Die stelden 10 tot 11 vragen per bezoek. Zelfde reden, zelfde oplossing.
+app.THUIS_ONTHOUDEN = True
+app._bewaard_opslag.clear()
+try:
+    BOT = dict(MENS, **{"User-Agent": "Googlebot/2.1"})
+    k.get("/index", headers=BOT)
+    voor = vragen_teller()
+    for _ in range(3):
+        zo("het overzicht laadt", k.get("/index", headers=BOT).status_code, 200)
+    zo("drie keer het overzicht kost nul verbindingen", vragen_teller() - voor, 0)
+
+    # Een categoriepagina, als er in deze testdatabase een gemeten is.
+    cats = db.categorieen_per_land("nl", 3)
+    if cats:
+        pad = f"/index/nl/{cats[0]['categorie']}"
+        k.get(pad, headers=BOT)
+        voor = vragen_teller()
+        a = k.get(pad, headers=BOT)
+        zo("een categoriepagina laadt", a.status_code, 200)
+        zo("en kost daarna ook nul verbindingen", vragen_teller() - voor, 0)
+    else:
+        print("  (geen gemeten categorie in deze testdatabase, categoriepagina overgeslagen)")
+
+    # Een route die een lijst sorteert of een veld toevoegt, mag het onthouden
+    # origineel niet veranderen. Anders ziet de volgende bezoeker iets anders.
+    eerste = app._bewaard(("proef",), lambda: [{"a": 1}])
+    eerste[0]["a"] = 99
+    eerste.append("rommel")
+    zo("wat je terugkrijgt is een kopie", app._bewaard(("proef",), lambda: None), [{"a": 1}])
+finally:
+    app.THUIS_ONTHOUDEN = None
+    app._bewaard_opslag.clear()
+
 print("\n== DE BEZOEKTELLER WACHT NIET MEER OP DE DATABASE ==")
 bron = open(os.path.join(APP, "app.py"), encoding="utf-8").read()
 blok = bron[bron.find("def _tel_bezoek("):bron.find('@app.route("/")')]
