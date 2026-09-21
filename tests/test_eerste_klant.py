@@ -112,9 +112,15 @@ for zin in ("If the audit gets you nothing", "we roll it back",
     klopt(f"er is een eigen regel: {zin[:30]}", zin in index)
 
 print("\n== de klantpagina spreekt zichzelf niet tegen over geld ==")
-mon = open(os.path.join(TEMPLATES, "monitoring.html")).read()
-klopt("Monitoring actief hangt aan een echt abonnement",
-      "{% elif abonnement %}{{ t.d_nav_actief }}" in mon)
+# Sinds 21 september staat het werkscherm als blok in het dashboard. De
+# belofte blijft: de opzegknop, en dus "je betaalt per maand", hangt aan een
+# echt abonnement.
+mon = open(os.path.join(TEMPLATES, "_werk.html")).read()
+opzeg = mon[mon.index('class="werk-opzeg"'):]
+tak = opzeg[opzeg.index("{% elif abonnement %}"):]
+tak = tak[:tak.index("{% else %}")]
+klopt("de opzegknop hangt aan een echt abonnement", 'id="opzegKnop"' in tak)
+klopt("en staat nergens anders", mon.count('id="opzegKnop"') == 1)
 
 print("\n== wie 149 euro betaalt krijgt de audit die erbij hoort ==")
 # De prijskaart belooft "Alles uit de volledige audit zit erbij", maar die tak

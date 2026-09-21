@@ -188,16 +188,17 @@ basis = dict(webshop_url=WINKEL, klant_token="abc", voorbeeld=False, actieplan=P
              bronnen=None, verklaring=None, taakstand=None, sleutel="x", status_labels={},
              # De vaste teksten van de pagina komen sinds de tweetalige versie
              # uit paginataal.py en niet meer uit het sjabloon zelf.
-             t=paginataal.TEKSTEN["nl"], paginataal="nl", shopify_beheer=None)
+             t=paginataal.TEKSTEN["nl"], paginataal="nl", shopify_beheer=None,
+             wt=paginataal.TEKSTEN["nl"], beheer=None)
 u = dict(db.get_uitvoeringen(WINKEL)[0])
 u["stand"] = "opgeleverd"
-h = env.get_template("monitoring.html").render(
+h = env.get_template("_werk.html").render(
     uitvoering=u, wijzigingen=[dict(x) for x in db.get_wijzigingen(WINKEL)], **basis)
 zo("het overzicht staat er ingeklapt bij",
    f"{paginataal.TEKSTEN['nl']['wijzigingen_kop']} (2)" in h, True)
 zo("met de oude tekst", "Bel ons voor vragen, ma t/m vr." in h, True)
 
-h = env.get_template("monitoring.html").render(uitvoering=None, wijzigingen=[], **basis)
+h = env.get_template("_werk.html").render(uitvoering=None, wijzigingen=[], **basis)
 zo("zonder opdracht geen overzicht", "Wat we precies veranderd hebben" in h, False)
 
 print()

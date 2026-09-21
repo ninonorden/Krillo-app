@@ -66,23 +66,26 @@ BASIS = dict(webshop_url="https://winkel.nl", klant_token="abc", voorbeeld=False
              sleutel="x", status_labels={}, wijzigingen=[],
              # De vaste teksten van de pagina. Sinds de pagina tweetalig is komen
              # die uit paginataal.py en niet meer uit het sjabloon zelf.
-             t=paginataal.TEKSTEN["nl"], paginataal="nl", shopify_beheer=None)
+             t=paginataal.TEKSTEN["nl"], paginataal="nl", shopify_beheer=None,
+             # Het werkblok in het dashboard heet zijn teksten wt (sinds 21 sep).
+             wt=paginataal.TEKSTEN["nl"], beheer=None)
 
 print("\n== een klant met een abonnement ==")
-h = env.get_template("monitoring.html").render(uitvoering=None, abonnement=True, **BASIS)
+h = env.get_template("_werk.html").render(uitvoering=None, abonnement=True, **BASIS)
 zo("ziet de opzegknop", 'id="opzegKnop"' in h, True)
-zo("en de kop over deze week",
-   f"<h1>{paginataal.TEKSTEN['nl']['titel_taken']}</h1>" in h, True)
+zo("en de kop over zijn oplossingen",
+   paginataal.TEKSTEN['nl']['titel_taken'] in h, True)
+zo("en leest geen oud bedrag", "39 euro" in h, False)
 
 print("\n== een klant die alleen de uitvoering kocht ==")
 u = {"stand": "opgeleverd", "notitie": None, "opgeleverd_op": None,
      "toegang_op": None, "id": 1, "email": "a@b.nl"}
-h = env.get_template("monitoring.html").render(uitvoering=u, abonnement=False, **BASIS)
+h = env.get_template("_werk.html").render(uitvoering=u, abonnement=False, **BASIS)
 zo("ziet GEEN opzegknop", 'id="opzegKnop"' in h, False)
-zo("leest niet dat hij 39 euro per maand betaalt",
-   "Je betaalt 39 euro per maand" in h, False)
+zo("leest niet dat hij per maand betaalt",
+   "Je betaalt per maand" in h, False)
 zo("leest dat er niets wordt afgeschreven", "Er loopt geen abonnement" in h, True)
-zo("krijgt geen huiswerkkop", "<h1>Wat je deze week doet</h1>" in h, False)
+zo("krijgt geen huiswerkkop", "Wat je deze week doet" in h, False)
 zo("maar wat wij gedaan hebben", "Wat wij voor je gedaan hebben" in h, True)
 zo("krijgt geen belofte van een wekelijkse meting",
    "We stellen deze week koopvragen" in h, False)

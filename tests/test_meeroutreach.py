@@ -160,8 +160,10 @@ for taal in ("nl", "en"):
     klopt(f"[{taal}] de kop is waar in beide gevallen",
           "doet" not in t["titel_taken"] and "to do" not in t["titel_taken"])
     klopt(f"[{taal}] er is een regel over wie het uitvoert", bool(t.get("taken_wij")))
-mon = open(os.path.join(TEMPLATES, "monitoring.html")).read()
-klopt("de pagina toont die regel", "t.taken_wij" in mon)
+# Sinds 21 september staat het werkscherm als blok in het dashboard
+# (templates/_werk.html) en niet meer op een eigen pagina.
+mon = open(os.path.join(TEMPLATES, "_werk.html")).read()
+klopt("de pagina toont die regel", "wt.taken_wij" in mon)
 klopt("alleen bij een abonnement zonder losse opdracht",
       "{% if abonnement and not uitvoering %}" in mon)
 

@@ -47,13 +47,15 @@ def klopt(omschrijving, voorwaarde):
 env = Environment(loader=FileSystemLoader(TEMPLATES))
 env.filters.setdefault("urlencode", lambda s: s)
 
-PAGINAS = ("monitoring.html", "monitoring_details.html")
+# Het werkscherm staat sinds 21 september als blok in het dashboard
+# (_werk.html, teksten heten daar wt). De detailpagina is nog een eigen scherm.
+PAGINAS = ("_werk.html", "monitoring_details.html")
 
 
 def context(taal, shopify=None, abonnement=True):
     t = paginataal.teksten(taal)
     return dict(
-        t=t, paginataal=taal, shopify_beheer=shopify,
+        t=t, wt=t, beheer=None, paginataal=taal, shopify_beheer=shopify,
         status_labels={"ok": t["stand_ok"], "deels": t["stand_deels"],
                        "probleem": t["stand_probleem"]},
         webshop_url="https://voorbeeld.nl", klant_token="tok", voorbeeld=False,
@@ -86,7 +88,7 @@ print("\n== het sjabloon gebruikt geen sleutel die niet bestaat ==")
 # dat zie je pas als een klant het meldt.
 gebruikt = set()
 for p in PAGINAS:
-    gebruikt |= set(re.findall(r"\bt\.([a-zA-Z_][a-zA-Z0-9_]*)",
+    gebruikt |= set(re.findall(r"\bw?t\.([a-zA-Z_][a-zA-Z0-9_]*)",
                                open(os.path.join(TEMPLATES, p)).read()))
 zo("elke gebruikte sleutel bestaat", sorted(gebruikt - nl), [])
 klopt("en er wordt er flink gebruik van gemaakt", len(gebruikt) > 100)
@@ -116,26 +118,33 @@ for p in PAGINAS:
     klopt(f"{p} is nog gewoon Nederlands", NEDERLANDS.search(tekst) is not None)
 
 print("\n== de taal van het document zelf klopt ==")
-for p in PAGINAS:
+# Het werkblok is geen los document; het dashboard eromheen zet lang="".
+dash = open(os.path.join(TEMPLATES, "dashboard.html")).read()
+klopt("het dashboard zet de taal van het document", 'lang="{{ taal }}"' in dash)
+for p in ("monitoring_details.html",):
     for taal in ("nl", "en"):
         ruw, _ = zichtbaar(p, **context(taal))
         klopt(f"{p} [{taal}] heeft de juiste lang", f'lang="{taal}"' in ruw)
 
 print("\n== een winkel die via Shopify betaalt ==")
 BEHEER = "https://krill-test.myshopify.com/admin/apps/abc"
-ruw, tekst = zichtbaar("monitoring.html", **context("en", shopify=BEHEER))
+ruw, tekst = zichtbaar("_werk.html", **context("en", shopify=BEHEER))
 klopt("krijgt GEEN opzegknop van ons", 'id="opzegKnop"' not in ruw)
 klopt("wel een link naar de app in Shopify", BEHEER in ruw)
 klopt("en leest dat het via Shopify loopt", "through Shopify" in tekst)
 klopt("er staat nergens dat hij 39 euro aan ons betaalt", "39 euro" not in tekst)
 
 print("\n== een winkel die via ons betaalt ==")
-ruw, tekst = zichtbaar("monitoring.html", **context("nl", shopify=None))
+ruw, tekst = zichtbaar("_werk.html", **context("nl", shopify=None))
 klopt("krijgt wel de opzegknop", 'id="opzegKnop"' in ruw)
-klopt("en leest wat hij betaalt", "39 euro per maand" in tekst)
+# Stond hier: "en leest wat hij betaalt", met "39 euro per maand". Dat was het
+# oude tarief. Het pakket staat alleen bij Mollie, dus nu staat er wat altijd
+# klopt, en nooit meer een oud bedrag.
+klopt("en leest dat hij per maand voor zijn pakket betaalt", "per maand voor je pakket" in tekst)
+klopt("zonder oud bedrag", "39 euro" not in tekst)
 
 print("\n== een winkel zonder abonnement krijgt geen opzegknop ==")
-ruw, _ = zichtbaar("monitoring.html", **context("nl", abonnement=False))
+ruw, _ = zichtbaar("_werk.html", **context("nl", abonnement=False))
 klopt("geen opzegknop", 'id="opzegKnop"' not in ruw)
 
 print()
