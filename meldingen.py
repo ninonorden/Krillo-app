@@ -256,7 +256,7 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
         try:
             import emailing
             taal = _taal_van(klant["webshop_url"])
-            link = f"{(basis or '').rstrip('/')}/monitoring/{klant['klant_token']}" \
+            link = f"{(basis or '').rstrip('/')}/mijn/{klant['klant_token']}" \
                 if basis and klant.get("klant_token") else None
             emailing.send_vermeldingen_update(
                 klant["email"], klant["webshop_url"],

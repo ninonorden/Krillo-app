@@ -1,0 +1,284 @@
+{#
+  HET WERKBLOK VAN DE KLANT, sinds 21 september onderdeel van het dashboard.
+
+  Waarom dit een los blok is: tot 21 september stond dit op een eigen pagina,
+  /monitoring/<token>, in de oude stijl, met hardgecodeerde Nederlandse
+  knopteksten en "monitoring" als productnaam. Het dashboard stuurde klanten
+  daar met een knop "Go to my tasks" naartoe. Een klant had dus twee schermen
+  in twee stijlen, en alle mails wezen naar het oude. Nu is er een scherm.
+
+  Wat hier staat is het werkende hart van het Fix-pakket: hoe ver wij zijn met
+  de uitvoering, elke wijziging met de oude tekst ernaast zodat terugdraaien
+  altijd kan, de teksten om zelf te plakken, en opzeggen.
+
+  Verwacht van de aanroeper:
+    wt            teksten uit paginataal, in de taal van het dashboard
+    uitvoering, wijzigingen, actieplan, laatste, verloop, abonnement,
+    shopify_beheer, klant_token, webshop_url
+    beheer        alleen in de beheerweergave: {sleutel, taakstand}
+
+  De beloftes die hier bewaakt worden (tests/test_klantpagina_taal.py en
+  tests/test_werkblok.py):
+  - Een opzegknop alleen als er ECHT een abonnement via ons loopt.
+  - Betaalt de winkel via Shopify, dan geen opzegknop van ons maar een link
+    naar de app in Shopify. Onze knop zou Mollie opzeggen terwijl Shopify
+    gewoon blijft factureren.
+  - Heeft iemand betaald om het NIET zelf te doen, dan staat de stand van
+    de uitvoering bovenaan en niet een lijst huiswerk.
+#}
+<style>
+  .werk{display:flex; flex-direction:column; gap:16px;}
+  .werk-kop{display:flex; justify-content:space-between; align-items:baseline; gap:16px;
+            flex-wrap:wrap;}
+  .werk-kop .titel{font-family:var(--disp); font-weight:700; font-size:28px;
+                   letter-spacing:-0.035em;}
+  .werk-kop .datum{font-family:var(--mono); font-size:12px; color:var(--ink-grijs);}
+  .werk-uitleg{font-size:15px; color:var(--ink-zacht); margin:0;}
+  .werk-stand{border:1px solid var(--lijn); border-left:4px solid var(--ink);
+              border-radius:10px; padding:18px 22px; font-size:15px; line-height:1.6;}
+  .werk-stand strong{display:block; font-size:16px; margin-bottom:4px;}
+  .werk-stand.wacht{border-left-color:var(--vermiljoen);}
+  .werk-stand.bezig{border-left-color:var(--ink);}
+  .werk-stand.klaar{border-left-color:var(--groen);}
+  .werk details{border:1px solid var(--lijn); border-radius:10px; padding:14px 20px;}
+  .werk details summary{cursor:pointer; font-weight:600; font-size:15px;}
+  .werk details .inhoud{margin-top:12px; font-size:14.5px; color:var(--ink-zacht);
+                        line-height:1.65;}
+  .werk-taak{border:1px solid var(--lijn); border-radius:10px; overflow:hidden;}
+  .werk-taak .kop{display:flex; gap:14px; align-items:baseline; padding:16px 20px;
+                  border-bottom:1px solid var(--lijn-licht);}
+  .werk-taak .nr{font-family:var(--mono); font-size:13px; color:var(--ink-grijs);}
+  .werk-taak .naam{font-weight:600; font-size:16px; flex-grow:1;}
+  .werk-taak .merk{font-family:var(--mono); font-size:11px; padding:3px 8px;
+                   border-radius:4px; background:var(--zand); color:var(--ink-grijs);
+                   margin-left:8px; font-weight:400;}
+  .werk-taak .lijf{padding:16px 20px; display:flex; flex-direction:column; gap:14px;}
+  .werk-taak .label{font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
+                    color:var(--ink-grijs); margin-bottom:6px; text-transform:uppercase;}
+  .werk-taak .plak{position:relative; background:var(--zand); border:1px solid var(--lijn);
+                   border-radius:7px; padding:14px 16px 14px; font-size:14.5px;
+                   white-space:pre-wrap; line-height:1.55;}
+  .werk-taak .kopieer{position:absolute; top:8px; right:8px; font-family:var(--mono);
+                      font-size:11px; border:1px solid var(--lijn); background:#fff;
+                      border-radius:5px; padding:4px 9px; cursor:pointer;}
+  .werk-taak .kopieer.gelukt{color:var(--groen); border-color:var(--groen);}
+  .werk-taak .tekst{font-size:14.5px; line-height:1.6;}
+  .werk-taak .links a{font-size:14.5px;}
+  .werk-taak .links .waar{font-family:var(--mono); font-size:11px; color:var(--ink-grijs);
+                          margin-left:6px;}
+  .werk-leeg{border:1px solid var(--lijn); border-radius:10px; padding:18px 22px;
+             font-size:15px; line-height:1.6;}
+  .werk-leeg strong{display:block; margin-bottom:4px;}
+  .werk-details{display:block; text-decoration:none; color:var(--ink);
+                border:1px solid var(--lijn); border-radius:10px; padding:16px 20px;}
+  .werk-details strong{display:block;}
+  .werk-details span{font-size:14px; color:var(--ink-zacht);}
+  .werk-opzeg{border-top:1px solid var(--lijn); padding-top:18px; font-size:14.5px;
+              color:var(--ink-zacht);}
+  .werk-opzeg strong{display:block; color:var(--ink); margin-bottom:4px;}
+  .werk-opzeg .knop-rand{display:inline-block; margin-top:8px; font-size:14px;
+                         border:1px solid var(--lijn); background:#fff; color:var(--ink);
+                         border-radius:7px; padding:9px 14px; cursor:pointer;
+                         text-decoration:none;}
+  .werk-opzeg .melding{margin-top:8px; font-size:14px;}
+  .werk-opzeg .melding.fout{color:var(--vermiljoen-tekst);}
+  .werk-opzeg .melding.goed{color:var(--groen);}
+  .werk-beheer{background:var(--zand); border:1px dashed var(--lijn); border-radius:10px;
+               padding:16px 20px; font-size:14px;}
+</style>
+
+<div class="werk" id="werk">
+  <div class="werk-kop">
+    <div class="titel">
+      {% if uitvoering and uitvoering.stand != 'opgeleverd' %}{{ wt.titel_bezig }}
+      {% elif uitvoering and not abonnement %}{{ wt.titel_gedaan }}
+      {% else %}{{ wt.titel_taken }}{% endif %}
+    </div>
+    {% if laatste and laatste.aangemaakt_op %}
+    <span class="datum">{{ wt.laatste_meting | upper }} {{ laatste.aangemaakt_op.strftime('%d %b %Y') | upper }}</span>
+    {% endif %}
+  </div>
+
+  {% if abonnement and not uitvoering %}
+  <p class="werk-uitleg">{{ wt.taken_wij }}</p>
+  {% endif %}
+
+  {# Wie betaald heeft om het NIET zelf te doen, ziet eerst hoe ver wij zijn. #}
+  {% if uitvoering %}
+    {% if uitvoering.stand == 'wacht_op_toegang' %}
+    <div class="werk-stand wacht"><strong>{{ wt.wacht_kop }}</strong>{{ wt.wacht_tekst }}</div>
+    {% elif uitvoering.stand == 'bezig' %}
+    <div class="werk-stand bezig"><strong>{{ wt.bezig_kop }}</strong>{{ wt.bezig_tekst }}</div>
+    {% elif uitvoering.stand == 'opgeleverd' %}
+    <div class="werk-stand klaar">
+      <strong>{{ wt.klaar_kop }}</strong>
+      {% if uitvoering.opgeleverd_op %}{{ wt.klaar_afgerond }} {{ uitvoering.opgeleverd_op.strftime('%d-%m-%Y') }}. {% endif %}
+      {% if uitvoering.notitie %}{{ uitvoering.notitie }}{% else %}{{ wt.klaar_standaard }}{% endif %}
+      {{ wt.klaar_vervolg }}
+    </div>
+
+    {# Wat er precies veranderd is, met de oude tekst erbij. Ingeklapt: wie het
+       niet wil zien heeft er geen last van, wie iets wil terugzetten vindt het
+       hier en niet in een oude mail. #}
+    {% if wijzigingen %}
+    <details>
+      <summary>{{ wt.wijzigingen_kop }} ({{ wijzigingen|length }})</summary>
+      <div class="inhoud">
+        {% for w in wijzigingen %}
+        <p><strong>{{ loop.index }}. {{ w.wat }}</strong>
+        {% if w.waar %}<br>{{ wt.wijziging_waar }}: {{ w.waar }}{% endif %}
+        {% if w.nieuwe_waarde %}<br><br>{{ wt.wijziging_nu }}:<br>{{ w.nieuwe_waarde }}{% endif %}
+        <br><br>{{ wt.wijziging_stond }}:<br>
+        {% if w.oude_waarde %}{{ w.oude_waarde }}{% else %}{{ wt.wijziging_leeg }}{% endif %}
+        </p>
+        {% endfor %}
+        <p>{{ wt.wijziging_terug }}</p>
+      </div>
+    </details>
+    {% endif %}
+    {% endif %}
+  {% endif %}
+
+  {% if actieplan %}
+    {% if not actieplan.acties %}
+    <div class="werk-leeg"><strong>{{ wt.niets_kop }}</strong>{{ wt.niets_tekst }}</div>
+    {% endif %}
+
+    {% for a in actieplan.acties %}
+    <div class="werk-taak">
+      <div class="kop">
+        <span class="nr">{{ '%02d' % loop.index }}</span>
+        <span class="naam">{{ a.titel }}<span class="merk" title="{{ a.merkje_uitleg }}">{{ a.merkje or a.soort }}</span></span>
+      </div>
+      <div class="lijf">
+        {% if a.oplossing %}
+        <div>
+          <div class="label">{{ wt.letterlijk }}</div>
+          <div class="plak">{{ a.oplossing }}<button class="kopieer" type="button">{{ wt.kopieer }}</button></div>
+        </div>
+        {% endif %}
+        {% if a.links %}
+        <div>
+          <div class="label">{{ wt.paginas }}</div>
+          <div class="links">
+            {% for l in a.links %}
+            <div><a href="{{ l.url }}" target="_blank" rel="noopener nofollow">{{ l.titel }}</a><span class="waar">{{ l.domein }}</span></div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        <div>
+          <div class="label">{% if a.waar %}{{ wt.waar_neerzetten }}{% else %}{{ wt.wat_je_doet }}{% endif %}</div>
+          <div class="tekst">{{ a.waar or a.hoe }}</div>
+        </div>
+        <details>
+          <summary>{{ wt.waarom }}</summary>
+          <div class="inhoud">{{ a.waarom }}{% if a.oplossing and a.hoe %}<br><br>{{ a.hoe }}{% endif %}</div>
+        </details>
+      </div>
+    </div>
+    {% endfor %}
+
+    {% if actieplan.rest %}<p class="werk-uitleg">{{ actieplan.toelichting }}</p>{% endif %}
+  {% else %}
+    <div class="werk-leeg">
+      {% if verloop and verloop|length > 1 %}<strong>{{ wt.niets_gemeten_kop }}</strong>{{ wt.niets_gemeten_tekst }}
+      {% elif abonnement %}<strong>{{ wt.eerste_kop }}</strong>{{ wt.eerste_tekst }}
+      {% else %}<strong>{{ wt.nognietgemeten_kop }}</strong>{{ wt.nognietgemeten_tekst }}{% endif %}
+    </div>
+  {% endif %}
+
+  <a class="werk-details" href="{% if beheer %}/admin/voorbeeld?key={{ beheer.sleutel }}&url={{ webshop_url }}&details=ja{% else %}/monitoring/{{ klant_token }}/details{% endif %}">
+    <strong>{{ wt.details_kop }}</strong>
+    <span>{{ wt.details_tekst }}</span>
+  </a>
+
+  {# Opzeggen. Drie gevallen, en ze mogen niet door elkaar lopen: via Shopify,
+     via ons, of er loopt niets. Zie de uitleg bovenaan dit bestand. #}
+  <div class="werk-opzeg">
+  {% if beheer %}
+    <div class="werk-beheer">
+      <strong>Beheerweergave</strong>
+      Zo ziet de klant dit blok. Alleen zichtbaar met de beheersleutel.
+      {% if beheer.taakstand %}
+      <p style="font-family:var(--mono); font-size:12px; line-height:1.8; margin:10px 0 0;">
+        Taken met een geschreven tekst: <strong>{{ beheer.taakstand.met_tekst|length }}</strong>{% if beheer.taakstand.met_tekst %} ({{ beheer.taakstand.met_tekst|join(', ') }}){% endif %}<br>
+        Taken zonder tekst: <strong>{{ beheer.taakstand.zonder_tekst|length }}</strong>{% if beheer.taakstand.zonder_tekst %} ({{ beheer.taakstand.zonder_tekst|join(', ') }}){% endif %}<br>
+        Deze maand uitgegeven aan deze winkel: <strong>{{ '%.2f'|format(beheer.taakstand.uitgegeven) }}</strong> van {{ '%.2f'|format(beheer.taakstand.grens) }} euro
+      </p>
+      <p><a href="/admin/oplossingen?key={{ beheer.sleutel }}&url={{ webshop_url }}">Teksten laten schrijven</a>
+         &middot; <a href="/admin/oplossingen?key={{ beheer.sleutel }}&url={{ webshop_url }}&opnieuw=ja">opnieuw, ook de bestaande</a></p>
+      {% if beheer.taakstand.rem_dicht %}
+      <p><strong>De kostenrem voor deze winkel staat dicht.</strong> Zet GRENS_PER_KLANT_MAAND_EURO tijdelijk hoger in Render, of test op een andere winkel.</p>
+      {% endif %}
+      {% endif %}
+    </div>
+  {% elif shopify_beheer %}
+    <strong>{{ wt.shopify_kop }}</strong>
+    {{ wt.shopify_tekst }}<br>
+    <a class="knop-rand" href="{{ shopify_beheer }}" target="_blank" rel="noopener">{{ wt.shopify_knop }}</a>
+  {% elif abonnement %}
+    <strong>{{ wt.abo_kop }}</strong>
+    {{ wt.abo_tekst }}<br>
+    <button class="knop-rand" type="button" id="opzegKnop">{{ wt.abo_knop }}</button>
+    <div class="melding" id="opzegMelding"></div>
+  {% else %}
+    <strong>{{ wt.eenmalig_kop }}</strong>
+    {{ wt.eenmalig_tekst }}<br>
+    <a class="knop-rand" href="/#prijzen">{{ wt.eenmalig_knop }}</a>
+  {% endif %}
+  </div>
+</div>
+
+<script>
+(function(){
+  // Kopieerknop bij elk plakblok. Zonder deze knop moet iemand een lap tekst
+  // met de muis selecteren op zijn telefoon, en dan gebeurt het niet.
+  var KOPIEER = {{ wt.kopieer|tojson }}, GEKOPIEERD = {{ wt.gekopieerd|tojson }};
+  document.querySelectorAll('.werk .kopieer').forEach(function(knop){
+    knop.addEventListener('click', function(){
+      var tekst = '';
+      knop.parentNode.childNodes.forEach(function(n){ if(n.nodeType === 3) tekst += n.textContent; });
+      var klaar = function(){
+        knop.textContent = GEKOPIEERD; knop.className = 'kopieer gelukt';
+        setTimeout(function(){ knop.textContent = KOPIEER; knop.className = 'kopieer'; }, 2000);
+      };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(tekst.trim()).then(klaar, function(){});
+      } else {
+        var hulp = document.createElement('textarea');
+        hulp.value = tekst.trim(); document.body.appendChild(hulp); hulp.select();
+        try { document.execCommand('copy'); klaar(); } catch(e) {}
+        document.body.removeChild(hulp);
+      }
+    });
+  });
+
+  var knop = document.getElementById('opzegKnop');
+  var melding = document.getElementById('opzegMelding');
+  if(!knop) return;
+  knop.addEventListener('click', function(){
+    if(!window.confirm({{ wt.d_opzeg_bevestig|tojson }})) return;
+    knop.disabled = true;
+    knop.textContent = {{ wt.abo_bezig|tojson }};
+    fetch('/api/opzeggen/{{ klant_token }}', {method: 'POST'})
+      .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
+      .then(function(res){
+        if(!res.ok){
+          melding.className = 'melding fout';
+          melding.textContent = res.data.error || {{ wt.d_opzeg_mislukt|tojson }};
+          knop.disabled = false; knop.textContent = {{ wt.abo_knop|tojson }};
+          return;
+        }
+        melding.className = 'melding goed';
+        melding.textContent = {{ wt.abo_gelukt|tojson }};
+        knop.textContent = {{ wt.opgezegd|tojson }};
+      })
+      .catch(function(){
+        melding.className = 'melding fout';
+        melding.textContent = {{ wt.d_opzeg_fout|tojson }};
+        knop.disabled = false; knop.textContent = {{ wt.abo_knop|tojson }};
+      });
+  });
+})();
+</script>

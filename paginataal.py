@@ -22,7 +22,7 @@ TEKSTEN = {
         # Sinds 11 september doet Krillo het werk ook bij het abonnement. Deze
         # kop moet daarom waar zijn in allebei de gevallen: mét toegang (wij
         # voeren het uit) en zonder (de klant doet het zelf, kant en klaar).
-        "titel_taken": "Wat er deze week gebeurt",
+        "titel_taken": "Jouw oplossingen",
         "taken_wij": ("Wij voeren dit voor je uit zodra we in je winkel kunnen. "
                       "Je krijgt achteraf bericht van wat er veranderd is, met de "
                       "oude tekst erbij. Doe je het liever zelf, dan staat alles "
@@ -58,6 +58,10 @@ TEKSTEN = {
                         "We blijven elke week meten en zodra er iets verandert staat het hier."),
         "letterlijk": "Neem dit letterlijk over",
         "kopieer": "Kopieer",
+        # Deze stonden hardgecodeerd in het script van de oude klantpagina, en
+        # dus altijd in het Nederlands, ook op de Engelse site.
+        "gekopieerd": "Gekopieerd",
+        "opgezegd": "Opgezegd",
         "paginas": "Deze pagina's gaat het om",
         "waar_neerzetten": "Waar zet je dit neer",
         "wat_je_doet": "Wat je doet",
@@ -75,25 +79,28 @@ TEKSTEN = {
                          "je kan doen. Reken op ongeveer een kwartier."),
         "nognietgemeten_kop": "Er is nog niet gemeten",
         "nognietgemeten_tekst": ("Bij een eenmalige opdracht meten we niet doorlopend. Wil "
-                                 "je elke week weten of AI je winkel noemt, dan kan dat met "
-                                 "monitoring."),
+                                 "je elke maand weten waar je staat, dan doen Watch en Fix dat."),
 
         # onderaan
         "details_kop": "Alle metingen en cijfers bekijken",
         "details_tekst": ("Bij welke vragen je genoemd wordt, wat AI letterlijk over je zei, "
                           "wie je concurrenten zijn en alle dertien controlepunten van je site."),
         "abo_kop": "Je abonnement",
-        "abo_tekst": ("Je betaalt 39 euro per maand, maandelijks opzegbaar. Zeg je op, dan "
-                      "houd je toegang tot het einde van de periode die je al betaald hebt "
-                      "en wordt er daarna niets meer afgeschreven."),
+        # Stond "Je betaalt 39 euro per maand". Dat was het oude tarief; sinds 17
+        # september is het Watch 49, Fix 149 of Merken 490. Het pakket staat
+        # alleen bij Mollie, dus hier geen bedrag maar wat altijd klopt. Het
+        # precieze bedrag staat op de factuur.
+        "abo_tekst": ("Je betaalt per maand voor je pakket en kunt elke maand opzeggen. "
+                      "Zeg je op, dan houd je toegang tot het einde van de periode die je "
+                      "al betaald hebt en wordt er daarna niets meer afgeschreven."),
         "abo_knop": "Mijn abonnement opzeggen",
         "abo_bezig": "Bezig met opzeggen...",
         "abo_gelukt": ("Je abonnement is opgezegd. Je krijgt een bevestiging per e-mail. "
                        "Er wordt niets meer afgeschreven."),
         "eenmalig_kop": "Je hebt eenmalig betaald",
         "eenmalig_tekst": ("Er loopt geen abonnement en er wordt niets van je afgeschreven. "
-                           "Wil je wel blijven meten, dan kan dat met monitoring."),
-        "eenmalig_knop": "Bekijk monitoring",
+                           "Wil je elke maand je positie weten, dan doen Watch en Fix dat."),
+        "eenmalig_knop": "Bekijk de pakketten",
 
         # Shopify
         "shopify_kop": "Je abonnement loopt via Shopify",
@@ -111,12 +118,12 @@ TEKSTEN = {
         "stand_probleem": "verbeterpunt",
 
         "d_titel": "Alle metingen",
-        "d_nav_actief": "Monitoring actief",
-        "d_eyebrow": "Monitoring",
+        "d_nav_actief": "Abonnement actief",
+        "d_eyebrow": "Jouw metingen",
         "d_sub": "Deze pagina blijft altijd op hetzelfde adres staan en wordt elke week bijgewerkt.",
         "d_bewaar": ("Bewaar deze link, bijvoorbeeld als bladwijzer. Je hoeft niet in te "
                      "loggen, en je vindt hier altijd je nieuwste scan terug."),
-        "d_terug": "Terug naar wat er deze week gebeurt",
+        "d_terug": "Terug naar je dashboard",
 
         # de score bovenaan
         "d_huidig_label": "Huidige AI-leesbaarheid",
@@ -268,12 +275,12 @@ TEKSTEN = {
 
         # onderaan de detailpagina
         "d_eenmalig_tekst": ("Er loopt geen abonnement en er wordt niets van je afgeschreven. "
-                             "Wil je wel blijven meten, dan kan dat voor 39 euro per maand, "
+                             "Wil je elke maand je positie weten, dan doen Watch en Fix dat, "
                              "maandelijks opzegbaar."),
         "d_voorbeeld_kop": "Voorbeeldweergave",
         "d_voorbeeld_tekst": ("Dit is hoe een abonnee zijn eigen pagina ziet. Alleen zichtbaar "
                               "met de beheersleutel."),
-        "d_opzeg_bevestig": ("Weet je zeker dat je je monitoring wil opzeggen? Je houdt toegang "
+        "d_opzeg_bevestig": ("Weet je zeker dat je je abonnement wil opzeggen? Je houdt toegang "
                              "tot het einde van de al betaalde periode."),
         "d_opzeg_mislukt": ("Het opzeggen is niet gelukt. Mail hallo@krillo.nl, dan regelen we "
                             "het."),
@@ -283,7 +290,7 @@ TEKSTEN = {
     "en": {
         "titel_bezig": "We are working on your store",
         "titel_gedaan": "What we did for you",
-        "titel_taken": "What happens this week",
+        "titel_taken": "Your fixes",
         "taken_wij": ("We carry this out for you as soon as we can get into your "
                       "store. Afterwards you get a message with what changed and "
                       "the old text next to it. Prefer to do it yourself? "
@@ -318,6 +325,8 @@ TEKSTEN = {
                         "appears here."),
         "letterlijk": "Copy this exactly",
         "kopieer": "Copy",
+        "gekopieerd": "Copied",
+        "opgezegd": "Cancelled",
         "paginas": "These are the pages",
         "waar_neerzetten": "Where to put this",
         "wat_je_doet": "What to do",
@@ -333,26 +342,26 @@ TEKSTEN = {
                          "whether your store gets mentioned. As soon as that is done you "
                          "will see what you can do here. Expect about fifteen minutes."),
         "nognietgemeten_kop": "Nothing measured yet",
-        "nognietgemeten_tekst": ("With a one-off job we do not keep measuring. If you want "
-                                 "to know every week whether AI mentions your store, "
-                                 "monitoring does that."),
+        "nognietgemeten_tekst": ("With a one-off job we do not keep measuring. Want to know "
+                                 "every month where you stand? That is what Watch and Fix do."),
 
         "details_kop": "See all measurements and figures",
         "details_tekst": ("Which questions you are mentioned in, what AI said about you word "
                           "for word, who your competitors are, and all thirteen checks on "
                           "your site."),
         "abo_kop": "Your subscription",
-        "abo_tekst": ("You pay 39 euro per month, cancellable monthly. If you cancel you "
-                      "keep access until the end of the period you already paid for, and "
-                      "nothing is charged after that."),
+        "abo_tekst": ("You pay monthly for your plan and can cancel every month. If you "
+                      "cancel you keep access until the end of the period you already "
+                      "paid for, and nothing is charged after that."),
         "abo_knop": "Cancel my subscription",
         "abo_bezig": "Cancelling...",
         "abo_gelukt": ("Your subscription has been cancelled. You will get a confirmation by "
                        "email. Nothing more will be charged."),
         "eenmalig_kop": "You paid a one-off fee",
-        "eenmalig_tekst": ("There is no subscription running and nothing is being charged. If "
-                           "you do want to keep measuring, monitoring does that."),
-        "eenmalig_knop": "See monitoring",
+        "eenmalig_tekst": ("There is no subscription running and nothing is being charged. "
+                           "Want to know your position every month? That is what Watch and "
+                           "Fix do."),
+        "eenmalig_knop": "See the plans",
 
         "shopify_kop": "Your subscription runs through Shopify",
         "shopify_tekst": ("You pay through your Shopify invoice, not directly to us. You "
@@ -368,12 +377,12 @@ TEKSTEN = {
         "stand_probleem": "needs work",
 
         "d_titel": "All measurements",
-        "d_nav_actief": "Monitoring active",
-        "d_eyebrow": "Monitoring",
+        "d_nav_actief": "Subscription active",
+        "d_eyebrow": "Your measurements",
         "d_sub": "This page always stays at the same address and is updated every week.",
         "d_bewaar": ("Keep this link, for example as a bookmark. You do not have to log in, "
                      "and you will always find your newest scan here."),
-        "d_terug": "Back to what happens this week",
+        "d_terug": "Back to your dashboard",
 
         "d_huidig_label": "Current AI readability",
         "d_huidig_uitleg": ("How well AI can read and understand your site. This is not a "
@@ -515,12 +524,12 @@ TEKSTEN = {
                             'Matters of taste such as "charming" cannot be checked at all.'),
 
         "d_eenmalig_tekst": ("There is no subscription running and nothing is being charged to "
-                             "you. If you do want to keep measuring, you can for 39 euro per "
-                             "month, cancellable monthly."),
+                             "you. Want to know your position every month? That is what Watch "
+                             "and Fix do, cancellable monthly."),
         "d_voorbeeld_kop": "Preview",
         "d_voorbeeld_tekst": ("This is how a subscriber sees his own page. Only visible with "
                               "the admin key."),
-        "d_opzeg_bevestig": ("Are you sure you want to cancel your monitoring? You keep access "
+        "d_opzeg_bevestig": ("Are you sure you want to cancel your subscription? You keep access "
                              "until the end of the period you already paid for."),
         "d_opzeg_mislukt": ("Cancelling did not work. Email hallo@krillo.nl and we will sort it "
                             "out."),

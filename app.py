@@ -1539,7 +1539,7 @@ def _verwerk_betaling(payment_id, base_url):
                     f"{email} bestelde een uitvoering voor {webshop_url}, maar die "
                     f"webshop hoort al bij een ander adres. De klantpagina is NIET "
                     f"gedeeld. Kijk of dit klopt en handel het met de hand af.")
-            monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
+            monitoring_url = f"{base_url}/mijn/{klant_token}" if klant_token else None
             if not emailing.send_uitvoering_welkom(email, webshop_url, platform,
                                                    monitoring_url):
                 _meld_aan_beheer(
@@ -1661,7 +1661,7 @@ def _verwerk_betaling(payment_id, base_url):
                             f"klantpagina is NIET gedeeld. Handel dit met de hand af.")
                     db.save_report("monitoring", webshop_url, email, scan_result.get("score", 0),
                                     scan_result.get("checks", []), None, payment_id, klant_token)
-                    monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
+                    monitoring_url = f"{base_url}/mijn/{klant_token}" if klant_token else None
                     emailing.send_monitoring_welcome_email(
                         email, webshop_url, scan_result, monitoring_url,
                         taal=_mailtaal(webshop_url))
@@ -1995,7 +1995,7 @@ def _draai_wekelijkse_scans(base_url, alles=False):
 
                 db.save_report("monitoring", c["webshop_url"], c["email"], scan_result.get("score", 0),
                                 scan_result.get("checks", []), None, None, klant_token)
-                monitoring_url = f"{base_url}/monitoring/{klant_token}" if klant_token else None
+                monitoring_url = f"{base_url}/mijn/{klant_token}" if klant_token else None
 
                 # Fase 5 stap 3: dezelfde ronde meteen gebruiken om de
                 # koopvragen aan de AI-modellen te stellen.
@@ -2792,6 +2792,14 @@ def admin_benadering():
 
 
 @app.route("/monitoring/<klant_token>")
+def monitoring_doorsturen(klant_token):
+    """Het oude werkscherm. Staat sinds 21 september in het dashboard.
+
+    Blijft bestaan als doorverwijzing, want deze link staat in elke mail die
+    tot die dag verstuurd is. Een 301: de oude plek komt niet terug."""
+    return redirect(f"/mijn/{klant_token}#werk", code=301)
+
+
 @app.route("/monitoring/<klant_token>/details")
 def monitoring_pagina(klant_token):
     """De klantpagina. Twee weergaven op dezelfde gegevens.
@@ -2803,7 +2811,6 @@ def monitoring_pagina(klant_token):
     op waar een winkeleigenaar niet doorheen kwam, en dan is het niet meer
     duidelijk wat hij moet doen. De cijfers zijn de onderbouwing, niet het
     product."""
-    details = request.path.endswith("/details")
     klant = db.get_klant(klant_token)
     if klant is None:
         return "Deze pagina bestaat niet of is niet meer geldig.", 404
@@ -2845,7 +2852,7 @@ def monitoring_pagina(klant_token):
 
     pagina = _paginagegevens(klant["webshop_url"])
     return render_template(
-        "monitoring_details.html" if details else "monitoring.html",
+        "monitoring_details.html",
         t=pagina["t"],
         paginataal=pagina["taal"],
         shopify_beheer=pagina["shopify_beheer"],
@@ -3288,7 +3295,7 @@ def _meet_en_beoordeel(webshop_url, email=None, klant_token=None, base_url=None,
             [dict(b) for b in db.get_beoordelingen_rondes(webshop_url, rondes=2)], winkelnaam)
         tekst = waarschuwing.bericht(webshop_url, beweging, controle_samenvatting)
         if tekst and email:
-            monitoring_url = f"{base_url}/monitoring/{klant_token}" if (base_url and klant_token) else None
+            monitoring_url = f"{base_url}/mijn/{klant_token}" if (base_url and klant_token) else None
             emailing.send_vermeldingen_update(email, webshop_url, tekst, monitoring_url,
                                               taal=_mailtaal(webshop_url))
     except Exception as e:
@@ -4159,26 +4166,66 @@ def openbare_categorie(land, slug):
     )
 
 
-def _dashboard(webshop_url, land=None, voorbeeld=False, taken_url=None):
+def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer=None):
     """Het dashboard van een winkel. Dezelfde pagina voor het openbare
-    voorbeeld en voor een klant; alleen de knoppen eronder verschillen.
+    voorbeeld, voor een klant en voor de beheerweergave.
 
     Een pagina en geen twee: zou het voorbeeld zijn eigen sjabloon krijgen, dan
-    laat je bezoekers straks iets zien dat een klant niet krijgt."""
+    laat je bezoekers straks iets zien dat een klant niet krijgt.
+
+    SINDS 21 SEPTEMBER staat het werk van de klant hier ook in (zie
+    templates/_werk.html). Daarvoor stond dat op een eigen oud scherm,
+    /monitoring/<token>, en stuurde dit dashboard erheen. Nu is er een scherm.
+
+    Het openbare voorbeeld heeft een gemeten winkel nodig. Een klant niet: een
+    betalende klant van wie de categorie nog niet gemeten is, krijgt het
+    dashboard zonder cijfers maar met zijn werk, in plaats van een foutpagina."""
     beeld = klantbeeld.bouw(webshop_url, land=land)
-    if not beeld:
+    werk = klant_token is not None or beheer is not None
+    if not beeld and not werk:
         return None
     taal = sitetaal.kies_taal(pad_taal=request.args.get("taal"))
     return render_template(
         "dashboard.html",
         t=sitetaal.teksten(taal), taal=taal, beeld=beeld,
-        landnaam=sitetaal.landnaam(beeld.get("land"), taal),
-        modellen=db.modellen_van_ronde(beeld["ronde"]),
-        categorienaam=categorieen.naam_van(beeld["categorie"]),
-        staven=klantbeeld.balkhoogtes(beeld["verloop"]),
-        voorbeeld=voorbeeld, taken_url=taken_url,
+        winkelnaam=_winkelnaam(webshop_url) or webshop_url.replace("https://", ""),
+        landnaam=sitetaal.landnaam(beeld.get("land"), taal) if beeld else None,
+        modellen=db.modellen_van_ronde(beeld["ronde"]) if beeld else [],
+        categorienaam=categorieen.naam_van(beeld["categorie"]) if beeld else None,
+        staven=klantbeeld.balkhoogtes(beeld["verloop"]) if beeld else [],
+        voorbeeld=voorbeeld,
+        werkblok=(_werkblok(webshop_url, taal, klant_token=klant_token, beheer=beheer)
+                  if werk else None),
         basis_url=get_base_url().rstrip("/"),
     )
+
+
+def _werkblok(webshop_url, taal, klant_token=None, beheer=None):
+    """Alles wat het werkblok van templates/_werk.html nodig heeft.
+
+    Op een plek, zodat een klant en de beheerweergave nooit iets anders zien.
+    De taal is die van het dashboard (een adres, een taal), niet die van het
+    domein van de winkel: op een Engelse site hoort een Engels werkblok."""
+    rapporten = (db.get_klant_rapporten(klant_token) if klant_token
+                 else db.get_rapporten_voor_webshop(webshop_url)) or []
+    gegevens = _klantgegevens(webshop_url)
+    pagina = _paginagegevens(webshop_url)
+    return {
+        "wt": paginataal.teksten(taal),
+        "uitvoering": _laatste_uitvoering(webshop_url),
+        "wijzigingen": db.get_wijzigingen(webshop_url),
+        "actieplan": gegevens["actieplan"],
+        "laatste": rapporten[0] if rapporten else None,
+        "verloop": list(reversed(rapporten))[-8:],
+        # Loopt er echt een abonnement? Wie alleen een eenmalige opdracht had,
+        # las vroeger "je betaalt per maand" met een opzegknop eronder. Dat is
+        # een onjuiste mededeling over een betalingsverplichting.
+        "abonnement": any((r.get("type") or "") == "monitoring" for r in rapporten),
+        "shopify_beheer": pagina["shopify_beheer"],
+        "klant_token": klant_token,
+        "webshop_url": webshop_url,
+        "beheer": beheer,
+    }
 
 
 @app.route("/demo")
@@ -4220,14 +4267,7 @@ def klant_dashboard(klant_token):
             "fout.html", titel="This link no longer works",
             bericht="Ask for a new one on /mijn-link and we will email it "
                     "again."), 404
-    pagina = _dashboard(klant["webshop_url"],
-                        taken_url=f"/monitoring/{klant_token}")
-    if pagina is None:
-        return render_template(
-            "fout.html", titel="Your category has not been measured yet",
-            bericht="As soon as your category comes up, your rank appears "
-                    "here. We let you know when it does."), 404
-    return pagina
+    return _dashboard(klant["webshop_url"], klant_token=klant_token)
 
 
 @app.route("/mijn-link", methods=["GET", "POST"])
@@ -4461,9 +4501,16 @@ def admin_voorbeeld():
         "rem_dicht": uitgegeven >= kosten.GRENS_PER_KLANT_MAAND_EURO,
     }
 
+    # Het werkscherm van de klant staat sinds 21 september in het dashboard,
+    # dus de beheerweergave laat dat dashboard zien. Alleen de detailpagina met
+    # de dertien controlepunten is nog een eigen scherm.
+    if request.args.get("details") != "ja":
+        return _dashboard(webshop_url,
+                          beheer={"sleutel": admin_key, "taakstand": taakstand})
+
     pagina = _paginagegevens(webshop_url)
     return render_template(
-        "monitoring_details.html" if request.args.get("details") == "ja" else "monitoring.html",
+        "monitoring_details.html",
         t=pagina["t"],
         paginataal=pagina["taal"],
         shopify_beheer=pagina["shopify_beheer"],
@@ -6282,7 +6329,7 @@ def admin_oplevering():
             melding = "Bij deze winkel staat geen opdracht met een e-mailadres."
         else:
             klant_token = db.get_or_create_klant(webshop_url, uitvoering["email"])
-            monitoring_url = (f"{get_base_url()}/monitoring/{klant_token}"
+            monitoring_url = (f"{get_base_url()}/mijn/{klant_token}"
                               if klant_token else None)
             verstuurd = emailing.send_oplevering(
                 uitvoering["email"], webshop_url, [dict(w) for w in wijzigingen],

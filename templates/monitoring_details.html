@@ -200,7 +200,7 @@
     <div class="bewaar">{{ t.d_bewaar }}</div>
 
     <div class="terug">
-      <a href="{% if voorbeeld %}/admin/voorbeeld?key={{ sleutel }}&url={{ webshop_url }}{% else %}/monitoring/{{ klant_token }}{% endif %}">&larr; {{ t.d_terug }}</a>
+      <a href="{% if voorbeeld %}/admin/voorbeeld?key={{ sleutel }}&url={{ webshop_url }}{% else %}/mijn/{{ klant_token }}#werk{% endif %}">&larr; {{ t.d_terug }}</a>
     </div>
 
     {% if laatste %}

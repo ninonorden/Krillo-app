@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ beeld.naam }} | Krillo</title>
+<title>{{ beeld.naam if beeld else winkelnaam }} | Krillo</title>
 {% if voorbeeld %}
 <meta name="description" content="A real Krillo dashboard of a real store, with real measured numbers. No account needed.">
 <link rel="canonical" href="{{ basis_url }}/demo">
@@ -117,24 +117,32 @@
     <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
 
     <div class="winkelkaart">
-      <div class="naam">{{ beeld.naam }}</div>
+      <div class="naam">{{ beeld.naam if beeld else winkelnaam }}</div>
+      {% if beeld %}
       <div class="bij">{{ categorienaam }}</div>
       <div class="markten"><span class="markt">{{ beeld.land | upper }}</span></div>
+      {% endif %}
     </div>
 
     <div class="zijmenu">
       <a class="aan" href="#overzicht">{{ 'Overzicht' if taal == 'nl' else 'Overview' }}</a>
+      {% if beeld %}
       <a href="#verloop">{{ 'Verloop' if taal == 'nl' else 'History' }}</a>
       <a href="#vragen">{{ 'Vragen die je verliest' if taal == 'nl' else 'Questions I lose' }}</a>
+      {% endif %}
       <a href="#werk">{{ 'Oplossingen' if taal == 'nl' else 'Fixes' }}</a>
+      {% if beeld %}
       <a href="/index/{{ beeld.land }}/{{ beeld.categorie }}">
         {{ 'Openbare index' if taal == 'nl' else 'Public index' }}</a>
+      {% else %}
+      <a href="/index">{{ 'Openbare index' if taal == 'nl' else 'Public index' }}</a>
+      {% endif %}
     </div>
 
     <div style="flex-grow:1;"></div>
     <div class="zijvoet">
       {{ 'ELKE MAAND GEMETEN' if taal == 'nl' else 'MEASURED EVERY MONTH' }}<br>
-      {% if beeld.gemeten_op %}<span>{{ t.gemeten_op | upper }}
+      {% if beeld and beeld.gemeten_op %}<span>{{ t.gemeten_op | upper }}
         {{ beeld.gemeten_op.strftime('%d %b %Y') | upper }}</span>{% endif %}
     </div>
   </div>
@@ -154,6 +162,21 @@
     </div>
     {% endif %}
 
+    {% if not beeld %}
+    {# Een betalende klant van wie de categorie nog niet gemeten is. Tot 21
+       september kreeg die hier een foutpagina en had hij alleen het oude
+       werkscherm. Nu ziet hij waar hij aan toe is, en daaronder zijn werk. #}
+    <div class="werkkop"><h1>{{ winkelnaam }}</h1></div>
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'JOUW POSITIE' if taal == 'nl' else 'YOUR POSITION' }}</div>
+      <p style="margin:0; font-size:15px;">
+        {% if taal == 'nl' %}Je categorie is nog niet gemeten. Zodra hij aan de beurt is
+        verschijnt je positie hier, en krijg je bericht.
+        {% else %}Your category has not been measured yet. As soon as it comes up, your
+        position appears here and we let you know.{% endif %}
+      </p>
+    </div>
+    {% else %}
     <div class="werkkop">
       <h1>{{ beeld.naam }}</h1>
       <div class="regel">
@@ -271,16 +294,28 @@
     </div>
     {% endif %}
 
+    {% endif %}
+
     {# WAT ER KLAARSTAAT OM GOED TE KEUREN.
        Op het voorbeeld staat hier GEEN nagemaakte lijst met knoppen. Dat zou een
        scherm zijn dat werk toont dat niet bestaat, en dat is precies het soort
        belofte waar wij anderen op controleren. Er staat wat er komt te staan. #}
+    {% if werkblok %}
+    {# Het echte werk van deze klant. Zie templates/_werk.html. #}
+    {% with wt=werkblok.wt, uitvoering=werkblok.uitvoering,
+            wijzigingen=werkblok.wijzigingen, actieplan=werkblok.actieplan,
+            laatste=werkblok.laatste, verloop=werkblok.verloop,
+            abonnement=werkblok.abonnement, shopify_beheer=werkblok.shopify_beheer,
+            klant_token=werkblok.klant_token, webshop_url=werkblok.webshop_url,
+            beheer=werkblok.beheer %}
+    {% include "_werk.html" %}
+    {% endwith %}
+    {% else %}
     <div class="werkvlak" id="werk">
       <div class="kopregel">
         <div class="titel">
-          {% if voorbeeld %}{{ 'Hier komen de oplossingen te staan' if taal == 'nl'
-                               else 'This is where the fixes appear' }}
-          {% else %}{{ 'Wij lossen dit op' if taal == 'nl' else 'We fix this' }}{% endif %}
+          {{ 'Hier komen de oplossingen te staan' if taal == 'nl'
+             else 'This is where the fixes appear' }}
         </div>
         <span class="stempel">
           {{ 'VOOR JOU GESCHREVEN' if taal == 'nl' else 'WRITTEN FOR YOU' }} &middot;
@@ -293,14 +328,10 @@
         {% else %}We write the fixes for the questions above. After your approval we put
         them in your store, the old text is kept, and four weeks later we measure again.{% endif %}
       </p>
-      {% if voorbeeld %}
       <a class="knop vol" href="/#prijzen">
         {{ 'Bekijk wat Fix kost' if taal == 'nl' else 'See what Fix costs' }}</a>
-      {% elif taken_url %}
-      <a class="knop vol" href="{{ taken_url }}">
-        {{ 'Naar mijn taken' if taal == 'nl' else 'Go to my tasks' }}</a>
-      {% endif %}
     </div>
+    {% endif %}
 
     <div style="font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs);">
       <a href="/index" style="color:var(--ink-grijs); text-decoration:none;">{{ t.terug_index | upper }}</a>
