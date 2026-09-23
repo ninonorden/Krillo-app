@@ -70,9 +70,16 @@ LABELS = {
 
 
 def _label(markt, sleutel):
-    """Het woord in de taal van deze winkel. Onbekend wordt Nederlands."""
-    taal = "nl" if (markt or {}).get("is_nederlands", True) else "en"
-    return LABELS.get(taal, LABELS["nl"]).get(sleutel, LABELS["nl"][sleutel])
+    """Het label van een wijziging, zoals het op het scherm en in de mail staat.
+
+    SINDS 23 SEPTEMBER (stap 26) ALTIJD ENGELS. Het app-scherm en alle mails
+    zijn Engels (een adres, een taal). Een Nederlandse winkel kreeg hiervoor
+    een Engels scherm met Nederlandse regels ertussen, en dat leest als half
+    af. De TEKST die wij in de winkel zetten blijft wel in de taal van de
+    winkel: dat regelt de markt bij het schrijven, niet dit label.
+    De Nederlandse labels blijven staan voor als de app ooit weer tweetalig
+    wordt; markt wordt nu bewust genegeerd."""
+    return LABELS["en"].get(sleutel, LABELS["en"]["tekst"])
 
 
 # Hoeveel wijzigingen wij gratis in een winkel zetten.

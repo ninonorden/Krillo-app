@@ -4144,7 +4144,7 @@ def zet_klant_opgezegd(webshop_url, opgezegd=True):
         conn.close()
 
 
-def zet_klant_op_lijst(webshop_url, land=None):
+def zet_klant_op_lijst(webshop_url, land=None, stand="klant"):
     """Zet een betalende klant op de winkellijst, zodat hij in de index komt.
 
     WAAROM DIT BESTAAT (gevonden 21 september). De positie van een klant komt
@@ -4171,12 +4171,15 @@ def zet_klant_op_lijst(webshop_url, land=None):
             with conn.cursor() as cur:
                 cur.execute(
                     """INSERT INTO benadering (webshop_url, land, branche, stand)
-                       VALUES (%s, %s, 'klant', 'klant')
+                       VALUES (%s, %s, %s, %s)
                        ON CONFLICT (webshop_url) DO UPDATE
-                          SET stand = CASE WHEN benadering.gemaild_op IS NULL
-                                           THEN 'klant' ELSE benadering.stand END,
+                          SET stand = CASE
+                                WHEN benadering.gemaild_op IS NOT NULL THEN benadering.stand
+                                -- Een betalende klant wint van een installatie.
+                                WHEN benadering.stand = 'klant' THEN 'klant'
+                                ELSE EXCLUDED.stand END,
                               afgemeld = FALSE""",
-                    (webshop_url, land))
+                    (webshop_url, land, stand, stand))
         return True
     except Exception as e:
         print(f"Klant op de winkellijst zetten mislukt voor {webshop_url}: {e}")

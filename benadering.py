@@ -864,6 +864,11 @@ def te_mailen(hoeveel):
     for winkel in db.get_benaderingen(stand="gemeten", limiet=hoeveel * 3):
         if not winkel.get("email") or winkel.get("gemaild_op"):
             continue
+        # Sinds stap 36 gaat de mail over de positie in de index. Zonder
+        # categorie is er geen positie, en zou hij elke ronde opnieuw een plek
+        # in de rij bezetten zonder ooit post te kunnen krijgen.
+        if "categorie" in winkel and not winkel.get("categorie"):
+            continue
         uit.append(winkel)
         if len(uit) >= hoeveel:
             break

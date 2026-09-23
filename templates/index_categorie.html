@@ -72,6 +72,7 @@
   {% endif %}
 
   {% if ranglijst %}
+  <style>tr:target td{background:#FFF4C2;}</style>
   <table>
     <tr>
       <th>#</th><th>{{ t.webshop }}</th>
@@ -79,7 +80,9 @@
       <th style="text-align:right">{{ t.aanbevolen }}</th>
     </tr>
     {% for r in ranglijst %}
-    <tr {% if r.positie <= 3 %}class="top"{% endif %}>
+    {# id per regel (stap 36): de link in de mail springt naar de eigen regel
+       van de winkel, en de gele achtergrond laat zien welke het is. #}
+    <tr id="p{{ r.positie }}" {% if r.positie <= 3 %}class="top"{% endif %}>
       <td class="pos">{{ r.positie }}</td>
       <td>
         {# Nooit "https://..." als naam. Hebben we (nog) geen naam, dan het

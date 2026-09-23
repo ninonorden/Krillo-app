@@ -517,233 +517,97 @@ def _kaal_adres(webshop_url):
     return adres.rstrip("/")
 
 
-def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
-                        telbaar=None, nooit_genoemd=None, gemeten=None,
-                        afmeld_url=None, land=None, voorbeeld=None):
-    """De mail aan een webshop die we in het onderzoek gemeten hebben.
+def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
+                        categorienaam=None, landnaam=None, afmeld_url=None):
+    """De koude mail aan een winkel die in de Krillo index staat.
 
-    Dit is geen verkoopmail en zo hoort hij ook niet te lezen. Er staat een
-    uitkomst in die over hem gaat, waar hij hem kan bekijken, en hoe hij eraf
-    komt. Het aanbod staat op de pagina, niet in de mail.
+    OMGEBOUWD 23 SEPTEMBER (stap 36). Dit was de laatste mail uit het oude
+    model: Nederlands, met een eigen meting van de winkel ("genoemd bij 0 van
+    de 5 vragen") en een link naar een eigen uitkomstpagina. Nu:
+    - Engels, zoals alle mail (een adres, een taal);
+    - de POSITIE van de winkel in zijn categorie en land, uit dezelfde
+      maandmeting als de openbare ranglijst. Nooit een tweede cijfer;
+    - een echte vraag waar hij ontbrak, met wie er wel genoemd werd. Alleen
+      winkels, geen platforms: "bol.com werd genoemd in plaats van jou" klopt
+      niet, bol.com is geen concurrent;
+    - de link gaat naar de openbare ranglijst (via /uitkomst/<kenmerk>, zodat
+      wij tellen dat hij geopend is).
+    Zonder positie gaat er GEEN mail uit. Een koude mail zonder uitkomst is
+    reclame, en daar hebben wij geen recht op.
 
-    Waarom deze mail er zo kaal uitziet, en dat is met opzet:
-
-    Iemand die niet om post gevraagd heeft beslist in twee seconden of het
-    oplichterij is. Alles wat op reclame lijkt telt daarin mee. Een grote
-    gekleurde knop, een logo, opmaak in drie kleuren: dat doet een bedrijf dat
-    iets wil verkopen, niet iemand die je iets laat weten. Daarom staat hier
-    een gewone tekstlink en geen knop, en is er geen opmaak die je bij een
-    mailtje van een mens ook niet zou zien.
-
-    De afzender is het tweede punt. Een naam onderaan scheelt meer dan alle
-    opmaak bij elkaar: een mail van een persoon is te beantwoorden, een mail
-    van "wij" niet. Zet AFZENDER_NAAM in Render om die naam eronder te krijgen.
-    Staat hij er niet, dan gaat de mail gewoon uit zonder, maar hij leest dan
-    afstandelijker.
-
-    De afmeldlink is niet optioneel. Hij moet in elke mail staan die naar
-    iemand gaat die er niet om vroeg, hij moet werken in een klik, en hij is
-    het verschil tussen een afmelding en een spamklacht. Een spamklacht kost je
-    je domein, een afmelding kost je een adres."""
-    if not to_email or not uitkomst_url:
-        print("Onderzoeksmail niet verstuurd: adres of link ontbreekt.")
+    Wat hetzelfde bleef, en waarom:
+    Iemand die niet om post vroeg beslist in twee seconden of het oplichterij
+    is. Dus kaal: geen logo, geen kleuren, een gewone knop met eronder waar hij
+    heen gaat (hetzelfde domein als de afzender). Een naam onderaan
+    (AFZENDER_NAAM in Render) maakt een mail beantwoordbaar. En de afmeldlink
+    is niet optioneel: een afmelding kost een adres, een spamklacht het domein."""
+    if not to_email or not link_url or not beeld or not beeld.get("positie"):
+        print("Onderzoeksmail niet verstuurd: adres, link of positie ontbreekt.")
         return False
 
-    winkel = _kaal_adres(webshop_url)
-
-    # Een Belgische winkel is geen Nederlandse webshop. Dat klinkt klein, maar
-    # het is de eerste zin en het valt meteen op als het niet klopt.
-    if (land or "").strip().lower() in ("be", "belgie", "belgi\u00eb", "belgium"):
-        streek = "Belgische en Nederlandse webshops"
-    else:
-        streek = "Nederlandse en Belgische webshops"
-
-    vergelijking_regel = ""
-    if nooit_genoemd is not None and gemeten:
-        vergelijking_regel = (f" &middot; van de {gemeten} gemeten winkels werden er "
-                              f"{nooit_genoemd} bij geen enkele vraag genoemd")
+    e = _html.escape
+    winkel = e(_kaal_adres(webshop_url))
+    cat = e(categorienaam or beeld.get("categorie") or "your category")
+    land = e(landnaam or (beeld.get("land") or "").upper())
+    positie, van = beeld["positie"], beeld.get("van") or 0
+    genoemd, telbaar = beeld.get("genoemd") or 0, beeld.get("telbaar") or 0
 
     naam = (os.environ.get("AFZENDER_NAAM") or "").strip()
     ondertekening = (f'<p style="font-size:14.5px; color:#12142B; margin:22px 0 0;">'
-                     f'Met vriendelijke groet,<br>{naam}</p>') if naam else ""
+                     f'Kind regards,<br>{e(naam)}</p>') if naam else ""
 
     if afmeld_url:
-        afmelden = (f'Wil je hier niets meer over horen, dan kan dat met '
-                    f'<a href="{afmeld_url}" style="color:#6B6D85;">deze link</a>. '
-                    f'We halen je uitkomst dan weg en je krijgt geen post meer.')
+        afmelden = (f'Rather not hear about this? Use '
+                    f'<a href="{afmeld_url}" style="color:#6B6D85;">this link</a>: one click, '
+                    f'no questions. You get no more email from us, and we take your store '
+                    f'out of the public index.')
     else:
-        afmelden = ("Wil je hier niets meer over horen, antwoord dan op deze mail "
-                    "en het is dezelfde dag weg.")
+        afmelden = ("Rather not hear about this? Reply to this email and we remove you "
+                    "the same day.")
 
     g = BEDRIJFSGEGEVENS
     afzender = os.environ.get("SMTP_FROM_EMAIL", "hello@krilloai.com")
 
-    # WAT ER IN HET KADER STAAT, EN WAAROM DAT OP 12 SEPTEMBER VERANDERD IS.
-    #
-    # Brevo laat zien dat 45 procent van de ontvangers deze mail OPENT. Dat is
-    # voor koude zakelijke post uitstekend, en er zijn nul spamklachten. Maar van
-    # die 45 procent klikt maar 8 procent door naar zijn uitkomst.
-    #
-    # De mail komt dus aan, wordt gelezen, en dan gebeurt er niets. Dat wijst
-    # niet op de aflevering en niet op de onderwerpregel, maar op de inhoud. En
-    # de oorzaak lag voor de hand zodra je hem opschreef: er stond "genoemd bij
-    # 0 van de 5 vragen", en daarmee was het verhaal uit. Wie het antwoord al
-    # heeft, klikt niet meer.
-    #
-    # Wat er nu staat is hetzelfde feit, van de andere kant bekeken: niet dat
-    # jij ontbrak, maar dat er WEL iemand anders uitkwam. Dat is precies even
-    # waar, het is scherper, en het roept de vraag op die alleen de pagina
-    # beantwoordt: wie dan.
-    gemist = None
-    if genoemd is not None and telbaar:
-        gemist = max(0, telbaar - genoemd)
-
-    if gemist:
-        if genoemd == 0:
-            kop = (f"Bij alle {telbaar} vragen kwam er een andere winkel uit, "
-                   f"en {winkel} niet")
-        else:
-            kop = (f"Bij {gemist} van de {telbaar} vragen kwam er een andere "
-                   f"winkel uit, en {winkel} niet")
-        onder = f"Genoemd bij {genoemd} van de {telbaar} vragen{vergelijking_regel}"
-    elif genoemd is not None and telbaar:
-        kop = f"{winkel} werd bij alle {telbaar} vragen genoemd"
-        onder = ("Genoemd worden is niet hetzelfde als aanbevolen worden. Dat "
-                 "verschil staat op je pagina.")
+    # De regel onder het cijfer: per vraag geteld, niet in procenten (bij
+    # dertig vragen suggereert een procent een precisie die er niet is).
+    if genoemd == 0:
+        onder = f"AI named {winkel} in none of the {telbaar} buying questions."
     else:
-        kop = f"We hebben {winkel} meegenomen in de meting"
-        onder = ""
+        onder = f"AI named {winkel} in {genoemd} of {telbaar} buying questions."
+    boven = (beeld.get("boven_mij") or [])[-1:]
+    if boven:
+        r = boven[0]
+        bnaam = r.get("naam") if (r.get("naam") and not str(r.get("naam")).startswith("http")) \
+            else _kaal_adres(r.get("webshop_url") or "")
+        onder += f" Just ahead of you: {e(bnaam)} (#{r.get('positie')})."
 
-    # HET WOORD "KOOPVRAAG" IS HIER WEG, EN DAT IS DE HELE WIJZIGING.
-    #
-    # Dat was ons woord en niet dat van de ontvanger. Een winkelier die het leest
-    # moet eerst raden wat wij gemeten hebben, en raden kost precies de twee
-    # seconden die een ongevraagde mail krijgt.
-    #
-    # De oplossing is niet uitleggen wat een koopvraag is, maar er een laten
-    # zien. Staat de echte vraag erin, met de winkels die eruit kwamen en een
-    # kruisje bij de winkel van de lezer, dan is er geen woord uitleg meer nodig:
-    # iedereen die ooit iets aan ChatGPT gevraagd heeft snapt dat beeld meteen.
-    #
-    # Twee namen en niet de hele lijst. Genoeg om het te geloven, te weinig om
-    # het af te doen. De rest is precies waarvoor je op de knop drukt.
-    #
-    # Lukt het niet om een bruikbare vraag te vinden (zie beoordeling.
-    # voorbeeldvraag), dan valt de mail terug op het kader zonder voorbeeld. Dat
-    # is geen fout, dat is een winkel waarbij er weinig te laten zien valt.
-    vraag = (voorbeeld or {}).get("vraag")
-    namen = (voorbeeld or {}).get("winkels") or []
-
-    if vraag and len(namen) >= 2:
-        aantal = voorbeeld.get("aantal") or len(namen)
-        model = voorbeeld.get("model") or "ChatGPT"
-        regels = []
-        for naam in namen[:2]:
-            regels.append(
+    # Een echte vraag uit de meting. Uitleggen wat een koopvraag is kost de
+    # twee seconden die deze mail krijgt; er een laten zien niet.
+    voorbeeld = ""
+    for v in beeld.get("gemiste_vragen") or []:
+        namen = [n for n in (v.get("concurrenten") or []) if n][:2]
+        if v.get("vraag") and namen:
+            regels = "".join(
                 f'<tr><td style="padding:4px 0; font-size:14.5px; color:#12142B;">'
                 f'<span style="color:#1FB6A4; font-weight:700;">&#10003;</span>'
-                f'&nbsp;&nbsp;{naam}</td></tr>')
-        if aantal > 2:
-            rest = aantal - 2
-            woord = "winkel" if rest == 1 else "winkels"
-            regels.append(
-                f'<tr><td style="padding:4px 0; font-size:14.5px; color:#3B3D57;">'
-                f'<span style="color:#1FB6A4; font-weight:700;">&#10003;</span>'
-                f'&nbsp;&nbsp;nog {rest} andere {woord}</td></tr>')
-        regels.append(
-            f'<tr><td style="padding:4px 0; font-size:14.5px; color:#D42E22; '
-            f'font-weight:600;">'
-            f'<span style="font-weight:700;">&#10005;</span>'
-            f'&nbsp;&nbsp;{winkel} stond er niet bij</td></tr>')
-
-        # De vergelijking met de rest van het onderzoek hangt hieronder en niet
-        # bovenaan. Hij doet er wel toe, want hij maakt van een losse uitkomst
-        # een bevinding uit een onderzoek, maar hij is niet de reden om te
-        # klikken. Die staat erboven.
-        if gemist and genoemd == 0:
-            slotregel = (f"Dat gebeurde bij alle {telbaar} vragen die we "
-                         f"stelden{vergelijking_regel}")
-        elif gemist:
-            slotregel = (f"Dat gebeurde bij {gemist} van de {telbaar} "
-                         f"vragen{vergelijking_regel}")
-        else:
-            slotregel = ""
-
-        kader = f"""
-      <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
-             style="border:1px solid #E4E2DA; border-radius:10px; margin:22px 0;">
-        <tr><td style="padding:20px 22px;">
+                f'&nbsp;&nbsp;{e(n)}</td></tr>' for n in namen)
+            regels += (f'<tr><td style="padding:4px 0; font-size:14.5px; color:#D42E22; '
+                       f'font-weight:600;"><span style="font-weight:700;">&#10005;</span>'
+                       f'&nbsp;&nbsp;{winkel} was not named</td></tr>')
+            voorbeeld = f"""
           <div style="font-size:11.5px; color:#6B6D85; letter-spacing:.06em;
-                      text-transform:uppercase; margin-bottom:12px;">
-            Een van de vragen die we stelden</div>
-
+                      text-transform:uppercase; margin:22px 0 10px;">
+            One of the questions we asked</div>
           <table role="presentation" cellpadding="0" cellspacing="0">
             <tr><td style="background:#F6F5F1; border-radius:14px 14px 14px 4px;
                            padding:12px 16px; font-size:15.5px; font-weight:600;
-                           color:#12142B; line-height:1.4;">{vraag}</td></tr>
+                           color:#12142B; line-height:1.4;">{e(v["vraag"])}</td></tr>
           </table>
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                 style="margin-top:12px;">{regels}</table>"""
+            break
 
-          <div style="font-size:13.5px; color:#3B3D57; margin:16px 0 4px;">
-            {model} antwoordde met {aantal} {"winkel" if aantal == 1 else "winkels"}:</div>
-          <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-            {''.join(regels)}
-          </table>
-          {f'<div style="font-size:12.5px; color:#6B6D85; margin-top:14px;">{slotregel}</div>' if slotregel else ''}
-        </td></tr>
-      </table>"""
-    else:
-        kader = f"""
-      <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
-             style="border:1px solid #E4E2DA; border-radius:10px; margin:22px 0;">
-        <tr><td style="padding:20px 22px;">
-          <div style="font-size:12px; color:#3B3D57; letter-spacing:.04em;
-                      text-transform:uppercase; margin-bottom:8px;">Jouw uitkomst</div>
-          <div style="font-size:21px; font-weight:700; color:#12142B; line-height:1.35;">
-            {kop}</div>
-          {f'<div style="font-size:13.5px; color:#3B3D57; margin-top:8px;">{onder}</div>' if onder else ''}
-        </td></tr>
-      </table>"""
-
-    # DE ZIN OVER DE VERVOLGMETING, EN WAAROM DIE NU UIT ECHTE GETALLEN KOMT.
-    #
-    # Hier stond: "dan meten we meteen door met vijftien vragen aan twee
-    # modellen". Allebei die getallen stonden vast in de tekst terwijl ze in
-    # Render ingesteld worden, en het eerste klopte bovendien niet helemaal: het
-    # zijn geen vijftien vragen ERBIJ, het is een meting van vijftien vragen
-    # waarvan de eerste zes al gesteld waren.
-    #
-    # Nu komen beide getallen mee van de aanroeper: het aantal vragen uit
-    # MEET_VRAGEN_NA_KLIK en het aantal modellen uit de sleutels die echt in
-    # Render staan. Zet jij daar morgen een derde model bij, dan zegt de mail
-    # vanzelf drie. Weten we ze niet, dan blijft de zin weg. Liever niets
-    # beloven dan een getal noemen dat niemand nakijkt behalve de ontvanger.
-    na_vragen = (voorbeeld or {}).get("na_klik_vragen")
-    na_modellen = (voorbeeld or {}).get("na_klik_modellen")
-    belofte = ""
-    if na_vragen and telbaar and na_vragen > telbaar:
-        if na_modellen and na_modellen > 1:
-            belofte = (f" Open je hem, dan gaat er meteen een grotere meting "
-                       f"overheen: {na_vragen} vragen in plaats van {telbaar}, "
-                       f"en bij {na_modellen} modellen in plaats van een.")
-        else:
-            belofte = (f" Open je hem, dan gaat er meteen een grotere meting "
-                       f"overheen, met {na_vragen} vragen in plaats van {telbaar}.")
-
-    if vraag and len(namen) >= 2:
-        vervolg = ("Bij welke vragen dat nog meer gebeurde, en welke winkels er dan "
-                   "uitkwamen, staat op je eigen pagina." + belofte +
-                   " Je hoeft nergens voor in te loggen en er wordt niets gevraagd.")
-        knoptekst = "Bekijk de andere vragen"
-    else:
-        vervolg = ("Welke winkels dat waren en bij welke vragen, staat op je eigen "
-                   "pagina." + belofte +
-                   " Je hoeft nergens voor in te loggen en er wordt niets gevraagd.")
-        knoptekst = "Bekijk welke winkels er wel uitkwamen"
-
-    # De knop is donkergrijs en niet felrood, en er staat onder waar hij heen
-    # gaat. Dat laatste is het hele punt: bij een ongevraagde mail wil je zien
-    # dat de link naar hetzelfde domein gaat als de afzender voordat je klikt.
-    zichtbaar = _kaal_adres(uitkomst_url)
+    zichtbaar = e(_kaal_adres(link_url).split("/")[0])
 
     html = f"""
     <div style="background:#F6F5F1; padding:28px 16px; font-family:-apple-system,
@@ -756,38 +620,52 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
           <div style="font-size:15px; font-weight:700; color:#12142B; letter-spacing:.01em;">
             Krillo</div>
           <div style="font-size:12px; color:#6B6D85; margin-top:2px;">
-            Onderzoek naar AI-antwoorden over webshops</div>
+            The Krillo index: which stores AI recommends</div>
 
           <div style="height:1px; background:#E4E2DA; margin:20px 0 22px;"></div>
 
           <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">
-            We onderzoeken welke {streek} door ChatGPT en Gemini genoemd worden
-            wanneer iemand vraagt waar hij iets kan kopen. {winkel} zat in die meting.</p>
+            Every month we ask ChatGPT and Gemini the questions shoppers ask when they want
+            to buy in {cat} in {land}, and we rank the stores they name.
+            {winkel} is in that ranking.</p>
 
-          {kader}
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                 style="border:1px solid #E4E2DA; border-radius:10px; margin:22px 0;">
+            <tr><td style="padding:20px 22px;">
+              <div style="font-size:12px; color:#3B3D57; letter-spacing:.04em;
+                          text-transform:uppercase; margin-bottom:8px;">
+                Your place in {cat}, {land}</div>
+              <div style="font-size:30px; font-weight:700; color:#12142B; line-height:1.2;">
+                #{positie} of {van}</div>
+              <div style="font-size:13.5px; color:#3B3D57; margin-top:8px; line-height:1.55;">
+                {onder}</div>
+              {voorbeeld}
+            </td></tr>
+          </table>
 
           <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 6px;">
-            {vervolg}</p>
+            The full ranking, and how we measured it, is on a public page. No login, and
+            nothing to fill in.</p>
 
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
             <tr><td style="background:#12142B; border-radius:8px;">
-              <a href="{uitkomst_url}" style="display:inline-block; padding:13px 26px;
+              <a href="{link_url}" style="display:inline-block; padding:13px 26px;
                  color:#FFFFFF; text-decoration:none; font-size:14.5px; font-weight:600;">
-                {knoptekst}</a>
+                See the full ranking</a>
             </td></tr>
           </table>
           <p style="font-size:12.5px; color:#6B6D85; margin:0 0 4px;">
-            De link gaat naar {zichtbaar}</p>
+            The link goes to {zichtbaar}</p>
           {ondertekening}
 
           <div style="height:1px; background:#E4E2DA; margin:26px 0 16px;"></div>
 
           <p style="font-size:12.5px; color:#6B6D85; line-height:1.7; margin:0;">
-            Je krijgt deze mail omdat je winkel in ons onderzoek zit. We hebben alleen
-            openbare informatie van je website gebruikt en niets aan je site veranderd.
+            You get this email because your store is in the Krillo index. We only used
+            public information and the answers AI gave; we changed nothing on your website.
             {afmelden}<br><br>
             {g['naam']} &middot; {g['adres']}, {g['plaats']} &middot; KVK {g['kvk']}<br>
-            Antwoorden op deze mail komen bij ons aan op {afzender}.</p>
+            Replies reach us at {afzender}.</p>
 
         </td></tr>
       </table>
@@ -795,8 +673,8 @@ def send_onderzoeksmail(to_email, webshop_url, uitkomst_url, genoemd=None,
     """
     koppen = {"List-Unsubscribe": f"<{afmeld_url}>",
               "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"} if afmeld_url else None
-    return send_email(to_email, f"{winkel} in ons onderzoek naar AI-antwoorden",
-                      html, koppen=koppen)
+    onderwerp = f"{_kaal_adres(webshop_url)}: #{positie} of {van} in the Krillo index"
+    return send_email(to_email, onderwerp, html, koppen=koppen)
 
 
 def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None,

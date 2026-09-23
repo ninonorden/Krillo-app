@@ -614,11 +614,11 @@ def api_herroepen():
 def api_opzeggen(klant_token):
     klant = db.get_klant(klant_token)
     if klant is None:
-        return jsonify({"error": "Deze pagina is niet meer geldig."}), 404
+        return jsonify({"error": "This page is no longer valid."}), 404
 
     abonnement = payments.zoek_abonnement(klant["webshop_url"])
     if abonnement is None:
-        return jsonify({"error": "We konden geen lopend abonnement vinden. Mail hello@krilloai.com, dan zoeken we het uit."}), 400
+        return jsonify({"error": "We could not find an active plan. Email hello@krilloai.com and we will sort it out."}), 400
 
     resultaat = payments.zeg_abonnement_op(abonnement["customer_id"], abonnement["subscription_id"])
     if "error" in resultaat:
@@ -989,7 +989,7 @@ def api_scan():
     data = request.get_json(silent=True) or {}
     url = (data.get("url") or "").strip()
     if not url:
-        return jsonify({"error": "Vul een website-URL in."}), 400
+        return jsonify({"error": "Enter a website address."}), 400
 
     herkomst = data.get("herkomst") or _herkomst()
     result = run_scan(url)
@@ -1064,7 +1064,7 @@ def api_voorproef():
     data = request.get_json(silent=True) or {}
     url = (data.get("url") or "").strip()
     if not url:
-        return jsonify({"error": "Geen webshop opgegeven."}), 400
+        return jsonify({"error": "No store address given."}), 400
     url = scan_engine.normalize_url(url)
 
     eerder = db.laatste_geslaagde_test(url, zichtbaarheid.HERGEBRUIK_DAGEN)
@@ -1112,11 +1112,11 @@ def api_zichtbaarheidstest():
     nieuwsbrief = bool(data.get("nieuwsbrief"))
 
     if not url:
-        return jsonify({"error": "Vul eerst je webshop in."}), 400
+        return jsonify({"error": "Enter your store address first."}), 400
     if not email or not _EMAIL_VORM.match(email) or len(email) > 190:
-        return jsonify({"error": "Vul een geldig e-mailadres in."}), 400
+        return jsonify({"error": "Enter a valid email address."}), 400
     if not data.get("voorwaarden_akkoord"):
-        return jsonify({"error": "Ga akkoord met het privacybeleid."}), 400
+        return jsonify({"error": "Please agree to the privacy policy."}), 400
 
     url = scan_engine.normalize_url(url)
     herkomst = data.get("herkomst") or _herkomst()
@@ -1155,8 +1155,7 @@ def api_zichtbaarheidstest():
     # en wacht op een antwoord, dus die krijgt wel te horen wat er aan de hand
     # is, in plaats van een stille afwijzing zoals bij de voorproef.
     if db.loopt_er_al_een_test(url):
-        return jsonify({"error": "Er loopt al een meting voor deze webshop. "
-                                 "Die is over een paar minuten klaar."}), 409
+        return jsonify({"error": "A check for this store is already running. It will be done in a few minutes."}), 409
 
     mag, reden = zichtbaarheid.mag_starten()
     if not mag:
@@ -1164,7 +1163,7 @@ def api_zichtbaarheidstest():
 
     aanvraag = db.start_zichtbaarheidstest(url, email, nieuwsbrief, herkomst)
     if not aanvraag:
-        return jsonify({"error": "Het lukte even niet. Probeer het zo nog eens."}), 500
+        return jsonify({"error": "That did not work just now. Please try again in a moment."}), 500
 
     threading.Thread(target=_draai_zichtbaarheidstest,
                      args=(aanvraag["id"], url, email, get_base_url()), daemon=True).start()
@@ -1227,15 +1226,14 @@ def checkout_audit():
     voorwaarden = bool(data.get("voorwaarden_akkoord"))
     direct = bool(data.get("directe_uitvoering_akkoord"))
     if not webshop_url or not email:
-        return jsonify({"error": "Vul een webshop-URL en e-mailadres in."}), 400
+        return jsonify({"error": "Enter your store address and email address."}), 400
     # De vorm van het adres controleren. Stond hier niet, alleen bij de gratis
     # test. Wie zich vertypt betaalde dus 79 euro, Brevo weigerde stilletjes, en
     # niemand merkte iets: niet de klant, niet wij.
     if not _EMAIL_VORM.match(email):
-        return jsonify({"error": "Dat e-mailadres klopt niet. Controleer het even, "
-                                 "want hier sturen wij alles naartoe."}), 400
+        return jsonify({"error": "That email address does not look right. Please check it: this is where we send everything."}), 400
     if not voorwaarden:
-        return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
+        return jsonify({"error": "Please agree to the terms and the privacy policy."}), 400
     if not direct:
         return jsonify({"error": "Geef aan dat we direct mogen beginnen."}), 400
 
@@ -1271,15 +1269,14 @@ def checkout_uitvoering():
     voorwaarden = bool(data.get("voorwaarden_akkoord"))
     direct = bool(data.get("directe_uitvoering_akkoord"))
     if not webshop_url or not email:
-        return jsonify({"error": "Vul een webshop-URL en e-mailadres in."}), 400
+        return jsonify({"error": "Enter your store address and email address."}), 400
     # De vorm van het adres controleren. Stond hier niet, alleen bij de gratis
     # test. Wie zich vertypt betaalde dus 79 euro, Brevo weigerde stilletjes, en
     # niemand merkte iets: niet de klant, niet wij.
     if not _EMAIL_VORM.match(email):
-        return jsonify({"error": "Dat e-mailadres klopt niet. Controleer het even, "
-                                 "want hier sturen wij alles naartoe."}), 400
+        return jsonify({"error": "That email address does not look right. Please check it: this is where we send everything."}), 400
     if not voorwaarden:
-        return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
+        return jsonify({"error": "Please agree to the terms and the privacy policy."}), 400
     if not direct:
         return jsonify({"error": "Geef aan dat we direct mogen beginnen."}), 400
 
@@ -1308,12 +1305,11 @@ def checkout_monitoring():
     bedrijfsnaam = (data.get("bedrijfsnaam") or "").strip()
     voorwaarden = bool(data.get("voorwaarden_akkoord"))
     if not email or not webshop_url:
-        return jsonify({"error": "Vul een e-mailadres en webshop-URL in."}), 400
+        return jsonify({"error": "Enter your email address and store address."}), 400
     if not _EMAIL_VORM.match(email):
-        return jsonify({"error": "Dat e-mailadres klopt niet. Controleer het even, "
-                                 "want hier sturen wij alles naartoe."}), 400
+        return jsonify({"error": "That email address does not look right. Please check it: this is where we send everything."}), 400
     if not voorwaarden:
-        return jsonify({"error": "Ga akkoord met de voorwaarden en het privacybeleid."}), 400
+        return jsonify({"error": "Please agree to the terms and the privacy policy."}), 400
 
     # Loopt er al een abonnement op deze winkel, dan houden wij het hier tegen.
     # Zonder deze controle maakt elke nieuwe aanmelding een tweede abonnement
@@ -1323,8 +1319,8 @@ def checkout_monitoring():
     try:
         if payments.zoek_abonnement(webshop_url):
             return jsonify({
-                "error": "Op deze webshop loopt al een abonnement. Kijk in je mail naar "
-                         "je eigen pagina, of mail hello@krilloai.com als je die kwijt bent."
+                "error": "This store already has a Krillo plan. Your dashboard link is in "
+                         "your welcome email, or email hello@krilloai.com if you lost it."
             }), 400
     except Exception as e:
         # Kunnen wij het niet nakijken, dan gaan wij door. Iemand tegenhouden
@@ -1337,6 +1333,19 @@ def checkout_monitoring():
     pakket = (data.get("pakket") or "").strip().lower()
 
     bron = _schoon_bron(data.get("herkomst")) or _schoon_bron(_herkomst())
+    # Nooit twee keer betalen voor dezelfde winkel (stap 26). Betaalt deze
+    # winkel al via onze Shopify-app, dan hier niet nog een abonnement.
+    try:
+        via_app = db.shopify_winkel_bij_url(scan_engine.normalize_url(webshop_url))
+        if via_app and via_app.get("toegangssleutel"):
+            stand_app = shopify_billing.huidig_abonnement(via_app["winkel"],
+                                                          _shopify_sleutel(via_app))
+            if stand_app.get("actief"):
+                return jsonify({"error": "This store already has a Krillo plan through "
+                                         "the Shopify app. Manage it there."}), 409
+    except Exception as e:
+        print(f"Shopify-abonnement nakijken bij de kassa mislukt: {e}")
+
     result = payments.create_monitoring_signup(get_base_url(), email, webshop_url,
                                                bedrijfsnaam, bron=bron, pakket=pakket)
     if "payment_id" in result:
@@ -2649,57 +2658,20 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None):
     if not token:
         return False, "Er kon geen link naar de uitkomst gemaakt worden."
     try:
-        gegevens = _klantgegevens(webshop_url)
-        v = gegevens.get("vermeldingen") or {}
-        if not v.get("telbaar"):
-            return False, "Deze winkel is nog niet gemeten."
-        # Een uitkomst op een handjevol vragen is geen uitkomst. Krijgt iemand
-        # ongevraagd post met "genoemd bij 0 van de 4 vragen", dan is de eerste
-        # gedachte niet "goh" maar "dit stelt niets voor", en dat is terecht.
-        # Zo'n meting is een afgebroken ronde, en die hoort niet de deur uit.
-        if v["telbaar"] < MINIMUM_VRAGEN_VOOR_POST:
-            # En dan niet op "gemeten" laten staan. Doe je dat wel, dan komt deze
-            # winkel elke ronde opnieuw langs, wordt elke ronde opnieuw
-            # geweigerd, en krijgt hij nooit post. Ondertussen bezet hij wel een
-            # plek in de rij van winkels die wel klaar zijn. Terug naar "adres"
-            # betekent: opnieuw meten, nu met vijftien vragen.
-            return False, (f"TE_WEINIG_VRAGEN: er zijn maar {v['telbaar']} vragen "
-                           f"meegeteld, dat is te weinig voor een uitkomst. De meting "
-                           f"is halverwege gestopt of dateert van voor 10 september, "
-                           f"toen er nog met vijf vragen gemeten werd. Deze winkel "
-                           f"wordt opnieuw gemeten.")
-
-        c = benchmark.tel_op(db.benchmark_regels())
-        # De vergelijking met de andere winkels alleen meesturen als er ook echt
-        # iets te vergelijken valt.
-        #
-        # Deze mail heet een onderzoek en leunt op dat woord. Staat er "van de 5
-        # gemeten winkels", dan leest de ontvanger terecht: dit is geen
-        # onderzoek, dit is een verkoopmail met een jasje aan. Onder de grens
-        # laten wij die regel gewoon weg; de mail werkt ook zonder.
-        genoeg = (c.get("gemeten") or 0) >= MINIMUM_WINKELS_VOOR_VERGELIJKING
-        basis = get_base_url()
-
-        # Een echte vraag uit de meting, met de winkels die eruit kwamen. Dit is
-        # wat het woord "koopvragen" uit de mail haalt: je legt niet uit wat we
-        # gemeten hebben, je laat het zien.
-        #
-        # De twee getallen over de vervolgmeting gaan in hetzelfde pakketje mee,
-        # zodat de mail belooft wat er straks echt gebeurt. Het aantal modellen
-        # komt uit de sleutels die in Render staan, niet uit een zin die ooit is
-        # opgeschreven: staat er maar een sleutel, dan zegt de mail geen twee.
-        voorbeeld = beoordeling.voorbeeldvraag(
-            webshop_url, [dict(b) for b in db.get_beoordelingen(webshop_url)]) or {}
-        voorbeeld["na_klik_vragen"] = MEET_VRAGEN_NA_KLIK
-        voorbeeld["na_klik_modellen"] = len(metingen.beschikbare_aanbieders())
-
+        # SINDS 23 SEPTEMBER (stap 36): de mail gaat over de POSITIE in de
+        # index, uit dezelfde maandmeting als de openbare ranglijst. Hiervoor
+        # ging hij over een eigen meting van de winkel. Geen positie, geen
+        # mail: dan komt hij vanzelf terug zodra zijn categorie gemeten is.
+        beeld = klantbeeld.bouw(webshop_url, land=(land or "").lower() or None)
+        if not beeld or (beeld.get("telbaar") or 0) < MINIMUM_VRAGEN_VOOR_POST:
+            return False, ("GEEN_POSITIE: deze winkel staat (nog) niet in een ranglijst. "
+                           "Hij komt vanzelf terug zodra zijn categorie gemeten is.")
+        basis = get_base_url().rstrip("/")
         gelukt = emailing.send_onderzoeksmail(
-            email, webshop_url, f"{basis}/uitkomst/{token}",
-            genoemd=v.get("genoemd"), telbaar=v.get("telbaar"),
-            nooit_genoemd=c.get("nooit_genoemd") if genoeg else None,
-            gemeten=c.get("gemeten") if genoeg else None,
-            afmeld_url=f"{basis}/afmelden/{token}", land=land,
-            voorbeeld=voorbeeld)
+            email, webshop_url, f"{basis}/uitkomst/{token}", beeld=beeld,
+            categorienaam=categorieen.naam_van(beeld["categorie"]),
+            landnaam=sitetaal.landnaam(beeld["land"], "en") if beeld.get("land") else None,
+            afmeld_url=f"{basis}/afmelden/{token}")
         return bool(gelukt), None if gelukt else "Verzenden mislukt, kijk in de logs."
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"[:200]
@@ -4568,6 +4540,19 @@ def uitkomst(token):
     # verstuurde mails alleen dat er honderd verstuurd zijn.
     db.noteer_uitkomst_bekeken(webshop_url)
 
+    # SINDS 23 SEPTEMBER (stap 36) wijst de mail naar de openbare ranglijst.
+    # Deze route blijft ertussen zodat wij tellen dat hij geopend is, en stuurt
+    # dan door naar de categorie, met zijn eigen regel in beeld (#p<positie>).
+    # Staat de winkel (nog) niet in een ranglijst, bijvoorbeeld bij een link
+    # uit een oude mail, dan de oude pagina zoals die was.
+    try:
+        beeld = klantbeeld.bouw(webshop_url)
+    except Exception as e:
+        print(f"Positie ophalen voor de uitkomstlink mislukt voor {webshop_url}: {e}")
+        beeld = None
+    if beeld and beeld.get("land"):
+        return redirect(f"/index/{beeld['land']}/{beeld['categorie']}#p{beeld['positie']}")
+
     # En nu pas de volledige meting. Dit is het hele idee achter de lichte
     # eerste meting: iemand die deze pagina opent is de eerste die laat merken
     # dat hij kijkt, en dat is het moment waarop het de moeite waard wordt om
@@ -5588,7 +5573,7 @@ def _app_adres_in_beheerscherm(winkel):
     Waarom via de winkel zelf en niet via admin.shopify.com/store/x/apps/naam:
     dat laatste adres hangt aan de naam die de app in de winkel heeft, en die
     naam kennen wij niet met zekerheid. Klopt hij niet, dan krijgt de winkelier
-    een 404 direct nadat hij akkoord is gegaan met 39 dollar per maand. Dat is
+    een 404 direct nadat hij akkoord is gegaan met 55 dollar per maand. Dat is
     het slechtst denkbare moment voor een lege pagina.
 
     Het adres hieronder werkt met ons eigen klantnummer bij Shopify. Dat weten
@@ -5606,10 +5591,44 @@ def _app_adres_in_beheerscherm(winkel):
 
 
 def _shopify_scherm(winkel, rij):
-    """Het scherm dat de winkelier binnen Shopify ziet."""
+    """Het scherm dat de winkelier binnen Shopify ziet.
+
+    SINDS 23 SEPTEMBER (stap 26) is de ingang zijn POSITIE IN DE INDEX, net als
+    op krilloai.com. Hiervoor was de ingang een knop "Measure my store" die een
+    eigen meting van dertig vragen startte, gratis, voor iedereen die de app
+    installeerde. Dat kostte bij elke installatie geld, en het leverde een los
+    cijfer op dat kon botsen met de openbare ranglijst.
+
+    Nu: bij het openen komt de winkel op de winkellijst (stand "shopify", dus
+    nooit in de koude mailrij). Het nachtelijk indelen geeft hem een categorie,
+    de herberekening geeft hem een positie uit de bewaarde antwoorden, en de
+    volgende keer dat hij de app opent staat die er. Nul modelaanroepen."""
     webshop_url = rij.get("webshop_url") or ""
     gegevens = _klantgegevens(webshop_url) if webshop_url else {}
     laatste = (db.get_rapporten_voor_webshop(webshop_url) or [None])[0] if webshop_url else None
+
+    markt = _markt_van(webshop_url) if webshop_url else None
+    landcode = ((markt or {}).get("landcode") or "").upper()
+    # De index meet Nederland en Belgie. Een winkel die op een ander land
+    # verkoopt krijgt geen positie, en dat moet er eerlijk staan in plaats van
+    # dat hij eeuwig "komt eraan" leest.
+    in_markt = (not landcode) or landcode in ("NL", "BE")
+    beeld = None
+    categorienaam = None
+    if webshop_url and in_markt:
+        try:
+            db.zet_klant_op_lijst(scan_engine.normalize_url(webshop_url),
+                                  land=landcode or None, stand="shopify")
+        except Exception as e:
+            print(f"Shopify-winkel op de lijst zetten mislukt voor {webshop_url}: {e}")
+        try:
+            beeld = klantbeeld.bouw(scan_engine.normalize_url(webshop_url),
+                                    land=(landcode or "").lower() or None)
+            kort = db.winkel_kort(scan_engine.normalize_url(webshop_url)) or {}
+            if kort.get("categorie"):
+                categorienaam = categorieen.naam_van(kort["categorie"])
+        except Exception as e:
+            print(f"Positie ophalen mislukt voor {webshop_url}: {e}")
 
     return render_template(
         "shopify_app.html",
@@ -5621,11 +5640,16 @@ def _shopify_scherm(winkel, rij):
         actieplan=gegevens.get("actieplan"),
         bronnen=gegevens.get("bronnen"),
         laatste=laatste,
-        markt=_markt_van(webshop_url) if webshop_url else None,
-        stand=_stand_in_taal(_shopify_status.get(winkel), _markt_van(webshop_url)
-                             if webshop_url else None),
+        markt=markt,
+        stand=_stand_in_taal(_shopify_status.get(winkel), markt),
         gratis_totaal=shopify_werk.GRATIS_WIJZIGINGEN,
         plannen=shopify_billing.PLANNEN,
+        beeld=beeld,
+        in_markt=in_markt,
+        categorienaam=categorienaam or (categorieen.naam_van(beeld["categorie"])
+                                        if beeld else None),
+        landnaam=sitetaal.landnaam(beeld["land"], "en") if beeld else None,
+        basis_url=get_base_url().rstrip("/"),
     )
 
 
@@ -5839,14 +5863,21 @@ def _shopify_uit_kop():
 
 @app.route("/shopify/api/meten", methods=["POST"])
 def shopify_api_meten():
-    """Start de meting voor deze winkel."""
+    """Vroeger: een eigen meting starten. Sinds 23 september niet meer (stap 26).
+
+    De positie in de app komt uit de index, net als op de site. Een eigen
+    meting per installatie kostte bij elke installatie geld en gaf een tweede
+    cijfer naast de openbare ranglijst. Deze route blijft bestaan zodat een
+    oud geopend scherm een nette uitleg krijgt in plaats van een 404."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij or not rij.get("toegangssleutel"):
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
+    return jsonify({"error": "Your rank now comes from the Krillo index. Reload this "
+                             "page to see it."}), 410
 
     webshop_url = rij.get("webshop_url")
     if not webshop_url:
-        return jsonify({"error": "We weten het adres van je winkel nog niet."}), 400
+        return jsonify({"error": "We do not know your store's address yet."}), 400
 
     markt = _markt_van(webshop_url)
     bezig = _shopify_status.get(winkel)
@@ -5915,7 +5946,7 @@ def shopify_api_voorstellen():
     zien wat er in zijn winkel komt te staan. Het is zijn winkel."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij or not rij.get("toegangssleutel"):
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
     markt = _markt_van(rij.get("webshop_url") or "")
     bezig = _shopify_werk_status.get(winkel)
     if bezig and not bezig.get("klaar"):
@@ -5932,7 +5963,7 @@ def shopify_api_voorstellen():
 def shopify_api_werkstand():
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij:
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
     return jsonify({"stand": _stand_in_taal(
         _shopify_werk_status.get(winkel),
         _markt_van(rij.get("webshop_url") or ""))})
@@ -5949,16 +5980,15 @@ def shopify_api_toepassen():
     krijgt."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij or not rij.get("toegangssleutel"):
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
     webshop_url = rij.get("webshop_url")
     if not webshop_url:
-        return jsonify({"error": "We weten het adres van je winkel nog niet."}), 400
+        return jsonify({"error": "We do not know your store's address yet."}), 400
 
     gevraagd = (request.get_json(silent=True) or {}).get("ids") or []
     bekend = _shopify_voorstellen.get(winkel) or {}
     if not bekend:
-        return jsonify({"error": "De voorstellen zijn verlopen. Kijk je winkel "
-                                 "opnieuw na, dan maken we ze vers."}), 409
+        return jsonify({"error": "These proposals have expired. Check your store again and we will make fresh ones."}), 409
 
     # Hoeveel er gratis nog in mogen. Wij tellen wat er al echt in de winkel
     # staat, niet wat er in deze ronde gevraagd wordt: anders kan iemand door
@@ -6007,7 +6037,7 @@ def shopify_api_wijzigingen():
     """Alles wat wij in deze winkel veranderd hebben, met de oude tekst erbij."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij:
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
     webshop_url = rij.get("webshop_url") or ""
     markt = _markt_van(webshop_url) if webshop_url else None
     regels = []
@@ -6040,7 +6070,7 @@ def shopify_api_terugzetten():
     alleen in de tekst staat en niet in een knop is geen belofte."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij or not rij.get("toegangssleutel"):
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
     webshop_url = rij.get("webshop_url") or ""
     kenmerk = (request.get_json(silent=True) or {}).get("id") or ""
 
@@ -6049,7 +6079,7 @@ def shopify_api_terugzetten():
         if w.get("taak_id") == kenmerk:
             wijziging = w
     if not wijziging:
-        return jsonify({"error": "Die wijziging kennen we niet."}), 404
+        return jsonify({"error": "We do not know that change."}), 404
 
     uit = shopify_werk.zet_terug(winkel, _shopify_sleutel(rij), wijziging, webshop_url)
     if not uit.get("gelukt"):
@@ -6078,7 +6108,7 @@ def shopify_api_abonnement():
     """Of deze winkel een lopend abonnement heeft. Elke keer vers bij Shopify."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij or not rij.get("toegangssleutel"):
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
     stand = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
     # Loopt er echt een abonnement, dan is de gratis proefperiode ook echt
     # gebruikt. Pas hier, en niet al bij het maken van de link.
@@ -6116,11 +6146,25 @@ def shopify_api_abonneren():
     en dan ziet hij een lege bladzijde."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij or not rij.get("toegangssleutel"):
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
 
     plan = ((request.get_json(silent=True) or {}).get("plan") or "").strip().lower()
     if plan not in shopify_billing.PLANNEN:
         return jsonify({"error": "Choose Watch or Fix."}), 400
+
+    # Nooit twee keer betalen voor dezelfde winkel, ook niet via twee wegen.
+    # Loopt er al een abonnement via krilloai.com (Mollie), dan hier niet nog
+    # een via Shopify (stap 26, 23 september).
+    if rij.get("webshop_url"):
+        try:
+            via_site = payments.zoek_abonnement(scan_engine.normalize_url(rij["webshop_url"]))
+        except Exception as e:
+            print(f"Abonnement op de site nakijken mislukt voor {winkel}: {e}")
+            via_site = None
+        if via_site:
+            return jsonify({"error": "Your store already has a Krillo plan through "
+                                     "krilloai.com. To switch, cancel that one first "
+                                     "from your dashboard link.", "actief": True}), 409
 
     bestaand = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
     if bestaand["actief"] and bestaand.get("plan") == plan:
@@ -6133,7 +6177,7 @@ def shopify_api_abonneren():
     # Terug naar het INGEBEDDE app-scherm in het beheerscherm van Shopify, niet
     # naar onze eigen /shopify. Die laatste ziet geen kaartje en stuurt de
     # winkelier door naar een nieuw toestemmingsscherm. Iemand die net akkoord
-    # is gegaan met 39 dollar en dan opnieuw om toestemming gevraagd wordt, is
+    # is gegaan met 55 dollar en dan opnieuw om toestemming gevraagd wordt, is
     # precies degene die afhaakt.
     terug = _app_adres_in_beheerscherm(winkel)
     # De gratis proefperiode krijg je een keer. Opzeggen en meteen weer starten
@@ -6150,7 +6194,7 @@ def shopify_api_abonneren():
     # Hier stond dat de proefperiode nu verbruikt was. Dat is te vroeg: op dit
     # punt is er alleen een link gemaakt en heeft de winkelier nog nergens ja
     # op gezegd. Klikt hij die pagina weg, dan was zijn gratis week op zonder
-    # dat hij ooit iets had. De volgende keer stond er dan 39 dollar per maand
+    # dat hij ooit iets had. De volgende keer stond er dan 55 dollar per maand
     # terwijl het scherm zeven dagen gratis belooft.
     #
     # Het verbruiken gebeurt nu pas als er echt een lopend abonnement is, zie
@@ -6165,17 +6209,16 @@ def shopify_api_opzeggen():
     """Opzeggen vanuit onze eigen app."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij or not rij.get("toegangssleutel"):
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
     stand = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
     if not stand["actief"]:
         if stand.get("fout"):
             # Wij WETEN het niet, en dat is iets anders dan "er loopt niets".
             # Zou je hier gewoon "er loopt geen abonnement" zeggen, dan denkt
-            # iemand dat hij opgezegd heeft terwijl er over vier dagen 39 dollar
+            # iemand dat hij opgezegd heeft terwijl er over vier dagen 55 dollar
             # afgeschreven wordt. Op de prijskaart staat "cancel any time".
-            return jsonify({"error": "We konden je abonnement nu niet bij Shopify "
-                                     "opvragen. Probeer het zo nog eens."}), 503
-        return jsonify({"error": "Er loopt geen abonnement."}), 400
+            return jsonify({"error": "We could not reach Shopify for your plan just now. Please try again in a moment."}), 503
+        return jsonify({"error": "There is no active plan."}), 400
     uit = shopify_billing.zeg_op(winkel, _shopify_sleutel(rij),
                                  (stand["abonnement"] or {}).get("id"))
     if not uit["gelukt"]:
@@ -6194,7 +6237,7 @@ def shopify_api_automatisch():
     terecht over geklaagd wordt."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij:
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
     if request.method == "POST":
         aan = bool((request.get_json(silent=True) or {}).get("aan"))
         db.zet_shopify_automatisch(winkel, aan)
@@ -6212,7 +6255,7 @@ def shopify_api_stand():
     en ververst elke vijf seconden. Juist hier moet de taal dus kloppen."""
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij:
-        return jsonify({"error": "Niet toegestaan."}), 401
+        return jsonify({"error": "Not allowed."}), 401
     return jsonify({"stand": _stand_in_taal(
         _shopify_status.get(winkel), _markt_van(rij.get("webshop_url") or ""))})
 

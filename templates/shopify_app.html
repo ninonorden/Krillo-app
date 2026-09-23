@@ -184,6 +184,12 @@
   /* Ruimte tussen de blokken. Een vaste maat overal, want ongelijke afstanden
      zijn waaraan je een scherm herkent dat stukje bij beetje gegroeid is. */
   .blok{margin-top:28px;}
+  /* Een link die eruitziet als de rustige knop. Voor "See the full ranking":
+     dat is een pagina op krilloai.com, geen actie in de app. */
+  .knoplink{display:inline-block; padding:8px 14px; border-radius:var(--rond);
+            border:1px solid var(--lijn-sterk); background:var(--vlak); color:var(--tekst);
+            font-size:13.5px; font-weight:600; text-decoration:none;}
+  .knoplink:hover{background:#FAFAFA;}
   .blok > h2 + .onder{margin-bottom:14px;}
 </style>
 </head>
@@ -197,59 +203,105 @@
   </div>
   <div id="foutblok" style="display:none;" class="misgegaan"><span id="fouttekst"></span></div>
 
-  {% if not vermeldingen %}
+  {# DE INGANG IS JE POSITIE (stap 26, 23 september), net als op krilloai.com.
+     Hiervoor stond hier een knop "Measure my store" die een eigen meting
+     startte. Nu komt het cijfer uit de openbare index: dezelfde meting als de
+     ranglijst op de site, dus nooit twee cijfers die elkaar tegenspreken. #}
+  {% if beeld %}
     <div class="kaart">
       <div class="kaart-kop">
-        <h1>Does ChatGPT mention your store?</h1>
-        <p class="onder">Shoppers increasingly ask an AI assistant where to buy something.
-          Krillo asks those questions for real and checks whether your store shows up in
-          the answer. Not an estimate, not a score out of a black box: the actual questions,
-          the actual answers, and the quote your result is based on.</p>
-      </div>
-      <div class="knoprij"><button id="metenknop">Measure my store</button></div>
-    </div>
-  {% else %}
-    <div class="kaart">
-      <div class="kaart-kop">
-        <div class="label">Your result</div>
+        <div class="label">Your rank in the Krillo index</div>
         <div class="cijferkaart">
-          <span class="cijfer">{{ vermeldingen.genoemd }} of {{ vermeldingen.telbaar }}</span>
-          <span class="cijfer-bij">shopping questions mention your store</span>
+          <span class="cijfer">#{{ beeld.positie }} of {{ beeld.van }}</span>
+          <span class="cijfer-bij">in {{ categorienaam }}, {{ landnaam }}</span>
         </div>
       </div>
       <p class="onder">
-        {% if laatste and laatste.aangemaakt_op %}Last measured on {{ laatste.aangemaakt_op.strftime('%d %b %Y') }}.{% endif %}
-        We count per question, not per answer.
+        AI named your store in {{ beeld.genoemd }} of {{ beeld.telbaar }} buying questions,
+        and really recommended it in {{ beeld.aanbevolen }}.
+        {% if beeld.verschil %}{% if beeld.verschil > 0 %}Up {{ beeld.verschil }} since the last measurement.{% else %}Down {{ -beeld.verschil }} since the last measurement.{% endif %}{% endif %}
+        {% if beeld.gemeten_op %}Measured on {{ beeld.gemeten_op.strftime('%d %b %Y') }}.{% endif %}
+        We measure your whole category again every month.
       </p>
-      <div class="knoprij"><button id="metenknop" class="rustig">Measure again</button></div>
+      <div class="knoprij">
+        <a class="knoplink" href="{{ basis_url }}/index/{{ beeld.land }}/{{ beeld.categorie }}"
+           target="_blank" rel="noopener">See the full ranking</a>
+      </div>
     </div>
 
-    {% if vermeldingen.concurrenten %}
+    {% if beeld.boven_mij %}
     <div class="kaart">
-      <div class="kaart-kop"><h2>Stores that come up for the same questions</h2></div>
+      <div class="kaart-kop"><h2>Just ahead of you</h2></div>
       <div class="lijst">
-        {% for c in vermeldingen.concurrenten[:6] %}
+        {% for r in beeld.boven_mij %}
         <div class="rij">
-          <span class="naam">{{ c.naam }}{% if c.wij %}<span class="jij">you</span>{% endif %}</span>
-          <span class="aantal">{{ c.genoemd }} {% if c.genoemd == 1 %}question{% else %}questions{% endif %}</span>
+          <span class="naam">#{{ r.positie }} {{ r.naam or (r.webshop_url | replace('https://','')) }}</span>
+          <span class="aantal">named in {{ r.genoemd }} of {{ beeld.telbaar }}</span>
         </div>
         {% endfor %}
       </div>
     </div>
     {% endif %}
+
+    {% if beeld.gemiste_vragen %}
+    <div class="kaart">
+      <div class="kaart-kop">
+        <h2>Questions where you were missing</h2>
+        <p class="onder" style="margin-bottom:0;">The real question a buyer asks, and who AI
+          named instead. Platforms are listed apart: those are places to be listed on, not
+          competitors.</p>
+      </div>
+      <div class="lijst">
+        {% for v in beeld.gemiste_vragen %}
+        <div class="rij" style="display:block;">
+          <div class="naam">{{ v.vraag }}</div>
+          <div class="aantal" style="white-space:normal; margin-top:3px;">
+            {% if v.concurrenten %}Named instead: {{ v.concurrenten | join(', ') }}{% else %}No store named{% endif %}
+            {% if v.platforms %} &middot; Platforms: {{ v.platforms | join(', ') }}{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  {% elif in_markt %}
+    <div class="kaart">
+      <div class="kaart-kop">
+        <div class="label">Your rank in the Krillo index</div>
+        <h1>Your rank is on its way</h1>
+        <p class="onder">We have added your store to the Krillo index. Tonight we place it in
+          its category{% if categorienaam %} ({{ categorienaam }}){% endif %} and work out its
+          rank from the same buying questions every store in that category gets. Open this
+          page again tomorrow to see where you stand. For a category we have not measured
+          yet, it can take a few days.</p>
+        <p class="onder">Meanwhile, check your store below: the first {{ gratis_totaal }}
+          fixes are free.</p>
+      </div>
+    </div>
+  {% else %}
+    <div class="kaart">
+      <div class="kaart-kop">
+        <div class="label">Your rank in the Krillo index</div>
+        <h1>We do not measure your market yet</h1>
+        <p class="onder">The Krillo index measures stores selling in the Netherlands and
+          Belgium{% if markt %}, and your store is set to {{ markt.landcode }}{% endif %}.
+          So there is no rank for you yet. The fixes below work in any market: they make
+          your store easier for AI to read.</p>
+      </div>
+    </div>
   {% endif %}
 
   <div class="blok">
     <h2>We do the work, not you</h2>
     <p class="onder">Most tools hand you a list of things to fix and leave you to it.
-      We write the missing text and put it in your store ourselves. You see every change
-      before it happens, and every change can be undone with one button.</p>
+      We write the missing text and put it in your store ourselves. Here you see every
+      change before it happens, and every change can be undone with one button.</p>
 
     <div class="kaart">
       <p class="onder">Three kinds of thing, and only where they are missing: descriptions on
-        images that have none, product descriptions on products that have none, and a page
-        with frequently asked questions if you do not have one. We never touch text you wrote
-        yourself.</p>
+        images that have none, product descriptions that are missing or very short
+        (under 180 characters), and a page with frequently asked questions if you do not have
+        one. We keep the old text of every change, so it can always be put back.</p>
       <p class="onder"><b>The first {{ gratis_totaal }} changes are free.</b> Not a demo:
         they go into your store for real, and they stay there whatever you decide next.</p>
       <div class="knoprij"><button id="nakijkknop">Check my store</button></div>
@@ -285,25 +337,26 @@
 
   <div class="blok">
   <h2>How it works</h2>
-  <p class="onder">Three steps, and you only press one button.</p>
+  <p class="onder">Three steps. The measuring is ours; you decide what goes live.</p>
   <div class="stappen">
     <div class="stap">
       <span class="stap-num">1</span>
-      <h3>We read your store</h3>
-      <p>We work out what you sell, for whom, and in which price range, straight from your
-        own product pages.</p>
+      <h3>We measure your category</h3>
+          <p>Every month we put thirty buying questions to ChatGPT and Gemini, the way a
+          shopper in your category would type them, for every store in that category at once.</p>
     </div>
     <div class="stap">
       <span class="stap-num">2</span>
-      <h3>We ask real questions</h3>
-      <p>Up to 30 shopping questions in your customers' own language, put to ChatGPT and
-        Gemini the way a buyer would type them.</p>
+      <h3>You see your rank</h3>
+          <p>Your place in the public ranking, which questions you miss, and which stores
+          AI named instead of you. With the real answer behind every number.</p>
     </div>
     <div class="stap">
       <span class="stap-num">3</span>
-      <h3>You see where you stand</h3>
-      <p>In how many answers you appear, which stores appear instead of you, and at most
-        three things you can do about it.</p>
+      <h3>We fix what holds you back</h3>
+          <p>We write the missing text and put it in your store, after you see it. The
+          first {{ gratis_totaal }} changes are free; with Fix we keep doing it, and pick
+          up new products every week.</p>
     </div>
   </div>
   </div>
@@ -345,9 +398,11 @@
       <div class="naam">Free <span class="nulabel" id="vrijlabel">your plan</span></div>
       <div class="bedrag">$0</div>
       <ul>
-        <li>One measurement, whenever you want it</li>
-        <li>Up to 30 shopping questions</li>
-        <li>The stores that come up instead of you</li>
+        {# Stap 26: gratis is niet meer "een eigen meting op verzoek". Gratis is
+           je plek in de openbare index (die meten we toch, voor iedereen in de
+           categorie) plus de eerste wijzigingen. #}
+        <li>Your current rank in the Krillo index (Netherlands and Belgium)</li>
+        <li>The stores just ahead of you</li>
         <li>The first {{ gratis_totaal }} changes written and applied for you</li>
       </ul>
     </div>
@@ -428,10 +483,12 @@
     <summary>Does this change anything in my store?</summary>
     <div class="inhoud">Only when you press the button, and only what you selected. We
       show you every proposed change first, in full, and nothing happens until you agree.
-      We fill in three things and only where they are missing: descriptions on images that
-      have none, product descriptions on products that have none, and a page with frequently
-      asked questions if you do not already have one. We never overwrite text you wrote
-      yourself, and if you add text between our proposal and your click, we skip that item.
+      We fill in three things: descriptions on images that have none, product descriptions
+that are missing or very short (under 180 characters), and a page with frequently asked
+questions if you do not already have one. We keep the old text of every change, and if
+you change a product between our proposal and your click, we skip that item. With Fix
+we also do this every week without asking first; you get an email listing every change
+and you can switch it off.
       We never touch your prices, stock, orders, customer data or theme.</div>
   </details>
 
@@ -471,17 +528,18 @@
   </details>
 
   <details>
-    <summary>Why does the first measurement take a few minutes?</summary>
-    <div class="inhoud">Because we really ask the questions, one by one, to more than one
-      model, and then read every answer. That is slower than reading a sitemap, and it is
-      the reason the result means something. You can close this screen while it runs.</div>
+    <summary>Why is my rank not there yet?</summary>
+          <div class="inhoud">We place a new store in its category overnight and work out its
+          rank from the answers of the last measurement of that category. So you usually see it
+          the day after installing. If we have not measured your category yet, it waits until
+          it is its turn; that can take a few days.</div>
   </details>
 
   <details>
     <summary>Which language and country do you measure in?</summary>
-    <div class="inhoud">The ones your store is set to. Shopify tells us both when you
-      install Krillo, so a store selling in the US gets questions an American shopper would
-      type, searched in US results.
+    <div class="inhoud">The Krillo index measures stores selling in the Netherlands and
+          Belgium, with questions in the language shoppers there use. More countries follow.
+          Your store's market comes from Shopify when you install Krillo.
       {% if markt %}Yours is set to {{ markt.taal }} ({{ markt.landcode }}).{% endif %}</div>
   </details>
 
@@ -506,7 +564,7 @@
 
 <script>
 (function(){
-  var knop = document.getElementById('metenknop');
+  var knop = null;  // de meetknop bestaat niet meer (stap 26)
   var bezigBlok = document.getElementById('bezigblok');
   var bezigTekst = document.getElementById('bezigtekst');
   var foutBlok = document.getElementById('foutblok');
@@ -554,65 +612,10 @@
     if (knop) { knop.disabled = false; knop.textContent = 'Try again'; }
   }
 
-  function toonStand(stand){
-    if (!stand) { return; }
-    if (stand.mislukt) { toonFout(stand.tekst); return; }
-    if (stand.klaar) {
-      if (kijken) { clearInterval(kijken); kijken = null; }
-      klokStop();
-      bezigTekst.textContent = 'Done. Loading your results…';
-      window.location.reload();
-      return;
-    }
-    foutBlok.style.display = 'none';
-    bezigBlok.style.display = 'block';
-    bezigTekst.textContent = 'Working: ' + stand.tekst;
-    if (!klok) { klok = tijdteller(document.getElementById('bezigklok'),
-                                   Date.now(), '5 to 10 minutes'); }
-  }
-
-  function kijkenNaarStand(){
-    metKaartje(function(kaartje){
-      fetch('/shopify/api/stand', {headers: {'Authorization': 'Bearer ' + kaartje}})
-        .then(function(r){ return r.json(); })
-        .then(function(d){ toonStand(d.stand); })
-        .catch(function(){ /* een mislukte peiling is geen ramp, we proberen zo weer */ });
-    });
-  }
-
-  if (knop) {
-    knop.addEventListener('click', function(){
-      knop.disabled = true;
-      knop.textContent = 'Working…';
-      foutBlok.style.display = 'none';
-      bezigBlok.style.display = 'block';
-      bezigTekst.textContent = 'Starting…';
-      klokStop();
-      klok = tijdteller(document.getElementById('bezigklok'), Date.now(),
-                        '5 to 10 minutes');
-
-      metKaartje(function(kaartje){
-        fetch('/shopify/api/meten', {
-          method: 'POST',
-          headers: {'Authorization': 'Bearer ' + kaartje, 'Content-Type': 'application/json'}
-        })
-        .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
-        .then(function(res){
-          if (!res.ok) { toonFout(res.data.error || 'We could not start the measurement.'); return; }
-          toonStand(res.data.stand);
-          if (!kijken) { kijken = setInterval(kijkenNaarStand, 5000); }
-        })
-        .catch(function(){ toonFout('Something went wrong. Please try again.'); });
-      });
-    });
-  }
-
-  {% if stand and not stand.klaar %}
-  bezigBlok.style.display = 'block';
-  if (knop) { knop.disabled = true; knop.textContent = 'Working…'; }
-  kijkenNaarStand();
-  kijken = setInterval(kijkenNaarStand, 5000);
-  {% endif %}
+  // De eigen meting vanuit de app (knop "Measure my store" en het peilen van
+  // /shopify/api/stand) is weg sinds stap 26: de positie komt uit de index en
+  // staat al op de pagina als hij er is. Hier bleef alleen over wat de rest van
+  // het scherm nog gebruikt: metKaartje, toonFout en de tijdteller.
 
   // ---------------------------------------------------------------- wij doen het
   //

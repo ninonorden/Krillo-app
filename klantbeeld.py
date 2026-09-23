@@ -99,10 +99,17 @@ def gemiste_vragen(ronde, webshop_url, max_vragen=MAX_VRAGEN):
             continue
 
         gezien.add(vraag)
+        # Winkels en platforms apart (stap 73). "Genoemd in plaats van jou:
+        # bol.com" klopt niet; bol.com is een plek waar je op hoort te staan.
+        winkels = [w.get("naam") for w in genoemde.get("winkels", [])
+                   if w.get("naam") and (w.get("soort") or "winkel") != "platform"]
+        platforms = [w.get("naam") for w in genoemde.get("winkels", [])
+                     if w.get("naam") and w.get("soort") == "platform"]
         uit.append({
             "vraag": vraag,
             "model": rij.get("model"),
-            "concurrenten": namen[:MAX_CONCURRENTEN],
+            "concurrenten": winkels[:MAX_CONCURRENTEN],
+            "platforms": platforms[:MAX_CONCURRENTEN],
             "aanbevolen": [n for n in genoemde.get("aanbevolen", [])][:MAX_CONCURRENTEN],
         })
         if len(uit) >= max_vragen:

@@ -1,23 +1,27 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
-<title>{% if gelukt %}Afgemeld{% else %}Deze link werkt niet{% endif %} | Krillo</title>
+<title>{% if gelukt %}Unsubscribed{% else %}This link does not work{% endif %} | Krillo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+{# ENGELS SINDS 23 SEPTEMBER (stap 36), net als de mail waar deze link in staat.
+   De zin over de index klopt: een afgemelde winkel valt bij de volgende
+   herberekening uit de ranglijst (db.winkels_in_categorie_met_kinderen laat
+   afgemeld = TRUE weg). #}
 <style>
   :root{--ink:#0A0A0B; --ink-soft:#4A4A55; --paper:#FFFFFF; --paper-raised:#FFFFFF;
-        --line:#E8E8EC; --disp:'Space Grotesk', sans-serif; --body:'Space Grotesk', sans-serif;}
+        --disp:'Space Grotesk', system-ui, sans-serif; --body:'Space Grotesk', system-ui, sans-serif;}
   *{box-sizing:border-box; margin:0; padding:0;}
   body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.7;
        display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px;}
-  .kaart{background:var(--paper-raised); border:1px solid var(--line); border-radius:14px;
+  .kaart{background:var(--paper-raised); border:1px solid #E4E2DA; border-radius:14px;
          padding:36px 34px; max-width:520px;}
-  .merk{font-family:var(--disp); font-weight:700; font-size:17px; margin-bottom:22px;}
-  .merk span{display:inline-block; width:9px; height:9px; background:#FF4B3E;
+  .merk{font-weight:700; margin-bottom:18px; display:flex; align-items:center;}
+  .merk span{display:inline-block; width:10px; height:10px; background:#1B3FE0;
              border-radius:50%; margin-right:8px;}
   h1{font-family:var(--disp); font-weight:700; font-size:24px; margin-bottom:12px;}
   p{color:var(--ink-soft); font-size:15px; margin-bottom:14px;}
@@ -28,16 +32,15 @@
   <div class="kaart">
     <div class="merk"><span></span>Krillo</div>
     {% if gelukt %}
-      <h1>Dat is geregeld.</h1>
-      <p>Je krijgt geen post meer van ons{% if winkel %} over {{ winkel.replace('https://', '') }}{% endif %}.
-        Je uitkomst is uit ons onderzoek gehaald en we nemen je winkel niet meer mee.</p>
-      <p>Sorry voor de storing. Je hoeft verder niets te doen.</p>
+      <h1>Done.</h1>
+      <p>You will get no more email from us{% if winkel %} about {{ winkel.replace('https://', '') }}{% endif %}.
+        We also take your store out of the public Krillo index at its next update.</p>
+      <p>Sorry for the interruption. There is nothing else you need to do.</p>
     {% else %}
-      <h1>Deze link werkt niet.</h1>
-      <p>Waarschijnlijk is hij niet compleet overgenomen, of is de afmelding al eerder
-        gelukt. In beide gevallen kun je ons gewoon een mail sturen op
-        <a href="mailto:hello@krilloai.com">hello@krilloai.com</a> en dan halen we je er
-        dezelfde dag uit.</p>
+      <h1>This link does not work.</h1>
+      <p>It was probably not copied completely, or you already unsubscribed. Either way,
+        just email us at <a href="mailto:hello@krilloai.com">hello@krilloai.com</a> and we
+        remove you the same day.</p>
     {% endif %}
   </div>
 </body>
