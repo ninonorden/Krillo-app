@@ -197,6 +197,20 @@ def create_subscription(customer_id, pakket=STANDAARD_PAKKET):
         return {"error": str(e)}
 
 
+def pakket_bij_bedrag(waarde):
+    """Welk pakket hoort bij dit maandbedrag, of None als we het niet weten.
+
+    Waarom op bedrag: bij Mollie staat het abonnement als bedrag plus
+    omschrijving, niet als pakketnaam. Het bedrag is het enige dat zeker
+    klopt, want dat is wat er echt afgeschreven wordt."""
+    if not waarde:
+        return None
+    for sleutel, pakket in PAKKETTEN.items():
+        if str(waarde) == pakket["prijs"]["value"]:
+            return sleutel
+    return None
+
+
 def zoek_abonnement(webshop_url):
     """Zoekt het actieve abonnement bij een webshop-URL. Geeft de klant-id en
     het abonnement-id terug, zodat we het kunnen opzeggen."""
@@ -210,8 +224,17 @@ def zoek_abonnement(webshop_url):
                 continue
             for sub in customer.subscriptions.list():
                 if sub.get("status") == "active":
+                    # Het BEDRAG en de omschrijving gaan mee. Daaraan is te
+                    # zien welk pakket iemand heeft, en dat bepaalt of wij het
+                    # werk in zijn winkel doen (Fix) of dat hij het zelf doet
+                    # (Watch). Mollie kent geen pakketveld; het bedrag is wat
+                    # er elke maand echt afgeschreven wordt.
+                    bedrag = (sub.get("amount") or {})
                     return {"customer_id": customer.id, "subscription_id": sub.id,
-                            "next_payment_date": sub.get("nextPaymentDate")}
+                            "next_payment_date": sub.get("nextPaymentDate"),
+                            "bedrag": bedrag.get("value"),
+                            "omschrijving": sub.get("description"),
+                            "pakket": pakket_bij_bedrag(bedrag.get("value"))}
     except (MollieError, Exception) as e:
         print(f"Abonnement zoeken mislukt: {e}")
     return None

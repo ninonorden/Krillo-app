@@ -171,6 +171,13 @@ def stap_herberekenen():
     return verslag
 
 
+# Wat er na een geslaagde meting van een categorie gebeurt met de klanten in
+# die categorie. app.py zet hier zijn eigen functie in (_ververs_klantwerk).
+# Zo blijft onderhoud.py vrij van app.py: die importeert onderhoud al, en
+# andersom zou een kringetje zijn.
+NA_METING = None
+
+
 def stap_meten(hoeveel=None):
     """De categorie meten die er het langst op wacht.
 
@@ -222,6 +229,17 @@ def stap_meten(hoeveel=None):
             except Exception as e:
                 print(f"Berichten na meting mislukt voor {rij['categorie']}: {e}")
                 regel["berichten"] = {"fout": str(e)[:160]}
+
+            # Stap 72: het werk van de klanten in deze categorie verversen.
+            # NA de berichten, want die gaan over de positie en hoeven niet te
+            # wachten op het schrijven van oplossingen.
+            if NA_METING:
+                try:
+                    regel["klantwerk"] = NA_METING(uit["ronde"], rij["categorie"],
+                                                   os.environ.get("BASE_URL"))
+                except Exception as e:
+                    print(f"Klantwerk vernieuwen mislukt voor {rij['categorie']}: {e}")
+                    regel["klantwerk"] = {"fout": str(e)[:160]}
         verslag["gemeten"].append(regel)
     return verslag
 

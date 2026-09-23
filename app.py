@@ -55,6 +55,7 @@ import benadering
 import categorieen
 import categoriemeting
 import klantbeeld
+import klantwerk
 import meldingen
 import onderhoud
 import opschonen
@@ -768,67 +769,75 @@ def llms_txt():
     def _euro(sleutel):
         return int(float(payments.PAKKETTEN[sleutel]["prijs"]["value"]))
 
+    # In het Engels sinds 23 september. De site is Engels (taalregel van 18
+    # september: een adres, een taal), en dit bestand is de beschrijving van
+    # die site voor AI. Een Nederlandse beschrijving van een Engelse site is
+    # precies het soort tegenstrijdigheid waar wij anderen op controleren.
     prijsregels = "\n".join([
-        "- Gratis check: 0 euro, geen account en geen betaalgegevens nodig",
-        f"- Watch: {_euro('watch')} euro per maand, elke maand je positie in de "
-        "ranglijst, de koopvragen waar je niet in voorkomt met het echte "
-        "antwoord, en de oplossingen uitgeschreven om zelf te doen",
-        f"- Fix: {_euro('fix')} euro per maand, alles uit Watch plus Krillo "
-        "voert de oplossingen uit in de webshop, met een nameting na vier "
-        "weken. Maandelijks opzegbaar.",
-        f"- Merken en bureaus: {_euro('merken')} euro per maand, tot 25 "
-        "winkels in een overzicht",
-        f"- Een extra land voor dezelfde winkel: {_euro('watch')} euro per maand",
+        "- Free check: 0 euro, no account and no payment details needed",
+        f"- Watch: {_euro('watch')} euro per month, your rank in the index every "
+        "month, the buying questions you do not appear in with the real answer, "
+        "and every fix written out to do yourself",
+        f"- Fix: {_euro('fix')} euro per month, everything in Watch plus Krillo "
+        "installs the fixes in the store and shows the difference at the next "
+        "monthly measurement. Cancel any time.",
+        f"- Brands and agencies: {_euro('merken')} euro per month, up to 25 "
+        "stores in one dashboard",
+        f"- An extra country for the same store: {_euro('watch')} euro per month",
     ])
 
     inhoud = """# Krillo
 
-> Krillo meet of AI-assistenten zoals ChatGPT en Gemini webshops noemen en aanbevelen
-> bij echte koopvragen, publiceert daar openbare ranglijsten van, en lost voor
-> betalende klanten op wat hen buiten die antwoorden houdt.
+> Krillo measures whether AI assistants such as ChatGPT and Gemini name and recommend
+> online stores when shoppers ask real buying questions, publishes public rankings of
+> that, and fixes what keeps paying customers out of those answers.
 
-## Wat Krillo doet
-Krillo stelt per categorie dertig koopvragen aan meerdere AI-modellen, zoals een koper
-ze echt zou stellen, en bewaart elk volledig antwoord. Uit die antwoorden wordt gelezen
-welke winkels genoemd worden, op welke plek, en of ze alleen genoemd of ook echt
-aanbevolen worden. Daaruit komt een openbare ranglijst per categorie per land, die
-gratis te lezen is zonder account.
+## What Krillo does
+For every category, Krillo puts thirty buying questions to several AI models, worded
+the way a shopper would really ask them, and keeps every full answer. From those
+answers it reads which stores are named, in which place, and whether they are only
+named or actually recommended. That produces a public ranking per category per
+country, free to read without an account.
 
-Daarnaast scant Krillo een webshop op dertien punten, verdeeld over toegang,
-leesbaarheid, structuur en inhoud. Die gratis check toont de score en alle bevindingen,
-met daarna een voorproef van koopvragen aan AI.
+Krillo also checks a store on thirteen points, across access, readability, structure
+and content. That free check shows the score and every finding, followed by a taste of
+buying questions put to AI.
 
-Meten gebeurt elke maand, niet vaker. Betalende klanten krijgen elke maand hun positie,
-de koopvragen waar ze niet in voorkomen met het echte antwoord erbij, en welke
-concurrent er wel genoemd werd. Bij het Fix-pakket voert Krillo de oplossingen zelf uit
-in de winkel, bewaart de oude tekst zodat terugdraaien altijd kan, en meet vier weken
-later opnieuw.
+Measuring happens once a month, not more often. Paying customers get their rank every
+month, the buying questions they do not appear in with the real answer, and which
+competitor was named instead. With the Fix plan Krillo installs the fixes in the store,
+keeps the old text so anything can be put back, and shows the difference at the next
+monthly measurement.
 
-## Wat Krillo niet belooft
-Krillo belooft geen resultaat. Of een AI je winkel noemt hangt ook af van dingen buiten
-je eigen site: wat anderen over je schrijven, reviews, vergelijkingssites en
-merkbekendheid. Dat meet Krillo niet en doet Krillo ook niet alsof.
+A platform is counted apart from a store. A marketplace, portal or comparison site is
+not a competitor of a store but a place a store should be listed on, so it does not
+take a position in the ranking.
 
-## Voor wie
-Eigenaren van webshops in Nederland en Belgie, zonder marketingbureau en zonder
-technische kennis. Ze kunnen het zelf doen met de uitgeschreven oplossingen, of het
-door Krillo laten uitvoeren.
+## What Krillo does not promise
+Krillo promises no result. Whether an AI names your store also depends on things
+outside your own site: what others write about you, reviews, comparison sites and brand
+awareness. Krillo does not measure that and does not pretend to.
 
-## Prijzen
+## Who it is for
+Owners of online stores in the Netherlands and Belgium, without a marketing agency and
+without technical knowledge. They can do it themselves with the written fixes, or have
+Krillo do it.
+
+## Pricing
 """ + prijsregels + """
 
-## Belangrijke pagina's
-- Homepage, gratis check en gratis zichtbaarheidstest: https://krilloai.com/
-- De openbare index: alle gemeten categorieen en ranglijsten, gratis te lezen
-  zonder account: https://krilloai.com/index
-- Voorbeeld van een klantdashboard, zonder account: https://krilloai.com/demo
-- Artikelen over AI-zichtbaarheid: https://krilloai.com/artikelen
-- Hoe we meten: https://krilloai.com/zo-meten-we
-- Veelgestelde vragen: https://krilloai.com/veelgestelde-vragen
-- Over Krillo en contact: https://krilloai.com/over-ons
-- Onderzoek naar AI-antwoorden over Nederlandse webshops: https://krilloai.com/onderzoek
+## Important pages
+- Home page, free check and free visibility test: https://krilloai.com/
+- The public index: every measured category and ranking, free to read without an
+  account: https://krilloai.com/index
+- Example of a customer dashboard, without an account: https://krilloai.com/demo
+- Articles about AI visibility (in Dutch): https://krilloai.com/artikelen
+- How we measure: https://krilloai.com/zo-meten-we
+- Frequently asked questions: https://krilloai.com/veelgestelde-vragen
+- About Krillo and contact: https://krilloai.com/over-ons
+- Research into AI answers about Dutch online stores: https://krilloai.com/onderzoek
 
-## Artikelen
+## Articles (in Dutch)
 """ + "\n".join(
         f"- {a['titel']}: https://krilloai.com/artikelen/{a['slug']}"
         for a in artikelen.ARTIKELEN
@@ -845,9 +854,8 @@ hello@krilloai.com
     # accolade over het hoofd ziet en de pagina stil omvalt. Een vervanging
     # achteraf raakt alleen de adressen en laat de rest met rust.
     #
-    # Het MAILADRES blijft bewust hello@krilloai.com: dat adres bestaat en werkt,
-    # en hello@krilloai.com nog niet. Een adres op de site zetten waar niets
-    # aankomt is erger dan een adres op het oude domein.
+    # Het mailadres is sinds 21 september hello@krilloai.com en wordt hier niet
+    # vervangen: alleen de webadressen gaan mee met BASE_URL.
     basis = get_base_url().rstrip("/")
     inhoud = inhoud.replace("https://krilloai.com", basis)
     return Response(inhoud, mimetype="text/plain")
@@ -2721,6 +2729,10 @@ def cron_onderhoud():
     cron_key = os.environ.get("CRON_KEY")
     if not cron_key or not _sleutel_klopt(request.args.get("key"), cron_key):
         return "", 404
+    # De nachtronde roept dit aan zodra een categorie gemeten is. Zo kan
+    # onderhoud.py het werk van klanten verversen zonder app.py te importeren
+    # (dat zou een kringetje zijn: app importeert onderhoud).
+    onderhoud.NA_METING = _ververs_klantwerk
     gestart = onderhoud.start_ronde()
     return ("ok" if gestart else "loopt al"), 200
 
@@ -3385,6 +3397,114 @@ def _zet_bronnen_status(webshop_url, tekst, klaar=False):
 # het moet rechtzetten, maar de zin lezen die hij op zijn site kan plakken.
 # Die taak heeft de kant-en-klare tekst het hardst nodig, niet het minst.
 GEEN_OPLOSSING_NODIG = set()
+
+
+def _ververs_klantwerk(ronde, categorie, base_url=None):
+    """Na de maandmeting van een categorie: het werk van elke klant erin
+    vernieuwen. STAP 72, 23 september.
+
+    Wat hier gebeurt, in deze volgorde:
+    1. De antwoorden van de ronde worden per klant omgezet in beoordelingen
+       (klantwerk.py). Dat kost geen modelaanroep: de antwoorden zijn al
+       gelezen. Hieruit volgen zijn cijfers, de vragen die hij mist en de
+       winkels die boven hem staan.
+    2. Uit die verse beoordelingen rolt zijn actieplan, en daarvoor worden de
+       kant-en-klare oplossingen geschreven. DAT kost wel geld, dus het gaat
+       langs de kostenrem en alleen voor taken die er nog niet zijn.
+    3. Heeft hij Fix (of het pakket voor merken), dan komt er een regel op de
+       werklijst, zodat jij ziet dat er deze maand werk klaarstaat en het
+       overzicht met de oude tekst later verstuurd kan worden.
+
+    Waarom dit bestaat: tot vandaag werden de oplossingen alleen bij de START
+    van een abonnement gemaakt. Een klant van drie maanden zag dus nog precies
+    de drie dingen van zijn eerste dag, terwijl Fix belooft dat wij elke maand
+    de drie dingen doen die het meeste opleveren.
+
+    Draait op de draad van de nachtronde en mag nooit de ronde laten klappen:
+    alles zit in een try."""
+    verslag = {"categorie": categorie, "klanten": 0, "regels": 0,
+               "plannen": 0, "werklijst": 0}
+    try:
+        klanten = db.klanten_in_categorie(categorie)
+    except Exception as e:
+        print(f"Klanten van {categorie} ophalen mislukt: {e}")
+        return verslag
+    if not klanten:
+        return verslag
+
+    try:
+        uit = klantwerk.beoordelingen_uit_ronde(ronde, categorie, klanten)
+        verslag["klanten"] = uit.get("klanten", 0)
+        verslag["regels"] = uit.get("regels", 0)
+    except Exception as e:
+        print(f"Beoordelingen uit ronde {ronde} mislukt: {e}")
+        return verslag
+
+    for klant in klanten:
+        url = klant["webshop_url"]
+        # De kostenrem per klant nakijken en niet een keer vooraf: bij tien
+        # klanten in een categorie kan de pot halverwege leeg zijn, en dan
+        # stoppen we liever dan dat we hem overschrijden.
+        try:
+            ruimte = kosten.mag_doorgaan(webshop_url=url)
+            if not ruimte["mag"]:
+                verslag["gestopt_door"] = ruimte["reden"]
+                break
+        except Exception as e:
+            print(f"Kostenrem nakijken mislukt voor {url}: {e}")
+
+        try:
+            plan = _klantgegevens(url)["actieplan"]
+            _maak_taakoplossingen(url, plan)
+            verslag["plannen"] += 1
+        except Exception as e:
+            print(f"Oplossingen vernieuwen mislukt voor {url}: {e}")
+
+        # Fix doet het werk zelf, dus er hoort een opdracht op de werklijst.
+        # Het kenmerk is de ronde plus de winkel: een keer per maandmeting,
+        # en een tweede poging levert geen dubbele opdracht op.
+        try:
+            if _doet_werk_voor(url):
+                kenmerk = f"maand-{ronde}-{url}"[:120]
+                if db.start_uitvoering(kenmerk, url, klant.get("email"),
+                                       (db.get_winkelprofiel(url) or {}).get("platform")):
+                    verslag["werklijst"] += 1
+        except Exception as e:
+            print(f"Werklijst bijwerken mislukt voor {url}: {e}")
+
+    print(f"Klantwerk vernieuwd voor {categorie}: {verslag}")
+    return verslag
+
+
+def _doet_werk_voor(webshop_url):
+    """Of wij in deze winkel zelf werken: Fix, het pakket voor merken, of de
+    oude eenmalige uitvoering. Bij Watch niet, die doet het zelf.
+
+    Waarom het zo omslachtig moet: welk pakket iemand heeft staat bij Mollie
+    en bij Shopify, niet bij ons. Wij vragen het daar op. Lukt dat niet, dan
+    zeggen wij NEE: een opdracht op de werklijst zetten voor iemand die Watch
+    nam, betekent dat jij werk doet waar niet voor betaald is."""
+    try:
+        abonnement = payments.zoek_abonnement(webshop_url)
+        if abonnement:
+            pakket = (abonnement.get("pakket") or "").lower()
+            if pakket:
+                return pakket != "watch"
+            # Geen pakket bekend bij een lopend abonnement: dan kijken we naar
+            # het bedrag. Watch is het goedkoopste pakket.
+            bedrag = str(abonnement.get("bedrag") or "")
+            watch = payments.PAKKETTEN["watch"]["prijs"]["value"]
+            return bedrag != watch
+    except Exception as e:
+        print(f"Abonnement opvragen mislukt voor {webshop_url}: {e}")
+    try:
+        rij = db.shopify_winkel_bij_url(webshop_url)
+        if rij and rij.get("toegangssleutel"):
+            stand = shopify_billing.huidig_abonnement(rij["winkel"], _shopify_sleutel(rij))
+            return bool(stand.get("actief")) and stand.get("plan") == "fix"
+    except Exception as e:
+        print(f"Shopify-abonnement opvragen mislukt voor {webshop_url}: {e}")
+    return False
 
 
 def _laatste_uitvoering(webshop_url):

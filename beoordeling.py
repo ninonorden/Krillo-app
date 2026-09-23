@@ -185,12 +185,23 @@ staan is genoemd, niet aanbevolen. Zet in aanbevolen_winkels alleen namen die
 ook echt winkels zijn. Wordt er in het slotadvies een merk aangeraden, dan hoort
 dat daar niet in.
 
+PLATFORM OF WINKEL. Dit is het verschil tussen een concurrent en een plek waar
+je op moet staan, en het is niet hetzelfde. Een WINKEL verkoopt zelf: hij heeft
+eigen voorraad of levert zelf, zoals fonQ, Loods 5 of de Bijenkorf. Een
+PLATFORM brengt vraag en aanbod bij elkaar en verkoopt zelf niets: een
+marktplaats, een portaal, een vergelijkingssite of een boekingssite. Pararius
+en Funda zijn platforms voor makelaars, Marktplaats en bol.com voor verkopers,
+Kieskeurig en Beslist zijn vergelijkingssites, Booking is een boekingssite.
+Twijfel je, kijk dan naar wie de verkoper is in de bestelling: is dat een
+derde, dan is het een platform.
+
 Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
 
 {{
   "winkel_kon_genoemd": true,
   "winkels": [
-    {{"naam": "fonQ", "positie": 2, "ook_merk": false}}
+    {{"naam": "fonQ", "positie": 2, "ook_merk": false, "soort": "winkel"}},
+    {{"naam": "bol.com", "positie": 3, "ook_merk": false, "soort": "platform"}}
   ],
   "merken": ["Serax", "HKliving"],
   "aanbevolen_winkels": ["Loods 5"],
@@ -248,6 +259,11 @@ voor, zet dan genoemd op false en positie op null."""
 
         onze = data.get("onze_winkel") or {}
         winkels = [w for w in (data.get("winkels") or []) if isinstance(w, dict) and w.get("naam")]
+        # Platform of winkel vasthouden (stap 73). Onbekend telt als winkel,
+        # zoals het hiervoor altijd ging.
+        for w in winkels:
+            w["soort"] = ("platform" if (w.get("soort") or "").strip().lower() == "platform"
+                          else "winkel")
         return {
             "winkel_kon_genoemd": bool(data.get("winkel_kon_genoemd")),
             "winkels": winkels,
@@ -458,12 +474,18 @@ def klantbeeld(webshop_url, beoordelingen):
     winkels_per_vraag = {}
     aanbevolen_per_vraag = {}
     bekende_namen = {}
+    # Platform of winkel, per naam (stap 73). Een platform is geen concurrent
+    # maar een plek waar je op hoort te staan, en dat scheelt nogal: Pararius
+    # naast een makelaar zetten als concurrent klopt niet.
+    soort_per_sleutel = {}
     for b in beoordelingen:
         for w in (b.get("winkels") or []):
             naam = (w.get("naam") or "").strip()
             if naam:
                 sl = naamsleutel(naam)
                 bekende_namen[sl] = _voorkeursnaam(bekende_namen.get(sl), naam)
+                if (w.get("soort") or "").strip().lower() == "platform":
+                    soort_per_sleutel[sl] = "platform"
     for b in beoordelingen:
         vraag = b.get("vraag")
         if not vraag or not b.get("winkel_kon_genoemd"):
@@ -497,6 +519,10 @@ def klantbeeld(webshop_url, beoordelingen):
             "genoemd": len(vragen),
             "aanbevolen": len(aanbevolen_per_vraag.get(naam, ())),
             "wij": scan_engine.is_eigen_winkel(webshop_url, naam),
+            # True als AI dit als marktplaats of portaal noemde. Die hoort in
+            # een eigen lijstje: er staan is niet verliezen van een concurrent,
+            # het is een plek waar je nog niet goed op staat.
+            "platform": soort_per_sleutel.get(naamsleutel(naam)) == "platform",
         })
     concurrenten.sort(key=lambda c: (c["aanbevolen"], c["genoemd"]), reverse=True)
 

@@ -671,6 +671,23 @@ def init_db():
                         beoordeeld_op TIMESTAMPTZ DEFAULT now()
                     );
                 """)
+
+                # SINDS 23 SEPTEMBER: uniek op antwoord PLUS winkel.
+                #
+                # Waarom dat moest. Een beoordeling hoorde altijd bij een eigen
+                # meting van een winkel, dus een antwoord hoorde bij precies
+                # een winkel. Sinds stap 72 komt het beeld van een klant uit de
+                # maandmeting van zijn CATEGORIE, en daar hoort hetzelfde
+                # antwoord bij alle winkels in die categorie. Met de oude
+                # sleutel kreeg de eerste winkel zijn regel en vielen alle
+                # andere stil weg (ON CONFLICT DO NOTHING).
+                cur.execute("ALTER TABLE beoordelingen "
+                            "ADD COLUMN IF NOT EXISTS bron TEXT DEFAULT 'eigen';")
+                cur.execute("ALTER TABLE beoordelingen "
+                            "DROP CONSTRAINT IF EXISTS beoordelingen_antwoord_id_key;")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS "
+                            "idx_beoordelingen_antwoord_winkel "
+                            "ON beoordelingen (antwoord_id, webshop_url);")
                 cur.execute("ALTER TABLE beoordelingen ADD COLUMN IF NOT EXISTS bewijs TEXT;")
                 cur.execute("ALTER TABLE beoordelingen ADD COLUMN IF NOT EXISTS soort_vermelding TEXT;")
                 cur.execute("""
@@ -1763,6 +1780,30 @@ def get_shopify_winkel(winkel):
                 return _rij_met_open_sleutels(cur.fetchone())
     except Exception as e:
         print(f"Shopify-winkel ophalen mislukt voor {winkel}: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def shopify_winkel_bij_url(webshop_url):
+    """De Shopify-winkel die bij dit webadres hoort, of None.
+
+    Nodig om te weten of iemand via de app betaalt en welk plan hij heeft. De
+    andere kant (winkel naar webadres) bestond al."""
+    conn = _get_connection()
+    if conn is None or not webshop_url:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM shopify_winkels "
+                            "WHERE webshop_url = %s AND actief = TRUE "
+                            "ORDER BY geinstalleerd_op DESC NULLS LAST LIMIT 1",
+                            (webshop_url,))
+                rij = cur.fetchone()
+                return dict(rij) if rij else None
+    except Exception as e:
+        print(f"Shopify-winkel bij adres ophalen mislukt voor {webshop_url}: {e}")
         return None
     finally:
         conn.close()
@@ -5030,6 +5071,29 @@ def bewaar_categorie_vragen(categorie, vragen):
         conn.close()
 
 
+def alle_categorie_vragen_tekst(categorie):
+    """Elke vraag die ooit voor deze categorie bedacht is, ook de uitgezette.
+
+    Nodig bij het aanvullen: zonder deze lijst bedenkt het model opnieuw de
+    vragen die er al zijn, die vallen weg op de unieke sleutel, en dan blijft
+    een categorie voor altijd onder de dertig vragen hangen. Zo stond
+    "Servies en tafelgerei" op 23 september nog op negentien."""
+    conn = _get_connection()
+    if conn is None or not categorie:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT vraag FROM categorie_vragen WHERE categorie = %s",
+                            (categorie,))
+                return [r[0] for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Alle categorievragen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def categorie_vragen(categorie, alleen_actief=True):
     conn = _get_connection()
     if conn is None:
@@ -5699,6 +5763,96 @@ def antwoorden_van_ronde(ronde):
     except Exception as e:
         print(f"Antwoorden van ronde ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+def antwoorden_met_tekst_van_ronde(ronde):
+    """Alles van een meetronde, met de volledige antwoordtekst erbij.
+
+    Verschil met antwoorden_van_ronde: die laat de tekst juist weg, want voor
+    het herberekenen van een ranglijst is hij niet nodig. Hier wel: uit die
+    tekst komt de zin waarin de klant genoemd wordt, en dat is wat hij op zijn
+    dashboard als bewijs ziet."""
+    conn = _get_connection()
+    if conn is None or not ronde:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, vraag, model, antwoord, winkel_kon_genoemd, genoemde_winkels
+                      FROM categorie_antwoorden
+                     WHERE ronde = %s ORDER BY id""", (ronde,))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Antwoorden met tekst ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def klanten_in_categorie(categorie):
+    """De lopende klanten met een winkel in deze categorie.
+
+    Opgezegde klanten vallen af: voor wie niet meer betaalt hoeven we geen
+    oplossingen meer te schrijven, en dat kost geld bij het model."""
+    conn = _get_connection()
+    if conn is None or not categorie:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT k.webshop_url, k.email, k.klant_token
+                      FROM klanten k
+                      JOIN benadering b ON b.webshop_url = k.webshop_url
+                     WHERE b.categorie = %s
+                       AND k.opgezegd_op IS NULL
+                     ORDER BY k.webshop_url""", (categorie,))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Klanten in categorie ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def bewaar_beoordelingen_veel(rijen):
+    """Schrijft beoordelingen in een keer weg. Geeft het aantal nieuwe regels.
+
+    In EEN opdracht en niet per regel: dertig vragen maal twee modellen maal
+    tien klanten is zeshonderd regels, en dat zijn anders zeshonderd keer heen
+    en weer naar Neon."""
+    if not rijen:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                uit = execute_values(cur, """
+                    INSERT INTO beoordelingen
+                        (antwoord_id, meting_id, webshop_url, vraag, intentie, model,
+                         winkel_kon_genoemd, genoemd, positie, aantal_winkels,
+                         aanbevolen, toon, bewijs, soort_vermelding,
+                         winkels, merken, aanbevolen_winkels, bron)
+                    VALUES %s
+                    ON CONFLICT (antwoord_id, webshop_url) DO NOTHING
+                    RETURNING id
+                """, [(r["antwoord_id"], r["meting_id"], r["webshop_url"], r["vraag"],
+                       r["intentie"], r["model"], r["winkel_kon_genoemd"], r["genoemd"],
+                       r["positie"], r["aantal_winkels"], r["aanbevolen"], r["toon"],
+                       r["bewijs"], r["soort_vermelding"],
+                       json.dumps(r["winkels"], ensure_ascii=False),
+                       json.dumps(r["merken"], ensure_ascii=False),
+                       json.dumps(r["aanbevolen_winkels"], ensure_ascii=False), r["bron"])
+                      for r in rijen], fetch=True)
+                return len(uit or [])
+    except Exception as e:
+        print(f"Beoordelingen bewaren mislukt: {e}")
+        return 0
     finally:
         conn.close()
 

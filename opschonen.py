@@ -28,7 +28,8 @@ WAT DIT BESTAND DOET
 
 Het zet bij elke winkel twee dingen vast:
 
-- soort: winkel, merk, of geen-adres.
+- soort: winkel, merk, platform of geen-adres. Een platform (marktplaats,
+  portaal, vergelijkingssite) telt niet mee in een ranglijst van winkels.
 - hoort_bij: het webadres van de winkel waar deze onder valt. Voor
   cookinglife.be is dat cookinglife.nl. Voor de meeste winkels is dat zichzelf.
 
@@ -57,6 +58,11 @@ PER_AANROEP = int(os.environ.get("OPSCHOON_PER_AANROEP", "40"))
 
 SOORT_WINKEL = "winkel"
 SOORT_MERK = "merk"
+# Sinds 23 september (stap 73). Een platform brengt vraag en aanbod bij elkaar
+# en verkoopt zelf niets: Pararius, Funda, Marktplaats, Kieskeurig. Dat is geen
+# concurrent van een winkel maar een plek waar een winkel op hoort te staan, en
+# het hoort dus niet in een ranglijst van winkels.
+SOORT_PLATFORM = "platform"
 SOORT_GEEN_ADRES = "geen-adres"
 
 # Landcodes en veelgebruikte uitgangen. Hiermee halen wij de stam van een adres
@@ -190,6 +196,13 @@ Villeroy & Boch en Brabantia zijn merken, ook al kun je op hun eigen site
 bestellen. Kenmerk: als je aan iemand vraagt waar hij dit koopt, noemt hij een
 winkel en niet deze site.
 
+platform: een marktplaats, portaal of vergelijkingssite. Hij brengt vraag en
+aanbod bij elkaar en verkoopt zelf niets; de verkoper is een derde. Pararius en
+Funda zijn platforms voor woningen, Marktplaats en bol.com voor verkopers,
+Kieskeurig en Beslist zijn vergelijkingssites. Een platform hoort niet in een
+ranglijst van winkels, want het is geen concurrent maar een plek waar een
+winkel op hoort te staan.
+
 onbekend: je weet het niet zeker. Kies dit liever dan gokken.
 
 {chr(10).join(regels)}
@@ -238,7 +251,7 @@ def merken_in(winkels):
     for regel in (data or {}).get("soorten", []):
         url = (regel.get("webshop_url") or "").strip()
         soort = (regel.get("soort") or "").strip().lower()
-        if url and soort in (SOORT_WINKEL, SOORT_MERK):
+        if url and soort in (SOORT_WINKEL, SOORT_MERK, SOORT_PLATFORM):
             uit[url] = soort
     return uit
 

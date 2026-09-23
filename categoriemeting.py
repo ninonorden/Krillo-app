@@ -72,7 +72,7 @@ def _client():
 
 
 def bedenk_vragen(slug, landnaam="Nederlandse", taal="Nederlands",
-                  aantal=VRAGEN_PER_CATEGORIE):
+                  aantal=VRAGEN_PER_CATEGORIE, vermijd=None):
     """Bedenkt de koopvragen voor een hele categorie.
 
     Belangrijk verschil met koopvragen.py: die kijkt naar de pagina's van EEN
@@ -86,6 +86,17 @@ def bedenk_vragen(slug, landnaam="Nederlandse", taal="Nederlands",
     if client is None:
         return []
     naam = categorieen.naam_van(slug)
+    # Welke vragen er al zijn, zodat het model niet opnieuw dezelfde bedenkt.
+    # Zonder dit liep het aanvullen dood: een dubbele vraag valt weg op de
+    # unieke sleutel, en dan blijft de categorie onder de dertig hangen.
+    # Hoogstens veertig meesturen; meer maakt de opdracht onleesbaar.
+    vermijd = [v for v in (vermijd or []) if v][:40]
+    vermijd_blok = ""
+    if vermijd:
+        lijst = "\n".join(f"- {v}" for v in vermijd)
+        vermijd_blok = (f"\n\nDEZE VRAGEN BESTAAN AL. Bedenk er andere, over andere "
+                        f"stukken van de categorie. Een variant met andere woorden op "
+                        f"dezelfde vraag telt als dezelfde vraag:\n{lijst}")
     verdeling = _verdeling(aantal, landnaam)
     intentie_uitleg = "\n".join(f"- {n} ({hoeveel} vragen): {u}"
                                 for n, u, hoeveel in verdeling)
@@ -118,7 +129,7 @@ REGELS:
   of meer WINKELNAMEN antwoorden. Is dat nee, schrijf de vraag dan om.
 - Schrijf ze zoals iemand ze intypt: gewone taal, geen zoekmachinetermen.
 - Varieer in wat er gezocht wordt binnen de categorie, zodat de meting niet op
-  een smal stukje van de markt hangt.
+  een smal stukje van de markt hangt.{vermijd_blok}
 
 Antwoord ALLEEN met JSON:
 {{"vragen": [{{"vraag": "...", "intentie": "algemeen"}}]}}"""
@@ -292,6 +303,16 @@ af met een advies ("ik zou vooral kijken naar X en Y"). Alleen wie in dat
 slotadvies staat, of wie duidelijk als eerste keuze wordt aangeraden, is
 aanbevolen. In een rij staan is genoemd, niet aanbevolen.
 
+PLATFORM OF WINKEL. Dit is het verschil tussen een concurrent en een plek waar
+je op moet staan, en het is niet hetzelfde. Een WINKEL verkoopt zelf: hij heeft
+eigen voorraad of levert zelf, zoals fonQ, Loods 5 of de Bijenkorf. Een
+PLATFORM brengt vraag en aanbod bij elkaar en verkoopt zelf niets: een
+marktplaats, een portaal, een vergelijkingssite of een boekingssite. Pararius
+en Funda zijn platforms voor makelaars, Marktplaats en bol.com voor verkopers,
+Kieskeurig en Beslist zijn vergelijkingssites, Booking is een boekingssite.
+Twijfel je, kijk dan naar wie de verkoper is in de bestelling: is dat een
+derde, dan is het een platform.
+
 POSITIE is de volgorde waarin de winkels in het antwoord voorkomen, te beginnen
 bij 1.
 
@@ -304,7 +325,8 @@ Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
 
 {{
   "winkel_kon_genoemd": true,
-  "winkels": [{{"naam": "fonQ", "adres": "fonq.nl", "positie": 1}}],
+  "winkels": [{{"naam": "fonQ", "adres": "fonq.nl", "positie": 1, "soort": "winkel"}},
+              {{"naam": "bol.com", "adres": "bol.com", "positie": 2, "soort": "platform"}}],
   "aanbevolen": ["fonQ"]
 }}"""
 
@@ -434,8 +456,15 @@ def winkels_uit_antwoord(vraag, antwoord):
             # Het webadres gaat mee de database in. Daarmee kan een winkel die
             # AI noemt maar die wij nog niet kenden later aan de lijst worden
             # toegevoegd (zie nieuwe_winkels_uit_antwoorden).
+            # soort is "winkel" of "platform" (sinds 23 september, stap 73).
+            # Een platform is geen concurrent maar een plek waar je op hoort te
+            # staan, en het hoort dus niet in een ranglijst van winkels. Zegt
+            # het model iets anders dan die twee, dan behandelen wij het als
+            # winkel: dat is hoe het hiervoor altijd ging.
+            soort = (w.get("soort") or "").strip().lower()
             winkels.append({"naam": naam, "positie": w.get("positie"),
-                            "adres": _schoon_domein(w.get("adres"))})
+                            "adres": _schoon_domein(w.get("adres")),
+                            "soort": "platform" if soort == "platform" else "winkel"})
     return {
         "winkel_kon_genoemd": bool(data.get("winkel_kon_genoemd")),
         "winkels": winkels,
@@ -529,10 +558,11 @@ def nieuwe_winkels_uit_antwoorden(genoemden, winkels, slug, bestaat=None):
             domein = w.get("adres")
             if not domein or w["naam"] in gekoppeld or domein in bekende_domeinen:
                 continue
-            kandidaten.setdefault(domein, w["naam"])
+            kandidaten.setdefault(domein, (w["naam"], w.get("soort") or "winkel"))
 
     toegevoegd = []
-    for domein, naam in kandidaten.items():
+    platforms = []
+    for domein, (naam, soort) in kandidaten.items():
         if len(toegevoegd) >= MAX_NIEUWE_WINKELS:
             break
         if not bestaat(domein):
@@ -543,7 +573,19 @@ def nieuwe_winkels_uit_antwoorden(genoemden, winkels, slug, bestaat=None):
         if db.voeg_benadering_toe(url, naam=naam, land=_land_bij_domein(domein),
                                   branche="ai-antwoord"):
             db.zet_categorie(url, slug)
-            toegevoegd.append(url)
+            # STAP 73: een platform komt er wel op, maar als platform.
+            # Pararius hoort niet in een ranglijst van makelaars en bol.com
+            # niet in een ranglijst van winkels: het zijn geen concurrenten
+            # maar plekken waar je op hoort te staan. De ranglijst en de
+            # meetwachtrij kijken alleen naar soort winkel, dus zo valt hij er
+            # vanzelf buiten zonder dat wij hem kwijtraken.
+            if soort == "platform":
+                db.zet_soorten({url: "platform"})
+                platforms.append(url)
+            else:
+                toegevoegd.append(url)
+    if platforms:
+        print(f"Platforms herkend en apart gezet: {platforms}")
     return toegevoegd
 
 
@@ -971,18 +1013,33 @@ def meet_categorie(slug, max_vragen=None):
     # ronde met minder vragen meten dan de vorige en zou de meting langzaam
     # uitdoven. Nu gaat er een vraag uit die niets oplevert en komt er een
     # nieuwe voor terug.
-    if len(vragen) < VRAGEN_PER_CATEGORIE:
+    # Twee pogingen, en met de bestaande vragen erbij (23 september). Tot
+    # vandaag wist het model niet welke vragen er al waren: het bedacht dan
+    # dezelfde, die vielen weg op de unieke sleutel, en de categorie bleef
+    # onder de dertig steken. Op de openbare index was dat te zien: Servies
+    # en tafelgerei mat met 19 vragen en Speelgoed met 28, ronde na ronde.
+    for _poging in range(2):
+        if len(vragen) >= VRAGEN_PER_CATEGORIE:
+            break
         # Dit is een modelaanroep van een minuut of wat, en tot 16 september
         # stond er ondertussen "vraag 0 van 0" op het scherm. Dat leest als
         # vastgelopen terwijl er gewoon gewerkt wordt.
         tekort = VRAGEN_PER_CATEGORIE - len(vragen)
         _stand["stap"] = f"{tekort} koopvragen bedenken voor deze categorie"
-        nieuw = bedenk_vragen(slug, aantal=max(tekort, 6))
-        if not nieuw and not vragen:
-            return {"fout": "Er konden geen vragen bedacht worden."}
-        if nieuw:
-            db.bewaar_categorie_vragen(slug, nieuw)
-            vragen = db.categorie_vragen(slug)
+        # Ruim vragen, want er vallen er altijd een paar af als dubbel.
+        nieuw = bedenk_vragen(slug, aantal=max(tekort + 5, 8),
+                              vermijd=db.alle_categorie_vragen_tekst(slug))
+        if not nieuw:
+            break
+        db.bewaar_categorie_vragen(slug, nieuw)
+        vragen = db.categorie_vragen(slug)
+    if not vragen:
+        return {"fout": "Er konden geen vragen bedacht worden."}
+    if len(vragen) < VRAGEN_PER_CATEGORIE:
+        # Niet stilhouden: met te weinig vragen is de meting minder waard, en
+        # op de openbare pagina staat hoeveel vragen er gesteld zijn.
+        print(f"LET OP: {slug} meet met {len(vragen)} vragen in plaats van "
+              f"{VRAGEN_PER_CATEGORIE}. Het aanvullen leverde te weinig nieuwe op.")
     if not vragen:
         return {"fout": "Er zijn geen koopvragen voor deze categorie."}
     if max_vragen:

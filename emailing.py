@@ -989,16 +989,28 @@ def send_zichtbaarheidstest(to_email, webshop_url, resultaat, zin, site_url=None
     import beoordeling
     samen = beoordeling.voeg_concurrenten_samen(resultaat.get("concurrenten") or [])
     anderen = [c for c in samen if not c.get("wij")][:5]
-    concurrenten = ""
-    if anderen:
+    def lijstje(kop, regels, onder=None):
+        if not regels:
+            return ""
         namen = "".join(
             f'<li style="margin-bottom:3px;">{veilig(c["naam"])} <span style="color:{INKT_ZACHT};">'
-            f'({c["genoemd"]}x)</span></li>' for c in anderen
+            f'({c["genoemd"]}x)</span></li>' for c in regels
         )
-        concurrenten = (
-            f'<h3 style="font-size:15px; margin:24px 0 8px;">Who was named instead</h3>'
-            f'<ul style="font-size:14px; line-height:1.6; padding-left:18px; margin:0;">{namen}</ul>'
-        )
+        return (f'<h3 style="font-size:15px; margin:24px 0 8px;">{kop}</h3>'
+                f'<ul style="font-size:14px; line-height:1.6; padding-left:18px; margin:0;">'
+                f'{namen}</ul>' + (_p(onder, zacht=True) if onder else ""))
+
+    # Winkels en platforms apart (stap 73, punt van Nino). Een marktplaats of
+    # portaal is geen concurrent: daar hoor je juist goed op te staan. Ze in
+    # een lijstje zetten leest als "je verliest van Pararius", en dat klopt
+    # niet.
+    concurrenten = lijstje("Who was named instead",
+                           [c for c in anderen if not c.get("platform")])
+    concurrenten += lijstje(
+        "Platforms AI points buyers to",
+        [c for c in (resultaat.get("platforms") or []) if not c.get("wij")][:5],
+        "These are marketplaces and portals, not competitors. AI sends buyers there, "
+        "so it pays to be listed properly on them.")
 
     # De bronanalyse: waar een concurrent wel staat en jij niet. Het enige
     # stuk van deze mail waar iemand morgen zelf iets mee kan. Alleen als er

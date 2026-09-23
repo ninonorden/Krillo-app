@@ -1629,15 +1629,25 @@
       });
     }
 
-    var anderen = (r.concurrenten || []).filter(function(c){ return !c.wij; });
-    if(anderen.length){
-      html += '<div class="scan-categorie-label">Who was named instead</div>';
-      html += '<div class="zt-lijst">';
-      anderen.forEach(function(c){
-        html += '<div class="zt-rij"><span>' + veilig(c.naam) + '</span><span class="zt-aantal">' + veilig(c.genoemd) + 'x</span></div>';
+    // Winkels en platforms apart (stap 73). Een marktplaats of portaal is geen
+    // concurrent maar een plek waar je op hoort te staan. Ze in een lijstje
+    // zetten leest als "je verliest van Pararius", en dat klopt niet.
+    function lijstje(kop, regels, onder){
+      if(!regels || !regels.length){ return ''; }
+      var uit = '<div class="scan-categorie-label">' + kop + '</div><div class="zt-lijst">';
+      regels.forEach(function(c){
+        uit += '<div class="zt-rij"><span>' + veilig(c.naam) + '</span><span class="zt-aantal">' + veilig(c.genoemd) + 'x</span></div>';
       });
-      html += '</div>';
+      uit += '</div>';
+      if(onder){ uit += '<div class="zt-zin">' + onder + '</div>'; }
+      return uit;
     }
+    var anderen = (r.concurrenten || []).filter(function(c){ return !c.wij && !c.platform; });
+    html += lijstje('Who was named instead', anderen);
+    var platforms = (r.platforms || []).filter(function(c){ return !c.wij; });
+    html += lijstje('Platforms AI points buyers to', platforms,
+      'These are marketplaces and portals, not competitors. AI sends buyers there, ' +
+      'so it pays to be listed properly on them.');
 
     // De bronanalyse. Dit is het enige deel van de uitslag dat niet zegt wat er
     // mis is maar waar het vandaan komt, dus het staat onder de vragen en boven
