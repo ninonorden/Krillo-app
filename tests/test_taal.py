@@ -168,13 +168,22 @@ zo("het kader is engels", lijkt_engels(en_mail["html"]), True)
 zo("zonder gedachtestreepjes", "—" in en_mail["html"], False)
 
 # ---------------------------------------------------------------------------
-print("\n== de onderzoeksmail blijft met opzet nederlands ==")
+# Tot 23 september was deze mail met opzet Nederlands. Sinds stap 36 is ook
+# hij Engels: een adres, een taal, en hij noemt de positie uit de index.
+print("\n== ook de onderzoeksmail is engels (stap 36) ==")
 verstuurd.clear()
 emailing.send_onderzoeksmail("info@winkel.nl", "https://winkel.nl",
-                             "https://www.krillo.nl/uitkomst/abc",
-                             genoemd=2, telbaar=20,
-                             afmeld_url="https://www.krillo.nl/afmelden/abc")
-zo("hij is nederlands", lijkt_nederlands(laatste()["html"]), True)
+                             "https://krilloai.com/uitkomst/abc",
+                             beeld={"positie": 4, "van": 20, "genoemd": 2, "telbaar": 30,
+                                    "land": "nl", "categorie": "testcat"},
+                             categorienaam="Test", landnaam="the Netherlands",
+                             afmeld_url="https://krilloai.com/afmelden/abc")
+zo("hij is engels", lijkt_engels(laatste()["html"]), True)
+# Niet lijkt_nederlands: "we" staat in beide lijstjes. Hier alleen woorden
+# die in een Engelse zin nooit voorkomen.
+_laag = laatste()["html"].lower()
+zo("en niet nederlands", any(f" {w} " in _laag for w in ("je", "het", "wordt", "niet", "een")),
+   False)
 
 # ---------------------------------------------------------------------------
 print("\n== het actieplan ==")

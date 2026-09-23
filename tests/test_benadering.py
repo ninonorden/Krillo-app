@@ -234,8 +234,27 @@ db.zet_benadering("https://zonderadres.nl", stand="gemeten")
 db.voeg_benadering_toe("https://afgemeld.nl")
 db.zet_benadering("https://afgemeld.nl", stand="gemeten", email="info@afgemeld.nl")
 db.meld_benadering_af("https://afgemeld.nl")
+# Sinds stap 36 gaat de mail over de positie in de index, dus alleen een
+# winkel met een categorie is aan de beurt.
+db.voeg_benadering_toe("https://zondercategorie.nl")
+db.zet_benadering("https://zondercategorie.nl", stand="gemeten", email="info@zondercategorie.nl")
+
+
+def geef_categorie(url):
+    conn = db._get_connection()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE benadering SET categorie = 'testcat' WHERE webshop_url = %s",
+                        (url,))
+    conn.close()
+
+
+for _u in ("https://klaar.nl", "https://zonderadres.nl", "https://afgemeld.nl"):
+    geef_categorie(_u)
 
 beurt = [w["webshop_url"] for w in benadering.te_mailen(10)]
+zo("zonder categorie (dus zonder positie) geen post", "https://zondercategorie.nl" in beurt,
+   False)
 zo("de gemeten winkel met adres is aan de beurt", "https://klaar.nl" in beurt, True)
 zo("zonder adres geen post", "https://zonderadres.nl" in beurt, False)
 zo("afgemeld is afgemeld", "https://afgemeld.nl" in beurt, False)
@@ -267,12 +286,14 @@ emailing.send_email = lambda to, onderwerp, html, koppen=None: (
                       "koppen": koppen}) or True)
 
 gelukt = emailing.send_onderzoeksmail(
-    "info@klaar.nl", "https://klaar.nl", "https://www.krillo.nl/uitkomst/abc",
-    genoemd=2, telbaar=20, nooit_genoemd=31, gemeten=60,
-    afmeld_url="https://www.krillo.nl/afmelden/abc", land="NL")
+    "info@klaar.nl", "https://klaar.nl", "https://krilloai.com/uitkomst/abc",
+    beeld={"positie": 5, "van": 20, "genoemd": 2, "telbaar": 30, "land": "nl",
+           "categorie": "testcat"},
+    categorienaam="Test", landnaam="the Netherlands",
+    afmeld_url="https://www.krillo.nl/afmelden/abc")
 zo("hij gaat eruit", gelukt, True)
 h = verstuurd[0]["html"]
-zo("met het eigen cijfer", "2 van de 20" in h, True)
+zo("met de positie uit de index", "#5 of 20" in h, True)
 zo("met een werkende afmeldlink", "/afmelden/abc" in h, True)
 zo("met de afmeldkop erbij",
    verstuurd[0]["koppen"].get("List-Unsubscribe"), "<https://www.krillo.nl/afmelden/abc>")
@@ -282,10 +303,15 @@ zo("zonder prijs", ("euro" in h.lower()) or ("€" in h), False)
 
 verstuurd.clear()
 emailing.send_onderzoeksmail(
-    "info@tweedewinkel.be", "https://tweedewinkel.be", "https://www.krillo.nl/uitkomst/x",
-    afmeld_url="https://www.krillo.nl/afmelden/x", land="BE")
-zo("een Belgische winkel heet geen Nederlandse webshop",
-   "Belgische en Nederlandse" in verstuurd[0]["html"], True)
+    "info@tweedewinkel.be", "https://tweedewinkel.be", "https://krilloai.com/uitkomst/x",
+    beeld={"positie": 2, "van": 9, "genoemd": 4, "telbaar": 30, "land": "be",
+           "categorie": "testcat"},
+    categorienaam="Test", landnaam="Belgium",
+    afmeld_url="https://www.krillo.nl/afmelden/x")
+zo("een Belgische winkel leest zijn eigen land",
+   "Test, Belgium" in verstuurd[0]["html"], True)
+zo("zonder positie gaat er niets uit",
+   emailing.send_onderzoeksmail("a@b.nl", "https://x.nl", "https://krilloai.com/u/x"), False)
 
 zo("zonder link gaat er niets uit",
    emailing.send_onderzoeksmail("a@b.nl", "https://x.nl", None), False)
@@ -309,7 +335,7 @@ db.zet_benadering("https://afmelder.nl", stand="gemaild", email="info@afmelder.n
 kenmerk = db.get_benchmark_token("https://afmelder.nl")
 r = client.get(f"/afmelden/{kenmerk}")
 zo("de pagina laadt", r.status_code, 200)
-zo("hij zegt dat het gelukt is", "geregeld" in r.get_data(as_text=True), True)
+zo("hij zegt dat het gelukt is", "no more email" in r.get_data(as_text=True), True)
 zo("wordt niet geindexeerd", 'content="noindex' in r.get_data(as_text=True), True)
 r = db.get_benadering("https://afmelder.nl")
 zo("hij staat als afgemeld", r["afgemeld"], True)
@@ -335,7 +361,7 @@ los_kenmerk = db.get_benchmark_token(LOS)
 zo("hij staat niet op de benaderlijst", db.get_benadering(LOS), None)
 r = client.get(f"/afmelden/{los_kenmerk}")
 zo("afmelden lukt toch", r.status_code, 200)
-zo("en zegt dat het geregeld is", "geregeld" in r.get_data(as_text=True), True)
+zo("en zegt dat het geregeld is", "no more email" in r.get_data(as_text=True), True)
 zo("en het is echt bewaard", db.is_afgemeld(LOS), True)
 
 emailing.send_email = lambda *a, **k: True
@@ -357,6 +383,7 @@ zo("hij weigert", "afgemeld" in r.get_data(as_text=True), True)
 print("\n== de automatische ronde markeert op beide plekken ==")
 db.voeg_benadering_toe("https://beide.nl", land="NL")
 db.zet_benadering("https://beide.nl", stand="gemeten", email="info@beide.nl")
+geef_categorie("https://beide.nl")
 krillo._stuur_onderzoeksmail = lambda u, e, l=None: (True, None)
 db.zet_instelling("benadering_aan", "ja")
 db.zet_instelling("mail_per_dag", 50)
@@ -374,6 +401,14 @@ if benadering.binnen_kantooruren():
        True)
 else:
     print("  --  overgeslagen, het is nu buiten de verzenduren")
+
+# Opruimen: de testcategorie hoort niet in de echte categorietelling van
+# andere tests te blijven staan.
+_c = db._get_connection()
+with _c:
+    with _c.cursor() as _cur:
+        _cur.execute("UPDATE benadering SET categorie = NULL WHERE categorie = 'testcat'")
+_c.close()
 
 print("\n== tellen ==")
 t = db.tel_benaderingen()

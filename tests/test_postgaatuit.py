@@ -150,6 +150,18 @@ krillo._klantgegevens = lambda url: {
                      "nooit_genoemd": 8},
 }
 db.zet_instelling("benadering_aan", "ja")
+# Sinds stap 36 gaat de mail over de positie in de index: de winkel heeft een
+# categorie nodig (anders is hij niet aan de beurt) en een positie. Die
+# positie komt hier uit een vaste namaak met het aantal vragen van hierboven.
+_c = db._get_connection()
+with _c.cursor() as _cur:
+    _cur.execute("UPDATE benadering SET categorie = 'posttest' WHERE webshop_url = %s", (WINKEL,))
+_c.commit()
+_c.close()
+krillo.klantbeeld.bouw = lambda url, land=None, **k: {
+    "positie": 2, "van": 10, "land": "nl", "categorie": "posttest",
+    "genoemd": 3, "telbaar": krillo._klantgegevens(url)["vermeldingen"]["telbaar"],
+    "boven_mij": [], "gemiste_vragen": []}
 
 # De klok vastzetten. Deze test draaide eerst gewoon op de tijd van de machine,
 # en dus slaagde hij overdag en viel hij 's avonds om met "buiten de uren dat wij

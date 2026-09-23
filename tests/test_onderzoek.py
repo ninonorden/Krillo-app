@@ -135,18 +135,23 @@ zo("wordt gemeld", "geldig e-mailadres" in r.get_data(as_text=True), True)
 zo("en er gaat niets uit", len(verstuurd), 0)
 
 print("\n== versturen ==")
+# Sinds stap 36 gaat de mail over de positie in de index. Deze winkel staat
+# in de test niet in een echte ranglijst, dus hier een vaste positie.
+krillo.klantbeeld.bouw = lambda url, land=None, **k: {
+    "positie": 3, "van": 20, "genoemd": 2, "telbaar": 20, "land": "nl",
+    "categorie": "testcat", "boven_mij": [], "gemiste_vragen": []}
 r = client.post("/admin/onderzoeksmail?key=testsleutel",
                 data={"url": "geheimewinkel.nl", "email": "eigenaar@geheimewinkel.nl",
                       "actie": "versturen"})
 zo("er is een mail verstuurd", len(verstuurd), 1)
 zo("naar het juiste adres", verstuurd[0]["to"], "eigenaar@geheimewinkel.nl")
 h = verstuurd[0]["html"]
-zo("met het eigen cijfer erin", "2 van de 20" in h, True)
+zo("met de positie uit de index erin", "#3 of 20" in h, True)
 zo("zonder https in de zin", "https://geheimewinkel" in h.split("<a ")[0], False)
 zo("met de link naar zijn pagina", f"/uitkomst/{token}" in h, True)
 # De afmeldregel. Zonder afmeldlink meegegeven valt hij terug op "antwoord
 # op deze mail", en dat moet er dan ook echt staan.
-zo("met de afmeldregel", ("antwoord dan op deze mail" in h) or ("/afmelden/" in h), True)
+zo("met de afmeldregel", "/afmelden/" in h, True)
 # BEWUST geen prijs in deze mail. Toetsen op het cijfer 79 kan niet: het
 # kenmerk in de link is willekeurig en bevat soms toevallig die cijfers.
 zo("zonder prijs in de mail", ("euro" in h.lower()) or ("&euro;" in h) or ("€" in h), False)

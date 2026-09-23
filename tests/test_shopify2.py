@@ -149,7 +149,10 @@ zo("de verversleutel is opgeslagen",
    db.get_shopify_winkel(WINKEL)["verversleutel"], "shprt_test")
 zo("App Bridge staat bovenaan", "cdn.shopify.com/shopifycloud/app-bridge.js" in p, True)
 zo("met onze client id erbij", 'data-api-key="test-client-id"' in p, True)
-zo("er staat een knop om te meten", 'id="metenknop"' in p, True)
+# Sinds stap 26 (23 september) is er geen eigen meting meer in de app: de
+# positie komt uit de index. Dus ook geen knop die een meting start.
+zo("er staat GEEN knop meer om zelf te meten", 'id="metenknop"' in p, False)
+zo("wel de kop van de index", "Your rank in the Krillo index" in p, True)
 zo("en nog geen cijfers", "van de" in p and "koopvragen" in p, False)
 
 print("\n== een tweede keer openen wisselt niet opnieuw in ==")
@@ -174,50 +177,21 @@ zo("zonder het woord Bearer geweigerd",
    client.post("/shopify/api/meten",
                headers={"Authorization": maak_kaartje()}).status_code, 401)
 
+# Met een goed kaartje: een nette uitleg (410) en er wordt NIETS gemeten.
+# Een eigen meting per installatie kostte geld en gaf een tweede cijfer naast
+# de openbare ranglijst (stap 26).
 r = client.post("/shopify/api/meten",
                 headers={"Authorization": "Bearer " + maak_kaartje()})
-zo("met een goed kaartje gaat hij lopen", r.status_code, 200)
-zo("en meldt hij dat hij bezig is", r.get_json()["stand"]["klaar"], False)
-
-for _ in range(50):
-    stand = krillo._shopify_status.get(WINKEL) or {}
-    if stand.get("klaar"):
-        break
-    time.sleep(0.1)
-zo("de meting is gedraaid", gemeten, ["https://krillo-test.nl"])
-zo("en staat op klaar", (krillo._shopify_status.get(WINKEL) or {}).get("klaar"), True)
-
-# Dit ging eerst stilletjes mis: het rapport werd geweigerd omdat er geen
-# e-mailadres bij zat, en dat zag je alleen in de logs. Zonder rapport is er
-# geen verklaring en blijft het actieplan leeg terwijl er wel gemeten is.
-rapporten = db.get_rapporten_voor_webshop("https://krillo-test.nl")
-zo("het scanrapport is bewaard", len(rapporten), 1)
-zo("met de score erin", rapporten[0]["score"], 62)
-zo("en het adres van de winkelier", rapporten[0]["email"], "eigenaar@krillo-test.nl")
+zo("met een goed kaartje: de meting bestaat niet meer", r.status_code, 410)
+zo("met uitleg dat de positie uit de index komt", "Krillo index" in r.get_json()["error"], True)
+time.sleep(0.3)
+zo("en er is niets gemeten", gemeten, [])
 
 print("\n== de stand opvragen ==")
 zo("zonder kaartje geweigerd", client.get("/shopify/api/stand").status_code, 401)
 r = client.get("/shopify/api/stand",
                headers={"Authorization": "Bearer " + maak_kaartje()})
-zo("met kaartje geeft de stand", r.get_json()["stand"]["klaar"], True)
-
-print("\n== twee metingen tegelijk kunnen niet ==")
-krillo._shopify_status[WINKEL] = {"tekst": "bezig", "klaar": False, "mislukt": False}
-voor = len(gemeten)
-client.post("/shopify/api/meten", headers={"Authorization": "Bearer " + maak_kaartje()})
-zo("er wordt niets extra's gestart", len(gemeten), voor)
-
-print("\n== een winkel die niet ingelezen kan worden ==")
-krillo._shopify_status.pop(WINKEL, None)
-krillo.run_scan = lambda url: {"error": "geblokkeerd"}
-client.post("/shopify/api/meten", headers={"Authorization": "Bearer " + maak_kaartje()})
-for _ in range(50):
-    if (krillo._shopify_status.get(WINKEL) or {}).get("klaar"):
-        break
-    time.sleep(0.1)
-stand = krillo._shopify_status.get(WINKEL) or {}
-zo("staat als mislukt", stand.get("mislukt"), True)
-zo("met een uitleg in gewone taal", "wachtwoord" in stand.get("tekst", ""), True)
+zo("met kaartje gewoon een antwoord", r.status_code, 200)
 
 print("\n== een winkel die de app al heeft krijgt GEEN tweede toestemmingsscherm ==")
 # Dit is een van de dingen waarop Shopify een app afkeurt. Iemand die al
@@ -292,7 +266,9 @@ zo("een winkel zonder markt blijft Nederlands", gevangen.get("taal"), "Nederland
 
 print("\n== het scherm is Engels en legt uit wat het doet ==")
 p = client.get("/shopify?id_token=" + maak_kaartje(winkel="ustest.myshopify.com")).get_data(as_text=True)
-for moet in ["Does ChatGPT mention your store?", "How it works", "Plans",
+# Een winkel in de VS: de index meet NL en BE, dus eerlijk zeggen dat er
+# (nog) geen positie komt in plaats van eeuwig "komt eraan" (stap 26).
+for moet in ["We do not measure your market yet", "How it works", "Plans",
              "Questions people ask us", "Does this change anything in my store?",
              "Will this get me mentioned by ChatGPT?", "$55", "$165", "Watch", "Fix",
              "Cancel any time"]:

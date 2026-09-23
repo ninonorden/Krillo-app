@@ -187,10 +187,11 @@ with conn:
 conn.close()
 zo("hij valt uit de ronde", krillo._shopify_abonnees(), [])
 
-print("\n== de labels volgen de taal van de winkel ==")
-zo("nederlands", shopify_werk._label({"is_nederlands": True}, "tekst"), "Producttekst")
+print("\n== de labels zijn altijd Engels, net als het scherm en de mail (stap 26) ==")
+zo("ook bij een Nederlandse winkel", shopify_werk._label({"is_nederlands": True}, "tekst"),
+   "Product description")
 zo("engels", shopify_werk._label({"is_nederlands": False}, "tekst"), "Product description")
-zo("onbekend wordt nederlands", shopify_werk._label(None, "tekst"), "Producttekst")
+zo("onbekend wordt ook Engels", shopify_werk._label(None, "tekst"), "Product description")
 zo("ook de foto", shopify_werk._label({"is_nederlands": False}, "alt"),
    "Description on a product image")
 zo("en de pagina", shopify_werk._label({"is_nederlands": False}, "faq_waar"),

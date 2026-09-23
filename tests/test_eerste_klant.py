@@ -53,7 +53,7 @@ for route in ("/api/checkout/audit", "/api/checkout/uitvoering",
                                   "voorwaarden_akkoord": True,
                                   "directe_uitvoering_akkoord": True})
     zo(f"{route} weigert een onzinnig adres", uit.status_code, 400)
-    klopt(f"{route} zegt waarom", "klopt niet" in uit.get_data(as_text=True))
+    klopt(f"{route} zegt waarom", "does not look right" in uit.get_data(as_text=True))
 
 print("\n== een geldig adres komt wel door de controle heen ==")
 # Belangrijk: de controle mag niet zo streng zijn dat echte adressen afvallen.
@@ -62,7 +62,7 @@ uit = klant.post("/api/checkout/audit",
                        "voorwaarden_akkoord": True,
                        "directe_uitvoering_akkoord": True})
 klopt("een gewoon zakelijk adres wordt niet geweigerd om zijn vorm",
-      "klopt niet" not in uit.get_data(as_text=True))
+      "does not look right" not in uit.get_data(as_text=True))
 
 print("\n== een betaling die wij niet konden claimen is iets anders dan al verwerkt ==")
 # Dit is het pad waarin iemand wel betaalt en geen klantrecord krijgt. Stond

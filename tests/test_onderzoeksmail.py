@@ -1,24 +1,28 @@
-"""De onderzoeksmail: het kader mag het antwoord niet weggeven.
+"""De onderzoeksmail: de positie in de index, in het Engels (stap 36).
 
-Waarom deze test bestaat.
+WAAROM DEZE TEST BESTAAT
 
-Brevo liet op 12 september zien dat 45 procent van de ontvangers deze mail
-opent, met nul spamklachten, en dat daarvan maar 8 procent doorklikt. De mail
-komt dus aan en wordt gelezen. Wat er misging zat in de tekst: er stond
-"genoemd bij 0 van de 5 vragen" in het kader, en daarmee wist de lezer genoeg.
-Wie het antwoord al heeft, klikt niet.
+Tot 23 september was dit de laatste mail uit het oude model: Nederlands, met
+een eigen meting van de winkel ("genoemd bij 0 van de 5 vragen") en een link
+naar een eigen uitkomstpagina. De site zegt inmiddels iets anders: "je
+positie in de index". Een koude mail die een ander cijfer noemt dan de
+openbare ranglijst is precies het soort tegenspraak waardoor iemand denkt dat
+het oplichterij is.
 
-Het kader zegt nu hetzelfde feit van de andere kant: er kwam WEL een winkel
-uit, alleen niet die van jou. Welke, dat staat op de pagina. Deze test bewaakt
-dat die volgorde blijft staan, want dit is precies het soort zin dat bij een
-volgende bewerking ongemerkt terugdraait naar het oude.
+Deze test bewaakt:
+- het cijfer in de mail is de positie uit de index, met categorie en land;
+- de mail is Engels, zonder ons eigen jargon;
+- platforms staan nooit als "in plaats van jou" (bol.com is geen concurrent);
+- namen van buiten worden onschadelijk gemaakt;
+- zonder positie gaat er GEEN mail uit;
+- afmeldlink, afmeldkop, KVK en "waar gaat de link heen" staan er altijd.
 """
 import os
 import sys
 
 os.environ.setdefault("DATABASE_URL", "postgresql://krillo@/postgres?host=/tmp&port=5599")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from pad import APP  # noqa: E402
+from pad import APP, lees  # noqa: E402
 sys.path.insert(0, APP)
 
 import emailing  # noqa: E402
@@ -26,15 +30,12 @@ import emailing  # noqa: E402
 fouten = []
 
 
-def zo(omschrijving, gekregen, verwacht):
-    if gekregen != verwacht:
-        fouten.append(f"FOUT: {omschrijving}: kreeg {gekregen!r}, verwacht {verwacht!r}")
-    else:
-        print(f"  ok  {omschrijving}")
-
-
 def klopt(omschrijving, voorwaarde):
-    return zo(omschrijving, bool(voorwaarde), True)
+    if voorwaarde:
+        print(f"  ok  {omschrijving}")
+    else:
+        print(f"  FOUT {omschrijving}")
+        fouten.append(omschrijving)
 
 
 verstuurd = {}
@@ -49,154 +50,102 @@ def nep_send_email(to_email, onderwerp, html, koppen=None, **rest):
 
 emailing.send_email = nep_send_email
 
-
-VOORBEELD = {"vraag": "Waar koop ik online duurzame babykleding?",
-             "winkels": ["Kleine Vos", "Bebe Natuur", "Groenhuis", "Wolwinkel"],
-             "aantal": 4, "model": "ChatGPT",
-             "na_klik_vragen": 15, "na_klik_modellen": 2}
-
-
-def mail(**kwargs):
-    grond = dict(to_email="winkel@voorbeeld.nl",
-                 webshop_url="https://voorbeeldwinkel.nl",
-                 uitkomst_url="https://www.krillo.nl/uitkomst/abc123",
-                 afmeld_url="https://www.krillo.nl/afmelden/abc123")
-    grond.update(kwargs)
-    emailing.send_onderzoeksmail(**grond)
-    return verstuurd["html"]
+BEELD = {
+    "positie": 7, "van": 24, "genoemd": 3, "telbaar": 30, "aanbevolen": 1,
+    "categorie": "babykleding", "land": "nl",
+    "boven_mij": [{"positie": 5, "naam": "Groenhuis", "webshop_url": "https://groenhuis.nl"},
+                  {"positie": 6, "naam": "https://bebe-natuur.nl",
+                   "webshop_url": "https://bebe-natuur.nl"}],
+    "gemiste_vragen": [
+        {"vraag": "Where can I buy organic baby clothes online?",
+         "concurrenten": ["Kleine Vos", "Wolwinkel", "Derde Winkel"],
+         "platforms": ["bol.com"]},
+    ],
+}
 
 
-print("\n== Het woord koopvraag komt in geen enkele variant meer voor ==")
-# Dat was ons woord en niet dat van de ontvanger. Wie het las moest eerst raden
-# wat er gemeten was, en raden kost precies de twee seconden die deze mail heeft.
-for geval in ({"genoemd": 0, "telbaar": 6}, {"genoemd": 3, "telbaar": 6},
-              {"genoemd": 6, "telbaar": 6}, {},
-              {"genoemd": 0, "telbaar": 6, "voorbeeld": VOORBEELD}):
-    klopt(f"geen jargon bij {geval or 'een lege meting'}",
-          "koopvraag" not in mail(**geval).lower())
+def mail(beeld=BEELD, **kw):
+    grond = dict(to_email="winkel@voorbeeld.nl", webshop_url="https://voorbeeldwinkel.nl",
+                 link_url="https://krilloai.com/uitkomst/abc123", beeld=beeld,
+                 categorienaam="Baby clothes", landnaam="the Netherlands",
+                 afmeld_url="https://krilloai.com/afmelden/abc123")
+    grond.update(kw)
+    verstuurd.clear()
+    uit = emailing.send_onderzoeksmail(**grond)
+    return uit, verstuurd.get("html", "")
 
-print("\n== Nul keer genoemd: het kader gaat over de winkel die er wel uitkwam ==")
-h = mail(genoemd=0, telbaar=5, nooit_genoemd=41, gemeten=75)
-klopt("het kader begint bij de andere winkel, niet bij het cijfer",
-      "Bij alle 5 vragen kwam er een andere winkel uit" in h)
-klopt("en noemt de winkel zelf erbij", "voorbeeldwinkel.nl niet" in h)
-klopt("het cijfer staat er nog wel, maar kleiner eronder",
-      "Genoemd bij 0 van de 5 vragen" in h)
-klopt("de vergelijking met de rest van de meting staat erbij",
-      "van de 75 gemeten winkels werden er 41" in h)
-klopt("de knop belooft wat alleen de pagina heeft",
-      "Bekijk welke winkels er wel uitkwamen" in h)
-klopt("de mail zegt niet dat de lijst in de mail staat",
-      "staat op je eigen pagina" in h)
 
-# Dit is de kern van de wijziging. Stond dit er nog, dan was het verhaal in de
-# mail al af en had de pagina geen reden meer om bezocht te worden.
-kader = h.split("Jouw uitkomst")[1].split("</table>")[0]
-klopt("het kader opent niet met het aantal keer genoemd",
-      kader.index("een andere winkel uit") < kader.index("Genoemd bij 0"))
+print("\n== HET CIJFER IS DE POSITIE IN DE INDEX ==")
+ok, h = mail()
+klopt("de mail gaat uit", ok)
+klopt("de positie staat erin", "#7 of 24" in h)
+klopt("met categorie en land", "Your place in Baby clothes, the Netherlands" in h)
+klopt("per vraag geteld", "in 3 of 30 buying questions" in h)
+klopt("wie net boven hem staat, nooit als webadres",
+      "Just ahead of you: bebe-natuur.nl (#6)" in h and "https://bebe-natuur.nl" not in h)
+klopt("de onderwerpregel noemt de positie",
+      verstuurd["onderwerp"] == "voorbeeldwinkel.nl: #7 of 24 in the Krillo index")
 
-print("\n== Deels genoemd: het gemiste deel staat voorop ==")
-h = mail(genoemd=2, telbaar=5)
-klopt("het aantal gemiste vragen klopt",
-      "Bij 3 van de 5 vragen kwam er een andere winkel uit" in h)
-klopt("het eigen cijfer staat eronder", "Genoemd bij 2 van de 5 vragen" in h)
+print("\n== ENGELS, ZONDER OUDE ZINNEN ==")
+for oud in ("Genoemd bij", "Jouw uitkomst", "onderzoek naar", "koopvraag", "Bekijk",
+            "Met vriendelijke groet", "vragen in plaats van"):
+    klopt(f"geen {oud!r}", oud.lower() not in h.lower())
+klopt("de knop zegt waar hij heen gaat", "See the full ranking" in h)
 
-print("\n== Overal genoemd: dan geen valse zorg, maar het echte verschil ==")
-h = mail(genoemd=5, telbaar=5)
-klopt("de mail erkent dat het goed staat",
-      "werd bij alle 5 vragen genoemd" in h)
-klopt("en legt uit waarom de pagina dan toch iets toevoegt",
-      "Genoemd worden is niet hetzelfde als aanbevolen worden" in h)
-klopt("geen verzonnen gemiste vragen",
-      "kwam er een andere winkel uit" not in h)
+print("\n== EEN ECHTE VRAAG, ALLEEN MET WINKELS ==")
+klopt("de vraag staat erin", "Where can I buy organic baby clothes online?" in h)
+klopt("twee winkels", "Kleine Vos" in h and "Wolwinkel" in h)
+klopt("niet de hele lijst", "Derde Winkel" not in h)
+klopt("de eigen winkel met een kruis", "voorbeeldwinkel.nl was not named" in h)
+klopt("bol.com staat er NIET als concurrent in", "bol.com" not in h)
 
-print("\n== Zonder cijfers valt de mail niet om ==")
-h = mail()
-klopt("er staat een nette zin in plaats van een leeg kader",
-      "meegenomen in de meting" in h)
+print("\n== ALLEEN PLATFORMS BIJ DE VRAAG: DAN GEEN VOORBEELD ==")
+alleen_platform = dict(BEELD, gemiste_vragen=[
+    {"vraag": "Cheap baby clothes?", "concurrenten": [], "platforms": ["bol.com"]}])
+ok, h = mail(beeld=alleen_platform)
+klopt("de mail gaat wel uit", ok)
+klopt("zonder voorbeeldvraag", "Cheap baby clothes?" not in h and "One of the questions" not in h)
 
-print("\n== Wat er in elke onderzoeksmail hoort te staan ==")
-h = mail(genoemd=0, telbaar=5)
+print("\n== NUL KEER GENOEMD ==")
+ok, h = mail(beeld=dict(BEELD, genoemd=0, positie=24))
+klopt("eerlijk gezegd", "in none of the 30 buying questions" in h)
+
+print("\n== NAMEN VAN BUITEN WORDEN ONSCHADELIJK ==")
+kwaad = dict(BEELD, gemiste_vragen=[
+    {"vraag": "<script>x</script>", "concurrenten": ['<a href="http://kwaad">Win</a>', "B"],
+     "platforms": []}])
+ok, h = mail(beeld=kwaad)
+klopt("geen script", "<script>" not in h)
+klopt("geen vreemde link", 'href="http://kwaad"' not in h)
+
+print("\n== WAT ER IN ELKE KOUDE MAIL HOORT ==")
+ok, h = mail()
 klopt("de afmeldlink staat in de tekst", "/afmelden/abc123" in h)
 klopt("en als kop, want dat scheelt spamklachten",
-      verstuurd["koppen"].get("List-Unsubscribe") == "<https://www.krillo.nl/afmelden/abc123>")
-klopt("de lezer ziet waar de link heen gaat voordat hij klikt",
-      "De link gaat naar" in h)
+      verstuurd["koppen"].get("List-Unsubscribe") == "<https://krilloai.com/afmelden/abc123>")
+klopt("de lezer ziet waar de link heen gaat", "The link goes to krilloai.com" in h)
 klopt("KVK en adres staan eronder", "KVK" in h)
-klopt("de onderwerpregel is ongewijzigd, die werkt",
-      verstuurd["onderwerp"] == "voorbeeldwinkel.nl in ons onderzoek naar AI-antwoorden")
+klopt("en waarom hij deze mail krijgt", "your store is in the Krillo index" in h)
 
-print("\n== De echte vraag in de mail, in plaats van uitleg ==")
-h = mail(genoemd=0, telbaar=6, voorbeeld=VOORBEELD)
-klopt("de vraag staat er letterlijk in",
-      "Waar koop ik online duurzame babykleding?" in h)
-klopt("met het model dat hem beantwoordde", "ChatGPT antwoordde met 4 winkels" in h)
-klopt("de eerste winkel staat er", "Kleine Vos" in h)
-klopt("de tweede ook", "Bebe Natuur" in h)
-klopt("en de rest wordt geteld, niet opgesomd", "nog 2 andere winkels" in h)
+print("\n== ZONDER POSITIE GAAT ER NIETS UIT ==")
+for omschrijving, kw in [("geen beeld", {"beeld": None}),
+                         ("beeld zonder positie", {"beeld": dict(BEELD, positie=None)}),
+                         ("geen adres", {"to_email": ""}),
+                         ("geen link", {"link_url": ""})]:
+    ok, h = mail(**kw)
+    klopt(f"{omschrijving}: geen mail", ok is False and verstuurd == {})
 
-# Dit is de reden dat er maar twee namen in staan. De hele lijst in de mail
-# zetten betekent dat er niets meer te halen valt op de pagina.
-klopt("de derde winkel staat er NIET in", "Groenhuis" not in h)
-klopt("de vierde ook niet", "Wolwinkel" not in h)
-
-klopt("de winkel van de lezer staat als enige met een kruis",
-      "voorbeeldwinkel.nl stond er niet bij" in h)
-klopt("en het patroon staat eronder",
-      "Dat gebeurde bij alle 6 vragen die we stelden" in h)
-klopt("de knop wijst naar de rest", "Bekijk de andere vragen" in h)
-
-h = mail(genoemd=0, telbaar=6, nooit_genoemd=84, gemeten=101, voorbeeld=VOORBEELD)
-klopt("de vergelijking met het hele onderzoek staat eronder",
-      "van de 101 gemeten winkels werden er 84" in h)
-
-h = mail(genoemd=2, telbaar=6, voorbeeld=VOORBEELD)
-klopt("bij deels genoemd telt de slotregel het gemiste deel",
-      "Dat gebeurde bij 4 van de 6 vragen" in h)
-
-print("\n== Een voorbeeld met te weinig winkels wordt niet gebruikt ==")
-# Een antwoord met een enkele winkel is geen patroon maar een uitschieter, en
-# dan valt de mail terug op de tekst zonder voorbeeld.
-mager = dict(VOORBEELD, winkels=["Kleine Vos"], aantal=1)
-h = mail(genoemd=0, telbaar=6, voorbeeld=mager)
-klopt("de vraag staat er niet in", "duurzame babykleding" not in h)
-klopt("het gewone kader staat er wel", "Jouw uitkomst" in h)
-
-print("\n== De belofte over de vervolgmeting klopt met de instellingen ==")
-# Hier stond ooit "vijftien vragen aan twee modellen" vast in de tekst, terwijl
-# beide getallen in Render ingesteld worden. Nu komen ze mee.
-h = mail(genoemd=0, telbaar=6, voorbeeld=VOORBEELD)
-klopt("het aantal vragen komt uit de instelling",
-      "15 vragen in plaats van 6" in h)
-klopt("en het aantal modellen uit de sleutels die er echt zijn",
-      "bij 2 modellen in plaats van een" in h)
-
-h = mail(genoemd=0, telbaar=6, voorbeeld=dict(VOORBEELD, na_klik_modellen=1))
-klopt("met een model wordt er niets over modellen beloofd",
-      "modellen in plaats van" not in h)
-klopt("maar de grotere meting nog wel", "15 vragen in plaats van 6" in h)
-
-h = mail(genoemd=0, telbaar=6, voorbeeld=dict(VOORBEELD, na_klik_vragen=6))
-klopt("is de vervolgmeting niet groter, dan staat er geen belofte",
-      "in plaats van" not in h)
-
-h = mail(genoemd=0, telbaar=6, voorbeeld=dict(VOORBEELD, na_klik_vragen=None,
-                                              na_klik_modellen=None))
-klopt("zonder getallen belooft de mail niets over een vervolg",
-      "grotere meting" not in h)
-
-print("\n== Zonder adres of link gaat er niets uit ==")
-verstuurd.clear()
-zo("geen adres, geen mail",
-   emailing.send_onderzoeksmail("", "https://voorbeeldwinkel.nl", "https://x/y"), False)
-zo("geen uitkomstlink, geen mail",
-   emailing.send_onderzoeksmail("a@b.nl", "https://voorbeeldwinkel.nl", ""), False)
-klopt("en er is niets verstuurd", verstuurd == {})
+print("\n== DE AANROEP HAALT DE POSITIE UIT DE INDEX ==")
+bron = lees("app.py")
+i = bron.index("def _stuur_onderzoeksmail(")
+blok = bron[i:bron.index("\ndef ", i + 10)]
+klopt("via klantbeeld.bouw", "klantbeeld.bouw(" in blok)
+klopt("zonder positie een eigen reden", "GEEN_POSITIE" in blok)
+klopt("de uitkomstlink stuurt door naar de ranglijst",
+      '#p{beeld[\'positie\']}' in bron and "def uitkomst(token)" in bron)
 
 print()
 if fouten:
-    for f in fouten:
-        print(f)
-    print(f"\n{len(fouten)} fout(en)")
+    print(f"FOUT: {len(fouten)} controle(s) mislukt")
     sys.exit(1)
-print("Alles goed.")
+print("Alles goed: de koude mail noemt de positie uit de index, in het Engels.")

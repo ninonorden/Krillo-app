@@ -156,7 +156,7 @@ klopt("en belooft geen wekelijkse ronde meer", "three things a week" not in MAIL
 klopt("de opleveringsmail waarschuwt dat AI tijd nodig heeft",
       "before AI models pick up new texts" in " ".join(MAILS.split()))
 klopt("de onderzoeksmail belooft alleen openbare informatie te gebruiken",
-      "alleen openbare informatie van je website gebruikt en niets aan je site veranderd" in " ".join(MAILS.split()))
+      "We only used public information and the answers AI gave; we changed nothing on your website" in " ".join(MAILS.split()))
 
 print()
 if fouten:
