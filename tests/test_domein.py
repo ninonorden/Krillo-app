@@ -158,7 +158,7 @@ import payments  # noqa: E402
 for sleutel in ("watch", "fix", "merken"):
     bedrag = int(float(payments.PAKKETTEN[sleutel]["prijs"]["value"]))
     klopt(f"llms.txt noemt {bedrag} euro voor {sleutel}",
-          f"{bedrag} euro per maand" in llms)
+          f"{bedrag} euro per month" in llms)
 
 print("\n== GEEN VERVALLEN PRODUCTEN MEER IN llms.txt ==")
 # De audit van 79 euro en het monitoring-abonnement bestaan sinds 11 september
@@ -166,7 +166,11 @@ print("\n== GEEN VERVALLEN PRODUCTEN MEER IN llms.txt ==")
 # week opnieuw" die op 18 september al uit de veelgestelde vragen was gehaald.
 klopt("geen audit van 79 euro meer", "79 euro" not in llms)
 klopt("geen monitoring-abonnement meer", "monitoring-abonnement" not in llms)
-klopt("niet meer 'elke week' meten", "elke week" not in llms)
+klopt("niet meer 'elke week' meten", "elke week" not in llms and "every week" not in llms)
+# Sinds 23 september Engels, zoals de site (taalregel: een adres, een taal).
+klopt("llms.txt is Engels", "What Krillo does" in llms and "Wat Krillo doet" not in llms)
+klopt("en zegt dat een platform geen positie inneemt",
+      "does not take a position" in " ".join(llms.split()))
 klopt("de index staat er wel in, want dat is het kernproduct",
       "/index" in llms)
 

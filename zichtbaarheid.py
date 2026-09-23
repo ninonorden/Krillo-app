@@ -275,10 +275,19 @@ def _inkorten(beeld):
         "genoemd": beeld.get("genoemd", 0),
         "aanbevolen": beeld.get("aanbevolen", 0),
         "modellen": beeld.get("modellen", []),
+        # Platforms tellen hier apart mee, en er mogen er meer in dan vijf
+        # winkels: het zijn twee lijstjes op het scherm (stap 73).
         "concurrenten": [
-            {"naam": c["naam"], "genoemd": c["genoemd"], "wij": c.get("wij", False)}
-            for c in (beeld.get("concurrenten") or [])[:5]
-        ],
+            {"naam": c["naam"], "genoemd": c["genoemd"], "wij": c.get("wij", False),
+             "platform": bool(c.get("platform"))}
+            for c in (beeld.get("concurrenten") or [])
+            if not c.get("platform")
+        ][:5],
+        "platforms": [
+            {"naam": c["naam"], "genoemd": c["genoemd"]}
+            for c in (beeld.get("concurrenten") or [])
+            if c.get("platform") and not c.get("wij")
+        ][:5],
         "regels": [
             {
                 "vraag": r["vraag"],

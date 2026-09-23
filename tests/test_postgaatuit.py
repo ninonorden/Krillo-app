@@ -119,6 +119,10 @@ db.voeg_benaderingen_toe([(WINKEL, "Posttest", "NL", None)])
 db.zet_benadering(WINKEL, stand="gemeten", email="info@postgaatuit-test.nl",
                   afgemeld=False)
 
+# Sinds 23 september (stap 72) is beoordelingen uniek op antwoord PLUS winkel:
+# hetzelfde antwoord uit een categoriemeting hoort bij alle winkels in die
+# categorie. Vandaar die sleutel hieronder.
+#
 # Ook echt beoordeelde antwoorden neerzetten. De ronde ruimt sinds 11 september
 # zelf op: staat een winkel op "gemeten" zonder bruikbare meting, dan gaat hij
 # terug om opnieuw gemeten te worden. Zonder deze regels zou deze test een
@@ -132,7 +136,7 @@ with _c.cursor() as _cur:
                  (antwoord_id, webshop_url, meting_id, vraag, model,
                   winkel_kon_genoemd, genoemd, aanbevolen)
                VALUES (%s, %s, 'test-meting', %s, 'test', true, false, false)
-               ON CONFLICT (antwoord_id) DO NOTHING""",
+               ON CONFLICT (antwoord_id, webshop_url) DO NOTHING""",
             (900000 + _n, WINKEL, f"vraag {_n}"))
 _c.commit()
 _c.close()

@@ -141,7 +141,7 @@ _llms = _app.app.test_client().get("/llms.txt").get_data(as_text=True)
 for _sleutel in ("watch", "fix", "merken"):
     _bedrag = int(float(payments.PAKKETTEN[_sleutel]["prijs"]["value"]))
     klopt(f"llms.txt serveert {_bedrag} euro per maand voor {_sleutel}",
-          f"{_bedrag} euro per maand" in _llms)
+          f"{_bedrag} euro per month" in _llms)
 klopt("llms.txt noemt geen vervallen audit van 79 euro meer",
       "79 euro" not in _llms)
 
