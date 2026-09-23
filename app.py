@@ -704,7 +704,7 @@ def sitemap_xml():
     # /uitkomst/<token> staat hier BEWUST niet in. Die pagina's gaan over één
     # winkel met naam en toenaam en horen niet in Google.
     vast = ["/", "/artikelen", "/zo-meten-we", "/veelgestelde-vragen",
-            "/onderzoek", "/index", "/demo", "/over-ons", "/voorwaarden", "/privacybeleid",
+            "/index", "/demo", "/over-ons", "/voorwaarden", "/privacybeleid",
             "/herroepen"]
     regels = [(p, nieuwste) for p in vast]
     regels += [(f"/artikelen/{a['slug']}", a["datum"]) for a in artikelen.ARTIKELEN]
@@ -835,7 +835,7 @@ Krillo do it.
 - How we measure: https://krilloai.com/zo-meten-we
 - Frequently asked questions: https://krilloai.com/veelgestelde-vragen
 - About Krillo and contact: https://krilloai.com/over-ons
-- Research into AI answers about Dutch online stores: https://krilloai.com/onderzoek
+- The Krillo index, rankings per category and country: https://krilloai.com/index
 
 ## Articles (in Dutch)
 """ + "\n".join(
@@ -1331,6 +1331,11 @@ def checkout_monitoring():
     # doet die keuze op EEN plek, zodat de site en de webhook nooit iets anders
     # kunnen denken.
     pakket = (data.get("pakket") or "").strip().lower()
+    # Merken en bureaus richten wij samen in (zo staat het op de site en in de
+    # voorwaarden). Dus niet zelf af te rekenen via deze kassa (23 september).
+    if pakket == "merken":
+        return jsonify({"error": "The brands and agencies plan is set up together with "
+                                 "you. Email hello@krilloai.com and we arrange it."}), 400
 
     bron = _schoon_bron(data.get("herkomst")) or _schoon_bron(_herkomst())
     # Nooit twee keer betalen voor dezelfde winkel (stap 26). Betaalt deze
@@ -1512,6 +1517,18 @@ def _verwerk_betaling(payment_id, base_url):
         # niets en claimen we niets, zodat de melding die later WEL "paid"
         # zegt gewoon verwerkt wordt.
         status = payments.get_payment_status(payment_id)
+        # Een maandbetaling van een abonnement (23 september). Die draagt geen
+        # metadata van ons. Mislukt hij, dan moet JIJ dat weten: anders loopt
+        # een klant door zonder te betalen en merkt niemand het.
+        if status and status.get("subscription_id") and not (status.get("metadata") or {}).get("type"):
+            if status.get("status") in ("failed", "expired", "canceled"):
+                klant = payments.klant_bij_id(status.get("customer_id")) or {}
+                _meld_aan_beheer(
+                    "Maandbetaling mislukt",
+                    f"De maandbetaling {payment_id} voor {klant.get('webshop_url') or 'een klant'} "
+                    f"staat op {status.get('status')}. Mollie probeert een mislukte incasso "
+                    f"niet vanzelf opnieuw. Neem contact op met {klant.get('email') or 'de klant'}.")
+                return
         if not (status and status["is_paid"]):
             return
 
@@ -1547,6 +1564,19 @@ def _verwerk_betaling(payment_id, base_url):
 
         metadata = status.get("metadata") or {}
         payment_type = metadata.get("type")
+        if status.get("subscription_id") and not payment_type:
+            # Maandbetaling gelukt: een factuur, zodat een klant vanaf maand
+            # twee ook een factuur krijgt. Verder niets; het werk loopt al.
+            klant = payments.klant_bij_id(status.get("customer_id")) or {}
+            if not klant.get("email"):
+                _meld_aan_beheer(
+                    "Maandbetaling zonder klantgegevens",
+                    f"Maandbetaling {payment_id} is binnen, maar de klant bij Mollie kon "
+                    f"niet opgehaald worden. Er is GEEN factuur verstuurd. Maak hem met "
+                    f"de hand.")
+            metadata = {"type": "maandbetaling", "webshop_url": klant.get("webshop_url"),
+                        "email": klant.get("email")}
+            payment_type = "maandbetaling"
         webshop_url = metadata.get("webshop_url")
         email = metadata.get("email")
         bedrijfsnaam = metadata.get("bedrijfsnaam")
@@ -1565,6 +1595,11 @@ def _verwerk_betaling(payment_id, base_url):
                 omschrijving = f"Krillo full audit for {webshop_url}"
             elif payment_type == "uitvoering":
                 omschrijving = f"Krillo carries out the improvements for {webshop_url}"
+            elif payment_type == "maandbetaling":
+                pakket_maand = payments.pakket_bij_bedrag(
+                    f"{status.get('bedrag'):.2f}" if status.get("bedrag") is not None else None)
+                omschrijving = (f"Krillo {payments.pakket_van(pakket_maand)['naam']}, monthly, "
+                                f"for {webshop_url}")
             else:
                 pakketnaam = payments.pakket_van(metadata.get("pakket"))["naam"]
                 omschrijving = f"Krillo {pakketnaam}, first month, for {webshop_url}"
@@ -1708,7 +1743,8 @@ def _verwerk_betaling(payment_id, base_url):
                     # als iemand Watch van 49 euro gekozen had, en dan wordt er
                     # elke maand honderd euro te veel afgeschreven.
                     uitkomst = payments.create_subscription(
-                        customer_id, pakket=metadata.get("pakket")) or {}
+                        customer_id, pakket=metadata.get("pakket"),
+                        webhook_url=f"{base_url}/webhooks/mollie") or {}
                 if uitkomst.get("error"):
                     print(f"LET OP: doorlopend abonnement NIET aangemaakt voor "
                           f"{webshop_url} ({customer_id}): {uitkomst['error']}")
@@ -1719,21 +1755,43 @@ def _verwerk_betaling(payment_id, base_url):
                         f"Reden: {uitkomst['error']}. Maak het met de hand aan, "
                         f"anders wordt er nooit meer geincasseerd.")
             if webshop_url and email:
+                # EERST DE KLANT, DAN PAS DE SCAN (23 september). Hier stond het
+                # andersom: mislukte de scan (een robotcheck, een trage server),
+                # dan stopte alles hier. Het abonnement liep al, maar er kwam
+                # geen klantpagina, geen welkomstmail, geen plek in de index.
+                # En Mollie meldt een betaalde betaling niet nog een keer, dus
+                # de herkansing waar de claim op rekende kwam nooit. De positie
+                # komt uit de index en heeft de scan niet nodig; de scan is een
+                # extra en mag nu mislukken.
                 scan_result = _scan_met_herkansing(webshop_url)
-                if "error" in scan_result:
-                    _levering_mislukt(payment_id, webshop_url, email, "monitoring",
-                                      scan_result.get("error"))
-                else:
-                    db.zet_platform(webshop_url, scan_result.get("platform"))
+                scan_gelukt = "error" not in scan_result
+                if not scan_gelukt:
+                    _meld_aan_beheer(
+                        "Scan mislukt bij een nieuwe klant",
+                        f"{webshop_url} heeft betaald. De klant is wel aangemaakt en "
+                        f"gemaild, maar zijn site kon niet gescand worden: "
+                        f"{scan_result.get('error')}. De positie komt uit de index; "
+                        f"de dertien controlepunten volgen bij de wekelijkse scan.")
+                    scan_result = {"score": 0, "checks": []}
+                # (Het blok hieronder stond eerst in een else na de scan.)
+                if webshop_url:
+                    if scan_gelukt:
+                        db.zet_platform(webshop_url, scan_result.get("platform"))
                     klant_token = db.get_or_create_klant(webshop_url, email)
+                    if klant_token and customer_id:
+                        db.zet_mollie_klant(webshop_url, customer_id,
+                                            (metadata.get("pakket") or "").lower() or None)
                     if not klant_token:
                         _meld_aan_beheer(
                             "Aanmelding op een webshop van een andere klant",
                             f"{email} meldde zich aan voor monitoring op {webshop_url}, "
                             f"maar die webshop hoort al bij een ander adres. De "
                             f"klantpagina is NIET gedeeld. Handel dit met de hand af.")
-                    db.save_report("monitoring", webshop_url, email, scan_result.get("score", 0),
-                                    scan_result.get("checks", []), None, payment_id, klant_token)
+                    if scan_gelukt:
+                        db.save_report("monitoring", webshop_url, email,
+                                       scan_result.get("score", 0),
+                                       scan_result.get("checks", []), None, payment_id,
+                                       klant_token)
                     monitoring_url = f"{base_url}/mijn/{klant_token}" if klant_token else None
                     pakket = (metadata.get("pakket") or payments.STANDAARD_PAKKET).lower()
                     emailing.send_monitoring_welcome_email(
@@ -2642,7 +2700,7 @@ MINIMUM_VRAGEN_VOOR_POST = int(os.environ.get("MINIMUM_VRAGEN_VOOR_POST", "3"))
 MINIMUM_WINKELS_VOOR_VERGELIJKING = 25
 
 
-def _stuur_onderzoeksmail(webshop_url, email, land=None):
+def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False):
     """Stuurt één winkel zijn eigen uitkomst. Geeft (gelukt, reden) terug.
 
     Eén plek voor zowel de knop met de hand als de automatische ronde, zodat er
@@ -2671,7 +2729,11 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None):
             email, webshop_url, f"{basis}/uitkomst/{token}", beeld=beeld,
             categorienaam=categorieen.naam_van(beeld["categorie"]),
             landnaam=sitetaal.landnaam(beeld["land"], "en") if beeld.get("land") else None,
-            afmeld_url=f"{basis}/afmelden/{token}")
+            # Een proefmail (naar jezelf) krijgt GEEN echte afmeldlink: klik
+            # je die aan, of de afmeldknop die Gmail er zelf boven zet, dan
+            # verdwijnt die winkel uit de index (23 september).
+            afmeld_url=None if proef else f"{basis}/afmelden/{token}",
+            onderwerp_voor="[TEST] " if proef else "")
         return bool(gelukt), None if gelukt else "Verzenden mislukt, kijk in de logs."
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"[:200]
@@ -2860,7 +2922,7 @@ def monitoring_pagina(klant_token):
     product."""
     klant = db.get_klant(klant_token)
     if klant is None:
-        return "Deze pagina bestaat niet of is niet meer geldig.", 404
+        return render_template("fout.html", titel="This page does not exist or is no longer valid"), 404
 
     rapporten = db.get_klant_rapporten(klant_token)
     laatste = rapporten[0] if rapporten else None
@@ -2871,7 +2933,7 @@ def monitoring_pagina(klant_token):
     # euro per maand" met een opzegknop eronder. Dat is een onjuiste mededeling
     # over een betalingsverplichting, en het is precies het soort fout waar
     # iemand zijn geld voor terugvraagt.
-    abonnement = any((r.get("type") or "") == "monitoring" for r in rapporten)
+    abonnement = _abonnement_stand(klant["webshop_url"], rapporten)[0]
 
     verschil = None
     nieuwe_problemen = []
@@ -2921,6 +2983,7 @@ def monitoring_pagina(klant_token):
         uitvoering=_laatste_uitvoering(klant["webshop_url"]),
         wijzigingen=db.get_wijzigingen(klant["webshop_url"]),
         abonnement=abonnement,
+        opgezegd=_is_opgezegd(klant["webshop_url"]),
         status_labels=_standlabels(pagina["t"]),
     )
 
@@ -2929,7 +2992,7 @@ def monitoring_pagina(klant_token):
 def rapport(token):
     report = db.get_report(token)
     if report is None:
-        return "Rapport niet gevonden.", 404
+        return render_template("fout.html", titel="Report not found"), 404
 
     checks = report["checks"]
     by_categorie = {}
@@ -3736,7 +3799,13 @@ def _klantgegevens(webshop_url):
     # Weten we de markt niet, dan geeft _markt_van Nederlands terug, dus voor
     # bestaande klanten verandert er niets.
     m = _markt_van(webshop_url)
-    plantaal = "nl" if m["is_nederlands"] else "en"
+    # SINDS 23 SEPTEMBER: het plan zelf (titels, waarom) is Engels, want het
+    # dashboard is Engels (een adres, een taal). Een Nederlandse winkel las
+    # anders Nederlandse titels op een Engels scherm. De OPLOSSING die de
+    # eigenaar op zijn site plakt blijft in de taal van zijn winkel: die
+    # hieronder ophalen in winkeltaal, niet in plantaal.
+    plantaal = "en"
+    winkeltaal = "nl" if m["is_nederlands"] else "en"
     plan = actieplan.maak_actieplan(
         verklaring=verklaring.maak_verklaring(checks, vermeldingen, taal=plantaal),
         klantbeeld=vermeldingen,
@@ -3753,7 +3822,7 @@ def _klantgegevens(webshop_url):
         # Staat er een Nederlandse tekst van vorige week onder een Engels kopje,
         # dan lijkt het alsof er iets kapot is. Liever niets, want de volgende
         # ronde maakt hem alsnog, dan wel in de goede taal.
-        opgeslagen = db.get_taakoplossingen(webshop_url, taal=plantaal)
+        opgeslagen = db.get_taakoplossingen(webshop_url, taal=winkeltaal)
         for actie in plan["acties"]:
             bewaard = opgeslagen.get(actie.get("id"))
             if bewaard:
@@ -4100,6 +4169,20 @@ def admin_onderzoeksmail():
         elif not email or not _EMAIL_VORM.match(email):
             melding = "Vul een geldig e-mailadres in."
         else:
+            if actie == "proef":
+                # Een proefmail naar jezelf (23 september). Precies dezelfde
+                # mail als een winkel krijgt, maar naar het adres dat jij
+                # invult, en er wordt NIETS vastgelegd: geen contactadres, niet
+                # als gemaild. Zo kun je de mail bekijken zonder dat die winkel
+                # daarna overgeslagen wordt.
+                land = ((db.get_benadering(webshop_url) or {}).get("land"))
+                verstuurd, fout = _stuur_onderzoeksmail(webshop_url, email, land, proef=True)
+                melding = (f"Proefmail over {webshop_url} verstuurd naar {email}. Er is niets "
+                           f"vastgelegd." if verstuurd else
+                           f"De proefmail is NIET verstuurd. {fout or ''}")
+                return render_template("admin_onderzoeksmail.html", regels=[],
+                                       melding=melding, basis=get_base_url(),
+                                       sleutel=admin_key, alleen_proef=True)
             db.zet_contact_email(webshop_url, email)
             if actie != "versturen":
                 melding = f"Adres bewaard bij {webshop_url}."
@@ -4120,10 +4203,14 @@ def admin_onderzoeksmail():
                                "Kijk zo nodig in de logs van Render.")
 
     regels = []
-    for r in db.benchmark_regels():
+    # In twee query's voor de hele lijst (23 september). Per winkel opvragen
+    # liet deze pagina bij ruim duizend winkels eindeloos laden.
+    benchmark = db.benchmark_regels()
+    profielen, lijst = db.profielen_en_lijstregels([r.get("webshop_url") for r in benchmark])
+    for r in benchmark:
         url = r.get("webshop_url")
-        profiel = db.get_winkelprofiel(url) or {}
-        lijstregel = db.get_benadering(url) or {}
+        profiel = profielen.get(url) or {}
+        lijstregel = lijst.get(url) or {}
         regels.append({
             "webshop_url": url,
             "genoemd": r.get("genoemd"),
@@ -4356,6 +4443,30 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
     )
 
 
+def _abonnement_stand(webshop_url, rapporten=None):
+    """(loopt er een abonnement, doen wij het werk) voor het klantscherm.
+
+    SINDS 23 SEPTEMBER uit de klantregel, niet meer uit "is er ooit een
+    maandrapport gemaakt". Dat laatste bleef waar na opzeggen, dus een klant
+    die opzegde zag nog steeds "je betaalt per maand" met een opzegknop. En
+    Watch-klanten lazen "wij voeren dit voor je uit", terwijl Watch betekent:
+    zelf doen. Het pakket staat nu bij de klant (Mollie bij de eerste
+    betaling, Shopify bij elk lopend abonnement)."""
+    klant = db.klant_bij_url(webshop_url) or {}
+    if not klant or klant.get("opgezegd_op"):
+        return False, False
+    # (Of hij opzegde vraag je met _is_opgezegd hieronder.)
+    pakket = (klant.get("pakket") or "").lower()
+    heeft_rapport = any((r.get("type") or "") == "monitoring" for r in (rapporten or []))
+    abonnement = bool(pakket) or heeft_rapport
+    return abonnement, bool(pakket) and pakket != "watch"
+
+
+def _is_opgezegd(webshop_url):
+    """Of deze klant opzegde (klanten.opgezegd_op), voor de tekst onderaan."""
+    return bool((db.klant_bij_url(webshop_url) or {}).get("opgezegd_op"))
+
+
 def _werkblok(webshop_url, taal, klant_token=None, beheer=None):
     """Alles wat het werkblok van templates/_werk.html nodig heeft.
 
@@ -4376,7 +4487,9 @@ def _werkblok(webshop_url, taal, klant_token=None, beheer=None):
         # Loopt er echt een abonnement? Wie alleen een eenmalige opdracht had,
         # las vroeger "je betaalt per maand" met een opzegknop eronder. Dat is
         # een onjuiste mededeling over een betalingsverplichting.
-        "abonnement": any((r.get("type") or "") == "monitoring" for r in rapporten),
+        "abonnement": _abonnement_stand(webshop_url, rapporten)[0],
+        "doet_werk": _abonnement_stand(webshop_url, rapporten)[1],
+        "opgezegd": _is_opgezegd(webshop_url),
         "shopify_beheer": pagina["shopify_beheer"],
         "klant_token": klant_token,
         "webshop_url": webshop_url,
@@ -4457,7 +4570,17 @@ def link_opnieuw():
 
 @app.route("/onderzoek")
 def onderzoek():
-    """De publieke uitkomst van de benchmark.
+    """Stuurt door naar de index (23 september).
+
+    Dit was de publieke uitkomst van de oude benchmark: Nederlands, en op basis
+    van de losse metingen per winkel van voor de index. De index IS nu het
+    onderzoek. Permanent doorsturen, zodat Google het oude adres overdraagt.
+    De oude pagina staat hieronder nog in onderzoek_oud, niet meer bereikbaar."""
+    return redirect("/index", code=301)
+
+
+def onderzoek_oud():
+    """De publieke uitkomst van de benchmark (oud, niet meer bereikbaar).
 
     Dit is geen verkooppagina maar een onderzoek. Er staan aantallen in en geen
     namen van winkels: het patroon gaat naar buiten, de losse winkel blijft
@@ -4533,8 +4656,8 @@ def uitkomst(token):
     webshop_url = db.winkel_bij_benchmark_token(token)
     if not webshop_url:
         return render_template(
-            "fout.html", titel="Deze link werkt niet meer",
-            bericht="Vraag ons om een nieuwe, of doe de gratis scan op de homepage."), 404
+            "fout.html", titel="This link no longer works",
+            bericht="Ask us for a new one, or run the free check on the homepage."), 404
 
     # Alleen tellen dat de pagina geopend is. Zonder dit weet je na honderd
     # verstuurde mails alleen dat er honderd verstuurd zijn.
@@ -4552,6 +4675,10 @@ def uitkomst(token):
         beeld = None
     if beeld and beeld.get("land"):
         return redirect(f"/index/{beeld['land']}/{beeld['categorie']}#p{beeld['positie']}")
+    # Nog geen positie: naar de openbare index. De oude uitkomstpagina hieronder
+    # is Nederlands en uit het oude model (23 september); die tonen wij niet
+    # meer aan iemand die een Engelse mail kreeg.
+    return redirect("/index")
 
     # En nu pas de volledige meting. Dit is het hele idee achter de lichte
     # eerste meting: iemand die deze pagina opent is de eerste die laat merken
@@ -5475,7 +5602,9 @@ def _stand_in_taal(stand, markt):
     Een Engelse winkelier las "Working: vragen stellen aan AI" op zijn eigen
     beheerscherm. Dat is precies het soort detail waaraan je ziet dat een app
     niet af is."""
-    if not stand or (markt or {}).get("is_nederlands", True):
+    # Sinds 23 september ALTIJD Engels, ook voor een Nederlandse winkel: het
+    # app-scherm is Engels (een adres, een taal).
+    if not stand:
         return stand
     uit = dict(stand)
     tekst = stand.get("tekst")
@@ -5789,9 +5918,9 @@ def shopify_start():
         print(f"Shopify-installatie geweigerd: {shopify_app.waarom_niet()}")
         return render_template(
             "fout.html",
-            titel="De Shopify-app is nog niet actief",
-            bericht=("We zijn de app aan het klaarzetten. Probeer het later opnieuw, "
-                     "of mail hello@krilloai.com.")), 503
+            titel="The Shopify app is not active yet",
+            bericht=("We are getting the app ready. Please try again later, "
+                     "or email hello@krilloai.com.")), 503
 
     # Geval 1: Shopify heeft het installeren zelf gedaan en stuurt ons een
     # kaartje mee. Dan is dit geen installatiepagina maar het scherm van de app.
@@ -5799,21 +5928,21 @@ def shopify_start():
         echte_winkel, rij = _shopify_uit_kaartje(
             id_token, winkel if shopify_app.geldige_winkel(winkel) else None)
         if not echte_winkel:
-            return "Ongeldig verzoek.", 401
+            return "Invalid request.", 401
         if not rij or not rij.get("toegangssleutel"):
             return render_template(
-                "fout.html", titel="We konden je winkel niet openen",
-                bericht=("Verwijder de app en installeer hem opnieuw. Blijft het "
-                         "misgaan, mail dan hello@krilloai.com.")), 502
+                "fout.html", titel="We could not open your store",
+                bericht=("Remove the app and install it again. If it keeps "
+                         "going wrong, email hello@krilloai.com.")), 502
         return _shopify_scherm(echte_winkel, rij)
 
     if not winkel:
         return render_template(
             "fout.html",
-            titel="Installeren vanuit je Shopify-winkel",
-            bericht=("Deze pagina hoort geopend te worden vanuit de Shopify App Store "
-                     "of vanuit je eigen beheerscherm. Ga naar krilloai.com als je wilt "
-                     "zien wat Krillo doet.")), 400
+            titel="Install from your Shopify store",
+            bericht=("This page opens from the Shopify App Store or from your own "
+                     "Shopify admin. Go to krilloai.com if you want to see what "
+                     "Krillo does.")), 400
 
     if not shopify_app.geldige_winkel(winkel):
         # BEWUST het opgegeven adres niet terugtonen op de pagina. Dat komt van
@@ -5821,8 +5950,8 @@ def shopify_start():
         print(f"Shopify-installatie geweigerd, geen geldig winkeladres: {winkel!r}")
         return render_template(
             "fout.html",
-            titel="Dit is geen geldig winkeladres",
-            bericht="Open de app vanuit je eigen Shopify-beheerscherm."), 400
+            titel="This is not a valid store address",
+            bericht="Open the app from your own Shopify admin."), 400
 
     # Heeft deze winkel de app AL, dan tonen wij gewoon het scherm.
     #
@@ -5837,8 +5966,8 @@ def shopify_start():
     link = shopify_app.installatielink(winkel, get_base_url())
     if not link:
         return render_template(
-            "fout.html", titel="Installeren lukt nu niet",
-            bericht="Probeer het zo nog eens, of mail hello@krilloai.com."), 503
+            "fout.html", titel="Installing does not work right now",
+            bericht="Please try again in a moment, or email hello@krilloai.com."), 503
 
     # NIET met een gewone doorverwijzing. Shopify weigert zijn eigen
     # toestemmingspagina in een venster binnen het beheerscherm, en dan ziet de
@@ -6112,6 +6241,13 @@ def shopify_api_abonnement():
     stand = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
     # Loopt er echt een abonnement, dan is de gratis proefperiode ook echt
     # gebruikt. Pas hier, en niet al bij het maken van de link.
+    if stand["actief"]:
+        # Elke keer dat wij een lopend abonnement zien: klantregel aanwezig en
+        # niet opgezegd. Ook bij iemand die eerder opzegde en terugkwam.
+        try:
+            _shopify_klant_actief(winkel, rij, stand.get("plan"))
+        except Exception as e:
+            print(f"Shopify-klant bijwerken mislukt voor {winkel}: {e}")
     if stand["actief"] and not rij.get("proef_gehad_op"):
         db.markeer_proef_gehad(winkel)
         # Dit is precies één keer per winkel de eerste keer dat wij een lopend
@@ -6274,25 +6410,25 @@ def shopify_callback():
 
     if not shopify_app.klopt_query_handtekening(argumenten):
         print(f"Shopify-callback geweigerd: handtekening klopt niet, winkel {winkel!r}")
-        return "Ongeldig verzoek.", 401
+        return "Invalid request.", 401
     if not shopify_app.geldige_winkel(winkel) or not code:
         print(f"Shopify-callback geweigerd: winkel of code ontbreekt, {winkel!r}")
-        return "Ongeldig verzoek.", 400
+        return "Invalid request.", 400
     if not shopify_app.kenmerk_klopt(kenmerk):
         # Dit gebeurt ook gewoon als Render tussendoor opnieuw is opgestart,
         # want de openstaande installaties staan alleen in het geheugen. Daarom
         # geen enge foutmelding maar de vraag om het nog eens te proberen.
         print(f"Shopify-callback geweigerd: onbekend of verlopen kenmerk, {winkel!r}")
         return render_template(
-            "fout.html", titel="De installatie is verlopen",
-            bericht="Begin opnieuw vanuit je Shopify-beheerscherm."), 400
+            "fout.html", titel="The installation has expired",
+            bericht="Start again from your Shopify admin."), 400
 
     uitkomst = shopify_app.haal_toegangssleutel(winkel, code)
     if not uitkomst.get("gelukt"):
         print(f"Shopify-sleutel ophalen mislukt voor {winkel}: {uitkomst.get('fout')}")
         return render_template(
-            "fout.html", titel="Installeren is niet gelukt",
-            bericht="Probeer het nog eens. Blijft het misgaan, mail dan hello@krilloai.com."), 502
+            "fout.html", titel="Installing did not work",
+            bericht="Please try again. If it keeps going wrong, email hello@krilloai.com."), 502
 
     sleutel = uitkomst["sleutel"]
     gegevens = shopify_app.winkelgegevens(winkel, sleutel) or {}
@@ -6309,8 +6445,8 @@ def shopify_callback():
         # Dan liever nu een eerlijke fout dan een app die stil niets doet.
         print(f"LET OP: Shopify-winkel {winkel} is NIET opgeslagen.")
         return render_template(
-            "fout.html", titel="Installeren is half gelukt",
-            bericht="Verwijder de app en installeer hem opnieuw, of mail hello@krilloai.com."), 500
+            "fout.html", titel="Installing only half worked",
+            bericht="Remove the app and install it again, or email hello@krilloai.com."), 500
 
     # De taal en het land van de winkel vastleggen. Vergeet je dit, dan valt
     # alles terug op Nederlands en krijgt een winkel in Texas dertig Nederlandse
@@ -6441,6 +6577,78 @@ def shopify_winkel_wissen():
         # probleem aan onze kant zit. Wel luid in de logs, want dit is een
         # wettelijke verplichting die we dan niet zijn nagekomen.
         print(f"LET OP: wissen na shop/redact MISLUKT voor {winkel}. Handmatig nakijken.")
+    return "", 200
+
+
+def _shopify_klant_actief(winkel, rij, plan=None):
+    """Een winkel met een lopend Shopify-abonnement is klant, met alles erbij.
+
+    WAAROM (23 september). De maandmeting en het maandbericht kijken naar de
+    tabel klanten. Een abonnee via Shopify kwam daar pas in bij de wekelijkse
+    scan, en alleen als zijn mailadres bekend was. Tot die tijd kreeg hij geen
+    oplossingen en geen maandbericht, terwijl hij betaalde. Dit zet hem er
+    meteen in, haalt een eerdere opzegging weg en zet hem op de winkellijst."""
+    webshop_url = scan_engine.normalize_url(rij.get("webshop_url") or "")
+    if not webshop_url:
+        return False
+    email = (rij.get("email") or "").strip()
+    if not email:
+        # Zonder adres kan er geen klantregel komen (en geen maandbericht).
+        # Dat moet JIJ weten, want hij betaalt wel.
+        _meld_aan_beheer(
+            "Shopify-abonnee zonder mailadres",
+            f"{winkel} ({webshop_url}) heeft een lopend abonnement, maar Shopify gaf "
+            f"geen mailadres. Er is daarom geen klantregel: geen maandbericht en geen "
+            f"oplossingen. Vraag het adres op en zet het in de database.")
+        return False
+    if not db.get_or_create_klant(webshop_url, email):
+        # Deze winkel hoort al bij een klant met een ander adres. Dan niets
+        # aan die klant veranderen (niet zijn pakket, niet zijn opzegging).
+        _meld_aan_beheer(
+            "Shopify-abonnee op een winkel van een andere klant",
+            f"{winkel} sloot een abonnement af voor {webshop_url}, maar die winkel hoort "
+            f"al bij een ander mailadres. Er is niets aangepast. Bekijk het met de hand.")
+        return False
+    db.zet_klant_opgezegd(webshop_url, opgezegd=False)
+    if plan:
+        db.zet_klant_pakket(webshop_url, plan)
+    _zet_in_index(webshop_url)
+    return True
+
+
+@app.route("/shopify/webhooks/abonnement", methods=["POST"])
+def shopify_abonnement_gewijzigd():
+    """app_subscriptions/update. Een abonnement veranderde van stand.
+
+    Niet blind op de stand in het bericht varen: bij een planwissel (Watch naar
+    Fix) stopt Shopify het oude abonnement en start een nieuw, en die twee
+    berichten kunnen in willekeurige volgorde aankomen. Dus bij elk bericht
+    vragen wij Shopify zelf of er NU een abonnement loopt."""
+    winkel, gegevens = _webhook_binnen("app_subscriptions/update")
+    if winkel is None:
+        return "", 401
+    rij = db.get_shopify_winkel(winkel) or {}
+    if not rij.get("toegangssleutel") or not rij.get("webshop_url"):
+        return "", 200
+    try:
+        stand = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
+    except Exception as e:
+        print(f"Abonnement nakijken na webhook mislukt voor {winkel}: {e}")
+        return "", 200
+    if stand.get("fout"):
+        # Weten wij het niet zeker, dan niets veranderen. Liever een dag te
+        # laat opgezegd dan een betalende klant ten onrechte stilgezet.
+        return "", 200
+    if stand.get("actief"):
+        _shopify_klant_actief(winkel, rij, stand.get("plan"))
+    else:
+        # Alleen opzeggen als deze klantregel echt van deze Shopify-winkel is
+        # (zelfde mailadres). Anders zou een betalende klant via de site
+        # stilgezet worden door iets in Shopify.
+        url = scan_engine.normalize_url(rij["webshop_url"])
+        klant = db.klant_bij_url(url) or {}
+        if klant and (klant.get("email") or "").strip().lower() == (rij.get("email") or "").strip().lower():
+            db.zet_klant_opgezegd(url)
     return "", 200
 
 

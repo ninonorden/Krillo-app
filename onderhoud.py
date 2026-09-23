@@ -65,8 +65,15 @@ INDELEN_PER_RONDE = int(os.environ.get("ONDERHOUD_INDELEN", "200"))
 # per aanroep.
 OPSCHONEN_PER_RONDE = int(os.environ.get("ONDERHOUD_OPSCHONEN", "200"))
 
-# Hoeveel categorieen er per ronde gemeten worden. EEN. Zie de regel hierboven.
-METEN_PER_RONDE = int(os.environ.get("ONDERHOUD_METEN", "1"))
+# Hoeveel categorieen er per ronde gemeten worden. DRIE sinds 23 september.
+# Met een per nacht en een meting die na dertig dagen verloopt passen er maar
+# dertig categorieen in een maand, terwijl de site en de mail "elke maand"
+# beloven. Er zijn er al meer dan dertig, en het worden er 65. Drie per nacht
+# kost per MAAND niet meer: een categorie wordt pas opnieuw gemeten als hij
+# verlopen is, dus het totaal blijft aantal categorieen maal ongeveer 60 cent.
+# Het haalt alleen de achterstand in. De dagpot en ruimte_vandaag remmen nog
+# steeds per meting.
+METEN_PER_RONDE = int(os.environ.get("ONDERHOUD_METEN", "3"))
 
 # Hoe vaak een categorie opnieuw gemeten wordt. Dertig dagen, want dat is ook
 # wat een klant per maand betaalt en wat er in zijn rapport hoort te staan.

@@ -860,19 +860,9 @@ def te_mailen(hoeveel):
     nooit gemaild, niet afgemeld."""
     if hoeveel <= 0:
         return []
-    uit = []
-    for winkel in db.get_benaderingen(stand="gemeten", limiet=hoeveel * 3):
-        if not winkel.get("email") or winkel.get("gemaild_op"):
-            continue
-        # Sinds stap 36 gaat de mail over de positie in de index. Zonder
-        # categorie is er geen positie, en zou hij elke ronde opnieuw een plek
-        # in de rij bezetten zonder ooit post te kunnen krijgen.
-        if "categorie" in winkel and not winkel.get("categorie"):
-            continue
-        uit.append(winkel)
-        if len(uit) >= hoeveel:
-            break
-    return uit
+    # Alleen winkels met een positie in de index (stap 36): in de database
+    # gefilterd, zie db.te_mailen_met_positie voor waarom niet hier.
+    return db.te_mailen_met_positie(hoeveel)
 
 
 def markeer_gemaild(webshop_url, gelukt, fout=None):

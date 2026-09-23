@@ -233,7 +233,30 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
                "verstuurd": 0, "overgeslagen": 0, "droogloop": not verstuur,
                "per_soort": {}, "regels": []}
 
+    # DE POSITIE PER LAND (23 september). klanten_in_ronde rekent de plek over
+    # Nederland en Belgie samen. Het dashboard en de openbare ranglijst nummeren
+    # per land (db.ranglijst_per_land). Een klant las dan "#9 of 40" in zijn
+    # mail en "#6 of 25" op zijn dashboard. Nu komt het cijfer in de mail uit
+    # dezelfde functie als het dashboard: twee query's per meting, niet per klant.
+    per_land = {}
+    for land in ("nl", "be"):
+        try:
+            lijst = db.ranglijst_per_land(categorie, land, limiet=2000)
+        except Exception as e:
+            print(f"Ranglijst per land ophalen mislukt ({categorie}, {land}): {e}")
+            continue
+        if lijst.get("ronde") != ronde:
+            continue
+        for rij in lijst.get("rijen") or []:
+            per_land.setdefault(rij["webshop_url"], {
+                "positie": rij.get("positie"),
+                "vorige_positie": rij.get("vorige_positie"),
+                "van": len(lijst["rijen"]),
+            })
+
     for klant in db.klanten_in_ronde(ronde):
+        if klant.get("webshop_url") in per_land:
+            klant.update(per_land[klant["webshop_url"]])
         verslag["klanten"] += 1
         laatste = db.laatste_bericht(klant["webshop_url"])
         gedaan = db.nameting_al_gestuurd(klant["webshop_url"],

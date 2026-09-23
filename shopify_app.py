@@ -86,6 +86,11 @@ WINKEL_PATROON = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$")
 # is precies de eis waar de app op afgekeurd wordt.
 WEBHOOKS = [
     ("app/uninstalled", "/shopify/webhooks/verwijderd"),
+    # 23 september: opzeggen of opnieuw afsluiten ZONDER de app te verwijderen.
+    # Zonder deze melding bleef iemand die in Shopify opzegde maandberichten en
+    # betaald werk krijgen, en bleef iemand die opnieuw afsloot als opgezegd
+    # staan.
+    ("app_subscriptions/update", "/shopify/webhooks/abonnement"),
 ]
 
 # De drie verplichte privacy-webhooks van Shopify.

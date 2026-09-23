@@ -513,6 +513,12 @@
       <button class="opzeg-knop" id="opzegKnop">{{ t.abo_knop }}</button>
       <div class="opzeg-melding" id="opzegMelding"></div>
     </div>
+    {% elif not voorbeeld and opgezegd %}
+    <div class="opzeg">
+      <strong>{{ t.opgezegd_kop }}</strong>
+      <p>{{ t.opgezegd_tekst }}</p>
+      <a class="opzeg-knop" href="/#prijzen" style="display:inline-block; text-decoration:none;">{{ t.eenmalig_knop }}</a>
+    </div>
     {% elif not voorbeeld %}
     <div class="opzeg">
       <strong>{{ t.eenmalig_kop }}</strong>

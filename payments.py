@@ -39,17 +39,17 @@ PAKKETTEN = {
     "watch": {
         "prijs": {"currency": "EUR", "value": "49.00"},
         "naam": "Watch",
-        "omschrijving": "Krillo Watch, maandelijkse meting en oplossingen om zelf te doen",
+        "omschrijving": "Krillo Watch, your monthly rank and fixes to do yourself",
     },
     "fix": {
         "prijs": {"currency": "EUR", "value": "149.00"},
         "naam": "Fix",
-        "omschrijving": "Krillo Fix, maandelijkse meting en wij voeren de oplossingen uit",
+        "omschrijving": "Krillo Fix, your monthly rank and we carry out the fixes",
     },
     "merken": {
         "prijs": {"currency": "EUR", "value": "490.00"},
-        "naam": "Merken en bureaus",
-        "omschrijving": "Krillo voor merken en bureaus, tot 25 winkels",
+        "naam": "Brands and agencies",
+        "omschrijving": "Krillo for brands and agencies, up to 25 stores",
     },
 }
 
@@ -97,7 +97,7 @@ def create_audit_payment(base_url, webshop_url, email, bedrijfsnaam=None, bron=N
     hoeveel omzet er was, maar niet welke klik die omzet werd."""
     client = get_mollie_client()
     if client is None:
-        return {"error": "Betalen is nog niet actief, probeer het later opnieuw."}
+        return {"error": "Payments are not active yet. Please try again later."}
 
     try:
         payment = client.payments.create({
@@ -124,7 +124,7 @@ def create_uitvoering_payment(base_url, webshop_url, email, bedrijfsnaam=None, b
     dan blijft de klant steken op stap één en hebben we zijn geld al."""
     client = get_mollie_client()
     if client is None:
-        return {"error": "Betalen is nog niet actief, probeer het later opnieuw."}
+        return {"error": "Payments are not active yet. Please try again later."}
 
     try:
         payment = client.payments.create({
@@ -148,7 +148,7 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
     abonnement aan via create_subscription hieronder."""
     client = get_mollie_client()
     if client is None:
-        return {"error": "Betalen is nog niet actief, probeer het later opnieuw."}
+        return {"error": "Payments are not active yet. Please try again later."}
 
     try:
         customer = client.customers.create({
@@ -159,7 +159,7 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
         gekozen = pakket_van(pakket)
         first_payment = customer.payments.create({
             "amount": gekozen["prijs"],
-            "description": f"{gekozen['omschrijving']}, eerste maand",
+            "description": f"{gekozen['omschrijving']}, first month",
             "redirectUrl": f"{base_url}/bedankt?type=monitoring",
             "webhookUrl": f"{base_url}/webhooks/mollie",
             "sequenceType": "first",
@@ -177,9 +177,46 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
         return {"error": str(e)}
 
 
-def create_subscription(customer_id, pakket=STANDAARD_PAKKET):
+def over_een_maand(vandaag=None):
+    """Dezelfde dag volgende maand, of de laatste dag als die niet bestaat
+    (31 januari wordt 28 of 29 februari)."""
+    import calendar
+    from datetime import date
+    vandaag = vandaag or date.today()
+    jaar = vandaag.year + (1 if vandaag.month == 12 else 0)
+    maand = 1 if vandaag.month == 12 else vandaag.month + 1
+    return date(jaar, maand, min(vandaag.day, calendar.monthrange(jaar, maand)[1]))
+
+
+def alle_klanten(client):
+    """ALLE klanten bij Mollie, pagina voor pagina.
+
+    WAAROM (gevonden 23 september): client.customers.list() geeft maar EEN
+    pagina terug, en in deze versie van de Mollie-bibliotheek zijn dat er tien.
+    Elke kassa maakt een klant aan, ook als iemand niet afrekent. Na tien
+    pogingen zag zoek_abonnement een betalende klant dus niet meer: geen
+    bescherming tegen dubbel betalen, Fix-klanten niet op de werklijst, en
+    geen wekelijkse scan. Nu volgen wij de volgende-pagina-link tot het eind."""
+    pagina = client.customers.list(limit=250)
+    rondes = 0
+    while pagina is not None and rondes < 200:
+        for klant in pagina:
+            yield klant
+        rondes += 1
+        pagina = pagina.get_next()
+
+
+def create_subscription(customer_id, pakket=STANDAARD_PAKKET, webhook_url=None, startdatum=None):
     """Stap 2, wordt aangeroepen vanuit de webhook zodra de eerste betaling is gelukt.
-    Zet het echte, maandelijks terugkerende abonnement op."""
+    Zet het echte, maandelijks terugkerende abonnement op.
+
+    STARTDATUM OVER EEN MAAND (23 september). Zonder startDate begint Mollie
+    het abonnement VANDAAG, en dan wordt er op de dag van de eerste betaling
+    meteen nog een keer afgeschreven: twee keer betalen voor de eerste maand.
+    De eerste maand is al betaald, dus de eerste incasso hoort een maand later.
+
+    MET WEBHOOK. Zonder webhookUrl horen wij niets van de maandbetalingen: geen
+    factuur vanaf maand twee, en een mislukte incasso valt niemand op."""
     client = get_mollie_client()
     if client is None:
         return {"error": "Mollie niet geconfigureerd."}
@@ -187,11 +224,15 @@ def create_subscription(customer_id, pakket=STANDAARD_PAKKET):
     try:
         customer = client.customers.get(customer_id)
         gekozen = pakket_van(pakket)
-        subscription = customer.subscriptions.create({
+        gegevens = {
             "amount": gekozen["prijs"],
             "interval": "1 month",
-            "description": f"{gekozen['omschrijving']} (abonnement)",
-        })
+            "startDate": (startdatum or over_een_maand()).isoformat(),
+            "description": f"{gekozen['omschrijving']} (monthly)",
+        }
+        if webhook_url:
+            gegevens["webhookUrl"] = webhook_url
+        subscription = customer.subscriptions.create(gegevens)
         return {"subscription_id": subscription.id}
     except (MollieError, Exception) as e:
         return {"error": str(e)}
@@ -211,14 +252,35 @@ def pakket_bij_bedrag(waarde):
     return None
 
 
+def _klant_id_uit_database(webshop_url):
+    """De Mollie-klant die wij bij de eerste betaling bij deze winkel bewaarden.
+    Scheelt het doorlopen van alle klanten bij Mollie."""
+    try:
+        import db
+        return db.mollie_klant_van(webshop_url)
+    except Exception:
+        return None
+
+
 def zoek_abonnement(webshop_url):
     """Zoekt het actieve abonnement bij een webshop-URL. Geeft de klant-id en
-    het abonnement-id terug, zodat we het kunnen opzeggen."""
+    het abonnement-id terug, zodat we het kunnen opzeggen.
+
+    Eerst de klant die wij zelf bewaarden, dan pas alle klanten bij Mollie,
+    pagina voor pagina (zie alle_klanten)."""
     client = get_mollie_client()
     if client is None:
         return None
     try:
-        for customer in client.customers.list():
+        kandidaten = []
+        eigen_id = _klant_id_uit_database(webshop_url)
+        if eigen_id:
+            try:
+                kandidaten.append(client.customers.get(eigen_id))
+            except Exception as e:
+                print(f"Bewaarde Mollie-klant {eigen_id} ophalen mislukt: {e}")
+        import itertools
+        for customer in itertools.chain(kandidaten, alle_klanten(client)):
             metadata = customer.metadata or {}
             if metadata.get("webshop_url") != webshop_url:
                 continue
@@ -245,14 +307,14 @@ def zeg_abonnement_op(customer_id, subscription_id):
     van de al betaalde periode, er wordt alleen niet opnieuw geincasseerd."""
     client = get_mollie_client()
     if client is None:
-        return {"error": "Opzeggen is nu niet mogelijk, probeer het later opnieuw."}
+        return {"error": "Cancelling is not possible right now. Please try again later."}
     try:
         customer = client.customers.get(customer_id)
         customer.subscriptions.delete(subscription_id)
         return {"ok": True}
     except (MollieError, Exception) as e:
         print(f"Abonnement opzeggen mislukt: {e}")
-        return {"error": "Het opzeggen is niet gelukt. Mail hello@krilloai.com, dan regelen we het handmatig."}
+        return {"error": "Cancelling did not work. Email hello@krilloai.com and we will sort it out by hand."}
 
 
 def _zet_terugkeerlink_met_kenmerk(client, payment, base_url, soort):
@@ -287,6 +349,10 @@ def get_payment_status(payment_id):
         return {
             "status": payment.status,
             "is_paid": payment.is_paid(),
+            # Voor de maandbetalingen van een abonnement: die hebben geen
+            # metadata van ons, alleen een abonnement en een klant.
+            "subscription_id": getattr(payment, "subscription_id", None),
+            "customer_id": getattr(payment, "customer_id", None),
             "metadata": payment.metadata,
             "created_at": payment.created_at,
             "bedrag": bedrag,
@@ -304,7 +370,7 @@ def list_active_monitoring_customers():
 
     result = []
     try:
-        for customer in client.customers.list():
+        for customer in alle_klanten(client):
             try:
                 subs = list(customer.subscriptions.list())
             except (MollieError, Exception):
@@ -351,3 +417,18 @@ def list_recent_orders(limit=25):
 
     orders.sort(key=lambda o: o["paid_at"] or "", reverse=True)
     return orders
+
+
+def klant_bij_id(customer_id):
+    """Webadres, e-mailadres en pakket van een Mollie-klant. Voor de
+    maandbetalingen, die zelf geen metadata van ons meedragen."""
+    client = get_mollie_client()
+    if client is None or not customer_id:
+        return None
+    try:
+        klant = client.customers.get(customer_id)
+        metadata = klant.metadata or {}
+        return {"webshop_url": metadata.get("webshop_url"), "email": klant.get("email")}
+    except (MollieError, Exception) as e:
+        print(f"Mollie-klant {customer_id} ophalen mislukt: {e}")
+        return None

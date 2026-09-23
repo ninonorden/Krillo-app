@@ -53,6 +53,22 @@
 
   {% if melding %}<div class="melding">{{ melding }}</div>{% endif %}
 
+  {# PROEFMAIL (23 september). Bekijk de mail zelf voordat de benadering weer
+     aangaat. Er wordt niets vastgelegd. #}
+  <div class="kaart">
+    <div class="kop"><span class="winkel">Proefmail naar jezelf</span></div>
+    <div style="font-size:13.5px; margin-top:6px;">Vul een winkel in die in de index staat
+      (bijvoorbeeld mediamarkt.nl) en je eigen adres. Je krijgt precies de mail die die
+      winkel zou krijgen. Er wordt niets vastgelegd.</div>
+    <form method="post" action="/admin/onderzoeksmail">
+      <input type="text" name="url" placeholder="winkel, bijvoorbeeld mediamarkt.nl"
+             style="flex:1; min-width:200px; padding:8px 10px; border:1px solid #E8E8EC; border-radius:6px;">
+      <input type="email" name="email" placeholder="jouw eigen mailadres">
+      <button type="submit" name="actie" value="proef">Proefmail sturen</button>
+    </form>
+  </div>
+  {% if alleen_proef %}<p><a href="/admin/onderzoeksmail">Terug naar de hele lijst</a></p>{% endif %}
+
   <div class="uitleg">
     <b>Hoe je dit gebruikt.</b> Zoek per winkel het mailadres van de eigenaar op, meestal
     op zijn contactpagina. Vul het in, klik op Bewaren als je het alleen wil vastleggen,

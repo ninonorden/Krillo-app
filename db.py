@@ -243,6 +243,11 @@ def init_db():
                 # positie per mail krijgen: het maandbericht keek alleen of je
                 # ooit klant was. Leeg betekent: loopt nog.
                 cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS opgezegd_op TIMESTAMPTZ;")
+                # 23 september: de Mollie-klant en het pakket bij de klant
+                # bewaren. Zie payments.alle_klanten voor waarom opzoeken bij
+                # Mollie alleen niet genoeg is.
+                cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS mollie_klant_id TEXT;")
+                cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS pakket TEXT;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS facturen (
                         factuurnummer SERIAL PRIMARY KEY,
@@ -690,9 +695,19 @@ def init_db():
                             "ADD COLUMN IF NOT EXISTS bron TEXT DEFAULT 'eigen';")
                 cur.execute("ALTER TABLE beoordelingen "
                             "DROP CONSTRAINT IF EXISTS beoordelingen_antwoord_id_key;")
+                # EN BRON (23 september, middag). antwoord_id komt uit twee
+                # tabellen met elk hun eigen teller: ai_antwoorden (eigen
+                # meting) en categorie_antwoorden (maandmeting). Nummer 512 kan
+                # dus twee verschillende antwoorden zijn, en dan viel het
+                # tweede stil weg. Daarbij gebruikte bewaar_beoordeling nog
+                # ON CONFLICT (antwoord_id), terwijl die sleutel die ochtend
+                # verdwenen was: elke beoordeling van een eigen meting mislukte
+                # daardoor stil. Nu uniek op antwoord, winkel en bron.
+                cur.execute("UPDATE beoordelingen SET bron = 'eigen' WHERE bron IS NULL;")
+                cur.execute("DROP INDEX IF EXISTS idx_beoordelingen_antwoord_winkel;")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS "
-                            "idx_beoordelingen_antwoord_winkel "
-                            "ON beoordelingen (antwoord_id, webshop_url);")
+                            "idx_beoordelingen_antwoord_winkel_bron "
+                            "ON beoordelingen (antwoord_id, webshop_url, bron);")
                 cur.execute("ALTER TABLE beoordelingen ADD COLUMN IF NOT EXISTS bewijs TEXT;")
                 cur.execute("ALTER TABLE beoordelingen ADD COLUMN IF NOT EXISTS soort_vermelding TEXT;")
                 cur.execute("""
@@ -2502,6 +2517,8 @@ def onbeoordeelde_antwoorden(webshop_url, meting_id=None, limit=200):
                     cur.execute(
                         """SELECT a.* FROM ai_antwoorden a
                             LEFT JOIN beoordelingen b ON b.antwoord_id = a.id
+                                                     AND b.webshop_url = a.webshop_url
+                                                     AND b.bron = 'eigen'
                            WHERE a.webshop_url = %s AND a.meting_id = %s
                              AND a.gelukt AND b.id IS NULL
                         ORDER BY a.id LIMIT %s""",
@@ -2511,6 +2528,8 @@ def onbeoordeelde_antwoorden(webshop_url, meting_id=None, limit=200):
                     cur.execute(
                         """SELECT a.* FROM ai_antwoorden a
                             LEFT JOIN beoordelingen b ON b.antwoord_id = a.id
+                                                     AND b.webshop_url = a.webshop_url
+                                                     AND b.bron = 'eigen'
                            WHERE a.webshop_url = %s AND a.gelukt AND b.id IS NULL
                              AND a.meting_id = (
                                  SELECT meting_id FROM ai_antwoorden
@@ -2547,7 +2566,7 @@ def bewaar_beoordeling(gegevens):
                                %(positie)s, %(aantal_winkels)s, %(aanbevolen)s, %(toon)s,
                                %(bewijs)s, %(soort_vermelding)s,
                                %(winkels)s, %(merken)s, %(aanbevolen_winkels)s)
-                       ON CONFLICT (antwoord_id) DO NOTHING""",
+                       ON CONFLICT (antwoord_id, webshop_url, bron) DO NOTHING""",
                     gegevens,
                 )
         return True
@@ -4119,6 +4138,84 @@ def ruim_verlopen_gegevens(maanden=12):
         conn.close()
 
 
+def zet_mollie_klant(webshop_url, mollie_klant_id, pakket=None):
+    """Bewaart bij de klant welke Mollie-klant en welk pakket erbij horen."""
+    if not webshop_url or not mollie_klant_id:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE klanten SET mollie_klant_id = %s, "
+                            "pakket = coalesce(%s, pakket) WHERE webshop_url = %s",
+                            (mollie_klant_id, pakket, webshop_url))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Mollie-klant bewaren mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def klant_bij_url(webshop_url):
+    """De klantregel bij een winkel, of None."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM klanten WHERE webshop_url = %s", (webshop_url,))
+                rij = cur.fetchone()
+                return dict(rij) if rij else None
+    except Exception as e:
+        print(f"Klant ophalen mislukt voor {webshop_url}: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def zet_klant_pakket(webshop_url, pakket):
+    """Legt het pakket (watch, fix, merken) bij de klant vast."""
+    if not webshop_url or not pakket:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE klanten SET pakket = %s WHERE webshop_url = %s",
+                            (pakket, webshop_url))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Pakket vastleggen mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def mollie_klant_van(webshop_url):
+    """De bewaarde Mollie-klant bij deze winkel, of None."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT mollie_klant_id FROM klanten WHERE webshop_url = %s "
+                            "AND mollie_klant_id IS NOT NULL", (webshop_url,))
+                rij = cur.fetchone()
+                return rij[0] if rij else None
+    except Exception as e:
+        print(f"Mollie-klant ophalen mislukt voor {webshop_url}: {e}")
+        return None
+    finally:
+        conn.close()
+
+
 def zet_klant_opgezegd(webshop_url, opgezegd=True):
     """Legt vast dat een klant opzegde, of (opgezegd=False) dat hij weer klant is.
 
@@ -4250,6 +4347,33 @@ def voeg_benaderingen_toe(regels):
         conn.close()
 
 
+def profielen_en_lijstregels(urls):
+    """Winkelprofiel en benaderregel voor een hele lijst winkels in TWEE query's.
+
+    Waarom (23 september): /admin/onderzoeksmail vroeg ze per winkel op, twee
+    query's per winkel, elk met een eigen verbinding naar Neon. Bij ruim
+    duizend winkels waren dat duizenden rondjes en bleef de pagina laden."""
+    urls = [u for u in (urls or []) if u]
+    if not urls:
+        return {}, {}
+    conn = _get_connection()
+    if conn is None:
+        return {}, {}
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM winkelprofielen WHERE webshop_url = ANY(%s)", (urls,))
+                profielen = {r["webshop_url"]: dict(r) for r in cur.fetchall()}
+                cur.execute("SELECT * FROM benadering WHERE webshop_url = ANY(%s)", (urls,))
+                lijst = {r["webshop_url"]: dict(r) for r in cur.fetchall()}
+        return profielen, lijst
+    except Exception as e:
+        print(f"Profielen en lijstregels ophalen mislukt: {e}")
+        return {}, {}
+    finally:
+        conn.close()
+
+
 def get_benadering(webshop_url):
     conn = _get_connection()
     if conn is None:
@@ -4263,6 +4387,44 @@ def get_benadering(webshop_url):
     except Exception as e:
         print(f"Benadering ophalen mislukt ({webshop_url}): {e}")
         return None
+    finally:
+        conn.close()
+
+
+def te_mailen_met_positie(limiet):
+    """Winkels die aan de beurt zijn voor de koude mail EN een positie hebben.
+
+    WAAROM IN SQL (23 september). Sinds stap 36 gaat de mail over de positie
+    in de index. Eerst werden de oudste winkels op "gemeten" opgehaald en
+    daarna pas gekeken of ze een positie hadden. Winkels zonder positie bleven
+    dan op "gemeten" staan, en bij een lijst van 1500 winkels vulden ze het
+    hele venster: dan ging er niets meer uit. Nu komen alleen winkels met een
+    uitkomst in een afgeronde meting van hun eigen categorie mee."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT b.* FROM benadering b
+                     WHERE b.stand = 'gemeten' AND b.afgemeld = FALSE
+                       AND b.email IS NOT NULL AND b.email <> ''
+                       AND b.gemaild_op IS NULL
+                       AND coalesce(b.soort, 'winkel') = 'winkel'
+                       AND EXISTS (
+                           SELECT 1 FROM categorie_uitkomsten u
+                             JOIN categorie_rondes r ON r.id = u.ronde
+                            WHERE u.webshop_url = b.webshop_url
+                              AND u.categorie = b.categorie
+                              AND coalesce(u.telbaar, 0) >= 3
+                              AND r.afgerond_op IS NOT NULL)
+                  ORDER BY b.toegevoegd_op, b.webshop_url
+                     LIMIT %s""", (int(limiet),))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Winkels met positie voor de mail ophalen mislukt: {e}")
+        return []
     finally:
         conn.close()
 
@@ -5951,7 +6113,7 @@ def bewaar_beoordelingen_veel(rijen):
                          aanbevolen, toon, bewijs, soort_vermelding,
                          winkels, merken, aanbevolen_winkels, bron)
                     VALUES %s
-                    ON CONFLICT (antwoord_id, webshop_url) DO NOTHING
+                    ON CONFLICT (antwoord_id, webshop_url, bron) DO NOTHING
                     RETURNING id
                 """, [(r["antwoord_id"], r["meting_id"], r["webshop_url"], r["vraag"],
                        r["intentie"], r["model"], r["winkel_kon_genoemd"], r["genoemd"],

@@ -27,6 +27,9 @@ TEKSTEN = {
                       "Je krijgt achteraf bericht van wat er veranderd is, met de "
                       "oude tekst erbij. Doe je het liever zelf, dan staat alles "
                       "hieronder kant en klaar."),
+        "taken_zelf": ("Elke oplossing hieronder staat uitgeschreven, klaar om zelf in "
+                       "je winkel te zetten. Bij Watch doe je dat zelf; bij Fix doen "
+                       "wij het."),
         "laatste_meting": "Laatste meting",
 
         # wij doen het
@@ -101,6 +104,9 @@ TEKSTEN = {
         "eenmalig_tekst": ("Er loopt geen abonnement en er wordt niets van je afgeschreven. "
                            "Wil je elke maand je positie weten, dan doen Watch en Fix dat."),
         "eenmalig_knop": "Bekijk de pakketten",
+        "opgezegd_kop": "Je abonnement is opgezegd",
+        "opgezegd_tekst": ("Er wordt niets meer afgeschreven. Je pagina blijft bereikbaar. Wil "
+                           "je weer elke maand je positie weten? Dan kan dat altijd opnieuw."),
 
         # Shopify
         "shopify_kop": "Je abonnement loopt via Shopify",
@@ -295,6 +301,9 @@ TEKSTEN = {
                       "store. Afterwards you get a message with what changed and "
                       "the old text next to it. Prefer to do it yourself? "
                       "Everything below is ready to use."),
+        "taken_zelf": ("Every fix below is written out and ready to use in your own "
+                       "store. With Watch you put them in yourself; with Fix we do "
+                       "it for you."),
         "laatste_meting": "Last measurement",
 
         "wacht_kop": "We are still waiting for access to your store",
@@ -362,6 +371,9 @@ TEKSTEN = {
                            "Want to know your position every month? That is what Watch and "
                            "Fix do."),
         "eenmalig_knop": "See the plans",
+        "opgezegd_kop": "Your plan is cancelled",
+        "opgezegd_tekst": ("Nothing more will be charged. Your page stays available. Want your "
+                           "rank every month again? You can start a new plan any time."),
 
         "shopify_kop": "Your subscription runs through Shopify",
         "shopify_tekst": ("You pay through your Shopify invoice, not directly to us. You "

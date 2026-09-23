@@ -518,7 +518,8 @@ def _kaal_adres(webshop_url):
 
 
 def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
-                        categorienaam=None, landnaam=None, afmeld_url=None):
+                        categorienaam=None, landnaam=None, afmeld_url=None,
+                        onderwerp_voor=""):
     """De koude mail aan een winkel die in de Krillo index staat.
 
     OMGEBOUWD 23 SEPTEMBER (stap 36). Dit was de laatste mail uit het oude
@@ -673,7 +674,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     """
     koppen = {"List-Unsubscribe": f"<{afmeld_url}>",
               "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"} if afmeld_url else None
-    onderwerp = f"{_kaal_adres(webshop_url)}: #{positie} of {van} in the Krillo index"
+    onderwerp = f"{onderwerp_voor}{_kaal_adres(webshop_url)}: #{positie} of {van} in the Krillo index"
     return send_email(to_email, onderwerp, html, koppen=koppen)
 
 
@@ -734,8 +735,12 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
         + _p("<strong>Every month.</strong> We measure your whole category again, and that is "
              "where your rank in the index comes from. You get a message with your position, "
              "and a message when you drop three places or more. Your store also gets the "
-             "thirteen technical checks every week; it scores "
-             f"{score} of 100 on them today.")
+             "thirteen technical checks every week"
+             # Alleen een cijfer als de scan gelukt is (23 september). Mislukt
+             # hij bij de start, dan gaat de klant toch door en stond hier
+             # anders "0 of 100", terwijl er niets gemeten was.
+             + (f"; it scores {score} of 100 on them today." if (scan_result or {}).get("checks")
+                else "; the first one follows within a week."))
         + werk
         + _score_button(report_url, "Open your dashboard")
     )

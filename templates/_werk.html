@@ -99,8 +99,10 @@
     {% endif %}
   </div>
 
+  {# Alleen bij Fix "wij voeren dit uit" (23 september). Watch las dit ook,
+     terwijl Watch betekent: de oplossingen uitgeschreven, om zelf te doen. #}
   {% if abonnement and not uitvoering %}
-  <p class="werk-uitleg">{{ wt.taken_wij }}</p>
+  <p class="werk-uitleg">{{ wt.taken_wij if doet_werk else wt.taken_zelf }}</p>
   {% endif %}
 
   {# Wie betaald heeft om het NIET zelf te doen, ziet eerst hoe ver wij zijn. #}
@@ -217,6 +219,11 @@
     <strong>{{ wt.shopify_kop }}</strong>
     {{ wt.shopify_tekst }}<br>
     <a class="knop-rand" href="{{ shopify_beheer }}" target="_blank" rel="noopener">{{ wt.shopify_knop }}</a>
+  {% elif opgezegd %}
+    {# 23 september: wie opzegde las hier "je hebt eenmalig betaald". #}
+    <strong>{{ wt.opgezegd_kop }}</strong>
+    {{ wt.opgezegd_tekst }}<br>
+    <a class="knop-rand" href="/#prijzen">{{ wt.eenmalig_knop }}</a>
   {% elif abonnement %}
     <strong>{{ wt.abo_kop }}</strong>
     {{ wt.abo_tekst }}<br>
