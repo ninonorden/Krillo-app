@@ -984,7 +984,11 @@ def send_zichtbaarheidstest(to_email, webshop_url, resultaat, zin, site_url=None
             f'letter-spacing:0.05em; margin-top:3px;">{label}</div></div>'
         )
 
-    anderen = [c for c in (resultaat.get("concurrenten") or []) if not c.get("wij")][:5]
+    # Samenvoegen voor het tonen: een bewaarde uitslag kan nog van voor de
+    # naamsleutel zijn, en dan stond Pararius er twee keer in.
+    import beoordeling
+    samen = beoordeling.voeg_concurrenten_samen(resultaat.get("concurrenten") or [])
+    anderen = [c for c in samen if not c.get("wij")][:5]
     concurrenten = ""
     if anderen:
         namen = "".join(

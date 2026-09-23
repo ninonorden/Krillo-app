@@ -65,6 +65,39 @@ def naamsleutel(naam):
     return k.strip()
 
 
+def voeg_concurrenten_samen(concurrenten):
+    """Een lijst concurrenten waarin dezelfde winkel maar een keer staat.
+
+    Voor uitslagen die al bewaard waren voordat naamsleutel bestond: de gratis
+    test hergebruikt een uitslag dertig dagen, en Nino kreeg op 21 september
+    's middags nog "Pararius (3x)" en "Pararius.nl (1x)" uit een bewaarde
+    uitslag van die ochtend. Dit voegt ze bij het tonen samen.
+
+    De vermeldingen worden opgeteld. Dat kan in een zeldzaam geval een vraag
+    dubbel tellen (als het model beide schrijfwijzen in hetzelfde antwoord
+    gebruikte), maar twee regels voor een winkel is erger."""
+    uit = {}
+    volgorde = []
+    for c in concurrenten or []:
+        naam = (c.get("naam") or "").strip()
+        if not naam:
+            continue
+        sl = naamsleutel(naam)
+        if sl not in uit:
+            uit[sl] = dict(c)
+            volgorde.append(sl)
+            continue
+        r = uit[sl]
+        r["naam"] = _voorkeursnaam(r.get("naam"), naam)
+        r["genoemd"] = (r.get("genoemd") or 0) + (c.get("genoemd") or 0)
+        if "aanbevolen" in r or "aanbevolen" in c:
+            r["aanbevolen"] = (r.get("aanbevolen") or 0) + (c.get("aanbevolen") or 0)
+        r["wij"] = bool(r.get("wij") or c.get("wij"))
+    lijst = [uit[sl] for sl in volgorde]
+    lijst.sort(key=lambda c: (c.get("aanbevolen") or 0, c.get("genoemd") or 0), reverse=True)
+    return lijst
+
+
 def _voorkeursnaam(huidig, nieuw):
     """Welke schrijfwijze we tonen: die zonder extensie, want zo noemt een
     mens een winkel. Pararius en niet Pararius.nl."""

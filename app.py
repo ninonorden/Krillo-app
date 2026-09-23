@@ -1061,7 +1061,8 @@ def api_voorproef():
 
     eerder = db.laatste_geslaagde_test(url, zichtbaarheid.HERGEBRUIK_DAGEN)
     if eerder and eerder.get("resultaat"):
-        return jsonify({"status": "klaar", "resultaat": eerder["resultaat"],
+        return jsonify({"status": "klaar",
+                        "resultaat": zichtbaarheid.opgeschoond(eerder["resultaat"]),
                         "zin": zichtbaarheid.samenvattingszin(eerder["resultaat"], url)})
 
     # Loopt er al een meting voor deze winkel, dan geen tweede starten.
@@ -1134,7 +1135,7 @@ def api_zichtbaarheidstest():
         # de uitslag staat immers gewoon op de pagina.
         basis = get_base_url()
         zin = zichtbaarheid.samenvattingszin(eerder["resultaat"], url)
-        resultaat = eerder["resultaat"]
+        resultaat = zichtbaarheid.opgeschoond(eerder["resultaat"])
         threading.Thread(
             target=lambda: emailing.send_zichtbaarheidstest(email, url, resultaat, zin, basis),
             daemon=True).start()
@@ -1178,7 +1179,7 @@ def api_zichtbaarheidstest_status(kenmerk):
     antwoord = {"status": test.get("status") or "wachtrij",
                 "webshop_url": test.get("webshop_url")}
     if test.get("status") == "klaar" and test.get("resultaat"):
-        antwoord["resultaat"] = test["resultaat"]
+        antwoord["resultaat"] = zichtbaarheid.opgeschoond(test["resultaat"])
         antwoord["zin"] = zichtbaarheid.samenvattingszin(test["resultaat"],
                                                          test.get("webshop_url"))
     elif test.get("status") == "mislukt":
