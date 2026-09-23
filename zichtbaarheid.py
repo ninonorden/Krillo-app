@@ -338,6 +338,18 @@ def _winkelnaam(webshop_url):
     return None
 
 
+def opgeschoond(resultaat):
+    """Een bewaarde uitslag zoals hij nu getoond hoort te worden: met dezelfde
+    winkel maar een keer in de lijst (zie beoordeling.voeg_concurrenten_samen).
+    Verandert niets aan wat er bewaard is."""
+    if not resultaat or not resultaat.get("concurrenten"):
+        return resultaat
+    import beoordeling
+    schoon = dict(resultaat)
+    schoon["concurrenten"] = beoordeling.voeg_concurrenten_samen(resultaat["concurrenten"])
+    return schoon
+
+
 def samenvattingszin(resultaat, webshop_url=None):
     """De ene zin die bovenaan de uitslag staat, op de pagina en in de mail.
 

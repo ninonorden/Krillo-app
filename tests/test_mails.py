@@ -203,6 +203,27 @@ zin = zichtbaarheid.samenvattingszin(UITSLAG)
 klopt(f"de samenvattingszin op de pagina is Engels ({zin!r})",
       "buying questions" in zin and " je " not in f" {zin} ")
 
+print("\n== EEN BEWAARDE UITSLAG VAN VOOR DE NAAMSLEUTEL ==")
+# Precies wat Nino op 21 september om 15:59 kreeg: de gratis test hergebruikt
+# een uitslag dertig dagen, en die van de ochtend had Pararius nog twee keer.
+oud = dict(UITSLAG, concurrenten=[
+    {"naam": "Pararius", "genoemd": 3, "wij": False},
+    {"naam": "Huurwoningen.nl", "genoemd": 3, "wij": False},
+    {"naam": "Funda Huur", "genoemd": 1, "wij": False},
+    {"naam": "Pararius.nl", "genoemd": 1, "wij": False},
+    {"naam": "Kamernet", "genoemd": 3, "wij": False}])
+gevangen.clear()
+emailing.send_zichtbaarheidstest("a@b.nl", "https://brixt.nl", oud, "x", "https://krilloai.com")
+h = laatste()["html"]
+klopt("Pararius staat er een keer, met vier vermeldingen",
+      re.search(r">Pararius <span[^>]*>\(4x\)</span>", h) is not None)
+klopt("Pararius.nl staat er niet meer los", "Pararius.nl" not in h)
+klopt("en de pagina krijgt hem ook samengevoegd",
+      [c["naam"] for c in zichtbaarheid.opgeschoond(oud)["concurrenten"]].count("Pararius") == 1
+      and "Pararius.nl" not in [c["naam"] for c in zichtbaarheid.opgeschoond(oud)["concurrenten"]])
+klopt("alle drie de plekken waar de pagina een uitslag krijgt schonen hem op",
+      bron.count("zichtbaarheid.opgeschoond(") + lees("app.py").count("resultaat = zichtbaarheid.opgeschoond(") >= 3)
+
 print("\n== ESCAPING: TEKST UIT DE WINKEL KAN DE MAIL NIET OVERNEMEN ==")
 gevangen.clear()
 emailing.send_shopify_bijgewerkt(
