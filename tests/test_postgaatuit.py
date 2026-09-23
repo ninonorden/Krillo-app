@@ -136,7 +136,7 @@ with _c.cursor() as _cur:
                  (antwoord_id, webshop_url, meting_id, vraag, model,
                   winkel_kon_genoemd, genoemd, aanbevolen)
                VALUES (%s, %s, 'test-meting', %s, 'test', true, false, false)
-               ON CONFLICT (antwoord_id, webshop_url) DO NOTHING""",
+               ON CONFLICT (antwoord_id, webshop_url, bron) DO NOTHING""",
             (900000 + _n, WINKEL, f"vraag {_n}"))
 _c.commit()
 _c.close()
@@ -156,6 +156,13 @@ db.zet_instelling("benadering_aan", "ja")
 _c = db._get_connection()
 with _c.cursor() as _cur:
     _cur.execute("UPDATE benadering SET categorie = 'posttest' WHERE webshop_url = %s", (WINKEL,))
+    # En een uitkomst in een afgeronde meting: pas dan is hij aan de beurt.
+    _cur.execute("INSERT INTO categorie_rondes (categorie, afgerond_op) "
+                 "VALUES ('posttest', now()) RETURNING id")
+    _ronde = _cur.fetchone()[0]
+    _cur.execute("INSERT INTO categorie_uitkomsten (ronde, categorie, webshop_url, positie, "
+                 "genoemd, telbaar) VALUES (%s, 'posttest', %s, 2, 3, 30) "
+                 "ON CONFLICT DO NOTHING", (_ronde, WINKEL))
 _c.commit()
 _c.close()
 krillo.klantbeeld.bouw = lambda url, land=None, **k: {

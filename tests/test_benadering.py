@@ -241,11 +241,19 @@ db.zet_benadering("https://zondercategorie.nl", stand="gemeten", email="info@zon
 
 
 def geef_categorie(url):
+    """Een categorie EN een uitkomst in een afgeronde meting: dan heeft de
+    winkel een positie, en pas dan is hij aan de beurt (stap 36)."""
     conn = db._get_connection()
     with conn:
         with conn.cursor() as cur:
             cur.execute("UPDATE benadering SET categorie = 'testcat' WHERE webshop_url = %s",
                         (url,))
+            cur.execute("INSERT INTO categorie_rondes (categorie, afgerond_op) "
+                        "VALUES ('testcat', now()) RETURNING id")
+            ronde = cur.fetchone()[0]
+            cur.execute("INSERT INTO categorie_uitkomsten (ronde, categorie, webshop_url, "
+                        "positie, genoemd, telbaar) VALUES (%s, 'testcat', %s, 1, 3, 30) "
+                        "ON CONFLICT DO NOTHING", (ronde, url))
     conn.close()
 
 
@@ -408,6 +416,8 @@ _c = db._get_connection()
 with _c:
     with _c.cursor() as _cur:
         _cur.execute("UPDATE benadering SET categorie = NULL WHERE categorie = 'testcat'")
+        _cur.execute("DELETE FROM categorie_uitkomsten WHERE categorie = 'testcat'")
+        _cur.execute("DELETE FROM categorie_rondes WHERE categorie = 'testcat'")
 _c.close()
 
 print("\n== tellen ==")

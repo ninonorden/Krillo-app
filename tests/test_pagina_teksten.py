@@ -112,7 +112,8 @@ c = krillo.app.test_client()
 t = c.get("/llms.txt").get_data(as_text=True)
 zo("noemt de maandpakketten", "Fix: 149 euro per month" in t, True)
 zo("zegt niet meer dat klanten het zelf regelen", "die dit zelf regelen" in t, False)
-zo("verwijst naar het onderzoek", "/onderzoek" in t, True)
+zo("verwijst naar de index", "/index" in t, True)
+zo("niet meer naar het oude onderzoek", "/onderzoek" in t, False)
 
 print("\n== voorwaarden en privacy ==")
 # Sinds 21 september in het Engels. Dezelfde beloften worden bewaakt, nu in de

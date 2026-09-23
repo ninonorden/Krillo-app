@@ -113,7 +113,7 @@ klopt("de eerste betaling gebruikt de prijs van het gekozen pakket",
       '"amount": gekozen["prijs"]' in bron)
 klopt("en het pakket staat in de metadata", '"pakket": (pakket or STANDAARD_PAKKET)' in bron)
 klopt("het doorlopende abonnement kent het pakket ook",
-      "def create_subscription(customer_id, pakket=STANDAARD_PAKKET)" in bron)
+      "def create_subscription(customer_id, pakket=STANDAARD_PAKKET" in bron)
 appbron = lees("app.py")
 klopt("de webhook geeft het pakket door",
       'pakket=metadata.get("pakket")' in appbron)

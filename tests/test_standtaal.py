@@ -56,11 +56,13 @@ zo("aantal teksten gevonden", len(teksten) > 8, True)
 ontbreekt = sorted(t for t in teksten if t not in krillo.STAND_ENGELS)
 zo("geen enkele zonder vertaling", ontbreekt, [])
 
-print("\n== een Nederlandse winkel ziet exact hetzelfde als eerst ==")
-alles_gelijk = all(
-    krillo._stand_in_taal({"tekst": t, "klaar": False}, NL)["tekst"] == t
-    for t in teksten)
-klopt("alle teksten blijven onveranderd", alles_gelijk)
+# Sinds 23 september is het app-scherm voor IEDEREEN Engels (een adres, een
+# taal), dus ook een Nederlandse winkel krijgt de Engelse voortgangstekst.
+print("\n== ook een Nederlandse winkel ziet Engels ==")
+klopt("alle teksten zijn Engels, ook bij een Nederlandse winkel", all(
+    krillo._stand_in_taal({"tekst": t, "klaar": False}, NL)["tekst"]
+    == krillo._stand_in_taal({"tekst": t, "klaar": False}, EN)["tekst"]
+    for t in teksten))
 
 print("\n== een Engelse winkel krijgt Engels ==")
 nederlands = re.compile(r"\b(je|winkel|wij|vragen|klaar|beginnen|het|een|iets|mis)\b")
@@ -73,9 +75,9 @@ for t in sorted(mislukt) + ["mislukt: er is niets gemeten (de dagpot is op)"]:
     uit = krillo._stand_in_taal({"tekst": t, "klaar": True}, EN)["tekst"]
     klopt(f"{t[:40]!r} wordt een Engelse zin",
           uit == krillo.MISLUKT_ENGELS and not nederlands.search(uit))
-zo("een Nederlandse winkel ziet de echte reden nog wel",
+zo("ook een Nederlandse winkel krijgt de nette Engelse zin",
    krillo._stand_in_taal({"tekst": "mislukt: er is niets gemeten (x)"}, NL)["tekst"],
-   "mislukt: er is niets gemeten (x)")
+   krillo.MISLUKT_ENGELS)
 
 print("\n== randgevallen ==")
 zo("geen stand blijft None", krillo._stand_in_taal(None, EN), None)

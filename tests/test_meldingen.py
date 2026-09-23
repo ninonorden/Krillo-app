@@ -146,21 +146,25 @@ zo("een .com winkel krijgt Engels", meldingen._taal_van("https://shop.com"), "en
 CAT = "melding-test"
 WINKEL = "https://meldingwinkel.nl"
 ANDER = "https://meldingtwee.nl"
+# Sinds 23 september rekent het maandbericht de positie PER LAND, net als het
+# dashboard. Met maar twee winkels kan een klant dan hoogstens een plek
+# zakken. Vier winkels erbij die hem deze ronde voorbijgaan: een echte daling.
+EXTRA = [f"https://meldingextra{i}.nl" for i in range(4)]
 
 
 def opruimen():
     conn = db._get_connection()
     with conn, conn.cursor() as cur:
-        cur.execute("DELETE FROM berichten WHERE webshop_url = ANY(%s)", ([WINKEL, ANDER],))
-        cur.execute("DELETE FROM klanten WHERE webshop_url = ANY(%s)", ([WINKEL, ANDER],))
-        cur.execute("DELETE FROM benadering WHERE webshop_url = ANY(%s)", ([WINKEL, ANDER],))
+        cur.execute("DELETE FROM berichten WHERE webshop_url = ANY(%s)", ([WINKEL, ANDER] + EXTRA,))
+        cur.execute("DELETE FROM klanten WHERE webshop_url = ANY(%s)", ([WINKEL, ANDER] + EXTRA,))
+        cur.execute("DELETE FROM benadering WHERE webshop_url = ANY(%s)", ([WINKEL, ANDER] + EXTRA,))
         cur.execute("DELETE FROM categorie_uitkomsten WHERE categorie = %s", (CAT,))
         cur.execute("DELETE FROM categorie_rondes WHERE categorie = %s", (CAT,))
     conn.close()
 
 
 opruimen()
-for url in (WINKEL, ANDER):
+for url in [WINKEL, ANDER] + EXTRA:
     db.voeg_benadering_toe(url, naam=url, land="NL", branche="test")
     db.zet_categorie(url, CAT)
 db.get_or_create_klant(WINKEL, "klant@example.com")
@@ -169,12 +173,14 @@ vorige = db.start_categorie_ronde(CAT, 30, 2)
 db.bewaar_categorie_uitkomsten(vorige, CAT, [
     {"webshop_url": WINKEL, "positie": 4, "genoemd": 6, "aanbevolen": 1, "beste_positie": 2},
     {"webshop_url": ANDER, "positie": 5, "genoemd": 5, "aanbevolen": 0, "beste_positie": 3},
-], 20)
+] + [{"webshop_url": u, "positie": 6 + i, "genoemd": 1, "aanbevolen": 0, "beste_positie": 5}
+     for i, u in enumerate(EXTRA)], 20)
 nu = db.start_categorie_ronde(CAT, 30, 2)
 db.bewaar_categorie_uitkomsten(nu, CAT, [
     {"webshop_url": WINKEL, "positie": 12, "genoemd": 2, "aanbevolen": 0, "beste_positie": 7},
     {"webshop_url": ANDER, "positie": 5, "genoemd": 5, "aanbevolen": 0, "beste_positie": 3},
-], 20)
+] + [{"webshop_url": u, "positie": 1 + i, "genoemd": 8, "aanbevolen": 1, "beste_positie": 1}
+     for i, u in enumerate(EXTRA)], 20)
 
 print("\n== alleen betalende klanten krijgen bericht ==")
 rijen = db.klanten_in_ronde(nu)

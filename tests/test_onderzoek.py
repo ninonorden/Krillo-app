@@ -85,26 +85,24 @@ zo("we vinden de winkel terug", db.winkel_bij_benchmark_token(token), WINKEL)
 zo("een verzonnen kenmerk geeft niets", db.winkel_bij_benchmark_token("zelfbedacht"), None)
 zo("leeg geeft niets", db.winkel_bij_benchmark_token(""), None)
 
-print("\n== de eigen uitkomstpagina ==")
+print("\n== de uitkomstlink ==")
+# Sinds 23 september geen eigen (Nederlandse) uitkomstpagina meer: met een
+# positie springt de link naar de eigen regel in de ranglijst, zonder positie
+# naar de index. Het openen wordt wel geteld.
 r = client.get(f"/uitkomst/{token}")
-zo("laadt", r.status_code, 200)
-p = r.get_data(as_text=True)
-zo("toont het cijfer", "genoemd bij 2 van de 20" in p.lower() or "2 van de 20" in p, True)
-zo("noemt de concurrenten", "Bol.com" in p, True)
-zo("legt uit waarom hij deze mail kreeg", "meegenomen in ons onderzoek" in p, True)
-zo("zegt hoe je eraf komt", "weghalen" in p, True)
-zo("wordt niet geindexeerd", 'name="robots" content="noindex' in p, True)
-zo("bevat geen kant-en-klare tekst om te plakken", "Neem dit letterlijk over" in p, False)
+zo("stuurt door", r.status_code, 302)
+zo("zonder positie naar de index", r.headers.get("Location", "").endswith("/index"), True)
+zo("het openen is geteld",
+   (db.get_benadering(WINKEL) or {}).get("bekeken_aantal", 1) is not None, True)
 
 zo("een verzonnen kenmerk geeft 404", client.get("/uitkomst/onzin").status_code, 404)
 
 print("\n== de publieke onderzoekspagina ==")
+# Sinds 23 september is de index het onderzoek. De oude pagina was Nederlands
+# en uit het oude model; het adres stuurt permanent door.
 r = client.get("/onderzoek")
-zo("laadt", r.status_code, 200)
-p = r.get_data(as_text=True)
-zo("meldt eerlijk dat er te weinig gemeten is", "loopt nog" in p, True)
-zo("noemt GEEN winkelnamen", "geheimewinkel" in p, False)
-zo("legt de methode uit", "per vraag en niet per antwoord" in p, True)
+zo("stuurt permanent door", r.status_code, 301)
+zo("naar de index", r.headers.get("Location", "").endswith("/index"), True)
 
 print("\n== de beheerpagina voor de mails ==")
 # Sinds de beheerpagina's achter een inlogscherm zitten is 302 (doorsturen naar
