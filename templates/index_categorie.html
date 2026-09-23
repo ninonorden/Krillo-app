@@ -82,7 +82,12 @@
     <tr {% if r.positie <= 3 %}class="top"{% endif %}>
       <td class="pos">{{ r.positie }}</td>
       <td>
-        <span class="merk">{{ r.naam or r.webshop_url }}</span><br>
+        {# Nooit "https://..." als naam. Hebben we (nog) geen naam, dan het
+           domein zonder https: mediamarkt.nl leest als een winkel, een
+           volledig webadres als een fout. De nachtronde vult de naam aan uit
+           wat AI zelf zei (categoriemeting.namen_uit_antwoorden). #}
+        {% set kaal = r.webshop_url | replace('https://','') | replace('http://','') | replace('www.','') %}
+        <span class="merk">{{ r.naam if (r.naam and not r.naam.startswith('http')) else kaal }}</span><br>
         <span class="adres">{{ r.webshop_url | replace('https://','') | replace('http://','') }}</span>
       </td>
       <td class="getal">{{ r.genoemd }} / {{ telbaar }}</td>

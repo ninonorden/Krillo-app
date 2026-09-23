@@ -531,11 +531,23 @@ def _domein_bestaat(domein):
         return False
 
 
+# Landcodes van domeinen die duidelijk bij een ander land horen. Tot 23
+# september viel alles wat geen .nl of .be was terug op Nederland, en zo stond
+# amazon.de op plaats 6 in de NEDERLANDSE ranglijst elektronica. Een Duitse
+# winkel hoort daar niet. Algemene extensies (.com, .eu, .shop) blijven wel
+# terugvallen op het standaardland: daar is het land niet uit af te leiden.
+_LANDEN_BIJ_EXTENSIE = {
+    ".nl": "NL", ".be": "BE", ".de": "DE", ".fr": "FR", ".co.uk": "GB", ".uk": "GB",
+    ".es": "ES", ".it": "IT", ".at": "AT", ".ch": "CH", ".dk": "DK", ".se": "SE",
+    ".pl": "PL", ".lu": "LU", ".ie": "IE", ".pt": "PT",
+}
+
+
 def _land_bij_domein(domein, standaard="NL"):
-    if domein.endswith(".be"):
-        return "BE"
-    if domein.endswith(".nl"):
-        return "NL"
+    domein = (domein or "").lower()
+    for extensie, land in _LANDEN_BIJ_EXTENSIE.items():
+        if domein.endswith(extensie):
+            return land
     return standaard
 
 
@@ -902,6 +914,47 @@ def tel_uit_antwoorden(rijen, winkels):
     return telling, telbaar
 
 
+def namen_uit_antwoorden(rijen, winkels):
+    """De naam die AI het vaakst gebruikte voor elke winkel. Kost niets.
+
+    Waarom dit bestaat (23 september). Van veel winkels op de lijst hebben wij
+    alleen het webadres, geen naam. Op de openbare ranglijst stond dan
+    "https://mediamarkt.nl" waar een mens "MediaMarkt" verwacht. Terwijl AI de
+    naam in elk antwoord gewoon noemt: die ligt al in de bewaarde antwoorden.
+    Hier wordt hij eruit gehaald, met dezelfde koppeling als de telling."""
+    tellers = {}
+    for rij in rijen:
+        genoemde = rij.get("genoemde_winkels") or {}
+        for url, hoe in koppel_aan_winkels(genoemde, winkels).items():
+            naam = (hoe.get("als_naam") or "").strip()
+            if naam and not naam.lower().startswith("http"):
+                tellers.setdefault(url, {}).setdefault(naam, 0)
+                tellers[url][naam] += 1
+    return {url: max(namen.items(), key=lambda x: (x[1], -len(x[0])))[0]
+            for url, namen in tellers.items() if namen}
+
+
+def werk_winkelgegevens_bij(rijen, winkels):
+    """Vult namen aan en zet het land recht, uit de bewaarde antwoorden.
+
+    Alleen waar het nodig is: een naam die er al staat (en geen webadres is)
+    blijft staan, want die kan met de hand gekozen zijn. Een land wordt alleen
+    rechtgezet als het domein duidelijk bij een ander land hoort."""
+    namen = namen_uit_antwoorden(rijen, winkels)
+    if namen:
+        db.vul_namen_aan(namen)
+    landen = {}
+    for w in winkels:
+        domein = _schoon_domein(w.get("webshop_url")) or ""
+        land = _land_bij_domein(domein, standaard=None)
+        huidig = (w.get("land") or "").upper()
+        if land and huidig and land != huidig:
+            landen[w["webshop_url"]] = land
+    if landen:
+        db.zet_landen(landen)
+    return {"namen": len(namen), "landen": len(landen)}
+
+
 def herbereken_ranglijst(slug):
     """Rekent de ranglijst opnieuw uit de bewaarde antwoorden. Kost niets.
 
@@ -927,6 +980,11 @@ def herbereken_ranglijst(slug):
     winkels = db.winkels_in_categorie_met_kinderen(slug)
     if not winkels:
         return {"fout": f"Geen winkels in {slug}."}
+
+    # Namen en landen rechtzetten VOORDAT de ranglijst opnieuw wordt gemaakt.
+    # Kost niets: het zijn de bewaarde antwoorden. Zie werk_winkelgegevens_bij.
+    werk_winkelgegevens_bij(rijen, winkels)
+    winkels = db.winkels_in_categorie_met_kinderen(slug)
 
     telling, telbaar = tel_uit_antwoorden(rijen, winkels)
     rangen = maak_ranglijst(telling, winkels)

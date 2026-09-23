@@ -150,6 +150,52 @@ def stap_opschonen(hoeveel=None):
     return verslag
 
 
+# Stap 74: hoeveel bestaande winkels per nacht worden nagekeken op platform.
+# Een modelaanroep per twintig, dus honderd is vijf aanroepen per nacht. De
+# hele lijst is zo binnen een paar weken rond, zonder dat het in een keer geld
+# kost.
+PLATFORMCHECK_PER_RONDE = int(os.environ.get("PLATFORMCHECK_PER_RONDE", "100"))
+
+
+def stap_platformcheck(hoeveel=None):
+    """De bestaande lijst een keer nakijken op platforms (stap 74).
+
+    Sinds 23 september kent het opschonen de soort "platform": marktplaatsen,
+    portalen en vergelijkingssites die geen concurrent zijn maar een plek waar
+    een winkel op hoort te staan. Nieuwe winkels worden daar meteen op
+    beoordeeld. De winkels die er al stonden niet, en zo bleven bijvoorbeeld
+    Amazon of een vergelijkingssite gewoon in een ranglijst van winkels staan.
+
+    Elke nacht een stuk, de zichtbaarste eerst. Na het nakijken rekent de
+    herberekening daarna de ranglijsten opnieuw uit, dus een platform is de
+    volgende ochtend van de openbare pagina af."""
+    hoeveel = PLATFORMCHECK_PER_RONDE if hoeveel is None else hoeveel
+    verslag = {"nagekeken": 0, "platforms": 0, "merken": 0, "aanroepen": 0}
+    if hoeveel <= 0:
+        return verslag
+    lijst = db.winkels_voor_platformcheck(hoeveel)
+    for begin in range(0, len(lijst), opschonen.PER_AANROEP):
+        rem = kosten.mag_doorgaan()
+        if not rem["mag"]:
+            verslag["gestopt_door"] = rem["reden"]
+            break
+        groep = lijst[begin:begin + opschonen.PER_AANROEP]
+        uitkomst = opschonen.merken_in(groep)
+        verslag["aanroepen"] += 1
+        if not uitkomst:
+            # Geen antwoord (geen sleutel, storing): niets vastleggen, dan
+            # komen ze de volgende nacht gewoon terug.
+            break
+        db.zet_soorten(uitkomst)
+        db.markeer_platform_gecheckt([w["webshop_url"] for w in groep])
+        verslag["nagekeken"] += len(groep)
+        verslag["platforms"] += sum(1 for s in uitkomst.values()
+                                    if s == opschonen.SOORT_PLATFORM)
+        verslag["merken"] += sum(1 for s in uitkomst.values()
+                                 if s == opschonen.SOORT_MERK)
+    return verslag
+
+
 def stap_herberekenen():
     """Elke bestaande ranglijst opnieuw uitrekenen uit de bewaarde antwoorden.
 
@@ -260,6 +306,11 @@ def ronde():
 
     _stand["stap"] = "opschonen"
     verslag["opschonen"] = stap_opschonen()
+
+    # Voor het herberekenen, zodat een platform dezelfde nacht nog uit de
+    # ranglijst valt.
+    _stand["stap"] = "platforms nakijken"
+    verslag["platformcheck"] = stap_platformcheck()
 
     # Gratis, en het moet na het opschonen: wat daar geleerd is over ketens en
     # merken hoort meteen in de bestaande ranglijsten te staan.

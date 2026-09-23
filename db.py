@@ -395,6 +395,11 @@ def init_db():
                             "ADD COLUMN IF NOT EXISTS hoort_bij TEXT;")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_benadering_soort "
                             "ON benadering (soort);")
+                # Stap 74 (23 september): wanneer een winkel is nagekeken op
+                # "platform". Die soort bestaat pas sinds vandaag, dus de hele
+                # bestaande lijst moet er een keer langs. Leeg = nog niet.
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS platform_gecheckt_op TIMESTAMPTZ;")
                 # ---------------------------------------------------------
                 # De categoriemeting. Dit is het hart van de nieuwe opzet:
                 # een koopvraag wordt EEN keer gesteld en scoort alle winkels
@@ -4962,6 +4967,110 @@ def zet_hoort_bij(webshop_url, hoofd_url):
     except Exception as e:
         print(f"Hoort_bij zetten mislukt voor {webshop_url}: {e}")
         return False
+    finally:
+        conn.close()
+
+
+def winkels_voor_platformcheck(hoeveel=100):
+    """Winkels die nog nooit zijn nagekeken op platform, de zichtbaarste eerst.
+
+    Zichtbaarst betekent: ze staan in een ranglijst met minstens een
+    vermelding. Een platform bovenin een openbare lijst is erger dan een
+    platform dat nergens genoemd wordt, dus die gaan voor."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT b.webshop_url, b.naam, b.land, b.branche,
+                           coalesce(max(u.genoemd), 0) AS genoemd
+                      FROM benadering b
+                 LEFT JOIN categorie_uitkomsten u ON u.webshop_url = b.webshop_url
+                     WHERE b.soort = 'winkel'
+                       AND b.platform_gecheckt_op IS NULL
+                       AND b.afgemeld = FALSE
+                  GROUP BY b.webshop_url, b.naam, b.land, b.branche
+                  ORDER BY coalesce(max(u.genoemd), 0) DESC, b.webshop_url
+                     LIMIT %s""", (hoeveel,))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Winkels voor de platformcheck ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def markeer_platform_gecheckt(urls):
+    """Zet vast dat deze winkels zijn nagekeken, zodat ze niet elke nacht
+    opnieuw geld kosten. Ook als het model twijfelde: dan blijft het winkel,
+    zoals het was, en dat is de veilige kant."""
+    if not urls:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET platform_gecheckt_op = now() "
+                            "WHERE webshop_url = ANY(%s)", (list(urls),))
+                return cur.rowcount
+    except Exception as e:
+        print(f"Platformcheck vastleggen mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def vul_namen_aan(per_url):
+    """Zet een naam bij winkels die er nog geen hebben, in EEN opdracht.
+
+    Overschrijft alleen een lege naam of een naam die eigenlijk een webadres
+    is. Een naam die er al stond kan met de hand gekozen zijn en blijft."""
+    if not per_url:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                execute_values(cur, """
+                    UPDATE benadering b SET naam = v.naam
+                      FROM (VALUES %s) AS v(webshop_url, naam)
+                     WHERE b.webshop_url = v.webshop_url
+                       AND (b.naam IS NULL OR b.naam = '' OR b.naam ILIKE 'http%%'
+                            OR b.naam = b.webshop_url)""",
+                    list(per_url.items()))
+                return cur.rowcount
+    except Exception as e:
+        print(f"Namen aanvullen mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def zet_landen(per_url):
+    """Zet het land van winkels recht, in EEN opdracht."""
+    if not per_url:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                execute_values(cur, """
+                    UPDATE benadering b SET land = v.land
+                      FROM (VALUES %s) AS v(webshop_url, land)
+                     WHERE b.webshop_url = v.webshop_url""",
+                    list(per_url.items()))
+                return cur.rowcount
+    except Exception as e:
+        print(f"Landen rechtzetten mislukt: {e}")
+        return 0
     finally:
         conn.close()
 
