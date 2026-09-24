@@ -5762,6 +5762,19 @@ def _shopify_scherm(winkel, rij):
     gegevens = _klantgegevens(webshop_url) if webshop_url else {}
     laatste = (db.get_rapporten_voor_webshop(webshop_url) or [None])[0] if webshop_url else None
 
+    # HET LAND ELKE KEER VERS (24 september). Het werd alleen bij het
+    # installeren opgehaald. Zette de winkelier daarna zijn adres op Nederland,
+    # dan bleef de app "we meten jouw markt nog niet" zeggen. Een aanroep bij
+    # Shopify per keer openen; mislukt die, dan geldt wat we al wisten.
+    if webshop_url and rij.get("toegangssleutel"):
+        try:
+            vers = shopify_app.winkelgegevens(winkel, _shopify_sleutel(rij)) or {}
+            if vers.get("land"):
+                db.zet_markt(scan_engine.normalize_url(webshop_url), vers.get("taal"),
+                             vers.get("land"))
+        except Exception as e:
+            print(f"Land van {winkel} verversen mislukt: {e}")
+
     markt = _markt_van(webshop_url) if webshop_url else None
     landcode = ((markt or {}).get("landcode") or "").upper()
     # De index meet Nederland en Belgie. Een winkel die op een ander land

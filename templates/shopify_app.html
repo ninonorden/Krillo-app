@@ -10,300 +10,255 @@
    dan werkt het scherm binnen het beheerscherm niet en word je afgekeurd. #}
 <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="{{ api_key }}"></script>
 {% include "_stijl.html" %}
-{% include "_dashboard_stijl.html" %}
+{% include "_site_blokken.html" %}
 <style>
-  /* ALLEEN WAT DE APP EXTRA HEEFT (24 september). Alles wat ook op het
-     dashboard van de site staat (zijkant, werkblad, cijferkaarten, verloop,
-     vragen) komt uit _stijl.html en _dashboard_stijl.html: dezelfde UI, uit
-     hetzelfde bestand. Hieronder alleen de onderdelen die de site niet heeft:
-     voorstellen aanvinken, terugzetten, prijzen, vragen. In de tokens van de
-     site, zodat het er niet naast staat. */
+  /* ALLEEN WAT DE APP EXTRA HEEFT (24 september). De rest (hero, indexkaart,
+     sectiekop, ranglijsttabel, genummerde vakken) komt uit _site_blokken.html:
+     letterlijk de bouwstenen van de homepage. */
   body{background:#fff;}
-  .werkblad h2{font-family:var(--disp); font-weight:700; font-size:24px;
-               letter-spacing:-0.035em; margin:0 0 4px;}
-  .onder{color:var(--ink-zacht); font-size:14.5px; margin:0 0 14px;}
-  .onder:last-child{margin-bottom:0;}
-  .label{font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
-         color:var(--ink-grijs); margin-bottom:10px; text-transform:uppercase;}
-  .kaart{background:#fff; border:1px solid var(--lijn); border-radius:10px;
-         padding:24px 26px;}
+  header.hero{padding:44px 0 8px;}
+  h1{font-size:58px;}
+  @media(max-width:900px){ h1{font-size:40px;} .hero-grid{grid-template-columns:1fr !important;} }
+  .vlak{padding-top:64px;}
+  .heroknoppen{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+  .heroknop{display:inline-flex; align-items:center; height:52px; padding:0 26px;
+            border-radius:7px; background:var(--coral); color:#fff; font-weight:600;
+            font-size:15px; text-decoration:none; border:1.5px solid var(--coral);}
+  .heroknop:hover{background:var(--coral-tekst); border-color:var(--coral-tekst);}
+  .heroknop.leeg{background:#fff; color:var(--ink); border-color:#D8D8DE;}
+  .heroknop.leeg:hover{border-color:var(--ink);}
+  .jijrij{background:#FFF4C2;}
+  .jijlabel{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em;
+            background:var(--ink); color:#fff; padding:2px 7px; border-radius:4px; margin-left:6px;}
+  .vraagregel{padding:18px 24px; border-bottom:1px solid var(--line-licht);}
+  .vraagregel:last-child{border-bottom:none;}
+  .vraagregel .vraag{font-size:16px; font-weight:500; margin-bottom:6px;}
+  .vraagregel .wie{font-size:14.5px; color:var(--ink-soft);}
+  .vraagregel .wie strong{color:var(--ink); font-weight:600;}
+  .vraagregel .pf{font-family:var(--mono); font-size:12px; color:var(--ink-grijs);}
+  .wie.dicht{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .slotbalk{display:inline-block; width:110px; height:12px; border-radius:6px; background:#ECECF0;}
+  .slotbalk.kort{width:70px;}
+  .slotlink{font-family:var(--mono); font-size:12px; color:var(--coral); text-decoration:none; margin-left:4px;}
+  .slotlink::before{content:"🔒 ";}
+  .slotvak{display:flex; justify-content:space-between; align-items:center; gap:18px;
+           flex-wrap:wrap; background:var(--ink); color:#fff; padding:24px;}
+  .slotvak .titel{font-family:var(--disp); font-weight:700; font-size:22px; letter-spacing:-0.03em;}
+  .slotvak p{color:#C6C6CE; font-size:14.5px; margin:4px 0 0; max-width:540px;}
+
+  /* De onderdelen hieronder (werk, plannen, vragen) als secties van de site. */
+  .appblok{padding-top:64px; display:flex; flex-direction:column; gap:16px;}
+  .appblok > h2{font-family:var(--disp); font-weight:700; font-size:38px; line-height:1.05;
+                letter-spacing:-0.035em; margin:0; color:var(--ink);}
+  .appblok > .onder{font-size:17px; color:var(--ink-soft); margin:-8px 0 4px;}
+  .onder{color:var(--ink-soft); font-size:15px; margin:0 0 14px;}
+  .label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.12em; color:var(--ink-grijs);
+         margin-bottom:10px; text-transform:uppercase;}
+  .kaart{border:1px solid var(--line); border-radius:10px; padding:26px 28px; background:#fff;}
   .kaart + .kaart{margin-top:14px;}
-  .kaart-kop{padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid var(--lijn-licht);}
-  /* Eigen naam: .blok bestaat al in _stijl.html (omlijnd vak van de homepage). */
-  .appblok{display:flex; flex-direction:column; gap:14px;}
-  .appblok > h2 + .onder{margin-bottom:0;}
-  .appblok > h2{color:var(--ink);}
+  .kaart-kop{padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid var(--line-licht);}
+  .kaart-kop h2{font-family:var(--disp); font-weight:700; font-size:22px; letter-spacing:-0.03em;}
+  .werkvlak{border:1.5px solid var(--ink); border-radius:10px; padding:30px 32px;}
+  .werkvlak .titel{font-family:var(--disp); font-weight:700; font-size:26px; letter-spacing:-0.035em; margin-bottom:8px;}
+  .werkvlak p{font-size:15.5px; color:var(--ink-soft);}
+  .werkvlak .stempel{font-family:var(--mono); font-size:11px; letter-spacing:0.1em; color:var(--ink-grijs);}
+  .werkvlak .kopregel{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap;}
 
-  button{font-family:var(--body); font-size:15px; font-weight:600; padding:12px 22px;
-         border:none; border-radius:8px; background:var(--vermiljoen); color:#fff;
-         cursor:pointer; line-height:1.3;}
-  button:hover:not(:disabled){background:var(--vermiljoen-tekst);}
+  button{font-family:var(--body); font-size:15px; font-weight:600; height:48px; padding:0 24px;
+         border:none; border-radius:7px; background:var(--coral); color:#fff; cursor:pointer;}
+  button:hover:not(:disabled){background:var(--coral-tekst);}
   button:disabled{opacity:0.55; cursor:default;}
-  button.rustig{background:transparent; color:var(--ink); border:1.5px solid var(--lijn);}
-  button.rustig:hover:not(:disabled){background:var(--zand); border-color:var(--ink-grijs);}
-  button.klein{font-size:13.5px; padding:7px 13px;}
+  button.rustig{background:#fff; color:var(--ink); border:1.5px solid #D8D8DE;}
+  button.rustig:hover:not(:disabled){background:#fff; border-color:var(--ink);}
+  button.klein{height:auto; font-size:13.5px; padding:7px 13px;}
   .knoprij{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
-  .werkvlak button{margin-top:6px;}
-
-  .bezig{background:var(--zand); border:1px solid var(--lijn); color:var(--ink);
-         border-radius:10px; padding:12px 16px; font-size:14.5px;}
-  .misgegaan{background:#FFE9E5; color:#B3261E; border-radius:10px; padding:12px 16px;
-             font-size:14.5px;}
+  .bezig{background:var(--zand); border:1px solid var(--line); border-radius:10px; padding:12px 16px; font-size:14.5px; margin-top:24px;}
+  .misgegaan{background:#FFE9E5; color:#B3261E; border-radius:10px; padding:12px 16px; font-size:14.5px;}
   .gelukt-melding{background:var(--groen-dim); color:var(--groen); border:none;}
-
-  .stappen{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
-  @media(max-width:900px){ .stappen{grid-template-columns:1fr;} }
-  .stap{background:#fff; border:1px solid var(--lijn); border-radius:10px; padding:22px 24px;}
-  .stap-num{font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
-            color:var(--vermiljoen); display:block; margin-bottom:10px;}
-  .stap h3{font-family:var(--disp); font-size:18px; font-weight:700;
-           letter-spacing:-0.03em; margin-bottom:6px;}
-  .stap p{font-size:14.5px; color:var(--ink-zacht); margin:0;}
 
   .prijzen{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
   @media(max-width:900px){ .prijzen{grid-template-columns:1fr;} }
-  .prijs{background:#fff; border:1px solid var(--lijn); border-radius:10px;
-         padding:24px 26px; display:flex; flex-direction:column;}
-  #planfix{border:1.5px solid var(--vermiljoen);}
-  .prijs .naam{font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
-               text-transform:uppercase; color:var(--ink-grijs); display:flex;
-               align-items:center; gap:8px;}
-  .prijs .bedrag{font-family:var(--disp); font-size:48px; font-weight:700;
-                 letter-spacing:-0.04em; line-height:1; margin:12px 0 10px;}
-  .prijs .bedrag small{font-size:16px; color:var(--ink-zacht); font-weight:500; letter-spacing:0;}
-  .prijs ul{list-style:none; font-size:14.5px; color:var(--ink-zacht); line-height:1.5;
-            display:flex; flex-direction:column; gap:8px; margin:6px 0 16px;}
+  .prijs{border:1px solid var(--line); border-radius:10px; padding:28px; display:flex; flex-direction:column; background:#fff;}
+  #planfix{border:1.5px solid var(--ink);}
+  .prijs .naam{font-family:var(--disp); font-weight:700; font-size:20px; letter-spacing:-0.03em; display:flex; align-items:center; gap:8px;}
+  .prijs .bedrag{font-family:var(--disp); font-size:46px; font-weight:700; letter-spacing:-0.04em; line-height:1; margin:14px 0 10px;}
+  .prijs .bedrag small{font-size:15px; color:var(--ink-soft); font-weight:500; letter-spacing:0;}
+  .prijs ul{list-style:none; font-size:14.5px; color:var(--ink-soft); line-height:1.5; display:flex; flex-direction:column; gap:9px; margin:8px 0 18px;}
   .prijs li{padding-left:20px; position:relative;}
-  .prijs li::before{content:"✓"; position:absolute; left:0; color:var(--groen); font-weight:700;}
-  .prijs .voet{margin-top:auto;}
-  .nulabel{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em;
-           background:var(--groen-dim); color:var(--groen); padding:3px 8px; border-radius:4px;}
+  .prijs li::before{content:"✓"; position:absolute; left:0; color:var(--teal); font-weight:700;}
+  .prijs .voet{margin-top:auto; padding:0;}
+  .zes .zeskaart{border-bottom:none;}
+  .nulabel{font-family:var(--mono); font-size:10px; font-weight:400; letter-spacing:0.08em; background:var(--groen-dim); color:var(--groen); padding:3px 8px; border-radius:4px;}
 
-  .taak-titel{font-family:var(--disp); font-size:18px; font-weight:700;
-              letter-spacing:-0.03em; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .taak-titel{font-family:var(--disp); font-size:19px; font-weight:700; letter-spacing:-0.03em; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .merkje{font-family:var(--mono); font-size:10.5px; padding:3px 8px; border-radius:4px;}
   .merkje.feit{color:var(--groen); background:var(--groen-dim);}
   .merkje.vermoeden{color:var(--ink-grijs); background:var(--zand);}
-  .plak{position:relative; background:var(--zand); border:1px solid var(--lijn);
-        border-radius:8px; padding:12px 14px; font-family:var(--mono); font-size:12.5px;
-        line-height:1.6; white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto;}
-  .kopieer{position:absolute; top:8px; right:8px; font-size:12px; padding:4px 10px;
-           background:#fff; color:var(--ink); border:1px solid var(--lijn);}
+  .plak{position:relative; background:var(--zand); border:1px solid var(--line); border-radius:8px; padding:12px 14px; font-family:var(--mono); font-size:12.5px; line-height:1.6; white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto;}
+  .kopieer{position:absolute; top:8px; right:8px; height:auto; font-size:12px; padding:4px 10px; background:#fff; color:var(--ink); border:1px solid var(--line);}
   .kopieer.gelukt{background:var(--groen-dim); color:var(--groen);}
-  .waar{font-size:14.5px; line-height:1.6; white-space:pre-line; color:var(--ink-zacht);}
+  .waar{font-size:14.5px; line-height:1.6; white-space:pre-line; color:var(--ink-soft);}
 
-  .voorstel{display:flex; gap:12px; align-items:flex-start; padding:16px 0;
-            border-bottom:1px solid var(--lijn-licht); cursor:pointer;}
+  .voorstel{display:flex; gap:12px; align-items:flex-start; padding:16px 0; border-bottom:1px solid var(--line-licht); cursor:pointer;}
   .voorstel:last-child{border-bottom:none;}
-  .voorstel input{margin-top:4px; width:16px; height:16px; accent-color:var(--vermiljoen); flex-shrink:0;}
+  .voorstel input{margin-top:4px; width:16px; height:16px; accent-color:var(--coral); flex-shrink:0;}
   .voorstel .waarheen{font-size:16px; font-weight:600;}
-  .voorstel .soort{font-family:var(--mono); font-size:11px; letter-spacing:0.08em;
-                   text-transform:uppercase; color:var(--ink-grijs); margin-top:3px;}
-  .voorstel .nieuw{font-size:14.5px; color:var(--ink-zacht); margin-top:6px;}
+  .voorstel .soort{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-grijs); margin-top:3px;}
+  .voorstel .nieuw{font-size:14.5px; color:var(--ink-soft); margin-top:6px;}
   .voorstel .oud{font-size:13.5px; color:var(--ink-grijs); text-decoration:line-through; margin-top:4px;}
   #wijzigingen.ingeklapt > .voorstel:nth-child(n+4){display:none;}
-  /* Wat op slot staat: grijze balkjes waar de namen zouden staan. De namen
-     zelf zitten niet in de pagina. */
-  .wie.dicht{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
-  .slotbalk{display:inline-block; width:110px; height:12px; border-radius:6px;
-            background:linear-gradient(90deg,#ECECF0,#F4F4F7,#ECECF0);}
-  .slotbalk.kort{width:70px;}
-  .slotlink{font-family:var(--mono); font-size:12px; letter-spacing:0.04em;
-            color:var(--vermiljoen); text-decoration:none; margin-left:4px;}
-  .slotlink::before{content:"🔒 ";}
-  .slotvak{display:flex; justify-content:space-between; align-items:center; gap:18px;
-           flex-wrap:wrap; background:var(--ink); color:#fff; padding:22px 26px;}
-  .slotvak .titel{font-family:var(--disp); font-weight:700; font-size:20px; letter-spacing:-0.03em;}
-  .slotvak p{color:#C9C7D1; font-size:14.5px; margin:4px 0 0; max-width:520px;}
 
-  details{background:#fff; border:1px solid var(--lijn); border-radius:10px; padding:16px 22px;}
-  details + details{margin-top:8px;}
-  summary{font-size:16px; font-weight:500; cursor:pointer; list-style:none;
-          display:flex; gap:10px; align-items:baseline;}
+  details{border:1px solid var(--line); border-radius:10px; padding:18px 24px; background:#fff;}
+  details + details{margin-top:-8px;}
+  summary{font-size:16px; font-weight:500; cursor:pointer; list-style:none; display:flex; gap:10px; align-items:baseline;}
   summary::-webkit-details-marker{display:none;}
-  summary::before{content:"+"; font-family:var(--mono); color:var(--vermiljoen);}
+  summary::before{content:"+"; font-family:var(--mono); color:var(--coral);}
   details[open] summary::before{content:"–";}
-  details .inhoud{font-size:14.5px; color:var(--ink-zacht); line-height:1.6; margin-top:10px;}
-  .voet{font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs); line-height:1.7;}
+  details .inhoud{font-size:15px; color:var(--ink-soft); line-height:1.6; margin-top:10px;}
+  .voet{font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs); line-height:1.7; padding:40px 0 60px;}
   .voet a{color:var(--ink-grijs);}
 </style>
 </head>
 <body>
-<div class="scherm">
+{# SINDS 24 SEPTEMBER (tweede ronde): de opbouw van de HOMEPAGE, niet van het
+   dashboard. Een grote kop met je positie en rechts het omlijnde kaartje, dan
+   de ranglijst als tabel, dan de vragen die je verliest, dan het werk. Geen
+   eigen zijkant: Shopify heeft er zelf al een. #}
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">Krillo index &middot; {{ winkelnaam | replace('https://','') | replace('www.','') }}</div>
+      {% if beeld %}
+      <h1><em>#{{ beeld.positie }}</em> of {{ beeld.van }} in {{ categorienaam }}.</h1>
+      <p class="hero-sub">That is your place when shoppers in {{ landnaam }} ask ChatGPT and Gemini
+        where to buy. AI named you in {{ beeld.genoemd }} of {{ beeld.telbaar }} buying questions
+        and really recommended you in {{ beeld.aanbevolen }}.</p>
+      {% elif in_markt %}
+      <h1>Your rank is <em>on its way.</em></h1>
+      <p class="hero-sub">We have added your store to the Krillo index. At the next measurement
+        of your category you get the same thirty buying questions as every other store in it,
+        and your place appears here. Meanwhile, get your first fixes for free.</p>
+      {% else %}
+      <h1>We do not measure <em>your market</em> yet.</h1>
+      <p class="hero-sub">The Krillo index measures stores selling in the Netherlands and
+        Belgium{% if markt %}, and your store is set to {{ markt.landcode }}{% endif %}. The fixes
+        below work in any market: they make your store easier for AI to read.</p>
+      {% endif %}
+      <div class="heroknoppen">
+        <a class="heroknop" href="#werk">Get my free fixes</a>
+        {% if beeld %}<a class="heroknop leeg" href="{{ basis_url }}/index/{{ beeld.land }}/{{ beeld.categorie }}#p{{ beeld.positie }}" target="_blank" rel="noopener">See the full ranking</a>{% endif %}
+      </div>
+      <div class="hero-note">First {{ gratis_totaal }} changes free &middot; you see every change first &middot; one click to undo</div>
+    </div>
 
-  {# DEZELFDE ZIJKANT ALS HET DASHBOARD OP DE SITE (24 september). #}
-  <div class="zijkant">
-    <a class="logo" href="{{ basis_url }}" target="_blank" rel="noopener">KRILLO <span class="tag">INDEX</span></a>
-    <div class="winkelkaart">
-      <div class="naam">{{ winkelnaam | replace('https://','') | replace('www.','') }}</div>
-      {% if categorienaam %}<div class="bij">{{ categorienaam }}</div>{% endif %}
-      <div class="markten"><span class="markt">{{ (beeld.land if beeld else (markt.landcode if markt else '')) | upper }}</span></div>
+    {% set k = beeld or voorbeeld %}
+    {% if k %}
+    <div class="indexkaart">
+      <div class="kop">{% if beeld %}YOUR STORE TODAY{% else %}EXAMPLE &middot; {{ voorbeeld.winkelnaam | upper }}{% endif %}</div>
+      <div class="rij"><span class="naam">Position</span><span class="getal">#{{ k.positie }}<small style="font-size:14px; color:var(--ink-grijs); font-weight:500;"> / {{ k.van }}</small></span></div>
+      <div class="rij"><span class="naam">Named by AI</span><span class="getal">{{ k.genoemd }}<small style="font-size:14px; color:var(--ink-grijs); font-weight:500;"> / {{ k.telbaar }}</small></span></div>
+      <div class="rij"><span class="naam">Really recommended</span><span class="getal">{{ k.aanbevolen }}</span></div>
+      <div class="rij"><span class="naam">Since last month</span><span class="getal">{% if k.verschil %}{{ '+' if k.verschil > 0 else '' }}{{ k.verschil }}{% else %}<span style="font-size:15px; font-weight:500;">first measurement</span>{% endif %}</span></div>
+      <div class="landen">{% if k.gemeten_op %}MEASURED <strong>{{ k.gemeten_op.strftime('%d %b %Y') | upper }}</strong><br>{% endif %}CHATGPT AND GEMINI &middot; EVERY MONTH</div>
     </div>
-    <div class="zijmenu">
-      <a class="aan" href="#overzicht">Overview</a>
-      {% if beeld %}<a href="#vragen">Questions I lose</a>{% endif %}
-      <a href="#werk">Fixes</a>
-      <a href="#plannen">Plans</a>
-      <a href="#faq">Questions</a>
-      <a href="{{ basis_url }}/index{% if beeld %}/{{ beeld.land }}/{{ beeld.categorie }}{% endif %}" target="_blank" rel="noopener">Public index</a>
-    </div>
-    <div style="flex-grow:1;"></div>
-    <div class="zijvoet">MEASURED EVERY MONTH<br>
-      {% if beeld and beeld.gemeten_op %}<span>MEASURED {{ beeld.gemeten_op.strftime('%d %b %Y') | upper }}</span>{% endif %}</div>
+    {% endif %}
   </div>
+</header>
 
-  <div class="werkblad" id="overzicht">
+<main class="wrap">
 
   <div id="bezigblok" style="display:none;" class="bezig">
     <div id="bezigtekst">Starting…</div>
     <div id="bezigklok" style="opacity:.75; margin-top:3px;"></div>
   </div>
-  <div id="foutblok" style="display:none;" class="misgegaan"><span id="fouttekst"></span></div>
+  <div id="foutblok" style="display:none; margin-top:24px;" class="misgegaan"><span id="fouttekst"></span></div>
 
-  {# Het beeld, in PRECIES de opmaak van templates/dashboard.html. Twee keer te
-     gebruiken: voor de winkel zelf en als voorbeeld met een echte winkel. #}
-  {% macro beeldblok(b, naam, cat, land, staven, basis) %}
-    <div class="werkkop">
-      <h1>{{ naam }}</h1>
-      <div class="regel">
-        {% if b.gemeten_op %}MEASURED {{ b.gemeten_op.strftime('%d %b %Y') | upper }} &middot; {% endif %}
-        {{ b.telbaar }} BUYING QUESTIONS &middot; CHATGPT AND GEMINI &middot; {{ land | upper }}
+  {# De ranglijst en de verloren vragen. Voor de eigen winkel, of als duidelijk
+     gemarkeerd voorbeeld met een echte winkel ("123led.nl") zodat niemand
+     denkt dat het over hem gaat. #}
+  {% macro ranglijst(b, naam, cat, land, basis, eigen) %}
+  <section class="vlak">
+    <div class="sectiekop">
+      <div>
+        <h2>{% if eigen %}Your ranking{% else %}What your ranking will look like{% endif %}</h2>
+        <p>{% if eigen %}{{ cat }} &middot; {{ land }} &middot; the stores just ahead of you.{% else %}An example: {{ naam }} in {{ cat }}, {{ land }}. Real store, real numbers.{% endif %}</p>
+      </div>
+      <a class="meer" href="{{ basis }}/index/{{ b.land }}/{{ b.categorie }}#p{{ b.positie }}" target="_blank" rel="noopener">Open the full ranking &rarr;</a>
+    </div>
+    <div class="idx-kaart">
+      <div class="idx-kop"><strong>{{ cat }} &middot; {{ land }}</strong><span>{{ b.telbaar }} BUYING QUESTIONS &middot; ACTUALLY MEASURED</span></div>
+      <div class="idx-rij idx-hoofd"><span class="p">#</span><span class="w">STORE</span><span class="g">NAMED</span><span class="a">RECOMMENDED</span></div>
+      {% for r in b.boven_mij %}
+      <div class="idx-rij"><span class="p">{{ r.positie }}</span>
+        <span class="w">{{ r.naam if (r.naam and not r.naam.startswith('http')) else (r.webshop_url | replace('https://','') | replace('www.','')) }}</span>
+        <span class="g">{{ r.genoemd }} / {{ b.telbaar }}</span><span class="a">{{ r.aanbevolen if r.aanbevolen is not none else '' }}</span></div>
+      {% endfor %}
+      <div class="idx-rij jijrij"><span class="p">{{ b.positie }}</span>
+        <span class="w">{{ naam }}{% if eigen %} <span class="jijlabel">YOU</span>{% endif %}</span>
+        <span class="g">{{ b.genoemd }} / {{ b.telbaar }}</span><span class="a">{{ b.aanbevolen }}</span></div>
+      <div class="idx-voet"><span>Named means you were in the answer. Recommended means the assistant advised you.</span>
+        <a href="{{ basis }}/index/{{ b.land }}/{{ b.categorie }}#p{{ b.positie }}" target="_blank" rel="noopener">Open this ranking &rarr;</a></div>
+    </div>
+  </section>
+
+  {% if b.gemiste_vragen %}
+  <section class="vlak" id="vragen">
+    <div class="sectiekop">
+      <div>
+        <h2>{% if eigen %}The questions you lose{% else %}The questions {{ naam }} loses{% endif %}</h2>
+        <p>The real question a shopper asks, in the language of the market, and who AI named instead.</p>
       </div>
     </div>
-    <div class="paneel">
-      <div class="cijfer">
-        <div class="label">YOUR POSITION</div>
-        <div class="rij"><span class="groot">{{ b.positie }}</span>
-          <span class="naast">of the {{ b.van }} stores we measure</span></div>
-        {% if b.verschil and b.verschil > 0 %}<span class="merkje op">UP {{ b.verschil }}</span>
-        {% elif b.verschil and b.verschil < 0 %}<span class="merkje af">DOWN {{ -b.verschil }}</span>
-        {% elif b.vorige_positie %}<span class="merkje nieuw">NO CHANGE</span>
-        {% else %}<span class="merkje nieuw">FIRST MEASUREMENT</span>{% endif %}
-      </div>
-      <div class="cijfer">
-        <div class="label">NAMED</div>
-        <div class="rij"><span class="groot">{{ b.genoemd }}</span>
-          <span class="naast">of the {{ b.telbaar }} buying questions</span></div>
-        <div class="bij">{% if b.genoemd and not b.aanbevolen %}You were in the answer, but not in the advice.{% endif %}</div>
-      </div>
-      <div class="cijfer">
-        <div class="label">RECOMMENDED</div>
-        <div class="rij"><span class="groot">{{ b.aanbevolen }}</span>
-          <span class="naast">of the {{ b.telbaar }} buying questions</span></div>
-        <div class="bij">{% if b.aanbevolen == 0 %}This is where buyers are lost.{% endif %}</div>
-      </div>
-    </div>
-
-    {% if (staven and staven | length > 1) or b.boven_mij %}
-    <div class="kaartblok">
-      {% if staven and staven | length > 1 %}
-      <div class="kaartkop">POSITION OVER TIME</div>
-      <div class="staven">
-        {% for s in staven %}
-        <div class="staaf {% if loop.last %}nu{% endif %}">
-          <div class="bak"><div class="vulling" style="height:{{ s.hoogte }}px;"></div></div>
-          <div class="cijfertje">{{ s.positie }}</div>
-          <div class="datum">{% if s.datum %}{{ s.datum.strftime('%d %b') | upper }}{% endif %}</div>
-        </div>
-        {% endfor %}
-        <div style="flex-grow:2;"></div>
-      </div>
-      <p style="margin:16px 0 0; font-size:14px;">Lower is better.</p>
-      {% endif %}
-      {% if b.boven_mij %}
-      <div class="buren" {% if not (staven and staven | length > 1) %}style="margin-top:0; border-top:none; padding-top:0;"{% endif %}>
-        <div class="titel">WHO IS JUST ABOVE YOU</div>
-        {% for r in b.boven_mij %}
-        <div class="buurrij">
-          <span class="p">{{ r.positie }}</span>
-          <span class="merk" style="flex-grow:1;">{{ r.naam if (r.naam and not r.naam.startswith('http')) else (r.webshop_url | replace('https://','') | replace('http://','') | replace('www.','')) }}</span>
-          <span style="font-family:var(--mono); font-size:13px;">{{ r.genoemd }} / {{ b.telbaar }}</span>
-        </div>
-        {% endfor %}
-      </div>
-      {% endif %}
-      <div style="margin-top:18px;">
-        <a class="knop leeg" style="display:inline-block; padding:10px 18px; font-size:14.5px; line-height:1.3;" href="{{ basis }}/index/{{ b.land }}/{{ b.categorie }}#p{{ b.positie }}"
-           target="_blank" rel="noopener">See the full ranking</a>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if b.gemiste_vragen %}
-    <div class="vragenblok" id="vragen">
-      <div class="vragenkop">
-        <div class="titel">The questions you lose</div>
-        <div class="onder">The real question, in the language of the market, and who was named instead of you. Platforms are places to be listed on, not competitors.</div>
-      </div>
+    <div class="idx-kaart">
       {% for v in b.gemiste_vragen %}
-      <div class="vraagrij">
+      <div class="vraagregel">
         <div class="vraag">{{ v.vraag[:1] | upper }}{{ v.vraag[1:] }}</div>
         {% if v.slot %}
-        <div class="wie dicht">Named instead of you: <span class="slotbalk"></span><span class="slotbalk kort"></span>
+        <div class="wie dicht">Named instead: <span class="slotbalk"></span><span class="slotbalk kort"></span>
           <a href="#plannen" class="slotlink">Unlock with Watch</a></div>
         {% else %}
-        <div class="wie">Named instead of you:
+        <div class="wie">Named instead{% if not eigen %} of {{ naam }}{% endif %}:
           {% for c in v.concurrenten %}<strong>{{ c }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}
           {% if not v.concurrenten %}<span style="color:var(--ink-grijs);">no store at all</span>{% endif %}
-          {% if v.platforms %}<span style="font-family:var(--mono); font-size:12px; color:var(--ink-grijs);"> &middot; PLATFORMS: {{ v.platforms | join(', ') | upper }}</span>{% endif %}
+          {% if v.platforms %}<span class="pf"> &middot; PLATFORMS: {{ v.platforms | join(', ') | upper }}</span>{% endif %}
         </div>
         {% endif %}
       </div>
       {% endfor %}
-      {% if slot %}
-      {# Het moment waarop iemand de waarde al ziet: hier de vraag om Watch. #}
+      {% if eigen and slot %}
       <div class="slotvak">
         <div>
           <div class="titel">See who beat you on {{ slot }} more question{{ 's' if slot != 1 }}</div>
           <p>Watch shows who AI named instead of you on every question, with the real answer,
             and your rank every month. {% if proef_over %}Free for {{ proefdagen }} days, then ${{ plannen.watch.prijs | int }} a month.{% else %}${{ plannen.watch.prijs | int }} a month, cancel any time.{% endif %}</p>
         </div>
-        <a class="knop vol" href="#plannen">{% if proef_over %}Try Watch free{% else %}Start Watch{% endif %}</a>
+        <a class="heroknop" href="#plannen">{% if proef_over %}Try Watch free{% else %}Start Watch{% endif %}</a>
       </div>
       {% endif %}
     </div>
-    {% endif %}
+  </section>
+  {% endif %}
   {% endmacro %}
 
   {% if beeld %}
-    {{ beeldblok(beeld, winkelnaam | replace('https://','') | replace('www.',''), categorienaam, landnaam, staven, basis_url) }}
-  {% else %}
-    <div class="werkkop"><h1>{{ winkelnaam | replace('https://','') | replace('www.','') }}</h1></div>
-    <div class="kaartblok">
-      <div class="kaartkop">YOUR POSITION</div>
-      {% if in_markt %}
-      <p style="margin:0 0 8px; font-size:15px;"><strong>Your rank is on its way.</strong>
-        We have added your store to the Krillo index{% if categorienaam %}, in {{ categorienaam }}{% endif %}.
-        Tonight we place it in its category; at the next measurement of that category you get the
-        same thirty buying questions as every other store in it. Then your position appears here.
-        For a category we do not measure yet, that can take a few days.</p>
-      {% else %}
-      <p style="margin:0; font-size:15px;"><strong>We do not measure your market yet.</strong>
-        The Krillo index measures stores selling in the Netherlands and Belgium{% if markt %}, and your
-        store is set to {{ markt.landcode }}{% endif %}. The fixes below work in any market: they make your
-        store easier for AI to read.</p>
-      {% endif %}
-    </div>
-    {% if voorbeeld %}
-    <div class="voorbeeldbalk">
-      <strong>This is an example.</strong>
-      A real store from the index, with real measured numbers.
-      {% if in_markt %}This is what your screen shows once your category is measured.{% else %}This is what stores in the Netherlands and Belgium see.{% endif %}
-    </div>
-    {{ beeldblok(voorbeeld, voorbeeld.winkelnaam, voorbeeld.categorienaam, voorbeeld.landnaam, voorbeeld_staven, basis_url) }}
-    {% endif %}
+    {{ ranglijst(beeld, winkelnaam | replace('https://','') | replace('www.',''), categorienaam, landnaam, basis_url, True) }}
+  {% elif voorbeeld %}
+    {{ ranglijst(voorbeeld, voorbeeld.winkelnaam, voorbeeld.categorienaam, voorbeeld.landnaam, basis_url, False) }}
   {% endif %}
 
   <div class="appblok" id="werk">
+    <h2>Everyone else reports. We fix.</h2>
+    <p class="onder">We write the missing text and put it in your store. You see every change first.</p>
     <div class="werkvlak">
       <div class="kopregel">
-        <div class="titel">We do the work, not you</div>
-        <span class="stempel">WRITTEN FOR YOU &middot; YOU SEE IT FIRST &middot; ONE CLICK TO UNDO</span>
+        <div class="titel">Check your store</div>
+        <span class="stempel">FIRST {{ gratis_totaal }} CHANGES FREE &middot; ONE CLICK TO UNDO</span>
       </div>
       <p>Three kinds of thing, and only where they are missing: descriptions on images that have
         none, product descriptions that are missing or very short (under 180 characters), and a
         page with frequently asked questions if you do not have one. We keep the old text of every
         change, so it can always be put back.</p>
-      <p><strong style="color:#fff;">The first {{ gratis_totaal }} changes are free.</strong> Not a demo:
+      <p><strong style="color:var(--ink);">The first {{ gratis_totaal }} changes are free.</strong> Not a demo:
         they go into your store for real, and they stay there whatever you decide next.</p>
       <button id="nakijkknop">Check my store</button>
     </div>
@@ -339,26 +294,16 @@
   <div class="appblok">
   <h2>How it works</h2>
   <p class="onder">Three steps. The measuring is ours; you decide what goes live.</p>
-  <div class="stappen">
-    <div class="stap">
-      <span class="stap-num">01</span>
-      <h3>We measure your category</h3>
-          <p>Every month we put thirty buying questions to ChatGPT and Gemini, the way a
-          shopper in your category would type them, for every store in that category at once.</p>
-    </div>
-    <div class="stap">
-      <span class="stap-num">02</span>
-      <h3>You see your rank</h3>
-          <p>Your place in the public ranking, which questions you miss, and which stores
-          AI named instead of you. With the real answer behind every number.</p>
-    </div>
-    <div class="stap">
-      <span class="stap-num">03</span>
-      <h3>We fix what holds you back</h3>
-          <p>We write the missing text and put it in your store, after you see it. The
+  <div class="zes">
+    <div class="zeskaart"><div class="nr">01</div><h3>We measure your category</h3><p>Every month we put thirty buying questions to ChatGPT and Gemini, the way a
+          shopper in your category would type them, for every store in that category at once.</p></div>
+    <div class="zeskaart"><div class="nr">02</div><h3>You see your rank</h3><p>Your place in the public ranking, which questions you miss, and which stores
+          AI named instead of you. With the real answer behind every number.</p></div>
+    <div class="zeskaart donker"><div class="nr">03</div><h3>We fix what holds you back</h3><p>We write the missing text and put it in your store, after you see it. The
           first {{ gratis_totaal }} changes are free; with Fix we keep doing it, and pick
-          up new products every week.</p>
-    </div>
+          up new products every week.</p></div>
+  </div>
+  </div>
   </div>
   </div>
 
@@ -562,8 +507,7 @@ and you can switch it off.
     Questions? <a href="mailto:hello@krilloai.com">hello@krilloai.com</a> ·
     <a href="{{ basis_url }}/privacybeleid" target="_blank" rel="noopener">Privacy</a>
   </div>
-  </div>
-</div>
+</main>
 
 <script>
 (function(){
