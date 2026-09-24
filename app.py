@@ -56,6 +56,7 @@ import categorieen
 import categoriemeting
 import vraaglanden
 import checktaal
+import vraagkeuze
 import klantbeeld
 import klantwerk
 import meldingen
@@ -2897,7 +2898,7 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
         # index, uit dezelfde maandmeting als de openbare ranglijst. Hiervoor
         # ging hij over een eigen meting van de winkel. Geen positie, geen
         # mail: dan komt hij vanzelf terug zodra zijn categorie gemeten is.
-        beeld = klantbeeld.bouw(webshop_url, land=(land or "").lower() or None)
+        beeld = klantbeeld.bouw(webshop_url, land=(land or "").lower() or None, max_vragen=20)
         if not beeld or (beeld.get("telbaar") or 0) < MINIMUM_VRAGEN_VOOR_POST:
             return False, ("GEEN_POSITIE: deze winkel staat (nog) niet in een ranglijst. "
                            "Hij komt vanzelf terug zodra zijn categorie gemeten is.")
@@ -2907,6 +2908,11 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
         if not beeld.get("land") or (beeld.get("van") or 0) < MINIMUM_PER_LAND:
             return False, ("GEEN_POSITIE: zijn land is onbekend of zijn landlijst is te kort "
                            "voor een openbare pagina.")
+        # Alleen een voorbeeldvraag die past bij wat DEZE winkel verkoopt (24
+        # september, keekabuu.com kreeg een vraag over kinderwagens). Past er
+        # geen, dan gaat de mail zonder voorbeeldvraag: zijn plek klopt wel.
+        beeld["gemiste_vragen"] = vraagkeuze.passende_vragen(
+            webshop_url, beeld.get("gemiste_vragen"))
         basis = get_base_url().rstrip("/")
         # Welke versie van de mail (stap 56). Vast per winkel; een proefmail
         # mag er een kiezen, zodat je beide versies kunt bekijken.
