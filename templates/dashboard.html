@@ -223,14 +223,17 @@
         </div>
         <span class="stempel">
           {{ 'VOOR JOU GESCHREVEN' if taal == 'nl' else 'WRITTEN FOR YOU' }} &middot;
-          {{ 'JIJ DRUKT OP AKKOORD' if taal == 'nl' else 'YOU PRESS APPROVE' }}</span>
+          {{ 'WIJ DOEN HET WERK' if taal == 'nl' else 'WE DO THE WORK' }}</span>
       </div>
       <p>
-        {% if taal == 'nl' %}De oplossingen voor de vragen hierboven schrijven wij. Na
-        jouw goedkeuring zetten we ze in je winkel, de oude tekst blijft bewaard, en
-        vier weken later meten we opnieuw.
-        {% else %}We write the fixes for the questions above. After your approval we put
-        them in your store, the old text is kept, and four weeks later we measure again.{% endif %}
+        {% if taal == 'nl' %}De oplossingen voor de vragen hierboven schrijven wij, en met
+        Fix zetten we ze ook in je winkel: op Shopify via onze app, op andere platformen
+        met de hand zodra je ons toegang geeft. De oude tekst blijft bewaard, en bij de
+        volgende maandmeting zie je het verschil.
+        {% else %}We write the fixes for the questions above, and with Fix we also make
+        them in your store: on Shopify through our app, on other platforms by hand once you
+        give us access. The old text is kept, and at the next monthly measurement you see
+        the difference.{% endif %}
       </p>
       <a class="knop vol" href="/#prijzen">
         {{ 'Bekijk wat Fix kost' if taal == 'nl' else 'See what Fix costs' }}</a>

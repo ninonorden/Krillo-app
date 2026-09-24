@@ -53,12 +53,20 @@ import scan_engine
 STANDAARD_PER_DAG = int(os.environ.get("MAIL_PER_DAG", "25"))
 STANDAARD_PER_RONDE = int(os.environ.get("MAIL_PER_RONDE", "4"))
 STANDAARD_ADRESSEN_PER_RONDE = int(os.environ.get("ADRESSEN_PER_RONDE", "25"))
-STANDAARD_METINGEN_PER_RONDE = int(os.environ.get("METINGEN_PER_RONDE", "8"))
+# 0 sinds 24 september: de mail gaat over de plek in de INDEX (stap 56), dus
+# een eigen meting per winkel kost alleen nog geld.
+STANDAARD_METINGEN_PER_RONDE = int(os.environ.get("METINGEN_PER_RONDE", "0"))
 
 # Waar wij naartoe willen, en hoe snel. Zet OPBOUW_AAN op "nee" om het volume
 # handmatig te blijven zetten.
 OPBOUW_AAN = os.environ.get("OPBOUW_AAN", "ja").strip().lower() not in ("nee", "no", "0", "uit")
-OPBOUW_DOEL = int(os.environ.get("OPBOUW_DOEL", "100"))
+# Tot waar de opbouw vanzelf gaat. 40 per dag (24 september, was 100): een
+# jong domein dat binnen een week van vijf naar honderd koude mails gaat, ziet
+# er voor Gmail uit als een gekaapt domein. Hoger kan altijd met de hand.
+OPBOUW_DOEL = int(os.environ.get("OPBOUW_DOEL", "40"))
+# Hoeveel dagen tussen twee verhogingen. Was een dag; nu een week, zoals het
+# schema op de beheerpagina altijd al zei.
+OPBOUW_DAGEN = int(os.environ.get("OPBOUW_DAGEN", "7"))
 OPBOUW_SLEUTEL = "benadering_volume_verhoogd_op"
 
 
@@ -70,19 +78,43 @@ def verhoog_volume_stapsgewijs():
     aankan, en het kost je niets: de winkels lopen niet weg.
 
     Geeft terug wat er gebeurd is, zodat het in het rondeverslag komt."""
+    # GEVONDEN 24 SEPTEMBER: de opbouw liep ook als de benadering UIT stond.
+    # Elke ronde verdubbelde hij het aantal, dus wie na een paar dagen op Aan
+    # drukte, begon meteen op honderd koude mails per dag vanaf een nieuw
+    # domein. Nu alleen als de benadering aan staat, en pas als er sinds de
+    # vorige verhoging ook echt gemaild is (verhogen op een dag zonder post
+    # zegt niets over hoe Gmail je vindt).
     if not OPBOUW_AAN:
         return {"verhoogd": False, "reden": "De opbouw staat uit."}
-    nu = instellingen()["per_dag"]
+    stand = instellingen()
+    if not stand["aan"]:
+        return {"verhoogd": False, "reden": "De benadering staat uit."}
+    nu = stand["per_dag"]
     if nu >= OPBOUW_DOEL:
         return {"verhoogd": False, "reden": f"Al op {nu} per dag."}
-    vandaag = (datetime.now(KLOK) if KLOK else datetime.now()).strftime("%Y-%m-%d")
-    if (db.get_instelling(OPBOUW_SLEUTEL) or "") == vandaag:
-        return {"verhoogd": False, "reden": "Vandaag al verhoogd."}
+    klok = datetime.now(KLOK) if KLOK else datetime.now()
+    vandaag = klok.strftime("%Y-%m-%d")
+    vorige = db.get_instelling(OPBOUW_SLEUTEL) or ""
+    if not vorige:
+        # De eerste keer alleen de datum vastleggen: vanaf nu telt de week.
+        db.zet_instelling(OPBOUW_SLEUTEL, vandaag)
+        return {"verhoogd": False, "reden": "De opbouw begint vandaag te tellen."}
+    try:
+        verstreken = (klok.date() - datetime.strptime(vorige, "%Y-%m-%d").date()).days
+    except ValueError:
+        verstreken = OPBOUW_DAGEN
+    if verstreken < OPBOUW_DAGEN:
+        return {"verhoogd": False,
+                "reden": f"Volgende verhoging over {OPBOUW_DAGEN - verstreken} dag(en)."}
+    if db.gemaild_sinds(vorige) < max(1, nu * min(verstreken, OPBOUW_DAGEN) // 3):
+        return {"verhoogd": False,
+                "reden": "Sinds de vorige verhoging is er te weinig verstuurd om te weten "
+                         "of het goed gaat."}
     nieuw = min(OPBOUW_DOEL, max(nu * 2, nu + 5))
     db.zet_instelling("mail_per_dag", str(nieuw))
     # Het aantal per ronde meegroeien, anders haal je de dag nooit vol: er zijn
     # ongeveer twaalf rondes per dag binnen kantooruren.
-    db.zet_instelling("mail_per_ronde", str(max(2, nieuw // 10)))
+    db.zet_instelling("mail_per_ronde", str(max(1, nieuw // 10)))
     db.zet_instelling(OPBOUW_SLEUTEL, vandaag)
     print(f"Benadering, volume verhoogd van {nu} naar {nieuw} mails per dag.")
     return {"verhoogd": True, "van": nu, "naar": nieuw}
@@ -882,6 +914,10 @@ def markeer_gemaild(webshop_url, gelukt, fout=None):
     reden = (fout or "Verzenden mislukt.")[:400]
     if reden.startswith("TE_WEINIG_VRAGEN"):
         return db.zet_benadering(webshop_url, stand="adres", notitie=reden)
+    # Achteraan in de rij (24 september). De rij is oudste eerst; een winkel
+    # die blijft mislukken stond dus elke ronde weer vooraan, en een paar van
+    # zulke winkels konden alle post stilleggen.
+    db.achteraan_in_rij(webshop_url)
     return db.zet_benadering(webshop_url, notitie=reden)
 
 

@@ -98,6 +98,18 @@ AUTOMATISCH_PER_WEEK = 25
 
 FAQ_HANDLE = "veelgestelde-vragen-krillo"
 
+# De titel van de vragenpagina in de taal van de winkel (24 september). Stond
+# vast op "Veelgestelde vragen", ook in een Engelse of Duitse winkel: een
+# Nederlandse kop op een live pagina van de klant.
+FAQ_TITELS = {"nl": "Veelgestelde vragen", "en": "Frequently asked questions",
+              "de": "Häufig gestellte Fragen", "fr": "Questions fréquentes",
+              "es": "Preguntas frecuentes", "it": "Domande frequenti"}
+
+
+def faq_titel(markt):
+    code = ((markt or {}).get("taalcode") or "nl").lower()[:2]
+    return FAQ_TITELS.get(code, FAQ_TITELS["en"])
+
 # Hoe lang wij wachten als Shopify zegt dat het te druk is, en hoe vaak wij het
 # daarna nog proberen. GraphQL heeft geen losse verzoeken per seconde maar een
 # emmer met punten: is die leeg, dan komt er een fout THROTTLED terug in plaats
@@ -650,6 +662,7 @@ Antwoord ALLEEN met een JSON-lijst, niets ervoor of erna:
     return {"gelukt": True, "voorstellen": [{
         "id": "shopify:faq",
         "soort": "faq",
+        "titel": faq_titel(markt),
         "wat": _label(markt, "faq"),
         "waar": _label(markt, "faq_waar"),
         "link": f"https://{shopify_app._schoon(winkel)}/admin/pages",
@@ -843,7 +856,7 @@ def pas_toe(winkel, sleutel, voorstel, klant_url):
         uit = _zet_producttekst(winkel, sleutel, voorstel["product_id"],
                                 voorstel.get("nieuw_html") or voorstel["nieuw"])
     elif soort == "faq":
-        titel = "Veelgestelde vragen"
+        titel = voorstel.get("titel") or FAQ_TITELS["nl"]
         uit = _muteer(winkel, sleutel, MAAK_PAGINA,
                       {"pagina": {"title": titel, "handle": FAQ_HANDLE,
                                   "body": voorstel.get("nieuw_html") or voorstel["nieuw"],

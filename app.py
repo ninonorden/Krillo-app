@@ -55,6 +55,7 @@ import benadering
 import categorieen
 import categoriemeting
 import vraaglanden
+import checktaal
 import klantbeeld
 import klantwerk
 import meldingen
@@ -627,10 +628,24 @@ def api_opzeggen(klant_token):
 
     db.zet_klant_opgezegd(klant["webshop_url"])
     emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"])
-    beheerder = os.environ.get("BEHEERDER_EMAIL")
-    if beheerder:
-        emailing.send_email(beheerder, "Opzegging bij Krillo",
-                             f"<p>{klant['email']} heeft de monitoring voor {klant['webshop_url']} opgezegd.</p>")
+    # De veertien dagen (24 september). De site belooft: binnen veertien dagen
+    # na de eerste betaling opzeggen is die maand terug. Dat terugbetalen doe
+    # jij in Mollie; deze melding zegt of het moet, zodat het niet vergeten wordt.
+    dagen = None
+    try:
+        begon = klant.get("aangemaakt_op")
+        if begon:
+            dagen = (datetime.now(timezone.utc) - begon).days
+    except Exception:
+        dagen = None
+    if dagen is not None and dagen <= 14:
+        terug = (f"<p><b>Actie nodig: geld terug.</b> Deze klant is {dagen} dagen klant, dus "
+                 f"binnen de veertien dagen. Ga in Mollie naar Betalingen, zoek {klant['email']}, "
+                 f"open de eerste betaling en klik op Terugbetalen.</p>")
+    else:
+        terug = "<p>Buiten de veertien dagen: niets terug te betalen.</p>"
+    _meld_aan_beheer("Opzegging bij Krillo",
+                     f"{klant['email']} heeft {klant['webshop_url']} opgezegd. {terug}")
     return jsonify({"ok": True})
 
 
@@ -1001,7 +1016,8 @@ def api_scan():
     result = run_scan(url)
     if "error" in result:
         db.bewaar_gratis_scan(url, gelukt=False, foutsoort=result["error"][:200], herkomst=herkomst)
-        return jsonify(result), 400
+        # Engels voor de bezoeker (24 september), het Nederlands blijft in de database.
+        return jsonify(checktaal.naar_het_engels(result)), 400
 
     db.bewaar_gratis_scan(result["url"], score=result.get("score"), herkomst=herkomst)
 
@@ -1010,7 +1026,38 @@ def api_scan():
         result["vorige_score"] = previous["score"]
         result["verschil"] = result["score"] - previous["score"]
 
+    # DE ECHTE PLEK (24 september). De knop heet "Get my rank", maar gaf
+    # alleen het cijfer over dertien technische punten. Staat de winkel in de
+    # index, dan komt zijn plek er nu bovenaan bij, uit dezelfde ranglijst als
+    # de openbare pagina. Staat hij er (nog) niet in, dan zegt de pagina dat
+    # eerlijk, in plaats van een plek te verzinnen.
+    result = checktaal.naar_het_engels(result)
+    result["rang"] = _rang_voor_gratis_check(result.get("url"))
     return jsonify(result)
+
+
+def _rang_voor_gratis_check(webshop_url):
+    """De plek in de index voor de gratis check, of None. Nooit een fout."""
+    if not webshop_url:
+        return None
+    try:
+        kandidaten = [webshop_url]
+        kaal = webshop_url.replace("://www.", "://")
+        kandidaten += [kaal, kaal.replace("://", "://www.")]
+        for kandidaat in dict.fromkeys(kandidaten):
+            beeld = klantbeeld.bouw(kandidaat, max_vragen=0)
+            if beeld and beeld.get("land") and (beeld.get("van") or 0) >= MINIMUM_PER_LAND:
+                return {
+                    "positie": beeld["positie"], "van": beeld["van"],
+                    "categorie": categorieen.naam_van(beeld["categorie"]),
+                    "land": sitetaal.landnaam(beeld["land"], "en"),
+                    "genoemd": beeld.get("genoemd") or 0,
+                    "telbaar": beeld.get("telbaar") or 0,
+                    "link": f"/index/{beeld['land']}/{beeld['categorie']}#p{beeld['positie']}",
+                }
+    except Exception as e:
+        print(f"Plek voor de gratis check ophalen mislukt voor {webshop_url}: {e}")
+    return None
 
 
 _EMAIL_VORM = re.compile(r"^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$")
@@ -1523,6 +1570,22 @@ def _verwerk_betaling(payment_id, base_url):
         # niets en claimen we niets, zodat de melding die later WEL "paid"
         # zegt gewoon verwerkt wordt.
         status = payments.get_payment_status(payment_id)
+        # GEVONDEN 24 SEPTEMBER: lukte het ophalen bij Mollie niet (time-out),
+        # dan stopte het hier stil. Mollie had al 200 terug en probeert niet
+        # opnieuw: een betaalde klant kreeg dan niets en jij wist van niets.
+        # Nu nog drie pogingen, en daarna een mail aan jou.
+        for wacht in (5, 20, 60):
+            if status is not None:
+                break
+            time.sleep(wacht)
+            status = payments.get_payment_status(payment_id)
+        if status is None:
+            _meld_aan_beheer(
+                "Betaling niet op te halen bij Mollie",
+                f"Mollie meldde betaling {payment_id}, maar vier keer ophalen mislukte. "
+                f"Kijk in Mollie (Betalingen, zoek op {payment_id}) of er betaald is. "
+                f"Zo ja: de klant heeft nog niets gekregen, neem contact op.")
+            return
         # Een maandbetaling van een abonnement (23 september). Die draagt geen
         # metadata van ons. Mislukt hij, dan moet JIJ dat weten: anders loopt
         # een klant door zonder te betalen en merkt niemand het.
@@ -2230,7 +2293,25 @@ def _shopify_inbed_kop(antwoord):
     return antwoord
 
 
+_benadering_slot = threading.Lock()
+
+
 def _benadering_ronde():
+    """Een ronde, maar nooit twee tegelijk (24 september).
+
+    De uurlijkse taak en de knop op de beheerpagina konden allebei een ronde
+    starten. Twee rondes tegelijk kunnen dezelfde winkel kiezen voordat een
+    van beide hem als gemaild markeert: dan krijgt hij twee koude mails."""
+    if not _benadering_slot.acquire(blocking=False):
+        print("Benadering, er loopt al een ronde; deze slaat over.")
+        return
+    try:
+        return _benadering_ronde_werk()
+    finally:
+        _benadering_slot.release()
+
+
+def _benadering_ronde_werk():
     """Eén rondje van de automatische benadering. Draait op de achtergrond.
 
     De volgorde is met opzet zo: eerst adressen zoeken (kost niets), dan meten
@@ -2764,6 +2845,12 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
         if not beeld or (beeld.get("telbaar") or 0) < MINIMUM_VRAGEN_VOOR_POST:
             return False, ("GEEN_POSITIE: deze winkel staat (nog) niet in een ranglijst. "
                            "Hij komt vanzelf terug zodra zijn categorie gemeten is.")
+        # GEVONDEN 24 SEPTEMBER: de link in de mail moet naar een pagina die
+        # bestaat. Zonder land geen landpagina, en een landlijst korter dan
+        # MINIMUM_PER_LAND geeft "nog niet gemeten". Dan liever geen mail.
+        if not beeld.get("land") or (beeld.get("van") or 0) < MINIMUM_PER_LAND:
+            return False, ("GEEN_POSITIE: zijn land is onbekend of zijn landlijst is te kort "
+                           "voor een openbare pagina.")
         basis = get_base_url().rstrip("/")
         # Welke versie van de mail (stap 56). Vast per winkel; een proefmail
         # mag er een kiezen, zodat je beide versies kunt bekijken.
@@ -4412,7 +4499,10 @@ def openbare_categorie(land, slug):
 
     taal = sitetaal.kies_taal(pad_taal=request.args.get("taal"))
     t = sitetaal.teksten(taal)
-    lijst = _bewaard(("ranglijst", slug, land), db.ranglijst_per_land, slug, land, 100)
+    # 1000 en niet 100 (24 september): de mail noemt een plek uit de hele
+    # lijst. Stond een winkel op #140, dan vond de pagina hem niet, en viel de
+    # balk met zijn eigen plek en de knop weg.
+    lijst = _bewaard(("ranglijst", slug, land), db.ranglijst_per_land, slug, land, 1000)
     if (not lijst or not lijst.get("ronde")
             or len(lijst["rijen"]) < MINIMUM_PER_LAND):
         return render_template(

@@ -302,18 +302,47 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
             taal = _taal_van(klant["webshop_url"])
             link = f"{(basis or '').rstrip('/')}/mijn/{klant['klant_token']}" \
                 if basis and klant.get("klant_token") else None
-            emailing.send_vermeldingen_update(
+            gelukt = emailing.send_vermeldingen_update(
                 klant["email"], klant["webshop_url"],
                 tekst(klant, keuze, naam, taal=taal),
                 monitoring_url=link, taal=taal,
                 onderwerp=onderwerp(keuze, naam, taal=taal),
                 kop=KOPPEN.get(keuze["soort"], "Your position this month"))
-            verslag["verstuurd"] += 1
         except Exception as e:
             print(f"Bericht versturen mislukt voor {klant['webshop_url']}: {e}")
-            verslag.setdefault("fouten", []).append(str(e)[:120])
+            gelukt = False
+        # GEVONDEN 24 SEPTEMBER: een mislukte verzending telde als verstuurd,
+        # en omdat het bericht al vastgelegd was, kwam hij nooit meer. Een
+        # betalende klant miste dan zijn maandbericht en niemand wist het. Nu
+        # telt hij als mislukt en krijg jij een mail.
+        if gelukt:
+            verslag["verstuurd"] += 1
+        else:
+            verslag.setdefault("fouten", []).append(klant["webshop_url"])
+            _meld_beheer(
+                "Maandbericht niet verstuurd",
+                f"Het bericht over de maandmeting van {naam} kon niet naar "
+                f"{klant.get('email')} ({klant['webshop_url']}). Brevo weigerde of was "
+                f"onbereikbaar. Stuur hem de link naar zijn dashboard met de hand.")
 
     return verslag
+
+
+def _meld_beheer(kop, bericht):
+    """Een waarschuwing naar BEHEERDER_EMAIL (zelfde adres als in app.py)."""
+    import os
+    print(f"BEHEERMELDING: {kop} | {bericht}")
+    adres = (os.environ.get("BEHEERDER_EMAIL") or os.environ.get("BEHEER_EMAIL")
+             or os.environ.get("SMTP_REPLY_TO") or "").strip()
+    if not adres:
+        return False
+    try:
+        import emailing
+        return emailing.send_email(adres, f"Krillo: {kop}",
+                                   f"<p style='font-family:Arial,sans-serif;'>{bericht}</p>")
+    except Exception as e:
+        print(f"Beheermelding versturen mislukt: {e}")
+        return False
 
 
 def _taal_van(webshop_url):

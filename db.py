@@ -919,6 +919,20 @@ def init_db():
     # oude lijst, dan zet je de instelling weg of roep je de functie met de hand
     # aan via de beheerpagina.
     _eenmalig("webadressen_op_een_schrijfwijze", _zet_webadressen_op_een_schrijfwijze)
+    # 24 september: de opbouw had het aantal koude mails opgedreven tot honderd
+    # per dag terwijl de benadering uit stond. Een keer terug naar een veilige
+    # start: 5 per dag, 1 per ronde, en de opbouw begint opnieuw te tellen.
+    _eenmalig("benadering_veilige_start_24sep", _benadering_veilige_start)
+
+
+def _benadering_veilige_start():
+    if (get_instelling("benadering_aan", "nee") or "nee").lower() == "ja":
+        return None  # Staat hij al aan, dan blijft alles zoals Nino het zette.
+    zet_instelling("mail_per_dag", "5")
+    zet_instelling("mail_per_ronde", "1")
+    zet_instelling("metingen_per_ronde", "0")
+    zet_instelling("benadering_volume_verhoogd_op", "")
+    return True
 
 
 def _eenmalig(sleutel, werk):
@@ -1929,6 +1943,42 @@ def trechter_benadering():
     except Exception as e:
         print(f"Trechter ophalen mislukt: {e}")
         return leeg
+    finally:
+        conn.close()
+
+
+def achteraan_in_rij(webshop_url):
+    """Zet een winkel achteraan in de mailrij (die is oudste eerst)."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET toegevoegd_op = now() WHERE webshop_url = %s",
+                            (webshop_url,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Achteraan zetten mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def gemaild_sinds(datum):
+    """Hoeveel koude mails er sinds een datum (JJJJ-MM-DD) verstuurd zijn."""
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT count(*) FROM benadering WHERE gemaild_op >= %s::date",
+                            (datum,))
+                return cur.fetchone()[0] or 0
+    except Exception as e:
+        print(f"Gemaild tellen mislukt: {e}")
+        return 0
     finally:
         conn.close()
 
@@ -5719,18 +5769,35 @@ def landen_in_index(minimum_categorieen=1):
     try:
         with conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # 24 september: een land telt pas als een categorie er minstens
+                # drie winkels heeft (net als de landpagina), anders stond
+                # Duitsland op LIVE met een lege pagina eronder.
                 cur.execute("""
-                    SELECT lower(b.land) AS land,
-                           count(DISTINCT u.categorie) AS categorieen,
-                           count(DISTINCT u.webshop_url) AS winkels
-                      FROM categorie_uitkomsten u
-                      JOIN benadering b ON b.webshop_url = u.webshop_url
-                     WHERE b.land IS NOT NULL AND b.land <> ''
-                  GROUP BY lower(b.land)
-                    HAVING count(DISTINCT u.categorie) >= %s
-                  ORDER BY count(DISTINCT u.webshop_url) DESC
+                    WITH per_cat AS (
+                        SELECT lower(b.land) AS land, u.categorie,
+                               count(DISTINCT u.webshop_url) AS winkels
+                          FROM categorie_uitkomsten u
+                          JOIN benadering b ON b.webshop_url = u.webshop_url
+                         WHERE b.land IS NOT NULL AND b.land <> ''
+                      GROUP BY lower(b.land), u.categorie
+                    )
+                    SELECT land,
+                           count(*) FILTER (WHERE winkels >= 3) AS categorieen,
+                           sum(winkels) AS winkels
+                      FROM per_cat
+                  GROUP BY land
+                    HAVING count(*) FILTER (WHERE winkels >= 3) >= %s
+                  ORDER BY sum(winkels) DESC
                 """, (minimum_categorieen,))
-                return [dict(r) for r in cur.fetchall()]
+                rijen = [dict(r) for r in cur.fetchall()]
+        # En alleen landen waarvoor wij eigen koopvragen stellen: Nederland (de
+        # gewone ronde) en de landen in vraaglanden.py. Een Duitse winkel die
+        # in een antwoord op een NEDERLANDSE vraag opdook, zegt niets over wat
+        # een Duitse koper te zien krijgt. Duitsland komt live zodra het in
+        # vraaglanden.py staat.
+        import vraaglanden
+        toegestaan = {"nl", *vraaglanden.VRAAGLANDEN}
+        return [r for r in rijen if r["land"] in toegestaan]
     except Exception as e:
         print(f"Landen in index ophalen mislukt: {e}")
         return []
@@ -5780,6 +5847,10 @@ def ranglijst_per_land(categorie, land, limiet=200):
                         ON v.webshop_url = u.webshop_url AND v.ronde = %s
                      WHERE u.ronde = %s
                        AND (%s IS NULL OR lower(b.land) = %s)
+                       -- Afgemeld is METEEN uit de lijst (24 september), niet
+                       -- pas bij de volgende meting: de afmeldmail belooft
+                       -- "we take your store out of the public index".
+                       AND coalesce(b.afgemeld, FALSE) = FALSE
                   ORDER BY u.aanbevolen DESC, u.genoemd DESC, u.webshop_url
                      LIMIT %s""",
                     (vorige, nu, land, (land or "").lower() or None, limiet))

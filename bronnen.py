@@ -767,38 +767,38 @@ def vat_samen(vindplaatsen, winkelnaam=None):
 
     sites = {v.get("bron_domein") for v in extern if v.get("bron_domein")}
 
+    # ENGELS sinds 24 september, zoals alle klanttekst (een adres, een taal).
+    # Deze zin stond in het Nederlands op de Engelse homepage en in de Engelse
+    # mail van de gratis test.
     def telwoord(aantal, enkel, meer):
-        """Nette Nederlandse zin bij 1 en bij meer. "1 pagina's op 1
-        verschillende websites" leest als machinetaal, en dat is precies het
-        soort detail waar een klant aan ziet dat er niemand naar gekeken
-        heeft."""
+        """Nette zin bij 1 en bij meer. "1 pages on 1 different websites"
+        leest als machinetaal."""
         return f"{aantal} {enkel}" if aantal == 1 else f"{aantal} {meer}"
 
-    aantal_paginas = telwoord(len(extern), "pagina", "pagina's")
-    aantal_sites = telwoord(len(sites), "website", "verschillende websites")
-    bekeken = f"We bekeken {aantal_paginas} op {aantal_sites}"
+    aantal_paginas = telwoord(len(extern), "page", "pages")
+    aantal_sites = telwoord(len(sites), "website", "different websites")
+    bekeken = f"We looked at {aantal_paginas} on {aantal_sites}"
 
-    naam = winkelnaam or "je winkel"
+    naam = winkelnaam or "your store"
     if not gemiste:
         conclusie = (
-            f"Op de plekken die we bij deze vragen vonden, staat {naam} er net zo vaak bij als "
-            f"de winkels die AI noemt. Hier ligt je knelpunt dus niet."
+            f"On the pages we found for these questions, {naam} appears as often as the "
+            f"stores AI names. So this is not where you are held back."
         )
     elif not wij_erop:
-        daarvan = ("Op die ene staat" if len(gemiste) == 1
-                   else f"Op {len(gemiste)} daarvan staat")
+        daarvan = ("That one lists" if len(gemiste) == 1
+                   else f"{len(gemiste)} of them list")
         conclusie = (
-            f"{bekeken} waar "
-            f"winkels in jouw categorie naast elkaar gezet worden. {daarvan} wel een winkel die "
-            f"AI noemt, en {naam} op geen enkele. Dat is het verschil waar je zelf iets aan kan "
-            f"doen: deze pagina's bestaan al, je hoeft ze niet te maken."
+            f"{bekeken} where stores in your category are compared. {daarvan} a store AI "
+            f"names, and none of them list {naam}. That is a gap you can close yourself: "
+            f"these pages already exist, you do not have to make them."
         )
     else:
-        plekken = ("op nog 1 andere plek staat" if len(gemiste) == 1
-                   else f"op nog {len(gemiste)} andere plekken staat")
+        plekken = ("1 other page lists" if len(gemiste) == 1
+                   else f"{len(gemiste)} other pages list")
         conclusie = (
-            f"{bekeken}. {naam} "
-            f"staat op {len(wij_erop)} daarvan, en {plekken} wel een concurrent en {naam} niet."
+            f"{bekeken}. {naam} is on {len(wij_erop)} of them, and {plekken} a competitor "
+            f"but not {naam}."
         )
 
     return {

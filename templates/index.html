@@ -81,7 +81,7 @@
     {
       "@type": "Question",
       "name": "What does Fix mean?",
-      "acceptedAnswer": {"@type": "Answer", "text": "We install the fixes in your store ourselves. For every finding we write the solution, aimed at your products, and put it live. Afterwards you see every change with the old text beside it, and anything you dislike we roll back."}
+      "acceptedAnswer": {"@type": "Answer", "text": "We make the changes in your store ourselves. For every finding we write the solution, aimed at your products. On Shopify our app writes them into your store; on other platforms our team makes them by hand once you give us access. Every change is kept with the old text beside it, and anything you dislike we roll back."}
     },
     {
       "@type": "Question",
@@ -966,7 +966,7 @@
     <div>
       <div class="eyebrow">AI visibility for online stores</div>
       <h1>Rank in the answer, not on page one.</h1>
-      <p class="hero-sub">We measure which stores AI assistants recommend, in every category, every month. Then we fix what keeps you out.</p>
+      <p class="hero-sub">We measure which stores AI assistants recommend, category by category, every month. Then we fix what keeps you out.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
         <button type="button" id="scanButton">Get my rank</button>
@@ -1047,7 +1047,7 @@
     <div class="sectiekop">
       <div>
         <h2>Everyone else reports. We fix.</h2>
-        <p>Six things every month. You do none of them.</p>
+        <p>Six things every month. You give us access once, we do the rest.</p>
       </div>
     </div>
     <div class="zes">
@@ -1079,7 +1079,7 @@
       <div class="zeskaart">
         <div class="nr">06</div>
         <h3>A warning when you drop</h3>
-        <p>From us, not from your sales figures, with whether it was you or the market.</p>
+        <p>From us, not from your sales figures, with who moved past you.</p>
       </div>
     </div>
   </div>
@@ -1092,7 +1092,7 @@
     <div class="dash-blok">
       <div class="dash-tekst">
         <h2>One screen. One button.</h2>
-        <p>Your rank, the questions you lose, and the fixes waiting for approval. No password to forget: your link arrives by email.</p>
+        <p>Your rank, the questions you lose, and the fixes we write for you. No password to forget: your link arrives by email.</p>
         <a class="knop-donker" href="/demo">Open a live example</a>
         <div class="dash-note">A REAL STORE, REAL DATA, NO SIGNUP</div>
       </div>
@@ -1169,15 +1169,15 @@
       </div>
 
       <div class="price-card featured">
-        <div class="price-badge">Most chosen</div>
+        <div class="price-badge">Recommended</div>
         <div class="price-name">Fix</div>
         <div class="price-amount">&euro;149 <span>/mo</span></div>
         <ul class="price-feats">
           <li><strong>Everything in Watch</strong></li>
-          <li><strong>We install the fixes in your store</strong>, you can undo every change</li>
+          <li><strong>We make the fixes in your store</strong>: on Shopify through our app, elsewhere by our team with your access</li>
           <li>The old text is kept, so it can always be rolled back</li>
           <li>At the next monthly measurement we show the difference</li>
-          <li>A message when you drop three places or more, with the reason</li>
+          <li>A message when you drop three places or more</li>
         </ul>
         <a class="price-btn solid" href="#scan" id="fixCheckoutBtn">Start</a>
       </div>
@@ -1186,11 +1186,10 @@
         <div class="price-name">Brands and agencies</div>
         <div class="price-amount">&euro;490 <span>/mo</span></div>
         <ul class="price-feats">
-          <li><strong>Up to 25 stores</strong> in one dashboard</li>
-          <li>Every category you appear in, in every country we measure</li>
+          <li><strong>Up to 25 stores</strong>, each with its own dashboard</li>
+          <li>Every category they appear in</li>
           <li>Every buying question, and who beats you</li>
-          <li>Reports in your own name</li>
-          <li>We set it up together with you</li>
+          <li>We set it up together with you, by hand</li>
         </ul>
         <a class="price-btn ghost" href="mailto:hello@krilloai.com?subject=Krillo%20for%20brands%20and%20agencies">Talk to us</a>
       </div>
@@ -1198,9 +1197,10 @@
 
     <div class="prijs-voet">
       <div>
-        <strong>A second country costs 49 euro per month.</strong>
-        If you sell in the Netherlands and Belgium, that is two rankings, because
-        AI gives different answers there. Email us and we set it up.
+        <strong>Selling in the Netherlands and Belgium?</strong>
+        AI gives different answers there, so those are two rankings. Your plan
+        covers the country of your store; email us if you sell in both and we
+        look at it with you.
       </div>
       <div>
         <strong>Not happy with a change we made? We roll it back.</strong>
@@ -1356,6 +1356,22 @@
 
   function renderResult(data){
     var html = '';
+    // DE PLEK EERST (24 september). De knop heet "Get my rank". Staat de
+    // winkel in de index, dan is dat het eerste wat hij ziet, met een link
+    // naar de ranglijst. Staat hij er niet in, dan zeggen wij dat eerlijk en
+    // waarom, en komt daaronder het cijfer over de dertien punten.
+    if(data.rang){
+      var r = data.rang;
+      html += '<div class="scan-rang" style="border:1px solid var(--vermiljoen,#1B3FE0); border-radius:12px; padding:16px 18px; margin-bottom:18px; background:#F4F6FF;">';
+      html += '<div style="font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:#4A4A55;">Your rank in ' + veilig(r.categorie) + ', ' + veilig(r.land) + '</div>';
+      html += '<div style="font-size:32px; font-weight:700; line-height:1.2; margin:4px 0;">#' + r.positie + ' of ' + r.van + '</div>';
+      html += '<div style="font-size:14px; color:#4A4A55;">AI named you in ' + r.genoemd + ' of ' + r.telbaar + ' buying questions. <a href="' + r.link + '">See the full ranking &rarr;</a></div>';
+      html += '</div>';
+    } else {
+      html += '<div class="scan-rang" style="border:1px solid #E8E8EC; border-radius:12px; padding:14px 18px; margin-bottom:18px; font-size:14px; color:#4A4A55;">';
+      html += '<b style="color:#0A0A0B;">Not in the index yet.</b> We rank categories once enough stores in them are measured, and we are adding stores every week. Below: how well AI can read your store today, which decides whether it can recommend you at all.';
+      html += '</div>';
+    }
     html += '<div class="scan-result-score">';
     html += '<div class="num">' + data.score + '</div>';
     html += '<div class="label">AI readability of<br>' + data.url + '</div>';
@@ -1806,10 +1822,10 @@
     fix: {
       items: [
         'Everything in Watch',
-        'We install the fixes in your store, you can undo every change',
+        'We make the fixes in your store: on Shopify through our app, elsewhere by our team with your access',
         'The old text is kept, so it can always be rolled back',
         'At the next monthly measurement we show the difference',
-        'A message when you drop three places or more, with whether it was you or the market',
+        'A message when you drop three places or more',
         'Cancel any time, no minimum term'
       ],
       delivery: 'Delivery: your first measurement starts right away. After that we email you to ask for access to your store so we can install the fixes. No access, and you get everything ready to do yourself.',
@@ -1821,7 +1837,7 @@
         'We install the fixes in your store and send you the report with the old text',
         'No access, and you get everything ready to do yourself',
         'You see whether you are named and whether you are really recommended, with the quote',
-        'A message when something changes, with whether it was you or the market',
+        'A message when you drop three places or more',
         'Cancel any time, no minimum term'
       ],
       delivery: 'Delivery: your first measurement starts right after signup. After that we email you to ask for access to your store so we can install the improvements. A new measurement every month.',
