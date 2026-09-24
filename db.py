@@ -522,6 +522,14 @@ def init_db():
                 # WELKE mail. Dan kun je twee versies nooit eerlijk vergelijken.
                 cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS mail_variant TEXT;")
+                # Wat Brevo terugmeldt (stap 78): een adres dat niet bestaat,
+                # of iemand die op "spam" drukte. Zonder dit zag niemand of de
+                # koude mail aankwam, en dat is precies het cijfer waar Gmail
+                # op let.
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS bounce_op TIMESTAMPTZ;")
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS klacht_op TIMESTAMPTZ;")
                 cur.execute("""CREATE INDEX IF NOT EXISTS benadering_stand
                                ON benadering (stand);""")
                 # Koppelingen met winkels die niet op Shopify draaien.
@@ -1925,7 +1933,7 @@ def noteer_doorgeklikt(webshop_url):
 
 def trechter_benadering():
     """Hoeveel er gemaild, geopend en doorgeklikt is. Altijd een woordenboek."""
-    leeg = {"gemaild": 0, "bekeken": 0, "doorgeklikt": 0}
+    leeg = {"gemaild": 0, "bekeken": 0, "doorgeklikt": 0, "bounces": 0, "klachten": 0}
     conn = _get_connection()
     if conn is None:
         return leeg
@@ -1935,14 +1943,38 @@ def trechter_benadering():
                 cur.execute("""SELECT
                         COUNT(*) FILTER (WHERE gemaild_op IS NOT NULL),
                         COUNT(*) FILTER (WHERE bekeken_op IS NOT NULL),
-                        COUNT(*) FILTER (WHERE doorgeklikt_op IS NOT NULL)
+                        COUNT(*) FILTER (WHERE doorgeklikt_op IS NOT NULL),
+                        COUNT(*) FILTER (WHERE bounce_op IS NOT NULL),
+                        COUNT(*) FILTER (WHERE klacht_op IS NOT NULL)
                     FROM benadering""")
-                rij = cur.fetchone() or (0, 0, 0)
+                rij = cur.fetchone() or (0, 0, 0, 0, 0)
                 return {"gemaild": rij[0] or 0, "bekeken": rij[1] or 0,
-                        "doorgeklikt": rij[2] or 0}
+                        "doorgeklikt": rij[2] or 0, "bounces": rij[3] or 0,
+                        "klachten": rij[4] or 0}
     except Exception as e:
         print(f"Trechter ophalen mislukt: {e}")
         return leeg
+    finally:
+        conn.close()
+
+
+def noteer_mailgebeurtenis(email, soort):
+    """Legt een bounce of een spamklacht vast bij de winkel(s) met dit adres.
+    Geeft de webadressen terug die het betrof."""
+    kolom = {"bounce": "bounce_op", "klacht": "klacht_op"}.get(soort)
+    conn = _get_connection()
+    if conn is None or not kolom or not email:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""UPDATE benadering SET {kolom} = coalesce({kolom}, now())
+                                 WHERE lower(email) = lower(%s)
+                             RETURNING webshop_url""", (email.strip(),))
+                return [r[0] for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Mailgebeurtenis vastleggen mislukt: {e}")
+        return []
     finally:
         conn.close()
 
@@ -5669,6 +5701,27 @@ def landen_met_eigen_ronde(categorie):
     except Exception as e:
         print(f"Landen met eigen ronde ophalen mislukt: {e}")
         return set()
+    finally:
+        conn.close()
+
+
+def winkels_per_categorie_in_land(land):
+    """Per categorie: hoeveel winkels van dit land er op de lijst staan."""
+    conn = _get_connection()
+    if conn is None or not land:
+        return {}
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT categorie, count(*) FROM benadering
+                                WHERE lower(land) = %s AND categorie IS NOT NULL
+                                  AND coalesce(soort, 'winkel') = 'winkel'
+                                  AND afgemeld = FALSE
+                             GROUP BY categorie""", (land.lower(),))
+                return {r[0]: r[1] for r in cur.fetchall()}
+    except Exception as e:
+        print(f"Winkels per categorie en land tellen mislukt: {e}")
+        return {}
     finally:
         conn.close()
 

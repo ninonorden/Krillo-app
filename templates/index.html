@@ -1372,6 +1372,15 @@
       html += '<b style="color:#0A0A0B;">Not in the index yet.</b> We rank categories once enough stores in them are measured, and we are adding stores every week. Below: how well AI can read your store today, which decides whether it can recommend you at all.';
       html += '</div>';
     }
+    // Alleen de plek, geen cijfer: de site hield onze scanner tegen (grote
+    // winkels doen dat). Eerlijk zeggen, en niet doen alsof er gelezen is.
+    if(data.score === null){
+      html += '<div class="scan-rang" style="border:1px solid #E8E8EC; border-radius:12px; padding:14px 18px; font-size:14px; color:#4A4A55;">';
+      html += '<b style="color:#0A0A0B;">We could not read your site itself.</b> It blocks automated visitors, so we cannot score the thirteen technical points from here. Your rank above comes from what AI answered, not from your site. ';
+      html += '<a href="#prijzen">See how we help you move up &rarr;</a></div>';
+      resultBox.innerHTML = html;
+      return;
+    }
     html += '<div class="scan-result-score">';
     html += '<div class="num">' + data.score + '</div>';
     html += '<div class="label">AI readability of<br>' + data.url + '</div>';

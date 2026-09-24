@@ -89,7 +89,18 @@ MINIMUM = categorieen.MINIMUM_VOOR_INDEX
 # vragen van dat land krijgt (stap 76). Lager dan MINIMUM, want het gaat om de
 # winkels van EEN land; hoger dan de drie van de openbare landpagina, want een
 # ronde kost net zoveel als een gewone en moet iets opleveren.
-MINIMUM_LAND = int(os.environ.get("ONDERHOUD_MINIMUM_LAND", "5"))
+MINIMUM_LAND = int(os.environ.get("ONDERHOUD_MINIMUM_LAND", "3"))
+
+# Hoeveel rondes met eigen landvragen er per nacht BOVENOP de gewone mogen
+# (24 september). Was een plek binnen de gewone drie: dan duurde het bij 21
+# categorieen drie weken voor Belgie rond was. Nu drie extra per nacht, dus
+# een week. Elke ronde gaat nog steeds langs de dagelijkse kostenrem.
+METEN_LAND_PER_NACHT = int(os.environ.get("ONDERHOUD_METEN_LAND", "3"))
+
+# Het land gericht vullen: tot hoeveel winkels per categorie, en hoeveel
+# zoekopdrachten per nacht (een zoekopdracht is ongeveer een halve cent).
+VULLEN_DOEL = int(os.environ.get("ONDERHOUD_VULLEN_DOEL", "15"))
+VULLEN_PER_NACHT = int(os.environ.get("ONDERHOUD_VULLEN_ZOEKOPDRACHTEN", "12"))
 
 _stand = {"bezig": False, "stap": None, "gestart_op": None, "klaar_op": None,
           "laatste_verslag": None, "fout": None}
@@ -210,6 +221,28 @@ def stap_platformcheck(hoeveel=None):
     return verslag
 
 
+def stap_landen_vullen():
+    """Zoekt gericht winkels voor de landen met eigen vragen (24 september).
+
+    Alleen voor categorieen die al in de index staan, en alleen zolang er
+    minder dan VULLEN_DOEL winkels van dat land in zitten. De nieuwe winkels
+    krijgen in dezelfde nacht bij het indelen hun categorie."""
+    import winkelvinder
+    verslag = {}
+    rem = kosten.mag_doorgaan()
+    if not rem["mag"]:
+        return {"overgeslagen": "kostenrem", "reden": rem["reden"]}
+    gemeten = [(slug, categorieen.naam_van(slug)) for slug in db.gemeten_categorieen()]
+    for land in vraaglanden.VRAAGLANDEN:
+        try:
+            verslag[land] = winkelvinder.vul_land(
+                land, gemeten, db.winkels_per_categorie_in_land(land),
+                doel=VULLEN_DOEL, max_zoekopdrachten=VULLEN_PER_NACHT)
+        except Exception as e:
+            verslag[land] = {"fout": str(e)[:160]}
+    return verslag
+
+
 def stap_herberekenen():
     """Elke bestaande ranglijst opnieuw uitrekenen uit de bewaarde antwoorden.
 
@@ -262,11 +295,9 @@ def stap_meten(hoeveel=None):
     per_land = [dict(rij, land=land) for land in vraaglanden.VRAAGLANDEN
                 for rij in db.landrondes_om_te_meten(land, MINIMUM_LAND,
                                                      OPNIEUW_METEN_NA_DAGEN)]
-    if per_land and hoeveel > 1:
-        keuze = gewoon[:hoeveel - 1] + per_land[:1]
-        keuze += (gewoon[hoeveel - 1:] + per_land[1:])[:hoeveel - len(keuze)]
-    else:
-        keuze = (gewoon + per_land)[:hoeveel]
+    # Sinds 24 september eigen plekken voor de landrondes, bovenop de gewone
+    # (zie METEN_LAND_PER_NACHT). Staat hoeveel op 0, dan meet er niets.
+    keuze = gewoon[:hoeveel] + (per_land[:METEN_LAND_PER_NACHT] if hoeveel > 0 else [])
     verslag["wachtrij"] = len(gewoon) + len(per_land)
     for rij in keuze:
         rem = kosten.mag_doorgaan()
@@ -333,6 +364,11 @@ def ronde():
     Nooit rechtstreeks vanuit een verzoek aanroepen: een meting duurt minuten.
     De cron-ingang zet hem op een eigen draad."""
     verslag = {"begonnen": time.strftime("%Y-%m-%d %H:%M")}
+
+    # Eerst gericht winkels zoeken voor de landen met eigen vragen, zodat ze
+    # dezelfde nacht nog ingedeeld worden.
+    _stand["stap"] = "landen vullen"
+    verslag["landen_vullen"] = stap_landen_vullen()
 
     _stand["stap"] = "indelen"
     verslag["indelen"] = stap_indelen()

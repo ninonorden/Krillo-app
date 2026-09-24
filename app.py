@@ -1016,6 +1016,17 @@ def api_scan():
     result = run_scan(url)
     if "error" in result:
         db.bewaar_gratis_scan(url, gelukt=False, foutsoort=result["error"][:200], herkomst=herkomst)
+        # GEVONDEN 24 SEPTEMBER bij mediamarkt.nl: grote winkels houden onze
+        # scanner tegen, en dan kreeg de bezoeker alleen "we could not reach
+        # this website", terwijl zijn PLEK gewoon in de index staat. De plek
+        # hangt niet af van het lezen van zijn site. Dus: staat hij in de
+        # index, dan krijgt hij zijn plek, met eerlijk erbij dat het lezen
+        # van zijn site niet lukte.
+        rang = _rang_voor_gratis_check(scan_engine.normalize_url(url))
+        if rang:
+            return jsonify({"url": scan_engine.normalize_url(url), "rang": rang,
+                            "score": None, "checks": [],
+                            "niet_gelezen": checktaal.fout_in_het_engels(result["error"])})
         # Engels voor de bezoeker (24 september), het Nederlands blijft in de database.
         return jsonify(checktaal.naar_het_engels(result)), 400
 
@@ -1962,6 +1973,42 @@ def admin_inloggen():
 def admin_uitloggen():
     session.pop("beheer", None)
     return redirect("/admin/inloggen")
+
+
+# Wat Brevo meldt over een verstuurde mail (stap 78, 24 september).
+# Harde bounce of ongeldig adres: nooit meer naar dit adres. Spamklacht of
+# afmelden via Brevo: behandelen als een afmelding (geen post meer, uit de
+# index), want dat is wat zo iemand bedoelt. Een zachte bounce (brievenbus
+# even vol) laten wij liggen.
+BREVO_HARD = {"hard_bounce", "hardbounce", "invalid_email", "blocked", "error"}
+BREVO_KLACHT = {"spam", "complaint", "unsubscribed", "unsubscribe"}
+
+
+@app.route("/webhooks/brevo/<sleutel>", methods=["POST"])
+def brevo_webhook(sleutel):
+    """De sleutel in het adres is wat je in Render als BREVO_WEBHOOK_SLEUTEL
+    zet en in Brevo achter het webhookadres plakt. Zonder die sleutel kan
+    iedereen hier winkels afmelden, dus zonder sleutel bestaat deze route niet."""
+    goed = (os.environ.get("BREVO_WEBHOOK_SLEUTEL") or "").strip()
+    if not goed or not hmac.compare_digest(sleutel, goed):
+        return "", 404
+    data = request.get_json(silent=True) or {}
+    items = data if isinstance(data, list) else [data]
+    for item in items:
+        soort = str(item.get("event") or "").lower().replace("-", "_")
+        email = (item.get("email") or "").strip()
+        if not email:
+            continue
+        if soort in BREVO_HARD:
+            db.noteer_mailgebeurtenis(email, "bounce")
+        elif soort in BREVO_KLACHT:
+            for url in db.noteer_mailgebeurtenis(email, "klacht"):
+                db.meld_benadering_af(url)
+            if soort in ("spam", "complaint"):
+                _meld_aan_beheer("Spamklacht op een koude mail",
+                                 f"{email} markeerde onze mail als spam. De winkel is "
+                                 f"afgemeld. Kijk op /admin/benadering naar het percentage.")
+    return "", 200
 
 
 @app.route("/webhooks/mollie", methods=["POST"])
