@@ -79,6 +79,17 @@ klopt("het merk bovenaan: KRILLO INDEX", "KRILLO <span" in html_a and "INDEX</sp
 klopt("de knop is blauw zoals de site", "background:#1B3FE0" in html_a)
 klopt("geen https in de zin", "https://www.speel.nl" not in html_a)
 
+print("\n== NUMMER 1 LEEST GEEN TEGENSPRAAK ==")
+verstuurd.clear()
+emailing.send_onderzoeksmail("x@y.nl", "https://mediamarkt.nl", "https://krilloai.com/uitkomst/t",
+                             beeld=dict(beeld, positie=1, van=42, genoemd=23),
+                             categorienaam="Elektronica algemeen", landnaam="the Netherlands",
+                             variant="a")
+een = verstuurd[-1][1]
+klopt("nummer 1 krijgt een eigen kop boven de gemiste vraag", "Even at #1: a question where you were missing, in Dutch" in een)
+klopt("en een zin over vasthouden", "Staying #1 is the hard part" in een)
+klopt("de anderen niet", "Staying #1" not in html_a and "Even at #1" not in html_a)
+
 print("\n== DE PROEFMAIL STUURT BEIDE VERSIES ==")
 bron = lees("app.py")
 klopt("de proef loopt over beide versies", "for v in emailing.MAILVARIANTEN:" in bron)
