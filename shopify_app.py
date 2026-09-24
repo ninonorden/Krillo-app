@@ -534,6 +534,10 @@ def winkelgegevens(winkel, sleutel):
             "domein": shop.get("domain"),
             "land": shop.get("country_code"),
             "taal": shop.get("primary_locale"),
+            # Het Shopify-abonnement van de winkel zelf. "partner_test" en
+            # "affiliate" zijn ontwikkelwinkels: daar kan niet echt betaald
+            # worden (zie shopify_billing.testmodus).
+            "shopifyplan": shop.get("plan_name"),
         }
     except Exception as e:
         print(f"Winkelgegevens ophalen mislukt voor {winkel}: {e}")

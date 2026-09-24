@@ -73,6 +73,22 @@ def plan_van_abonnement(abonnement):
 PROEFDAGEN = 7
 
 
+# Ontwikkelwinkels (van partners en van de beoordelaars van Shopify) kunnen
+# niet echt betalen. Daar maken wij altijd een testbetaling, ook als
+# SHOPIFY_BILLING_TEST uit staat (24 september). Zo kan de testmodus uit Render
+# voor de app openbaar gaat, en kan de beoordelaar van Shopify toch een plan
+# afsluiten. Een echte winkel betaalt dan echt.
+ONTWIKKELPLANNEN = {"partner_test", "affiliate", "plus_partner_sandbox", "development", "staff"}
+
+
+def is_ontwikkelwinkel(winkel, sleutel):
+    try:
+        gegevens = shopify_app.winkelgegevens(winkel, sleutel) or {}
+    except Exception:
+        return False
+    return (gegevens.get("shopifyplan") or "").lower() in ONTWIKKELPLANNEN
+
+
 def testmodus():
     """Of wij nepbetalingen maken.
 
@@ -185,10 +201,11 @@ def start_abonnement(winkel, sleutel, terug_url, proefdagen=None, plan=STANDAARD
     # Heeft de winkel al een ander plan, dan vervangt Shopify dat zelf zodra
     # de winkelier akkoord geeft (replacementBehavior staat standaard op
     # STANDARD). Er lopen dus nooit twee abonnementen tegelijk.
+    test = testmodus() or is_ontwikkelwinkel(winkel, sleutel)
     uit = _graphql(winkel, sleutel, OPDRACHT_START, {
         "naam": PLANNEN[plan]["naam"],
         "terugUrl": terug_url,
-        "test": testmodus(),
+        "test": test,
         "proefdagen": PROEFDAGEN if proefdagen is None else max(0, int(proefdagen)),
         "bedrag": PLANNEN[plan]["prijs"],
         "valuta": PLAN_VALUTA,
@@ -206,7 +223,7 @@ def start_abonnement(winkel, sleutel, terug_url, proefdagen=None, plan=STANDAARD
         return {"gelukt": False, "fout": "Shopify gaf geen bevestigingslink terug."}
     return {"gelukt": True, "link": link,
             "abonnement": blok.get("appSubscription") or {},
-            "plan": plan, "test": testmodus()}
+            "plan": plan, "test": test}
 
 
 OPDRACHT_STOP = """
