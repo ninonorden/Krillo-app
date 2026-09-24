@@ -1,0 +1,100 @@
+{# De opmaak van het dashboard (/mijn, /demo) EN van de Shopify-app. Op een
+   plek sinds 24 september, zodat de app en de site nooit meer uit elkaar
+   lopen (Nino: "gebruik dezelfde UI"). Hoort na _stijl.html. #}
+<style>
+  /* HET WERKSCHERM, OPTIE B. Een zwarte zijkant en een wit werkblad met dunne
+     lijnen. De zijkant is geen versiering: hij zegt over welke winkel en welke
+     markt dit gaat, en dat moet blijven staan terwijl je naar beneden scrolt. */
+  body{background:#fff;}
+  .scherm{display:flex; min-height:100vh; align-items:stretch;}
+  .zijkant{width:236px; flex-shrink:0; background:var(--ink); color:var(--papier);
+           padding:26px 20px; display:flex; flex-direction:column; gap:24px;}
+  .zijkant .logo{color:var(--papier); font-size:22px;}
+  .winkelkaart{background:#17171B; border-radius:8px; padding:13px 14px;}
+  .winkelkaart .naam{font-size:14.5px; font-weight:600; word-break:break-word;}
+  .winkelkaart .bij{font-family:var(--mono); font-size:11px; color:#9C9AA6; margin-top:3px;
+                    text-transform:uppercase;}
+  .winkelkaart .markten{display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;}
+  .winkelkaart .markt{font-family:var(--mono); font-size:11px; background:#2A2A31;
+                      color:var(--papier); padding:5px 9px; border-radius:4px;}
+  .zijmenu{display:flex; flex-direction:column; gap:3px;}
+  .zijmenu a{text-decoration:none; color:#C9C7D1; font-size:14.5px; padding:11px 13px;
+             border-radius:7px;}
+  .zijmenu a.aan{color:#fff; background:#1E1E24;}
+  .zijmenu a:hover{color:var(--papier);}
+  .zijvoet{font-family:var(--mono); font-size:11px; color:#6E6E7A; line-height:1.7;}
+  .zijvoet span{color:#C9C7D1;}
+
+  .werkblad{flex-grow:1; padding:30px 36px 56px; display:flex; flex-direction:column;
+            gap:20px; min-width:0;}
+  .werkkop{display:flex; justify-content:space-between; align-items:center; gap:16px;
+           flex-wrap:wrap;}
+  .werkkop h1{font-size:34px; margin:0; letter-spacing:-0.04em;}
+  .werkkop .regel{font-family:var(--mono); font-size:12px; color:var(--ink-grijs);}
+
+  .paneel{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  @media(max-width:900px){ .paneel{grid-template-columns:1fr;} }
+  .cijfer{background:#fff; border:1px solid var(--lijn); border-radius:10px;
+          padding:24px 26px;}
+  .cijfer .label{font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
+                 color:var(--ink-grijs); margin-bottom:12px;}
+  .cijfer .rij{display:flex; align-items:baseline; gap:10px;}
+  .cijfer .groot{font-family:var(--disp); font-weight:700; font-size:48px;
+                 letter-spacing:-0.04em; line-height:1;}
+  .cijfer .naast{font-size:16px; color:var(--ink-zacht);}
+  .cijfer .bij{font-size:14px; color:var(--ink-zacht); margin-top:12px;}
+  .merkje{font-family:var(--mono); font-size:13px; padding:5px 11px; border-radius:5px;
+          display:inline-block; margin-top:12px;}
+  .merkje.op{color:var(--groen); background:var(--groen-dim);}
+  .merkje.af{color:var(--vermiljoen-tekst); background:#FFE9E5;}
+  .merkje.nieuw{color:var(--ink-grijs); background:var(--zand);}
+
+  .kaartblok{background:#fff; border:1px solid var(--lijn); border-radius:10px;
+             padding:24px 26px;}
+  .kaartkop{font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
+            color:var(--ink-grijs); margin-bottom:18px;}
+  .staven{display:flex; gap:10px; align-items:flex-end;}
+  .staaf{flex-grow:1; text-align:center;}
+  .staaf .bak{height:88px; display:flex; align-items:flex-end; justify-content:center;}
+  .staaf .vulling{width:100%; background:#ECECF0; border-radius:5px 5px 0 0;}
+  .staaf.nu .vulling{background:var(--groen);}
+  .staaf .cijfertje{font-family:var(--mono); font-size:12px; margin-top:8px;}
+  .staaf .datum{font-family:var(--mono); font-size:11px; color:var(--ink-grijs);}
+  .staaf.nu .datum{color:var(--groen);}
+  .buren{margin-top:18px; border-top:1px solid var(--lijn-licht); padding-top:14px;}
+  .buren .titel{font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
+                color:var(--ink-grijs); margin-bottom:8px;}
+  .buurrij{display:flex; gap:14px; align-items:baseline; padding:5px 0; font-size:15px;}
+  .buurrij .p{font-family:var(--disp); font-weight:700; font-size:17px; width:34px;}
+
+  .vragenblok{background:#fff; border:1px solid var(--lijn); border-radius:10px;
+              overflow:hidden;}
+  .vragenkop{padding:20px 26px; border-bottom:1px solid var(--lijn-licht);}
+  .vragenkop .titel{font-family:var(--disp); font-weight:700; font-size:24px;
+                    letter-spacing:-0.035em;}
+  .vragenkop .onder{font-size:14.5px; color:var(--ink-zacht); margin-top:4px;}
+  .vraagrij{padding:20px 26px; border-bottom:1px solid var(--lijn-licht);}
+  .vraagrij:last-child{border-bottom:none;}
+  .vraagrij .vraag{font-size:16px; font-weight:500; margin-bottom:8px;}
+  .vraagrij .wie{font-size:14.5px; color:var(--ink-zacht);}
+  .vraagrij .wie strong{color:var(--ink); font-weight:600;}
+
+  .werkvlak{background:var(--ink); color:#fff; border-radius:10px;
+            padding:26px 28px;}
+  .werkvlak .titel{font-family:var(--disp); font-weight:700; font-size:24px;
+                   letter-spacing:-0.035em;}
+  .werkvlak p{color:#C9C7D1; font-size:15px;}
+  .werkvlak .stempel{font-family:var(--mono); font-size:12px; color:#9C9AA6;}
+  .werkvlak .kopregel{display:flex; justify-content:space-between; align-items:center;
+                      gap:16px; flex-wrap:wrap; margin-bottom:8px;}
+  .werkvlak .knop.vol{margin-top:6px;}
+
+  .voorbeeldbalk{background:var(--zand); border:1px solid var(--lijn);
+                 border-radius:10px; padding:16px 20px; font-size:14.5px;
+                 color:var(--ink-zacht);}
+  @media(max-width:760px){
+    .scherm{flex-direction:column;}
+    .zijkant{width:auto;}
+    .werkblad{padding:24px 20px 48px;}
+  }
+</style>

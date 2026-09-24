@@ -9,193 +9,149 @@
    zelf komen, met onze client id erbij. Zet je hem lager of host je hem zelf,
    dan werkt het scherm binnen het beheerscherm niet en word je afgekeurd. #}
 <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="{{ api_key }}"></script>
+{% include "_stijl.html" %}
+{% include "_dashboard_stijl.html" %}
 <style>
-  /* Waarom dit er zo uitziet en niet als krillo.nl.
-     Dit scherm hangt IN het beheerscherm van Shopify. Een winkelier ziet het
-     naast zijn producten en bestellingen, en alles daaromheen is grijswit met
-     rustige knoppen. Zetten wij daar onze eigen roomkleur en koraalrood in,
-     dan ziet het eruit als een advertentie die per ongeluk in zijn
-     beheerscherm is beland, en dat leest als amateurwerk.
-     Dus: dezelfde kleuren, dezelfde vormen en dezelfde maten als Shopify
-     zelf gebruikt. Onze eigen kleur komt maar op een plek terug, klein. */
-  :root{
-    --tekst:#303030;          /* Shopify gebruikt geen zwart maar donkergrijs  */
-    --tekst-zacht:#616161;
-    --tekst-licht:#8A8A8A;
-    --vlak:#FFFFFF;
-    --achtergrond:#F1F1F1;
-    --lijn:#E3E3E3;
-    --lijn-sterk:#CDCDCD;
-    --knop:#303030;
-    --knop-hover:#1A1A1A;
-    --merk:#FF4B3E;           /* alleen als accentje, nergens als vlak        */
-    --goed:#CDFEE1;  --goed-tekst:#0C5132;
-    --let-op:#FFF1E3; --let-op-tekst:#5E4200;
-    --fout:#FFE9E8;  --fout-tekst:#8E1F0B;
-    --schaduw:0 1px 0 rgba(0,0,0,0.05);
-    --rond:8px;
-    --rond-groot:12px;
-    --mono:ui-monospace, SFMono-Regular, Menlo, monospace;
-    --body:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  body{background:var(--achtergrond); color:var(--tekst); font-family:var(--body);
-       font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;}
-  .wrap{max-width:800px; margin:0 auto; padding:20px 16px 80px;}
-
-  /* Kop van de pagina. Klein, want de naam van de app staat al in het menu van
-     Shopify ernaast. Twee keer dezelfde naam groot neerzetten is rommelig. */
-  .merk{display:flex; align-items:center; gap:7px; font-weight:650; font-size:13px;
-        color:var(--tekst-zacht); margin-bottom:16px;}
-  .stip{width:7px; height:7px; background:var(--merk); border-radius:50%;}
-
-  h1{font-size:20px; font-weight:650; letter-spacing:-0.01em; line-height:1.35;
-     margin-bottom:6px;}
-  h2{font-size:15px; font-weight:650; margin:0 0 4px;}
-  p{margin-bottom:10px;}
-  .onder{color:var(--tekst-zacht); font-size:14px; margin-bottom:14px;}
+  /* ALLEEN WAT DE APP EXTRA HEEFT (24 september). Alles wat ook op het
+     dashboard van de site staat (zijkant, werkblad, cijferkaarten, verloop,
+     vragen) komt uit _stijl.html en _dashboard_stijl.html: dezelfde UI, uit
+     hetzelfde bestand. Hieronder alleen de onderdelen die de site niet heeft:
+     voorstellen aanvinken, terugzetten, prijzen, vragen. In de tokens van de
+     site, zodat het er niet naast staat. */
+  body{background:#fff;}
+  .werkblad h2{font-family:var(--disp); font-weight:700; font-size:24px;
+               letter-spacing:-0.035em; margin:0 0 4px;}
+  .onder{color:var(--ink-zacht); font-size:14.5px; margin:0 0 14px;}
   .onder:last-child{margin-bottom:0;}
+  .label{font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
+         color:var(--ink-grijs); margin-bottom:10px; text-transform:uppercase;}
+  .kaart{background:#fff; border:1px solid var(--lijn); border-radius:10px;
+         padding:24px 26px;}
+  .kaart + .kaart{margin-top:14px;}
+  .kaart-kop{padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid var(--lijn-licht);}
+  /* Eigen naam: .blok bestaat al in _stijl.html (omlijnd vak van de homepage). */
+  .appblok{display:flex; flex-direction:column; gap:14px;}
+  .appblok > h2 + .onder{margin-bottom:0;}
+  .appblok > h2{color:var(--ink);}
 
-  /* Alles staat in kaarten, net als in het beheerscherm zelf. Zo ontstaat er
-     ritme in plaats van een lange lap tekst. */
-  .kaart{background:var(--vlak); border:1px solid var(--lijn);
-         border-radius:var(--rond-groot); box-shadow:var(--schaduw);
-         padding:16px; margin-bottom:12px;}
-  .kaart-kop{padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid var(--lijn);}
-  .kaart-kop:only-child{border:none; padding:0; margin:0;}
-  .label{font-size:12px; font-weight:600; color:var(--tekst-zacht); margin:0 0 8px;
-         letter-spacing:0;}
-
-  /* Het cijfer. Dit is waar iemand voor komt, dus het krijgt ruimte, maar het
-     is een getal met een bijschrift en geen kop van drie regels. */
-  .cijferkaart{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;}
-  .cijfer{font-size:34px; font-weight:680; line-height:1; letter-spacing:-0.02em;}
-  .cijfer-bij{color:var(--tekst-zacht); font-size:14px;}
-
-  button{font-family:var(--body); font-size:14px; font-weight:600; padding:9px 16px;
-         border:1px solid var(--knop); border-radius:var(--rond); background:var(--knop);
-         color:#fff; cursor:pointer; box-shadow:var(--schaduw); line-height:1.3;}
-  button:hover:not(:disabled){background:var(--knop-hover); border-color:var(--knop-hover);}
+  button{font-family:var(--body); font-size:15px; font-weight:600; padding:12px 22px;
+         border:none; border-radius:8px; background:var(--vermiljoen); color:#fff;
+         cursor:pointer; line-height:1.3;}
+  button:hover:not(:disabled){background:var(--vermiljoen-tekst);}
   button:disabled{opacity:0.55; cursor:default;}
-  button.rustig{background:var(--vlak); color:var(--tekst); border-color:var(--lijn-sterk);}
-  button.rustig:hover:not(:disabled){background:#FAFAFA;}
-  button.klein{font-size:13px; padding:6px 12px;}
-  .knoprij{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:4px;}
+  button.rustig{background:transparent; color:var(--ink); border:1.5px solid var(--lijn);}
+  button.rustig:hover:not(:disabled){background:var(--zand); border-color:var(--ink-grijs);}
+  button.klein{font-size:13.5px; padding:7px 13px;}
+  .knoprij{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .werkvlak button{margin-top:6px;}
 
-  .bezig{background:var(--let-op); color:var(--let-op-tekst); border-radius:var(--rond);
-         padding:11px 14px; font-size:13.5px; margin-bottom:12px;}
-  .misgegaan{background:var(--fout); color:var(--fout-tekst); border-radius:var(--rond);
-             padding:11px 14px; font-size:13.5px; margin-bottom:12px;}
-  .gelukt-melding{background:var(--goed); color:var(--goed-tekst);}
+  .bezig{background:var(--zand); border:1px solid var(--lijn); color:var(--ink);
+         border-radius:10px; padding:12px 16px; font-size:14.5px;}
+  .misgegaan{background:#FFE9E5; color:#B3261E; border-radius:10px; padding:12px 16px;
+             font-size:14.5px;}
+  .gelukt-melding{background:var(--groen-dim); color:var(--groen); border:none;}
 
-  .stappen{display:grid; grid-template-columns:repeat(3,1fr); gap:12px;}
-  @media(max-width:680px){ .stappen{grid-template-columns:1fr;} }
-  .stap{background:var(--vlak); border:1px solid var(--lijn); border-radius:var(--rond-groot);
-        box-shadow:var(--schaduw); padding:16px;}
-  .stap-num{display:inline-flex; align-items:center; justify-content:center; width:20px;
-            height:20px; border-radius:50%; background:var(--achtergrond);
-            color:var(--tekst-zacht); font-size:11px; font-weight:600; margin-bottom:8px;}
-  .stap h3{font-size:14px; font-weight:650; margin-bottom:4px;}
-  .stap p{font-size:13.5px; color:var(--tekst-zacht); margin:0;}
+  .stappen{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  @media(max-width:900px){ .stappen{grid-template-columns:1fr;} }
+  .stap{background:#fff; border:1px solid var(--lijn); border-radius:10px; padding:22px 24px;}
+  .stap-num{font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
+            color:var(--vermiljoen); display:block; margin-bottom:10px;}
+  .stap h3{font-family:var(--disp); font-size:18px; font-weight:700;
+           letter-spacing:-0.03em; margin-bottom:6px;}
+  .stap p{font-size:14.5px; color:var(--ink-zacht); margin:0;}
 
-  .prijzen{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
-  @media(max-width:860px){ .prijzen{grid-template-columns:1fr;} }
-  .prijs{background:var(--vlak); border:1px solid var(--lijn); border-radius:var(--rond-groot);
-         box-shadow:var(--schaduw); padding:18px; display:flex; flex-direction:column;}
-  .prijs.nu{border-color:var(--lijn-sterk);}
-  .prijs .naam{font-weight:650; font-size:14px; display:flex; align-items:center; gap:8px;}
-  .prijs .bedrag{font-size:26px; font-weight:680; margin:6px 0 12px; letter-spacing:-0.02em;}
-  .prijs .bedrag small{font-size:14px; color:var(--tekst-zacht); font-weight:500;
-                       letter-spacing:0;}
-  .prijs ul{list-style:none; font-size:13.5px; color:var(--tekst-zacht); line-height:1.5;
-            display:flex; flex-direction:column; gap:7px; margin-bottom:14px;}
-  .prijs li{padding-left:18px; position:relative;}
-  .prijs li::before{content:"✓"; position:absolute; left:0; color:var(--tekst-licht);
-                    font-size:12px;}
-  /* De onderkant van een prijskaart wordt naar beneden geduwd, zodat de knoppen
-     van beide kaarten op dezelfde hoogte staan ook als de lijstjes ongelijk zijn.
-     De opsomming hieronder haalt de opmaak van de paginavoet weg, want die deelt
-     per ongeluk dezelfde naam. */
-  .prijs .voet{margin-top:auto; border:none; padding:0; font-size:14px;
-               color:var(--tekst);}
-  .nulabel{font-size:11px; font-weight:600; background:var(--goed); color:var(--goed-tekst);
-           padding:2px 8px; border-radius:20px;}
+  .prijzen{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  @media(max-width:900px){ .prijzen{grid-template-columns:1fr;} }
+  .prijs{background:#fff; border:1px solid var(--lijn); border-radius:10px;
+         padding:24px 26px; display:flex; flex-direction:column;}
+  #planfix{border:1.5px solid var(--vermiljoen);}
+  .prijs .naam{font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
+               text-transform:uppercase; color:var(--ink-grijs); display:flex;
+               align-items:center; gap:8px;}
+  .prijs .bedrag{font-family:var(--disp); font-size:48px; font-weight:700;
+                 letter-spacing:-0.04em; line-height:1; margin:12px 0 10px;}
+  .prijs .bedrag small{font-size:16px; color:var(--ink-zacht); font-weight:500; letter-spacing:0;}
+  .prijs ul{list-style:none; font-size:14.5px; color:var(--ink-zacht); line-height:1.5;
+            display:flex; flex-direction:column; gap:8px; margin:6px 0 16px;}
+  .prijs li{padding-left:20px; position:relative;}
+  .prijs li::before{content:"✓"; position:absolute; left:0; color:var(--groen); font-weight:700;}
+  .prijs .voet{margin-top:auto;}
+  .nulabel{font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em;
+           background:var(--groen-dim); color:var(--groen); padding:3px 8px; border-radius:4px;}
 
-  .taak-titel{font-size:14px; font-weight:650; margin-bottom:2px; display:flex;
-              align-items:center; gap:8px; flex-wrap:wrap;}
-  .merkje{font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px;}
-  .merkje.feit{background:var(--goed); color:var(--goed-tekst);}
-  .merkje.vermoeden{background:var(--achtergrond); color:var(--tekst-zacht);}
+  .taak-titel{font-family:var(--disp); font-size:18px; font-weight:700;
+              letter-spacing:-0.03em; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .merkje.feit{color:var(--groen); background:var(--groen-dim);}
+  .merkje.vermoeden{color:var(--ink-grijs); background:var(--zand);}
+  .plak{position:relative; background:var(--zand); border:1px solid var(--lijn);
+        border-radius:8px; padding:12px 14px; font-family:var(--mono); font-size:12.5px;
+        line-height:1.6; white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto;}
+  .kopieer{position:absolute; top:8px; right:8px; font-size:12px; padding:4px 10px;
+           background:#fff; color:var(--ink); border:1px solid var(--lijn);}
+  .kopieer.gelukt{background:var(--groen-dim); color:var(--groen);}
+  .waar{font-size:14.5px; line-height:1.6; white-space:pre-line; color:var(--ink-zacht);}
 
-  /* Een kader met tekst die overgenomen moet worden. Was zwart met een
-     terminal-lettertype, en dat hoort niet in een beheerscherm thuis: het
-     schrikt af terwijl het gewoon leesbare tekst is. */
-  .plak{position:relative; background:#FAFAFA; border:1px solid var(--lijn);
-        color:var(--tekst); border-radius:var(--rond); padding:12px 14px;
-        font-family:var(--mono); font-size:12.5px; line-height:1.6;
-        white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto;}
-  .kopieer{position:absolute; top:8px; right:8px; background:var(--vlak);
-           color:var(--tekst); border:1px solid var(--lijn-sterk); border-radius:6px;
-           padding:4px 10px; font-size:12px; font-weight:600; cursor:pointer;
-           box-shadow:var(--schaduw);}
-  .kopieer.gelukt{background:var(--goed); color:var(--goed-tekst); border-color:var(--goed);}
-  .waar{font-size:13.5px; line-height:1.6; white-space:pre-line; color:var(--tekst-zacht);}
-
-  /* De concurrenten als een echt lijstje met regels ertussen, zodat je ze kunt
-     vergelijken in plaats van dat het een alinea wordt. */
-  .lijst{font-size:13.5px;}
-  .lijst .rij{display:flex; justify-content:space-between; align-items:baseline; gap:12px;
-              padding:8px 0; border-bottom:1px solid var(--lijn);}
-  .lijst .rij:last-child{border-bottom:none; padding-bottom:0;}
-  .lijst .rij:first-child{padding-top:0;}
-  .lijst .naam{font-weight:600;}
-  .lijst .aantal{color:var(--tekst-zacht); white-space:nowrap;}
-  .lijst .jij{font-size:11px; font-weight:600; background:var(--goed);
-              color:var(--goed-tekst); padding:1px 7px; border-radius:20px; margin-left:6px;}
-
-  /* Het voorstel met een vinkje ervoor. Als rij, zodat je er twaalf achter
-     elkaar kunt nakijken zonder te scrollen als een gek. */
-  .voorstel{display:flex; gap:11px; align-items:flex-start; padding:12px 0;
-            border-bottom:1px solid var(--lijn); cursor:pointer;}
+  .voorstel{display:flex; gap:12px; align-items:flex-start; padding:16px 0;
+            border-bottom:1px solid var(--lijn-licht); cursor:pointer;}
   .voorstel:last-child{border-bottom:none;}
-  .voorstel input{margin-top:2px; width:15px; height:15px; accent-color:var(--knop);
-                  flex-shrink:0;}
-  .voorstel .waarheen{font-weight:600; font-size:13.5px;}
-  .voorstel .soort{font-size:12px; color:var(--tekst-licht); margin-top:1px;}
-  .voorstel .nieuw{font-size:13.5px; color:var(--tekst-zacht); margin-top:5px;}
-  .voorstel .oud{font-size:13px; color:var(--tekst-licht); text-decoration:line-through;
-                 margin-top:4px;}
+  .voorstel input{margin-top:4px; width:16px; height:16px; accent-color:var(--vermiljoen); flex-shrink:0;}
+  .voorstel .waarheen{font-size:16px; font-weight:600;}
+  .voorstel .soort{font-family:var(--mono); font-size:11px; letter-spacing:0.08em;
+                   text-transform:uppercase; color:var(--ink-grijs); margin-top:3px;}
+  .voorstel .nieuw{font-size:14.5px; color:var(--ink-zacht); margin-top:6px;}
+  .voorstel .oud{font-size:13.5px; color:var(--ink-grijs); text-decoration:line-through; margin-top:4px;}
+  #wijzigingen.ingeklapt > .voorstel:nth-child(n+4){display:none;}
+  /* Wat op slot staat: grijze balkjes waar de namen zouden staan. De namen
+     zelf zitten niet in de pagina. */
+  .wie.dicht{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .slotbalk{display:inline-block; width:110px; height:12px; border-radius:6px;
+            background:linear-gradient(90deg,#ECECF0,#F4F4F7,#ECECF0);}
+  .slotbalk.kort{width:70px;}
+  .slotlink{font-family:var(--mono); font-size:12px; letter-spacing:0.04em;
+            color:var(--vermiljoen); text-decoration:none; margin-left:4px;}
+  .slotlink::before{content:"🔒 ";}
+  .slotvak{display:flex; justify-content:space-between; align-items:center; gap:18px;
+           flex-wrap:wrap; background:var(--ink); color:#fff; padding:22px 26px;}
+  .slotvak .titel{font-family:var(--disp); font-weight:700; font-size:20px; letter-spacing:-0.03em;}
+  .slotvak p{color:#C9C7D1; font-size:14.5px; margin:4px 0 0; max-width:520px;}
 
-  details{background:var(--vlak); border:1px solid var(--lijn); border-radius:var(--rond);
-          box-shadow:var(--schaduw); padding:12px 16px; margin-bottom:8px;}
-  summary{font-weight:600; font-size:13.5px; cursor:pointer; list-style:none;
-          display:flex; align-items:center; gap:8px;}
+  details{background:#fff; border:1px solid var(--lijn); border-radius:10px; padding:16px 22px;}
+  details + details{margin-top:8px;}
+  summary{font-size:16px; font-weight:500; cursor:pointer; list-style:none;
+          display:flex; gap:10px; align-items:baseline;}
   summary::-webkit-details-marker{display:none;}
-  summary::before{content:"›"; color:var(--tekst-licht); font-size:16px; line-height:1;
-                  transition:transform .12s ease;}
-  details[open] summary::before{transform:rotate(90deg);}
-  details .inhoud{font-size:13.5px; color:var(--tekst-zacht); line-height:1.6;
-                  margin-top:8px; padding-left:16px;}
-  .voet{font-size:12.5px; color:var(--tekst-licht); margin-top:24px; line-height:1.6;
-        border-top:1px solid var(--lijn); padding-top:16px;}
-  .voet a{color:var(--tekst-zacht);}
-  a{color:var(--tekst); text-underline-offset:2px;}
-
-  /* Ruimte tussen de blokken. Een vaste maat overal, want ongelijke afstanden
-     zijn waaraan je een scherm herkent dat stukje bij beetje gegroeid is. */
-  .blok{margin-top:28px;}
-  /* Een link die eruitziet als de rustige knop. Voor "See the full ranking":
-     dat is een pagina op krilloai.com, geen actie in de app. */
-  .knoplink{display:inline-block; padding:8px 14px; border-radius:var(--rond);
-            border:1px solid var(--lijn-sterk); background:var(--vlak); color:var(--tekst);
-            font-size:13.5px; font-weight:600; text-decoration:none;}
-  .knoplink:hover{background:#FAFAFA;}
-  .blok > h2 + .onder{margin-bottom:14px;}
+  summary::before{content:"+"; font-family:var(--mono); color:var(--vermiljoen);}
+  details[open] summary::before{content:"–";}
+  details .inhoud{font-size:14.5px; color:var(--ink-zacht); line-height:1.6; margin-top:10px;}
+  .voet{font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs); line-height:1.7;}
+  .voet a{color:var(--ink-grijs);}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="merk">KRILLO <span class="tag">INDEX</span></div>
+<div class="scherm">
+
+  {# DEZELFDE ZIJKANT ALS HET DASHBOARD OP DE SITE (24 september). #}
+  <div class="zijkant">
+    <a class="logo" href="{{ basis_url }}" target="_blank" rel="noopener">KRILLO <span class="tag">INDEX</span></a>
+    <div class="winkelkaart">
+      <div class="naam">{{ winkelnaam | replace('https://','') | replace('www.','') }}</div>
+      {% if categorienaam %}<div class="bij">{{ categorienaam }}</div>{% endif %}
+      <div class="markten"><span class="markt">{{ (beeld.land if beeld else (markt.landcode if markt else '')) | upper }}</span></div>
+    </div>
+    <div class="zijmenu">
+      <a class="aan" href="#overzicht">Overview</a>
+      {% if beeld %}<a href="#vragen">Questions I lose</a>{% endif %}
+      <a href="#werk">Fixes</a>
+      <a href="#plannen">Plans</a>
+      <a href="#faq">Questions</a>
+      <a href="{{ basis_url }}/index{% if beeld %}/{{ beeld.land }}/{{ beeld.categorie }}{% endif %}" target="_blank" rel="noopener">Public index</a>
+    </div>
+    <div style="flex-grow:1;"></div>
+    <div class="zijvoet">MEASURED EVERY MONTH<br>
+      {% if beeld and beeld.gemeten_op %}<span>MEASURED {{ beeld.gemeten_op.strftime('%d %b %Y') | upper }}</span>{% endif %}</div>
+  </div>
+
+  <div class="werkblad" id="overzicht">
 
   <div id="bezigblok" style="display:none;" class="bezig">
     <div id="bezigtekst">Starting…</div>
@@ -203,108 +159,153 @@
   </div>
   <div id="foutblok" style="display:none;" class="misgegaan"><span id="fouttekst"></span></div>
 
-  {# DE INGANG IS JE POSITIE (stap 26, 23 september), net als op krilloai.com.
-     Hiervoor stond hier een knop "Measure my store" die een eigen meting
-     startte. Nu komt het cijfer uit de openbare index: dezelfde meting als de
-     ranglijst op de site, dus nooit twee cijfers die elkaar tegenspreken. #}
-  {% if beeld %}
-    <div class="kaart">
-      <div class="kaart-kop">
-        <div class="label">Your rank in the Krillo index</div>
-        <div class="cijferkaart">
-          <span class="cijfer">#{{ beeld.positie }} of {{ beeld.van }}</span>
-          <span class="cijfer-bij">in {{ categorienaam }}, {{ landnaam }}</span>
-        </div>
+  {# Het beeld, in PRECIES de opmaak van templates/dashboard.html. Twee keer te
+     gebruiken: voor de winkel zelf en als voorbeeld met een echte winkel. #}
+  {% macro beeldblok(b, naam, cat, land, staven, basis) %}
+    <div class="werkkop">
+      <h1>{{ naam }}</h1>
+      <div class="regel">
+        {% if b.gemeten_op %}MEASURED {{ b.gemeten_op.strftime('%d %b %Y') | upper }} &middot; {% endif %}
+        {{ b.telbaar }} BUYING QUESTIONS &middot; CHATGPT AND GEMINI &middot; {{ land | upper }}
       </div>
-      <p class="onder">
-        AI named your store in {{ beeld.genoemd }} of {{ beeld.telbaar }} buying questions,
-        and really recommended it in {{ beeld.aanbevolen }}.
-        {% if beeld.verschil %}{% if beeld.verschil > 0 %}Up {{ beeld.verschil }} since the last measurement.{% else %}Down {{ -beeld.verschil }} since the last measurement.{% endif %}{% endif %}
-        {% if beeld.gemeten_op %}Measured on {{ beeld.gemeten_op.strftime('%d %b %Y') }}.{% endif %}
-        We measure your whole category again every month.
-      </p>
-      <div class="knoprij">
-        <a class="knoplink" href="{{ basis_url }}/index/{{ beeld.land }}/{{ beeld.categorie }}"
+    </div>
+    <div class="paneel">
+      <div class="cijfer">
+        <div class="label">YOUR POSITION</div>
+        <div class="rij"><span class="groot">{{ b.positie }}</span>
+          <span class="naast">of the {{ b.van }} stores we measure</span></div>
+        {% if b.verschil and b.verschil > 0 %}<span class="merkje op">UP {{ b.verschil }}</span>
+        {% elif b.verschil and b.verschil < 0 %}<span class="merkje af">DOWN {{ -b.verschil }}</span>
+        {% elif b.vorige_positie %}<span class="merkje nieuw">NO CHANGE</span>
+        {% else %}<span class="merkje nieuw">FIRST MEASUREMENT</span>{% endif %}
+      </div>
+      <div class="cijfer">
+        <div class="label">NAMED</div>
+        <div class="rij"><span class="groot">{{ b.genoemd }}</span>
+          <span class="naast">of the {{ b.telbaar }} buying questions</span></div>
+        <div class="bij">{% if b.genoemd and not b.aanbevolen %}You were in the answer, but not in the advice.{% endif %}</div>
+      </div>
+      <div class="cijfer">
+        <div class="label">RECOMMENDED</div>
+        <div class="rij"><span class="groot">{{ b.aanbevolen }}</span>
+          <span class="naast">of the {{ b.telbaar }} buying questions</span></div>
+        <div class="bij">{% if b.aanbevolen == 0 %}This is where buyers are lost.{% endif %}</div>
+      </div>
+    </div>
+
+    {% if (staven and staven | length > 1) or b.boven_mij %}
+    <div class="kaartblok">
+      {% if staven and staven | length > 1 %}
+      <div class="kaartkop">POSITION OVER TIME</div>
+      <div class="staven">
+        {% for s in staven %}
+        <div class="staaf {% if loop.last %}nu{% endif %}">
+          <div class="bak"><div class="vulling" style="height:{{ s.hoogte }}px;"></div></div>
+          <div class="cijfertje">{{ s.positie }}</div>
+          <div class="datum">{% if s.datum %}{{ s.datum.strftime('%d %b') | upper }}{% endif %}</div>
+        </div>
+        {% endfor %}
+        <div style="flex-grow:2;"></div>
+      </div>
+      <p style="margin:16px 0 0; font-size:14px;">Lower is better.</p>
+      {% endif %}
+      {% if b.boven_mij %}
+      <div class="buren" {% if not (staven and staven | length > 1) %}style="margin-top:0; border-top:none; padding-top:0;"{% endif %}>
+        <div class="titel">WHO IS JUST ABOVE YOU</div>
+        {% for r in b.boven_mij %}
+        <div class="buurrij">
+          <span class="p">{{ r.positie }}</span>
+          <span class="merk" style="flex-grow:1;">{{ r.naam if (r.naam and not r.naam.startswith('http')) else (r.webshop_url | replace('https://','') | replace('http://','') | replace('www.','')) }}</span>
+          <span style="font-family:var(--mono); font-size:13px;">{{ r.genoemd }} / {{ b.telbaar }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div style="margin-top:18px;">
+        <a class="knop leeg" style="display:inline-block; padding:10px 18px; font-size:14.5px; line-height:1.3;" href="{{ basis }}/index/{{ b.land }}/{{ b.categorie }}#p{{ b.positie }}"
            target="_blank" rel="noopener">See the full ranking</a>
       </div>
     </div>
-
-    {% if beeld.boven_mij %}
-    <div class="kaart">
-      <div class="kaart-kop"><h2>Just ahead of you</h2></div>
-      <div class="lijst">
-        {% for r in beeld.boven_mij %}
-        <div class="rij">
-          <span class="naam">#{{ r.positie }} {{ r.naam or (r.webshop_url | replace('https://','')) }}</span>
-          <span class="aantal">named in {{ r.genoemd }} of {{ beeld.telbaar }}</span>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
     {% endif %}
 
-    {% if beeld.gemiste_vragen %}
-    <div class="kaart">
-      <div class="kaart-kop">
-        <h2>Questions where you were missing</h2>
-        <p class="onder" style="margin-bottom:0;">The real question a buyer asks, and who AI
-          named instead. Platforms are listed apart: those are places to be listed on, not
-          competitors.</p>
+    {% if b.gemiste_vragen %}
+    <div class="vragenblok" id="vragen">
+      <div class="vragenkop">
+        <div class="titel">The questions you lose</div>
+        <div class="onder">The real question, in the language of the market, and who was named instead of you. Platforms are places to be listed on, not competitors.</div>
       </div>
-      <div class="lijst">
-        {% for v in beeld.gemiste_vragen %}
-        <div class="rij" style="display:block;">
-          <div class="naam">{{ v.vraag }}</div>
-          <div class="aantal" style="white-space:normal; margin-top:3px;">
-            {% if v.concurrenten %}Named instead: {{ v.concurrenten | join(', ') }}{% else %}No store named{% endif %}
-            {% if v.platforms %} &middot; Platforms: {{ v.platforms | join(', ') }}{% endif %}
-          </div>
+      {% for v in b.gemiste_vragen %}
+      <div class="vraagrij">
+        <div class="vraag">{{ v.vraag[:1] | upper }}{{ v.vraag[1:] }}</div>
+        {% if v.slot %}
+        <div class="wie dicht">Named instead of you: <span class="slotbalk"></span><span class="slotbalk kort"></span>
+          <a href="#plannen" class="slotlink">Unlock with Watch</a></div>
+        {% else %}
+        <div class="wie">Named instead of you:
+          {% for c in v.concurrenten %}<strong>{{ c }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}
+          {% if not v.concurrenten %}<span style="color:var(--ink-grijs);">no store at all</span>{% endif %}
+          {% if v.platforms %}<span style="font-family:var(--mono); font-size:12px; color:var(--ink-grijs);"> &middot; PLATFORMS: {{ v.platforms | join(', ') | upper }}</span>{% endif %}
         </div>
-        {% endfor %}
+        {% endif %}
       </div>
+      {% endfor %}
+      {% if slot %}
+      {# Het moment waarop iemand de waarde al ziet: hier de vraag om Watch. #}
+      <div class="slotvak">
+        <div>
+          <div class="titel">See who beat you on {{ slot }} more question{{ 's' if slot != 1 }}</div>
+          <p>Watch shows who AI named instead of you on every question, with the real answer,
+            and your rank every month. {% if proef_over %}Free for {{ proefdagen }} days, then ${{ plannen.watch.prijs | int }} a month.{% else %}${{ plannen.watch.prijs | int }} a month, cancel any time.{% endif %}</p>
+        </div>
+        <a class="knop vol" href="#plannen">{% if proef_over %}Try Watch free{% else %}Start Watch{% endif %}</a>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
-  {% elif in_markt %}
-    <div class="kaart">
-      <div class="kaart-kop">
-        <div class="label">Your rank in the Krillo index</div>
-        <h1>Your rank is on its way</h1>
-        <p class="onder">We have added your store to the Krillo index. Tonight we place it in
-          its category{% if categorienaam %} ({{ categorienaam }}){% endif %} and work out its
-          rank from the same buying questions every store in that category gets. Open this
-          page again tomorrow to see where you stand. For a category we have not measured
-          yet, it can take a few days.</p>
-        <p class="onder">Meanwhile, check your store below: the first {{ gratis_totaal }}
-          fixes are free.</p>
-      </div>
-    </div>
+  {% endmacro %}
+
+  {% if beeld %}
+    {{ beeldblok(beeld, winkelnaam | replace('https://','') | replace('www.',''), categorienaam, landnaam, staven, basis_url) }}
   {% else %}
-    <div class="kaart">
-      <div class="kaart-kop">
-        <div class="label">Your rank in the Krillo index</div>
-        <h1>We do not measure your market yet</h1>
-        <p class="onder">The Krillo index measures stores selling in the Netherlands and
-          Belgium{% if markt %}, and your store is set to {{ markt.landcode }}{% endif %}.
-          So there is no rank for you yet. The fixes below work in any market: they make
-          your store easier for AI to read.</p>
-      </div>
+    <div class="werkkop"><h1>{{ winkelnaam | replace('https://','') | replace('www.','') }}</h1></div>
+    <div class="kaartblok">
+      <div class="kaartkop">YOUR POSITION</div>
+      {% if in_markt %}
+      <p style="margin:0 0 8px; font-size:15px;"><strong>Your rank is on its way.</strong>
+        We have added your store to the Krillo index{% if categorienaam %}, in {{ categorienaam }}{% endif %}.
+        Tonight we place it in its category; at the next measurement of that category you get the
+        same thirty buying questions as every other store in it. Then your position appears here.
+        For a category we do not measure yet, that can take a few days.</p>
+      {% else %}
+      <p style="margin:0; font-size:15px;"><strong>We do not measure your market yet.</strong>
+        The Krillo index measures stores selling in the Netherlands and Belgium{% if markt %}, and your
+        store is set to {{ markt.landcode }}{% endif %}. The fixes below work in any market: they make your
+        store easier for AI to read.</p>
+      {% endif %}
     </div>
+    {% if voorbeeld %}
+    <div class="voorbeeldbalk">
+      <strong>This is an example.</strong>
+      A real store from the index, with real measured numbers.
+      {% if in_markt %}This is what your screen shows once your category is measured.{% else %}This is what stores in the Netherlands and Belgium see.{% endif %}
+    </div>
+    {{ beeldblok(voorbeeld, voorbeeld.winkelnaam, voorbeeld.categorienaam, voorbeeld.landnaam, voorbeeld_staven, basis_url) }}
+    {% endif %}
   {% endif %}
 
-  <div class="blok">
-    <h2>We do the work, not you</h2>
-    <p class="onder">Most tools hand you a list of things to fix and leave you to it.
-      We write the missing text and put it in your store ourselves. Here you see every
-      change before it happens, and every change can be undone with one button.</p>
-
-    <div class="kaart">
-      <p class="onder">Three kinds of thing, and only where they are missing: descriptions on
-        images that have none, product descriptions that are missing or very short
-        (under 180 characters), and a page with frequently asked questions if you do not have
-        one. We keep the old text of every change, so it can always be put back.</p>
-      <p class="onder"><b>The first {{ gratis_totaal }} changes are free.</b> Not a demo:
+  <div class="appblok" id="werk">
+    <div class="werkvlak">
+      <div class="kopregel">
+        <div class="titel">We do the work, not you</div>
+        <span class="stempel">WRITTEN FOR YOU &middot; YOU SEE IT FIRST &middot; ONE CLICK TO UNDO</span>
+      </div>
+      <p>Three kinds of thing, and only where they are missing: descriptions on images that have
+        none, product descriptions that are missing or very short (under 180 characters), and a
+        page with frequently asked questions if you do not have one. We keep the old text of every
+        change, so it can always be put back.</p>
+      <p><strong style="color:#fff;">The first {{ gratis_totaal }} changes are free.</strong> Not a demo:
         they go into your store for real, and they stay there whatever you decide next.</p>
-      <div class="knoprij"><button id="nakijkknop">Check my store</button></div>
+      <button id="nakijkknop">Check my store</button>
     </div>
 
       <div id="werkbezig" style="display:none;" class="bezig">
@@ -335,24 +336,24 @@
     </div>
   </div>
 
-  <div class="blok">
+  <div class="appblok">
   <h2>How it works</h2>
   <p class="onder">Three steps. The measuring is ours; you decide what goes live.</p>
   <div class="stappen">
     <div class="stap">
-      <span class="stap-num">1</span>
+      <span class="stap-num">01</span>
       <h3>We measure your category</h3>
           <p>Every month we put thirty buying questions to ChatGPT and Gemini, the way a
           shopper in your category would type them, for every store in that category at once.</p>
     </div>
     <div class="stap">
-      <span class="stap-num">2</span>
+      <span class="stap-num">02</span>
       <h3>You see your rank</h3>
           <p>Your place in the public ranking, which questions you miss, and which stores
           AI named instead of you. With the real answer behind every number.</p>
     </div>
     <div class="stap">
-      <span class="stap-num">3</span>
+      <span class="stap-num">03</span>
       <h3>We fix what holds you back</h3>
           <p>We write the missing text and put it in your store, after you see it. The
           first {{ gratis_totaal }} changes are free; with Fix we keep doing it, and pick
@@ -368,7 +369,7 @@
   {% set eigen = ["faq", "productinfo", "alt_tekst"] %}
   {% set voor_hem = actieplan.acties | rejectattr("id", "in", eigen) | list if actieplan and actieplan.acties else [] %}
   {% if voor_hem %}
-  <div class="blok">
+  <div class="appblok">
   <h2>What we cannot do for you</h2>
   <p class="onder">These sit in your theme or your hosting, not in your products or pages,
     so we have no way to reach them. Below is the text to send to whoever built your
@@ -389,7 +390,7 @@
   </div>
   {% endif %}
 
-  <div class="blok">
+  <div class="appblok" id="plannen">
   <h2>Plans</h2>
   <p class="onder">You can start for free. Watch keeps an eye on your store every month.
     With Fix we also do the work in your store.</p>
@@ -403,6 +404,7 @@
            categorie) plus de eerste wijzigingen. #}
         <li>Your current rank in the Krillo index (Netherlands and Belgium)</li>
         <li>The stores just ahead of you</li>
+        <li>One of the questions you lose, with who was named instead</li>
         <li>The first {{ gratis_totaal }} changes written and applied for you</li>
       </ul>
     </div>
@@ -475,7 +477,7 @@
   <div id="abonnementfout" style="display:none;" class="misgegaan"><span id="abonnementfouttekst"></span></div>
   </div>
 
-  <div class="blok">
+  <div class="appblok" id="faq">
   <h2>Questions people ask us</h2>
   <p class="onder">Short answers, no small print.</p>
 
@@ -559,6 +561,7 @@ and you can switch it off.
     percentage suggests a precision that isn't there.<br><br>
     Questions? <a href="mailto:hello@krilloai.com">hello@krilloai.com</a> ·
     <a href="{{ basis_url }}/privacybeleid" target="_blank" rel="noopener">Privacy</a>
+  </div>
   </div>
 </div>
 
@@ -876,6 +879,22 @@ and you can switch it off.
             kaart.appendChild(terug);
             wijzigingen.appendChild(kaart);
           });
+          // Na drie inklappen, met een knop voor de rest (24 september).
+          var oudeKnop = document.getElementById('allewijzigingen');
+          if (oudeKnop) { oudeKnop.remove(); }
+          if (lijst.length > 3) {
+            wijzigingen.classList.add('ingeklapt');
+            var alles = document.createElement('button');
+            alles.id = 'allewijzigingen';
+            alles.className = 'rustig klein';
+            alles.style.marginTop = '10px';
+            alles.textContent = 'Show all ' + lijst.length + ' changes';
+            alles.addEventListener('click', function(){
+              var dicht = wijzigingen.classList.toggle('ingeklapt');
+              alles.textContent = dicht ? ('Show all ' + lijst.length + ' changes') : 'Show fewer';
+            });
+            wijzigingen.parentNode.appendChild(alles);
+          }
           wijzigingBlok.style.display = 'block';
         })
         .catch(function(){ /* niet erg, dit is een overzicht */ });

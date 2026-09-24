@@ -5719,6 +5719,32 @@ def _app_adres_in_beheerscherm(winkel):
     return f"https://admin.shopify.com/store/{winkelnaam_kort}/apps"
 
 
+def _voorbeeld_voor_app():
+    """Een ECHTE winkel uit de index, als voorbeeld voor wie nog geen positie heeft.
+
+    WAAROM (24 september). Een nieuwe installatie ziet eerst een leeg blok:
+    "je positie komt eraan" of "we meten jouw markt nog niet". Dan heeft de
+    winkelier niets om naar te kijken en snapt hij niet wat hij krijgt. Nu
+    zien ze eronder hoe het scherm eruitziet met echte cijfers, van een echte
+    winkel, duidelijk als voorbeeld gemarkeerd. Dezelfde winkel als /demo op
+    de site; de cijfers staan ook op de openbare ranglijst, dus niets geheims."""
+    try:
+        keuze = db.voorbeeldwinkel()
+        if not keuze:
+            return None
+        vb = klantbeeld.bouw(keuze["webshop_url"], land=keuze.get("land"))
+        if not vb:
+            return None
+        vb = dict(vb)
+        vb["categorienaam"] = categorieen.naam_van(vb["categorie"])
+        vb["landnaam"] = sitetaal.landnaam(vb["land"], "en") if vb.get("land") else ""
+        vb["winkelnaam"] = (vb.get("naam") or keuze["webshop_url"]).replace("https://", "")
+        return vb
+    except Exception as e:
+        print(f"Voorbeeld voor de app ophalen mislukt: {e}")
+        return None
+
+
 def _shopify_scherm(winkel, rij):
     """Het scherm dat de winkelier binnen Shopify ziet.
 
@@ -5759,8 +5785,45 @@ def _shopify_scherm(winkel, rij):
         except Exception as e:
             print(f"Positie ophalen mislukt voor {webshop_url}: {e}")
 
+    voorbeeld_app = None if beeld else _voorbeeld_voor_app()
+
+    # WAT GRATIS IS EN WAT NIET (24 september). Gratis: je positie, hoe vaak je
+    # genoemd en aanbevolen werd, wie er vlak boven je staat, en EEN verloren
+    # vraag compleet. Bij de andere verloren vragen zie je de vraag, maar niet
+    # wie er in jouw plaats genoemd werd; dat is Watch. Het verloop per maand is
+    # ook Watch. Zo ziet iemand de waarde voordat hij betaalt, en is er een
+    # reden om te betalen (zie krillo-app-paywall in het project).
+    #
+    # Wat op slot staat gaat NIET mee naar de browser. Vaag maken met CSS zou
+    # de namen gewoon in de broncode laten staan.
+    #
+    # Lukt het niet om bij Shopify na te vragen of hij betaalt, dan tonen we
+    # alles. Liever een keer te veel laten zien dan een betalende klant voor
+    # een dichte deur zetten.
+    betaalt, proef_over = True, False
+    if beeld and rij.get("toegangssleutel"):
+        try:
+            stand_abo = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
+            if not stand_abo.get("fout"):
+                betaalt = bool(stand_abo.get("actief"))
+        except Exception as e:
+            print(f"Abonnement nakijken voor het scherm mislukt voor {winkel}: {e}")
+        proef_over = not rij.get("proef_gehad_op")
+    slot = 0
+    if beeld and not betaalt:
+        beeld = dict(beeld)
+        vragen = list(beeld.get("gemiste_vragen") or [])
+        beeld["gemiste_vragen"] = vragen[:1] + [{"vraag": v.get("vraag"), "slot": True}
+                                                 for v in vragen[1:]]
+        slot = max(0, len(vragen) - 1)
+        beeld["verloop"] = []
+
     return render_template(
         "shopify_app.html",
+        betaalt=betaalt,
+        slot=slot,
+        proef_over=proef_over,
+        proefdagen=shopify_billing.PROEFDAGEN,
         api_key=os.environ.get("SHOPIFY_API_KEY", ""),
         winkel=winkel,
         winkelnaam=rij.get("naam") or webshop_url,
@@ -5775,6 +5838,11 @@ def _shopify_scherm(winkel, rij):
         plannen=shopify_billing.PLANNEN,
         beeld=beeld,
         in_markt=in_markt,
+        voorbeeld=voorbeeld_app,
+        # Dezelfde staafjes als het dashboard op de site (klantbeeld.balkhoogtes).
+        staven=klantbeeld.balkhoogtes(beeld.get("verloop") or []) if beeld else [],
+        voorbeeld_staven=(klantbeeld.balkhoogtes(voorbeeld_app.get("verloop") or [])
+                          if voorbeeld_app else []),
         categorienaam=categorienaam or (categorieen.naam_van(beeld["categorie"])
                                         if beeld else None),
         landnaam=sitetaal.landnaam(beeld["land"], "en") if beeld else None,
