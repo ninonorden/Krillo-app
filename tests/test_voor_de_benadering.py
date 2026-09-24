@@ -274,6 +274,25 @@ klopt("het maandbericht ook", "categorieen.naam_en(categorie)" in lees("meldinge
 klopt("de openbare ranglijst houdt de Nederlandse naam (zoekterm)",
       "naam=categorieen.naam_van(slug)," in app_bron)
 
+print("\n== 16. SHOPIFY: ONTWIKKELWINKELS BETALEN ALTIJD TEST ==")
+import shopify_billing  # noqa: E402
+import shopify_app  # noqa: E402
+os.environ.pop("SHOPIFY_BILLING_TEST", None)
+verzoeken = []
+shopify_billing._graphql = lambda w, k, v, var=None: verzoeken.append(var) or {
+    "gelukt": True, "gegevens": {"appSubscriptionCreate": {"confirmationUrl": "https://x", "userErrors": []}}}
+shopify_app.winkelgegevens = lambda w, k: {"shopifyplan": "partner_test"}
+shopify_billing.start_abonnement("proef.myshopify.com", "s", "https://krilloai.com/t")
+klopt("een ontwikkelwinkel (ook die van de beoordelaar) krijgt een testbetaling",
+      verzoeken[-1]["test"] is True)
+shopify_app.winkelgegevens = lambda w, k: {"shopifyplan": "basic"}
+shopify_billing.start_abonnement("echt.myshopify.com", "s", "https://krilloai.com/t")
+klopt("een echte winkel betaalt echt, ook zonder SHOPIFY_BILLING_TEST", verzoeken[-1]["test"] is False)
+shopify_app.winkelgegevens = lambda w, k: None
+shopify_billing.start_abonnement("onbekend.myshopify.com", "s", "https://krilloai.com/t")
+klopt("weten wij het plan niet, dan echt (geen gratis abonnementen bij een storing)",
+      verzoeken[-1]["test"] is False)
+
 print()
 if fouten:
     print(f"FOUT: {len(fouten)} controle(s) mislukt")
