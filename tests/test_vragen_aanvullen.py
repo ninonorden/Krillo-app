@@ -69,7 +69,8 @@ klopt("zonder bestaande vragen staat dat blok er niet", "DEZE VRAGEN BESTAAN AL"
 print("\n== HET AANVULLEN IN DE METING ==")
 bron = lees("categoriemeting.py")
 klopt("de meting geeft ALLE vragen mee, ook de uitgezette",
-      "vermijd=db.alle_categorie_vragen_tekst(slug)" in bron)
+      # Sinds stap 76 per land een eigen sleutel ("speelgoed@be"), zie vraaglanden.py.
+      "vermijd=db.alle_categorie_vragen_tekst(sleutel)" in bron)
 klopt("en vraagt er ruim, want er vallen er altijd een paar af",
       "aantal=max(tekort + 5, 8)" in bron)
 klopt("met een tweede poging", "for _poging in range(2):" in bron)
