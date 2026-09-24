@@ -152,7 +152,7 @@ zo("met onze client id erbij", 'data-api-key="test-client-id"' in p, True)
 # Sinds stap 26 (23 september) is er geen eigen meting meer in de app: de
 # positie komt uit de index. Dus ook geen knop die een meting start.
 zo("er staat GEEN knop meer om zelf te meten", 'id="metenknop"' in p, False)
-zo("wel de kop van de index", "Your rank in the Krillo index" in p, True)
+zo("wel het blok met je positie", "YOUR POSITION" in p, True)
 zo("en nog geen cijfers", "van de" in p and "koopvragen" in p, False)
 
 print("\n== een tweede keer openen wisselt niet opnieuw in ==")

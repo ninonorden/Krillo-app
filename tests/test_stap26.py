@@ -123,6 +123,18 @@ klopt("de kop zegt dat de positie eraan komt", "Your rank is on its way" in p)
 klopt("geen knop om zelf te meten", 'id="metenknop"' not in p)
 klopt("geen verzonnen cijfer", "#1 of" not in p)
 
+print("\n== ZONDER POSITIE: EEN ECHT VOORBEELD ERONDER (24 september) ==")
+_vb = {"positie": 4, "van": 54, "genoemd": 11, "aanbevolen": 3, "telbaar": 30, "verschil": None,
+       "gemeten_op": None, "land": "nl", "categorie": "elektronica",
+       "categorienaam": "Elektronica", "landnaam": "the Netherlands", "winkelnaam": "Voorbeeldwinkel",
+       "boven_mij": [], "gemiste_vragen": []}
+_echt_vb = krillo._voorbeeld_voor_app
+krillo._voorbeeld_voor_app = lambda: _vb
+p = scherm()
+klopt("het voorbeeld staat eronder, als voorbeeld gemarkeerd", "This is an example." in p and "Voorbeeldwinkel" in p)
+klopt("met echte cijfers van die winkel", "of the 54 stores we measure" in p)
+krillo._voorbeeld_voor_app = _echt_vb
+
 print("\n== BIJ HET OPENEN KOMT DE WINKEL OP DE LIJST ==")
 r = sql("SELECT stand, land, gemaild_op FROM benadering WHERE webshop_url = %s", (URL,), een=True)
 klopt("hij staat op de winkellijst", r is not None)
@@ -150,20 +162,39 @@ beeld = {
                    "genoemd": 9}],
     "gemiste_vragen": [{"vraag": "Waar koop ik goede espressobonen?",
                         "concurrenten": ["Koffie Centrale"], "platforms": ["bol.com"],
+                        "aanbevolen": []},
+                       {"vraag": "Beste koffiemolen voor thuis?",
+                        "concurrenten": ["GeheimeConcurrent"], "platforms": [],
                         "aanbevolen": []}],
 }
 krillo.klantbeeld.bouw = lambda url, land=None, **k: beeld
 p = scherm()
-klopt("de positie staat erop", "#4 of 23" in p)
+klopt("de positie staat erop", '<span class="groot">4</span>' in p and "of the 23 stores we measure" in p)
 klopt("met categorie en land", "Netherlands" in p or "Nederland" in p)
-klopt("hoe vaak genoemd, per vraag", "7 of 30 buying questions" in p)
-klopt("de stijging staat erbij", "Up 2 since the last measurement" in p)
-klopt("de link naar de volledige ranglijst", "https://krilloai.com/index/nl/koffie" in p)
-klopt("wie net boven hem staat", "Just ahead of you" in p and "Koffie Centrale" in p)
+klopt("hoe vaak genoemd, per vraag", '<span class="groot">7</span>' in p and "of the 30 buying questions" in p)
+klopt("de stijging staat erbij", "UP 2" in p)
+klopt("de link naar de volledige ranglijst", "https://krilloai.com/index/nl/koffie#p4" in p)
+klopt("dezelfde UI als het dashboard: de gedeelde opmaak", "cijfer" in p and "zijkant" in p and "werkblad" in p)
+klopt("wie net boven hem staat", "WHO IS JUST ABOVE YOU" in p and "Koffie Centrale" in p)
 klopt("de vraag waar hij ontbrak", "Waar koop ik goede espressobonen?" in p)
-klopt("de concurrent als 'named instead'", "Named instead: Koffie Centrale" in p)
-klopt("bol.com apart als platform", "Platforms: bol.com" in p)
-klopt("bol.com NIET als concurrent", "Named instead: Koffie Centrale, bol.com" not in p)
+klopt("de concurrent bij de gemiste vraag", "<strong>Koffie Centrale</strong>" in p)
+klopt("bol.com apart als platform", "PLATFORMS: BOL.COM" in p)
+klopt("bol.com NIET als concurrent", "<strong>bol.com</strong>" not in p)
+
+print("\n== GRATIS ZIET EEN DEEL, WATCH ZIET ALLES (24 september) ==")
+klopt("de tweede vraag staat er wel", "Beste koffiemolen voor thuis?" in p)
+klopt("maar wie er in plaats van hem genoemd werd NIET, ook niet in de broncode",
+      "GeheimeConcurrent" not in p)
+klopt("met een slot en de weg naar Watch", "Unlock with Watch" in p and "See who beat you on 1 more question" in p)
+klopt("de proef wordt genoemd zolang hij die nog niet had", "Try Watch free" in p)
+shopify_billing.huidig_abonnement = lambda w, s: {"actief": True, "plan": "watch"}
+p = scherm()
+klopt("met een abonnement staat alles erop", "GeheimeConcurrent" in p)
+klopt("en geen slot meer", "Unlock with Watch" not in p)
+shopify_billing.huidig_abonnement = lambda w, s: {"actief": False, "fout": "storing"}
+p = scherm()
+klopt("weten we het niet (storing bij Shopify), dan alles tonen", "GeheimeConcurrent" in p)
+shopify_billing.huidig_abonnement = lambda w, s: {"actief": False}
 
 print("\n== DE GEMISTE VRAGEN SPLITSEN WINKELS EN PLATFORMS ==")
 klantbeeld.db.antwoorden_van_ronde = lambda ronde: [
