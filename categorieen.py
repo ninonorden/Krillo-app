@@ -155,6 +155,48 @@ CATEGORIEEN = [
 # nietszeggend en hebben de fijnere categorieen meer waarde.
 SPLITS_BOVEN = int(os.environ.get("CATEGORIE_SPLITS_BOVEN", "40"))
 
+# ENGELSE NAMEN (24 september). De app, de mails en de gratis check zijn
+# Engels, maar lieten de Nederlandse naam zien: "#4 of 23 in Koffie en thee",
+# "in the Elektronica algemeen category". Daar nu de Engelse naam. De
+# openbare ranglijstpagina's houden bewust de Nederlandse naam, want dat is
+# het woord waarop een Nederlandse koper zoekt (zie app.openbare_categorie).
+NAMEN_EN = {
+    "kleding": "Clothing", "kleding-dames": "Women's clothing", "kleding-heren": "Men's clothing",
+    "kleding-kinderen": "Children's clothing", "kleding-duurzaam": "Sustainable clothing",
+    "schoenen": "Shoes", "sieraden": "Jewellery", "horloges": "Watches",
+    "tassen-lederwaren": "Bags and leather goods", "wonen-interieur": "Home and interior",
+    "meubels": "Furniture", "verlichting": "Lighting", "beddengoed-textiel": "Bedding and home textiles",
+    "woondecoratie": "Home decor", "kunst-posters": "Art and posters",
+    "keuken-servies": "Tableware", "kookgerei": "Cookware", "koffie-thee": "Coffee and tea",
+    "delicatessen": "Delicatessen", "wijn-drank": "Wine and spirits",
+    "chocolade-snoep": "Chocolate and sweets", "babyspullen": "Baby products",
+    "kraamcadeaus": "Baby gifts", "speelgoed": "Toys", "speelgoed-educatief": "Educational toys",
+    "sport-fitness": "Sports and fitness", "hardlopen": "Running", "yoga": "Yoga and pilates",
+    "watersport": "Water sports", "outdoor-kamperen": "Outdoor and camping",
+    "fietsonderdelen": "Bikes and parts", "wielrennen": "Road cycling",
+    "elektronica": "Electronics", "audio": "Audio and headphones",
+    "computers-accessoires": "Computers and accessories", "telefoon-accessoires": "Phone accessories",
+    "gaming": "Gaming", "slim-huis": "Smart home", "cosmetica": "Cosmetics and personal care",
+    "cosmetica-natuurlijk": "Natural cosmetics", "huidverzorging": "Skincare",
+    "haarverzorging": "Hair care", "parfum": "Perfume", "makeup": "Make-up",
+    "scheren-baard": "Shaving and beard care", "supplementen": "Supplements and health",
+    "medische-hulpmiddelen": "Medical aids", "dieren-overig": "Pet supplies",
+    "hond": "Dog supplies", "kat": "Cat supplies", "kamerplanten": "House plants",
+    "tuin": "Garden and outdoor living", "zaden-bloembollen": "Seeds and bulbs",
+    "hobby-knutselen": "Hobby and crafts", "breien-haken": "Knitting and fabrics",
+    "schrijfwaren-kantoor": "Stationery and office", "boeken": "Books",
+    "muziekinstrumenten": "Musical instruments", "gereedschap": "Tools and DIY",
+    "auto-accessoires": "Car accessories", "zerowaste": "Zero waste",
+    "feestartikelen": "Party supplies", "reizen-bagage": "Travel and luggage",
+    "erotiek": "Adult", "overig": "Other",
+}
+
+
+def naam_en(slug):
+    """De Engelse naam van een categorie; valt terug op de Nederlandse."""
+    return NAMEN_EN.get(slug) or naam_van(slug)
+
+
 OUDER = {slug: ouder for slug, _, ouder in CATEGORIEEN}
 
 GELDIG = {slug for slug, _, _ in CATEGORIEEN}

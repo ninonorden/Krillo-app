@@ -228,7 +228,8 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
     niet terughalen, en de knop "Meet deze categorie" op de beheerpagina hoort
     niet ongemerkt je hele klantenbestand te mailen."""
     import categorieen
-    naam = categorieen.naam_van(categorie)
+    # Engels, zoals de hele mail (24 september).
+    naam = categorieen.naam_en(categorie)
     verslag = {"ronde": ronde, "categorie": categorie, "klanten": 0,
                "verstuurd": 0, "overgeslagen": 0, "droogloop": not verstuur,
                "per_soort": {}, "regels": []}

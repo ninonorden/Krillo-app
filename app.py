@@ -1070,7 +1070,7 @@ def _rang_voor_gratis_check(webshop_url):
             if beeld and beeld.get("land") and (beeld.get("van") or 0) >= MINIMUM_PER_LAND:
                 return {
                     "positie": beeld["positie"], "van": beeld["van"],
-                    "categorie": categorieen.naam_van(beeld["categorie"]),
+                    "categorie": categorieen.naam_en(beeld["categorie"]),
                     "land": sitetaal.landnaam(beeld["land"], "en"),
                     "genoemd": beeld.get("genoemd") or 0,
                     "telbaar": beeld.get("telbaar") or 0,
@@ -2919,7 +2919,7 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
         variant = variant or emailing.kies_variant(webshop_url)
         gelukt = emailing.send_onderzoeksmail(
             email, webshop_url, f"{basis}/uitkomst/{token}", beeld=beeld,
-            categorienaam=categorieen.naam_van(beeld["categorie"]),
+            categorienaam=categorieen.naam_en(beeld["categorie"]),
             landnaam=sitetaal.landnaam(beeld["land"], "en") if beeld.get("land") else None,
             # Een proefmail (naar jezelf) krijgt GEEN echte afmeldlink: klik
             # je die aan, of de afmeldknop die Gmail er zelf boven zet, dan
@@ -5979,7 +5979,7 @@ def _voorbeeld_voor_app():
         if not vb:
             return None
         vb = dict(vb)
-        vb["categorienaam"] = categorieen.naam_van(vb["categorie"])
+        vb["categorienaam"] = categorieen.naam_en(vb["categorie"])
         vb["landnaam"] = sitetaal.landnaam(vb["land"], "en") if vb.get("land") else ""
         vb["winkelnaam"] = (vb.get("naam") or keuze["webshop_url"]).replace("https://", "")
         return vb
@@ -6037,7 +6037,7 @@ def _shopify_scherm(winkel, rij):
                                     land=(landcode or "").lower() or None)
             kort = db.winkel_kort(scan_engine.normalize_url(webshop_url)) or {}
             if kort.get("categorie"):
-                categorienaam = categorieen.naam_van(kort["categorie"])
+                categorienaam = categorieen.naam_en(kort["categorie"])
         except Exception as e:
             print(f"Positie ophalen mislukt voor {webshop_url}: {e}")
 
@@ -6099,7 +6099,7 @@ def _shopify_scherm(winkel, rij):
         staven=klantbeeld.balkhoogtes(beeld.get("verloop") or []) if beeld else [],
         voorbeeld_staven=(klantbeeld.balkhoogtes(voorbeeld_app.get("verloop") or [])
                           if voorbeeld_app else []),
-        categorienaam=categorienaam or (categorieen.naam_van(beeld["categorie"])
+        categorienaam=categorienaam or (categorieen.naam_en(beeld["categorie"])
                                         if beeld else None),
         landnaam=sitetaal.landnaam(beeld["land"], "en") if beeld else None,
         basis_url=get_base_url().rstrip("/"),
