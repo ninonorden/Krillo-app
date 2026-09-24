@@ -95,28 +95,45 @@ krillo._demo_inplannen = echte_inplannen
 
 print("\n== het volume groeit in stappen, niet in een sprong ==")
 # Van vijftien naar honderd op een dag is het patroon van een gekaapt domein.
-# Gmail en Outlook kijken vooral naar hoe SNEL het oploopt.
-db.zet_instelling("mail_per_dag", "25")
-db.zet_instelling(benadering.OPBOUW_SLEUTEL, "")
+# Gmail en Outlook kijken vooral naar hoe SNEL het oploopt. Sinds 24 september:
+# alleen als de benadering aan staat, hoogstens een keer per week, alleen na
+# echt verstuurde mail, en vanzelf niet verder dan 40.
+from datetime import date, timedelta  # noqa: E402
+was_aan = db.get_instelling("benadering_aan", "nee")
+echte_gemaild_sinds = db.gemaild_sinds
+db.zet_instelling("benadering_aan", "nee")
+db.zet_instelling("mail_per_dag", "5")
+db.zet_instelling(benadering.OPBOUW_SLEUTEL, (date.today() - timedelta(days=30)).isoformat())
+db.gemaild_sinds = lambda datum: 1000
+klopt("staat de benadering uit, dan verhoogt er niets",
+      not benadering.verhoog_volume_stapsgewijs().get("verhoogd"))
+db.zet_instelling("benadering_aan", "ja")
 uit = benadering.verhoog_volume_stapsgewijs()
-klopt("er is verhoogd", uit.get("verhoogd"))
-zo("van 25 naar 50", (uit.get("van"), uit.get("naar")), (25, 50))
-uit2 = benadering.verhoog_volume_stapsgewijs()
-klopt("en niet twee keer op een dag", not uit2.get("verhoogd"))
-klopt("met de reden erbij", "vandaag" in (uit2.get("reden") or "").lower())
-
-db.zet_instelling("mail_per_dag", str(benadering.OPBOUW_DOEL))
+zo("aan, een week voorbij en gemaild: van 5 naar 10", (uit.get("van"), uit.get("naar")), (5, 10))
+klopt("en niet nog een keer dezelfde week", not benadering.verhoog_volume_stapsgewijs().get("verhoogd"))
+db.zet_instelling(benadering.OPBOUW_SLEUTEL, (date.today() - timedelta(days=8)).isoformat())
+db.gemaild_sinds = lambda datum: 0
+klopt("zonder verstuurde post geen verhoging",
+      not benadering.verhoog_volume_stapsgewijs().get("verhoogd"))
 db.zet_instelling(benadering.OPBOUW_SLEUTEL, "")
-uit3 = benadering.verhoog_volume_stapsgewijs()
-klopt("op het doel stopt het", not uit3.get("verhoogd"))
-klopt("het doel is echt honderd", benadering.OPBOUW_DOEL >= 100)
+klopt("de eerste keer begint alleen de week te tellen",
+      not benadering.verhoog_volume_stapsgewijs().get("verhoogd")
+      and db.get_instelling(benadering.OPBOUW_SLEUTEL) == date.today().isoformat())
+db.zet_instelling("mail_per_dag", str(benadering.OPBOUW_DOEL))
+db.zet_instelling(benadering.OPBOUW_SLEUTEL, (date.today() - timedelta(days=30)).isoformat())
+db.gemaild_sinds = lambda datum: 1000
+klopt("op het doel stopt het", not benadering.verhoog_volume_stapsgewijs().get("verhoogd"))
+klopt("het doel is 40, niet 100", benadering.OPBOUW_DOEL == 40)
+db.gemaild_sinds = echte_gemaild_sinds
+db.zet_instelling("benadering_aan", was_aan or "nee")
 db.zet_instelling("mail_per_dag", str(benadering.STANDAARD_PER_DAG))
+db.zet_instelling(benadering.OPBOUW_SLEUTEL, "")
 
 print("\n== de winkelvinder groeit mee ==")
 # Bij honderd mails per dag en ongeveer de helft zonder algemeen mailadres heb
 # je tweehonderd nieuwe winkels per dag nodig. Blijft de ondergrens laag, dan
 # zoekt de machine pas als de lijst al leeg is en staat de post een dag stil.
-klopt("de voorraadgrens past bij honderd mails per dag",
+klopt("de voorraadgrens past bij honderd mails per dag (met de hand hoger mag)",
       winkelvinder.VOORRAAD_ONDERGRENS >= 200)
 klopt("en er wordt per ronde meer gezocht",
       winkelvinder.ZOEKOPDRACHTEN_PER_RONDE >= 8)
@@ -152,7 +169,7 @@ klopt("het betaalscherm noemt de toegang",
 faq = lees("templates/faq.html")
 klopt("de veelgestelde vragen zijn omgezet",
       "Je krijgt elke week een lijstje" not in faq and "elke week" not in faq)
-klopt("en zeggen dat wij het uitvoeren", "we install those in your store" in faq)
+klopt("en zeggen dat wij het uitvoeren", "we make those changes in your store" in faq)
 
 print("\n== de klantpagina zegt het in allebei de talen ==")
 for taal in ("nl", "en"):
