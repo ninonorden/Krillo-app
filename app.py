@@ -23,7 +23,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 
-from flask import (Flask, request, jsonify, render_template, redirect, Response,
+from flask import (Flask, request, jsonify, render_template, redirect, Response, send_from_directory,
                    has_request_context, session, url_for)
 import scan_engine
 from scan_engine import run_scan
@@ -666,6 +666,15 @@ def artikel_pagina(slug):
 @app.errorhandler(404)
 def pagina_niet_gevonden(e):
     return render_template("fout.html"), 404
+
+
+@app.route("/favicon.ico")
+def favicon_ico():
+    """Browsers en chatapps vragen /favicon.ico op zonder naar de pagina te
+    kijken. Die gaf de oude rode stip (24 september), dus hier het nieuwe
+    icoon, met een week cache zodat een volgende wijziging snel doorkomt."""
+    return send_from_directory(os.path.join(app.root_path, "static"), "favicon.ico",
+                               mimetype="image/x-icon", max_age=7 * 24 * 3600)
 
 
 @app.route("/robots.txt")
