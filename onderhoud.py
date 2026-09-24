@@ -56,6 +56,7 @@ import db
 import kosten
 import meldingen
 import opschonen
+import vraaglanden
 
 # Hoeveel winkels er per ronde ingedeeld worden. Veertig per aanroep, dus dit
 # zijn vijf aanroepen van samen een paar cent.
@@ -83,6 +84,12 @@ OPNIEUW_METEN_NA_DAGEN = int(os.environ.get("ONDERHOUD_VERVALT_NA", "30"))
 # Hetzelfde getal als voor de openbare index: een ranglijst van vier winkels is
 # geen ranglijst.
 MINIMUM = categorieen.MINIMUM_VOOR_INDEX
+
+# Vanaf hoeveel winkels van een land een categorie een ronde met de EIGEN
+# vragen van dat land krijgt (stap 76). Lager dan MINIMUM, want het gaat om de
+# winkels van EEN land; hoger dan de drie van de openbare landpagina, want een
+# ronde kost net zoveel als een gewone en moet iets opleveren.
+MINIMUM_LAND = int(os.environ.get("ONDERHOUD_MINIMUM_LAND", "5"))
 
 _stand = {"bezig": False, "stap": None, "gestart_op": None, "klaar_op": None,
           "laatste_verslag": None, "fout": None}
@@ -221,6 +228,11 @@ def stap_herberekenen():
         uit = categoriemeting.herbereken_ranglijst(slug)
         if not uit.get("fout"):
             verslag["bijgewerkt"] += 1
+        # En de rondes met eigen vragen per land (stap 76). Ook die kosten
+        # niets: dezelfde bewaarde antwoorden, opnieuw geteld.
+        for land in db.landen_met_eigen_ronde(slug):
+            if not categoriemeting.herbereken_ranglijst(slug, land=land).get("fout"):
+                verslag["bijgewerkt"] += 1
     return verslag
 
 
@@ -241,9 +253,22 @@ def stap_meten(hoeveel=None):
     if hoeveel <= 0:
         return verslag
 
-    aan_de_beurt = db.categorieen_om_te_meten(MINIMUM, OPNIEUW_METEN_NA_DAGEN)
-    verslag["wachtrij"] = len(aan_de_beurt)
-    for rij in aan_de_beurt[:hoeveel]:
+    gewoon = db.categorieen_om_te_meten(MINIMUM, OPNIEUW_METEN_NA_DAGEN)
+    # Stap 76: de rondes met de eigen vragen van een land. Per nacht hoogstens
+    # EEN plek daarvoor, en alleen als er meer dan een plek is: de gewone rij
+    # houdt de hele index vers en gaat voor. Maar zet je de landen gewoon
+    # achteraan, dan komen ze nooit aan de beurt zolang er een gewone
+    # achterstand is (gevonden bij de controle van 24 september).
+    per_land = [dict(rij, land=land) for land in vraaglanden.VRAAGLANDEN
+                for rij in db.landrondes_om_te_meten(land, MINIMUM_LAND,
+                                                     OPNIEUW_METEN_NA_DAGEN)]
+    if per_land and hoeveel > 1:
+        keuze = gewoon[:hoeveel - 1] + per_land[:1]
+        keuze += (gewoon[hoeveel - 1:] + per_land[1:])[:hoeveel - len(keuze)]
+    else:
+        keuze = (gewoon + per_land)[:hoeveel]
+    verslag["wachtrij"] = len(gewoon) + len(per_land)
+    for rij in keuze:
         rem = kosten.mag_doorgaan()
         if not rem["mag"]:
             verslag["gestopt_door"] = rem["reden"]
@@ -261,9 +286,10 @@ def stap_meten(hoeveel=None):
                 f"{kosten.SCHATTING_CATEGORIE_EURO:.2f} euro. Morgen weer.")
             verslag["ruimte"] = ruimte
             break
-        uit = categoriemeting.meet_categorie(rij["categorie"])
+        uit = categoriemeting.meet_categorie(rij["categorie"], land=rij.get("land"))
         regel = {
             "categorie": rij["categorie"],
+            "land": rij.get("land"),
             "winkels": uit.get("winkels"),
             "telbaar": uit.get("telbaar"),
             "fout": uit.get("fout"),

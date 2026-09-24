@@ -61,6 +61,32 @@
     {{ totaal }} {% if taal == 'en' and totaal != 1 %}STORES{% else %}{{ t.webshop | upper }}{% endif %} &middot; {{ modellen | join(', ') }}
   </div>
 
+  {# De balk voor wie uit zijn eigen mail komt (stap 56). Nummer 1 krijgt een
+     ander verhaal: die hoeft niets te repareren, die wil het houden.
+     De knop belooft bewust niet "zie wat je tegenhoudt": hij gaat naar de
+     pakketten op de homepage, en daar staat hoe wij het oplossen, niet een
+     analyse van deze winkel. Een knop die meer belooft dan de pagina erachter
+     is de snelste weg naar een afhaker. #}
+  {% if jij %}
+  <div class="jijbalk" style="border:1px solid var(--vermiljoen); border-radius:12px;
+       padding:16px 20px; margin:0 0 26px; display:flex; gap:16px; align-items:center;
+       justify-content:space-between; flex-wrap:wrap; background:#F4F6FF;">
+    <div style="font-size:15px; line-height:1.5;">
+      <b>{{ jij.naam }} is #{{ jij.positie }} of {{ jij.van }}</b> in {{ naam }}, {{ landnaam }}.
+      {% if jij.positie == 1 %}
+        Staying there is the hard part: we measure every month and tell you the moment a store moves up.
+      {% elif jij.genoemd == 0 %}
+        AI did not name you in any of the {{ jij.telbaar }} buying questions.
+      {% else %}
+        {{ jij.positie - 1 }} {% if jij.positie == 2 %}store ranks{% else %}stores rank{% endif %} above you.
+      {% endif %}
+    </div>
+    <a class="knop" href="{{ jij.verder }}" style="white-space:nowrap; background:var(--vermiljoen);
+       color:#fff; padding:11px 18px; border-radius:8px; text-decoration:none; font-weight:600;">
+      {% if jij.positie == 1 %}How to keep it{% else %}How to move up{% endif %} &rarr;</a>
+  </div>
+  {% endif %}
+
   {% if andere_landen %}
   <div class="marktkiezer" style="margin-bottom:24px;">
     <span>{{ t.markt }}</span>

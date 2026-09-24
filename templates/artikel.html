@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,7 +13,7 @@
 <meta property="og:title" content="{{ artikel.titel }}">
 <meta property="og:description" content="{{ artikel.samenvatting }}">
 <meta property="og:image" content="{{ basis_url }}/static/krillo-share.png">
-<meta property="og:locale" content="nl_NL">
+<meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 
 <script type="application/ld+json">
@@ -24,7 +24,7 @@
   "description": {{ artikel.samenvatting | tojson }},
   "datePublished": "{{ artikel.datum }}",
   "dateModified": "{{ artikel.datum }}",
-  "inLanguage": "nl-NL",
+  "inLanguage": "en",
   "mainEntityOfPage": {"@type": "WebPage", "@id": "{{ basis_url }}/artikelen/{{ artikel.slug }}"},
   "author": {"@type": "Organization", "name": "Krillo", "url": "{{ basis_url }}"},
   "publisher": {"@type": "Organization", "name": "Krillo", "url": "{{ basis_url }}"},
@@ -38,7 +38,7 @@
   "@type": "BreadcrumbList",
   "itemListElement": [
     {"@type": "ListItem", "position": 1, "name": "Krillo", "item": "{{ basis_url }}/"},
-    {"@type": "ListItem", "position": 2, "name": "Artikelen", "item": "{{ basis_url }}/artikelen"},
+    {"@type": "ListItem", "position": 2, "name": "Articles", "item": "{{ basis_url }}/artikelen"},
     {"@type": "ListItem", "position": 3, "name": {{ artikel.titel | tojson }}, "item": "{{ basis_url }}/artikelen/{{ artikel.slug }}"}
   ]
 }
@@ -117,14 +117,14 @@
 <nav>
   <div class="wrap">
     <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-    <a class="nav-cta" href="/#scan">Gratis scan</a>
+    <a class="nav-cta" href="/#scan">Get my rank</a>
   </div>
 </nav>
 
 <main>
-  <div class="kruimels"><a href="/">Krillo</a> / <a href="/artikelen">Artikelen</a></div>
+  <div class="kruimels"><a href="/">Krillo</a> / <a href="/artikelen">Articles</a></div>
   <h1>{{ artikel.titel }}</h1>
-  <div class="meta">{{ artikel.leestijd }} lezen</div>
+  <div class="meta">{{ artikel.leestijd }} read</div>
   <div class="samenvatting">{{ artikel.samenvatting }}</div>
 
   {% for kop, tekst in artikel.inhoud %}
@@ -133,14 +133,14 @@
   {% endfor %}
 
   <div class="cta-blok">
-    <strong>Benieuwd hoe jouw webshop ervoor staat?</strong>
-    <p>Doe de gratis scan en zie binnen een minuut op welke van de dertien punten je webshop wint of verliest. Geen account, geen betaalgegevens.</p>
-    <a class="cta-knop" href="/#scan">Scan je webshop gratis</a>
+    <strong>Where does your store rank?</strong>
+    <p>See your place in the Krillo Index: which stores AI assistants recommend in your category, and where you stand. Free, no account, no payment details.</p>
+    <a class="cta-knop" href="/#scan">Get my rank</a>
   </div>
 
   {% if andere %}
   <div class="meer">
-    <h3>Meer lezen</h3>
+    <h3>Read more</h3>
     {% for a in andere %}
     <a href="/artikelen/{{ a.slug }}">{{ a.titel }}</a>
     {% endfor %}
@@ -148,7 +148,7 @@
   {% endif %}
 </main>
 
-<footer>© 2026 Krillo &middot; <a href="/">Terug naar de website</a></footer>
+<footer>© 2026 Krillo &middot; <a href="/">Back to the website</a></footer>
 
 </body>
 </html>

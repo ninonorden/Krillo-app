@@ -111,6 +111,15 @@
       <label>Aantal vragen (leeg is alle 30)</label>
       <input type="number" name="vragen" min="1" max="30" placeholder="30" style="width:110px;">
     </div>
+    {# Stap 76: met de eigen vragen van een land meten. Standaard de gewone
+       (Nederlandse) vragen; de nachtronde doet de landen vanzelf. #}
+    <div>
+      <label>Vragen van</label>
+      <select name="land">
+        <option value="">Nederland (gewone meting)</option>
+        {% for code in vraaglanden %}<option value="{{ code }}">{{ code | upper }} (eigen vragen)</option>{% endfor %}
+      </select>
+    </div>
     <button class="knop" type="submit" name="actie" value="meten"
             {% if stand.bezig and not stand.vastgelopen %}disabled{% endif %}>
       {% if stand.bezig %}Bezig met meten{% else %}Meet {{ naam_van(gekozen) }}{% endif %}</button>

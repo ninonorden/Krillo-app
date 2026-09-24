@@ -517,9 +517,40 @@ def _kaal_adres(webshop_url):
     return adres.rstrip("/")
 
 
+# DE TWEE VERSIES VAN DE KOUDE MAIL (stap 56, 24 september).
+# Nino wilde "survival of the fittest": versies laten strijden en de zwakke
+# laten afvallen. Bij vijf mails per dag is dat eerlijk gezegd nog geen
+# evolutie maar een simpele vergelijking van twee onderwerpregels. Zodra er per
+# versie genoeg verstuurd is, zet het beheerscherm erbij welke wint, en dan
+# zet je in Render MAIL_VARIANTEN op alleen de winnaar (en later een nieuwe
+# uitdager ernaast). Het verschil zit bewust alleen in de onderwerpregel en de
+# eerste zin: verander je alles tegelijk, dan weet je niet wat werkte.
+#   a: de positie voorop    "shop.nl: #6 of 54 in the Krillo index"
+#   b: de vraag voorop      "Who AI recommends for Toys in the Netherlands"
+MAILVARIANTEN = ("a", "b")
+
+
+def kies_variant(webshop_url):
+    """Welke versie een winkel krijgt. Vast per winkel (zelfde adres, zelfde
+    versie), zodat een tweede mail aan dezelfde winkel nooit de telling
+    vervuilt. Welke versies meedoen staat in MAIL_VARIANTEN (Render),
+    standaard allebei."""
+    import hashlib
+    actief = [v.strip() for v in (os.environ.get("MAIL_VARIANTEN") or "a,b").split(",")
+              if v.strip() in MAILVARIANTEN] or ["a"]
+    getal = int(hashlib.sha256((webshop_url or "").encode()).hexdigest(), 16)
+    return actief[getal % len(actief)]
+
+
+# In welke taal wij de koopvragen stelden, voor het labeltje boven de vraag.
+# Een Nederlandse vraag in een Engelse mail zonder uitleg leest als een fout.
+_TAALNAAM = {"nl": "Dutch", "de": "German", "fr": "French", "en": "English",
+             "es": "Spanish", "it": "Italian"}
+
+
 def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                         categorienaam=None, landnaam=None, afmeld_url=None,
-                        onderwerp_voor=""):
+                        onderwerp_voor="", variant="a"):
     """De koude mail aan een winkel die in de Krillo index staat.
 
     OMGEBOUWD 23 SEPTEMBER (stap 36). Dit was de laatste mail uit het oude
@@ -592,23 +623,46 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                 f'<tr><td style="padding:4px 0; font-size:14.5px; color:#12142B;">'
                 f'<span style="color:#1FB6A4; font-weight:700;">&#10003;</span>'
                 f'&nbsp;&nbsp;{e(n)}</td></tr>' for n in namen)
+            # Hoofdletter voorop: de vragen staan zoals een koper ze typt
+            # ("beste speelgoedwinkel online"), maar in een mail leest een
+            # kleine letter aan het begin als slordig.
+            vraag = v["vraag"].strip()
+            vraag = vraag[:1].upper() + vraag[1:]
+            try:
+                import sitetaal
+                taalnaam = _TAALNAAM.get(sitetaal.taal_van_land(beeld.get("land")), "")
+            except Exception:
+                taalnaam = ""
+            label = f"One of the questions we asked{', in ' + taalnaam if taalnaam and taalnaam != 'English' else ''}"
             regels += (f'<tr><td style="padding:4px 0; font-size:14.5px; color:#D42E22; '
                        f'font-weight:600;"><span style="font-weight:700;">&#10005;</span>'
                        f'&nbsp;&nbsp;{winkel} was not named</td></tr>')
             voorbeeld = f"""
           <div style="font-size:11.5px; color:#6B6D85; letter-spacing:.06em;
                       text-transform:uppercase; margin:22px 0 10px;">
-            One of the questions we asked</div>
+            {e(label)}</div>
           <table role="presentation" cellpadding="0" cellspacing="0">
             <tr><td style="background:#F6F5F1; border-radius:14px 14px 14px 4px;
                            padding:12px 16px; font-size:15.5px; font-weight:600;
-                           color:#12142B; line-height:1.4;">{e(v["vraag"])}</td></tr>
+                           color:#12142B; line-height:1.4;">{e(vraag)}</td></tr>
           </table>
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
                  style="margin-top:12px;">{regels}</table>"""
             break
 
     zichtbaar = e(_kaal_adres(link_url).split("/")[0])
+
+    # De eerste zin verschilt per versie, de rest niet (zie MAILVARIANTEN).
+    p = '<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+    if variant == "b":
+        opening = (f"{p}When shoppers in {land} ask ChatGPT or Gemini where to buy "
+                   f"in the {cat} category, a few stores get named and the rest do not. We ask those "
+                   f"questions every month and rank the stores. {winkel} is in that "
+                   f"ranking.</p>")
+    else:
+        opening = (f"{p}Every month we ask ChatGPT and Gemini the questions shoppers in {land} "
+                   f"ask in the {cat} category, and we rank the stores they name. "
+                   f"{winkel} is in that ranking.</p>")
 
     html = f"""
     <div style="background:#F6F5F1; padding:28px 16px; font-family:-apple-system,
@@ -618,17 +672,15 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
         <tr><td style="background:#FFFFFF; border:1px solid #E4E2DA; border-radius:14px;
                        padding:32px 30px;">
 
-          <div style="font-size:15px; font-weight:700; color:#12142B; letter-spacing:.01em;">
-            Krillo</div>
+          <div style="font-size:14px; font-weight:700; color:#12142B; letter-spacing:.08em;">
+            KRILLO <span style="font-weight:400; color:#6B6D85; font-size:11px;
+            letter-spacing:.12em;">INDEX</span></div>
           <div style="font-size:12px; color:#6B6D85; margin-top:2px;">
             The Krillo index: which stores AI recommends</div>
 
           <div style="height:1px; background:#E4E2DA; margin:20px 0 22px;"></div>
 
-          <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">
-            Every month we ask ChatGPT and Gemini the questions shoppers ask when they want
-            to buy in {cat} in {land}, and we rank the stores they name.
-            {winkel} is in that ranking.</p>
+          {opening}
 
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
                  style="border:1px solid #E4E2DA; border-radius:10px; margin:22px 0;">
@@ -649,7 +701,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
             nothing to fill in.</p>
 
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
-            <tr><td style="background:#12142B; border-radius:8px;">
+            <tr><td style="background:#1B3FE0; border-radius:8px;">
               <a href="{link_url}" style="display:inline-block; padding:13px 26px;
                  color:#FFFFFF; text-decoration:none; font-size:14.5px; font-weight:600;">
                 See the full ranking</a>
@@ -674,7 +726,13 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     """
     koppen = {"List-Unsubscribe": f"<{afmeld_url}>",
               "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"} if afmeld_url else None
-    onderwerp = f"{onderwerp_voor}{_kaal_adres(webshop_url)}: #{positie} of {van} in the Krillo index"
+    if variant == "b":
+        # De categorienaam blijft in de taal van het land (zo staat hij ook op
+        # de ranglijst), dus als naam achter een dubbele punt, niet in een zin.
+        onderwerp = f"{onderwerp_voor}Who AI recommends: {categorienaam or beeld.get('categorie') or 'your category'}" \
+                    + (f" in {landnaam}" if landnaam else "")
+    else:
+        onderwerp = f"{onderwerp_voor}{_kaal_adres(webshop_url)}: #{positie} of {van} in the Krillo index"
     return send_email(to_email, onderwerp, html, koppen=koppen)
 
 

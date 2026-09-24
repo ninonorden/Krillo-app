@@ -145,6 +145,32 @@
   </div>
   {% endif %}
 
+  {# De twee versies van de mail naast elkaar (stap 56). Openen staat er
+     bewust niet bij: dat meet een pixel die Gmail en Apple zelf al laden. #}
+  {% if varianten and varianten.rijen %}
+  <div class="kaart">
+    <div class="uitleg">
+      <b>Welke mail werkt beter.</b>
+      Versie a zet de positie voorop, versie b de vraag. Een winkel krijgt altijd dezelfde versie.
+      <table style="margin-top:10px; border-collapse:collapse;">
+        <tr><th style="text-align:left; padding:4px 14px 4px 0;">Versie</th>
+            <th style="text-align:right; padding:4px 14px;">Gemaild</th>
+            <th style="text-align:right; padding:4px 14px;">Link geklikt</th>
+            <th style="text-align:right; padding:4px 14px;">Naar de prijzen</th>
+            <th style="text-align:right; padding:4px 0 4px 14px;">Klant geworden</th></tr>
+        {% for r in varianten.rijen %}
+        <tr><td style="padding:4px 14px 4px 0;">{{ r.variant }}</td>
+            <td style="text-align:right; padding:4px 14px;">{{ r.gemaild }}</td>
+            <td style="text-align:right; padding:4px 14px;">{{ r.bekeken }} ({{ r.klik_pct }}%)</td>
+            <td style="text-align:right; padding:4px 14px;">{{ r.doorgeklikt }} ({{ r.door_pct }}%)</td>
+            <td style="text-align:right; padding:4px 0 4px 14px;">{{ r.klant }}</td></tr>
+        {% endfor %}
+      </table>
+      {% if varianten.oordeel %}<p style="margin:10px 0 0;"><b>{{ varianten.oordeel }}</b></p>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   {# Wat er op dit moment echt loopt. Zonder dit is "er wordt gemeten" en "er
      staat iets vast" van buitenaf hetzelfde. #}
   <div class="kaart">

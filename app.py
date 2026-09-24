@@ -54,6 +54,7 @@ import shopify_billing
 import benadering
 import categorieen
 import categoriemeting
+import vraaglanden
 import klantbeeld
 import klantwerk
 import meldingen
@@ -664,6 +665,12 @@ def robots_txt():
     # oude domein nog hardgecodeerd stond, en een robots.txt die naar de
     # sitemap van een ander domein wijst is precies het soort stille fout waar
     # wij bij klanten op controleren.
+    # /mijn-link staat hier bewust NIET meer in. Die pagina heeft een
+    # noindex-tag, maar Google leest die tag alleen als hij de pagina mag
+    # ophalen. Met een Disallow erbij meldde Search Console "geindexeerd,
+    # hoewel geblokkeerd door robots.txt": het adres kwam in Google zonder dat
+    # Google de noindex kon zien. Zonder Disallow ziet hij de tag en haalt hij
+    # de pagina er zelf uit.
     basis = get_base_url().rstrip("/")
     inhoud = f"""User-agent: *
 Allow: /
@@ -671,7 +678,6 @@ Disallow: /uitkomst/
 Disallow: /monitoring/
 Disallow: /rapport/
 Disallow: /mijn/
-Disallow: /mijn-link
 Disallow: /admin/
 
 User-agent: GPTBot
@@ -2700,7 +2706,41 @@ MINIMUM_VRAGEN_VOOR_POST = int(os.environ.get("MINIMUM_VRAGEN_VOOR_POST", "3"))
 MINIMUM_WINKELS_VOOR_VERGELIJKING = 25
 
 
-def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False):
+# Vanaf hoeveel mails per versie wij een winnaar durven aan te wijzen. Onder
+# dit aantal is een verschil van een of twee kliks toeval, en zou je op toeval
+# een mail weggooien.
+MINIMUM_MAILS_PER_VERSIE = int(os.environ.get("MINIMUM_MAILS_PER_VERSIE", "60"))
+
+
+def _varianten_met_oordeel():
+    """De telling per mailversie, met een eerlijk oordeel erbij.
+
+    Winnen gaat op doorklikken naar de prijzen en klant worden, niet op
+    openen: een open meet een pixel die mailprogramma's zelf al laden."""
+    rijen = db.trechter_per_variant()
+    for r in rijen:
+        g = r.get("gemaild") or 0
+        r["klik_pct"] = round(100 * (r.get("bekeken") or 0) / g, 1) if g else 0
+        r["door_pct"] = round(100 * (r.get("doorgeklikt") or 0) / g, 1) if g else 0
+    genoeg = len(rijen) >= 2 and all((r.get("gemaild") or 0) >= MINIMUM_MAILS_PER_VERSIE
+                                      for r in rijen)
+    oordeel = None
+    if len(rijen) >= 2 and not genoeg:
+        oordeel = (f"Nog geen winnaar: pas vanaf {MINIMUM_MAILS_PER_VERSIE} mails per versie "
+                   "is een verschil meer dan toeval.")
+    elif genoeg:
+        beste = max(rijen, key=lambda r: ((r.get("klant") or 0), r["door_pct"], r["klik_pct"]))
+        slechtste = min(rijen, key=lambda r: ((r.get("klant") or 0), r["door_pct"], r["klik_pct"]))
+        if (beste.get("klant"), beste["door_pct"], beste["klik_pct"]) == \
+                (slechtste.get("klant"), slechtste["door_pct"], slechtste["klik_pct"]):
+            oordeel = "Gelijkspel. Laat ze allebei lopen."
+        else:
+            oordeel = (f"Versie {beste['variant']} wint. Zet in Render MAIL_VARIANTEN op "
+                       f"\"{beste['variant']}\" om versie {slechtste['variant']} te laten afvallen.")
+    return {"rijen": rijen, "oordeel": oordeel}
+
+
+def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=None):
     """Stuurt één winkel zijn eigen uitkomst. Geeft (gelukt, reden) terug.
 
     Eén plek voor zowel de knop met de hand als de automatische ronde, zodat er
@@ -2725,6 +2765,9 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False):
             return False, ("GEEN_POSITIE: deze winkel staat (nog) niet in een ranglijst. "
                            "Hij komt vanzelf terug zodra zijn categorie gemeten is.")
         basis = get_base_url().rstrip("/")
+        # Welke versie van de mail (stap 56). Vast per winkel; een proefmail
+        # mag er een kiezen, zodat je beide versies kunt bekijken.
+        variant = variant or emailing.kies_variant(webshop_url)
         gelukt = emailing.send_onderzoeksmail(
             email, webshop_url, f"{basis}/uitkomst/{token}", beeld=beeld,
             categorienaam=categorieen.naam_van(beeld["categorie"]),
@@ -2733,7 +2776,11 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False):
             # je die aan, of de afmeldknop die Gmail er zelf boven zet, dan
             # verdwijnt die winkel uit de index (23 september).
             afmeld_url=None if proef else f"{basis}/afmelden/{token}",
-            onderwerp_voor="[TEST] " if proef else "")
+            onderwerp_voor=f"[TEST {variant}] " if proef else "",
+            variant=variant)
+        # Alleen een echte mail telt mee in de vergelijking van de versies.
+        if gelukt and not proef:
+            db.zet_mail_variant(webshop_url, variant)
         return bool(gelukt), None if gelukt else "Verzenden mislukt, kijk in de logs."
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"[:200]
@@ -2882,6 +2929,7 @@ def admin_benadering():
             meetruimte=kosten.ruimte_voor_benadering(),
             metingen_bezig=bezig),
         trechter=db.trechter_benadering(),
+        varianten=_varianten_met_oordeel(),
         verslagen=benadering.rondeverslagen(),
         meetfouten=benadering.meetfouten(),
         wachtrij=len(_demo_wachtrij),
@@ -3461,6 +3509,15 @@ def _ververs_klantwerk(ronde, categorie, base_url=None):
                "plannen": 0, "werklijst": 0}
     try:
         klanten = db.klanten_in_categorie(categorie)
+        # Stap 76: alleen de klanten voor wie deze ronde telt (een Belgische
+        # ronde: Belgische klanten; de gewone: niet de klanten van een land met
+        # een eigen ronde). Anders schrijven wij oplossingen op de verkeerde
+        # vragen, en dat kost geld.
+        ronde_land = db.ronde_land(ronde)
+        eigen_landen = db.landen_met_eigen_ronde(categorie)
+        klanten = [k for k in klanten if vraaglanden.hoort_bij_ronde(
+            k.get("land") or (db.winkel_kort(k["webshop_url"]) or {}).get("land"),
+            ronde_land, eigen_landen)]
     except Exception as e:
         print(f"Klanten van {categorie} ophalen mislukt: {e}")
         return verslag
@@ -4176,9 +4233,15 @@ def admin_onderzoeksmail():
                 # als gemaild. Zo kun je de mail bekijken zonder dat die winkel
                 # daarna overgeslagen wordt.
                 land = ((db.get_benadering(webshop_url) or {}).get("land"))
-                verstuurd, fout = _stuur_onderzoeksmail(webshop_url, email, land, proef=True)
-                melding = (f"Proefmail over {webshop_url} verstuurd naar {email}. Er is niets "
-                           f"vastgelegd." if verstuurd else
+                # Beide versies (stap 56), zodat je ze naast elkaar ziet.
+                verstuurd, fout = True, None
+                for v in emailing.MAILVARIANTEN:
+                    ok, reden = _stuur_onderzoeksmail(webshop_url, email, land, proef=True,
+                                                      variant=v)
+                    verstuurd, fout = verstuurd and ok, fout or reden
+                melding = (f"Twee proefmails over {webshop_url} verstuurd naar {email} "
+                           f"(versie a en b, zie [TEST a] en [TEST b] in het onderwerp). "
+                           f"Er is niets vastgelegd." if verstuurd else
                            f"De proefmail is NIET verstuurd. {fout or ''}")
                 return render_template("admin_onderzoeksmail.html", regels=[],
                                        melding=melding, basis=get_base_url(),
@@ -4358,6 +4421,26 @@ def openbare_categorie(land, slug):
                     "categories that are measured are listed on /index."), 404
 
     genoemd = [r for r in lijst["rijen"] if (r["genoemd"] or 0) > 0]
+
+    # De balk voor wie via zijn eigen mail komt (stap 56). Alleen als het
+    # kenmerk bij een winkel hoort die in DEZE lijst staat; een oud of
+    # doorgestuurd kenmerk van een andere categorie laat de pagina gewoon zoals
+    # hij is. Het kenmerk komt niet op de pagina, alleen in de knop terug.
+    jij = None
+    kenmerk = (request.args.get("jij") or "").strip()
+    if kenmerk:
+        try:
+            eigen_url = db.winkel_bij_benchmark_token(kenmerk)
+        except Exception:
+            eigen_url = None
+        for r in lijst["rijen"] if eigen_url else []:
+            if r["webshop_url"] == eigen_url:
+                jij = {"positie": r["positie"], "van": len(lijst["rijen"]),
+                       "genoemd": r["genoemd"] or 0, "telbaar": lijst["telbaar"],
+                       "naam": (r.get("naam") if r.get("naam") and not str(r.get("naam")).startswith("http")
+                                else eigen_url.replace("https://", "").replace("www.", "").rstrip("/")),
+                       "verder": f"/uitkomst/{kenmerk}/verder"}
+                break
     lijst_voor_ai = [{"@type": "ListItem", "position": r["positie"],
                       "name": r["naam"] or r["webshop_url"], "url": r["webshop_url"]}
                      for r in genoemd]
@@ -4395,6 +4478,7 @@ def openbare_categorie(land, slug):
         landnaam=sitetaal.landnaam(land, taal),
         andere_landen=anders,
         naam=categorieen.naam_van(slug),
+        jij=jij,
         lijst_voor_ai=lijst_voor_ai,
         ranglijst=genoemd,
         niet_genoemd=len(lijst["rijen"]) - len(genoemd),
@@ -4674,7 +4758,12 @@ def uitkomst(token):
         print(f"Positie ophalen voor de uitkomstlink mislukt voor {webshop_url}: {e}")
         beeld = None
     if beeld and beeld.get("land"):
-        return redirect(f"/index/{beeld['land']}/{beeld['categorie']}#p{beeld['positie']}")
+        # ?jij= (stap 56): dan weet de ranglijst wie er kijkt en zet hij een
+        # balk bovenaan met zijn eigen plek en de volgende stap. Zonder die
+        # balk kwam iemand uit de mail op een lijst vol andere winkels, en
+        # moest hij zelf bedenken wat hij daarmee moest.
+        return redirect(f"/index/{beeld['land']}/{beeld['categorie']}"
+                        f"?jij={token}#p{beeld['positie']}")
     # Nog geen positie: naar de openbare index. De oude uitkomstpagina hieronder
     # is Nederlands en uit het oude model (23 september); die tonen wij niet
     # meer aan iemand die een Engelse mail kreeg.
@@ -5332,7 +5421,8 @@ def admin_ranglijst():
     # formulier op. Een ander product kiezen hoort niets te kosten.
     if request.method == "POST" and gekozen and request.form.get("actie") == "meten":
         vragen = int(request.form.get("vragen") or 0) or None
-        gestart = categoriemeting.start_meting(gekozen, max_vragen=vragen)
+        gestart = categoriemeting.start_meting(
+            gekozen, max_vragen=vragen, land=(request.form.get("land") or "").strip() or None)
         return _terug("gestart" if gestart else "loopt-al")
 
     lijst = db.laatste_ranglijst(gekozen) if gekozen else None
@@ -5346,6 +5436,7 @@ def admin_ranglijst():
         ranglijst=lijst,
         ronde_kosten=db.kosten_van_ronde(lijst["ronde"]) if lijst and lijst.get("ronde") else None,
         vragen=db.categorie_vragen(gekozen) if gekozen else [],
+        vraaglanden=list(vraaglanden.VRAAGLANDEN),
         # DROOGLOOP. Laat zien wie er bij de volgende nachtronde bericht zou
         # krijgen en waarom, zonder dat er ook maar iets verstuurd wordt. Zo kun
         # je de regels nakijken voordat er een echte klant iets in zijn inbox

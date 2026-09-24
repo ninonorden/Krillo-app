@@ -182,6 +182,11 @@ def waarom_niet():
             f"Gebruik 'brave' of 'google'.")
 
 
+# Op welke dag het zoektegoed op bleek (zie zoek). Per proces, en dat is
+# genoeg: na een herstart proberen we het een keer en weten het dan weer.
+_op_tot = [None]
+
+
 def _wacht_je_beurt():
     te_wachten = MIN_INTERVAL - (time.monotonic() - _laatste_zoekopdracht[0])
     if te_wachten > 0:
@@ -264,6 +269,13 @@ def zoek(vraag, webshop_url=None, land=None, taal=None):
     zoeker = _ZOEKERS.get(ZOEK_AANBIEDER)
     if zoeker is None:
         return []
+    # Tegoed op (402, of 429 met "quota")? Dan de rest van de dag niet meer
+    # proberen (24 september). Brave weigerde elke zoekopdracht, en de code
+    # bleef het elke ronde tientallen keren opnieuw doen: rode regels in de
+    # logs voor niets. De volgende dag proberen we het gewoon weer.
+    vandaag = time.strftime("%Y-%m-%d")
+    if _op_tot[0] == vandaag:
+        return []
 
     gestart = time.monotonic()
     try:
@@ -276,7 +288,15 @@ def zoek(vraag, webshop_url=None, land=None, taal=None):
         body = getattr(getattr(e, "response", None), "text", "") or ""
         foutsoort = (f"{type(e).__name__}: {e}"[:200]
                      + (" | " + " ".join(body.split())[:200] if body else ""))[:400]
-        print(f"Zoekopdracht mislukt: {foutsoort}")
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        # Alleen 402 of een 429 over het QUOTUM. Een gewone 429 ("rate limit",
+        # te snel achter elkaar) mag de dag niet stilleggen: dat is een tel
+        # wachten, geen leeg tegoed.
+        if status == 402 or (status == 429 and "quota" in body.lower()):
+            _op_tot[0] = vandaag
+            print(f"Zoektegoed van {ZOEK_AANBIEDER} is op; vandaag geen zoekopdrachten meer.")
+        else:
+            print(f"Zoekopdracht mislukt: {foutsoort}")
 
     kosten.registreer_vaste_kosten(
         soort="bronnen-zoeken",

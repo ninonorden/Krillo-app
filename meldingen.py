@@ -239,7 +239,8 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
     # mail en "#6 of 25" op zijn dashboard. Nu komt het cijfer in de mail uit
     # dezelfde functie als het dashboard: twee query's per meting, niet per klant.
     per_land = {}
-    for land in ("nl", "be"):
+    import vraaglanden
+    for land in dict.fromkeys(("nl", "be", *vraaglanden.VRAAGLANDEN)):
         try:
             lijst = db.ranglijst_per_land(categorie, land, limiet=2000)
         except Exception as e:
@@ -254,7 +255,14 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
                 "van": len(lijst["rijen"]),
             })
 
+    # Stap 76: bij een ronde met eigen vragen van een land alleen de klanten
+    # van dat land, en bij de gewone ronde niet de klanten van een land dat
+    # een eigen ronde heeft (zie vraaglanden.hoort_bij_ronde).
+    ronde_land = db.ronde_land(ronde)
+    eigen_landen = db.landen_met_eigen_ronde(categorie)
     for klant in db.klanten_in_ronde(ronde):
+        if not vraaglanden.hoort_bij_ronde(klant.get("land"), ronde_land, eigen_landen):
+            continue
         if klant.get("webshop_url") in per_land:
             klant.update(per_land[klant["webshop_url"]])
         verslag["klanten"] += 1

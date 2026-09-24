@@ -53,6 +53,7 @@ import db
 import kosten
 import metingen
 import scan_engine
+import vraaglanden
 
 MODEL = os.environ.get("CATEGORIE_LEESMODEL", "claude-sonnet-4-6")
 
@@ -551,7 +552,7 @@ def _land_bij_domein(domein, standaard="NL"):
     return standaard
 
 
-def nieuwe_winkels_uit_antwoorden(genoemden, winkels, slug, bestaat=None):
+def nieuwe_winkels_uit_antwoorden(genoemden, winkels, slug, bestaat=None, standaard_land="NL"):
     """Zet de winkels die AI noemde maar die wij nog niet kenden op de lijst.
 
     genoemden: wat winkels_uit_antwoord per antwoord teruggaf.
@@ -582,7 +583,11 @@ def nieuwe_winkels_uit_antwoorden(genoemden, winkels, slug, bestaat=None):
         url = scan_engine.normalize_url(domein)
         # Alleen als hij echt NIEUW is een categorie geven. Stond hij er al,
         # dan laten wij hem staan waar hij staat.
-        if db.voeg_benadering_toe(url, naam=naam, land=_land_bij_domein(domein),
+        # standaard_land (stap 76): een .com die in een antwoord op een
+        # BELGISCHE vraag opduikt, is eerder een Belgische winkel dan een
+        # Nederlandse. Een .nl of .be wint altijd van deze gok.
+        if db.voeg_benadering_toe(url, naam=naam,
+                                  land=_land_bij_domein(domein, standaard=standaard_land),
                                   branche="ai-antwoord"):
             db.zet_categorie(url, slug)
             # STAP 73: een platform komt er wel op, maar als platform.
@@ -955,7 +960,7 @@ def werk_winkelgegevens_bij(rijen, winkels):
     return {"namen": len(namen), "landen": len(landen)}
 
 
-def herbereken_ranglijst(slug):
+def herbereken_ranglijst(slug, land=None):
     """Rekent de ranglijst opnieuw uit de bewaarde antwoorden. Kost niets.
 
     WAAROM DEZE KNOP ER IS. In de eerste ranglijst van servies stonden
@@ -971,9 +976,11 @@ def herbereken_ranglijst(slug):
 
     Gebruik hem na het opschonen, na het indelen in categorieen, en nadat je met
     de hand een adres als merk hebt gemarkeerd."""
-    ronde = db.laatste_afgeronde_ronde(slug)
+    # land: de eigen ronde van dat land herberekenen (stap 76), anders de gewone.
+    ronde = db.laatste_afgeronde_ronde(slug, land=land)
     if not ronde:
-        return {"fout": f"Er is nog geen afgeronde meting van {slug}."}
+        return {"fout": f"Er is nog geen afgeronde meting van {slug}"
+                        f"{' voor ' + land.upper() if land else ''}."}
     rijen = db.antwoorden_van_ronde(ronde)
     if not rijen:
         return {"fout": "Er zijn geen bewaarde antwoorden bij deze ronde."}
@@ -1053,8 +1060,13 @@ def stand():
     return uit
 
 
-def meet_categorie(slug, max_vragen=None):
+def meet_categorie(slug, max_vragen=None, land=None):
     """Meet een categorie: elke vraag een keer per model, alle winkels gescoord.
+
+    land (stap 76): meet met de EIGEN vragen van dat land (zie vraaglanden.py).
+    Zonder land, of met een land zonder eigen vragen: de gewone ronde. Alle
+    winkels van de categorie worden gescoord, net als bij de gewone ronde; de
+    ranglijst van het land houdt daarna alleen de winkels van dat land over.
 
     Draait op de aanroepende draad. De beheerpagina start hem via
     start_meting() op een eigen draad, want dit duurt minuten en dat hoort nooit
@@ -1064,8 +1076,13 @@ def meet_categorie(slug, max_vragen=None):
     if not winkels:
         return {"fout": f"Geen winkels in {slug}."}
 
+    land = (land or "").lower()
+    if not vraaglanden.heeft_eigen_vragen(land):
+        land = None
+    sleutel = vraaglanden.vraagsleutel(slug, land)
+    instelling = vraaglanden.VRAAGLANDEN.get(land) or {}
     _stand["stap"] = "koopvragen ophalen"
-    vragen = db.categorie_vragen(slug)
+    vragen = db.categorie_vragen(sleutel)
     # Aanvullen tot er weer dertig actieve vragen zijn. Dat is nodig sinds
     # zwakke vragen na een ronde uitgezet worden: zonder aanvullen zou elke
     # ronde met minder vragen meten dan de vorige en zou de meting langzaam
@@ -1085,12 +1102,14 @@ def meet_categorie(slug, max_vragen=None):
         tekort = VRAGEN_PER_CATEGORIE - len(vragen)
         _stand["stap"] = f"{tekort} koopvragen bedenken voor deze categorie"
         # Ruim vragen, want er vallen er altijd een paar af als dubbel.
+        extra = ({"landnaam": instelling["landnaam"], "taal": instelling["taal"]}
+                 if instelling else {})
         nieuw = bedenk_vragen(slug, aantal=max(tekort + 5, 8),
-                              vermijd=db.alle_categorie_vragen_tekst(slug))
+                              vermijd=db.alle_categorie_vragen_tekst(sleutel), **extra)
         if not nieuw:
             break
-        db.bewaar_categorie_vragen(slug, nieuw)
-        vragen = db.categorie_vragen(slug)
+        db.bewaar_categorie_vragen(sleutel, nieuw)
+        vragen = db.categorie_vragen(sleutel)
     if not vragen:
         return {"fout": "Er konden geen vragen bedacht worden."}
     if len(vragen) < VRAGEN_PER_CATEGORIE:
@@ -1108,7 +1127,7 @@ def meet_categorie(slug, max_vragen=None):
     if not aanbieders:
         return {"fout": "Geen enkele AI-sleutel gevonden."}
 
-    ronde = db.start_categorie_ronde(slug, len(vragen), len(winkels))
+    ronde = db.start_categorie_ronde(slug, len(vragen), len(winkels), land=land)
     _stand.update({"vragen_totaal": len(vragen) * len(aanbieders), "vraag_nu": 0,
                    "stap": "vragen stellen en antwoorden lezen"})
 
@@ -1143,7 +1162,7 @@ def meet_categorie(slug, max_vragen=None):
                 continue
 
             db.bewaar_categorie_antwoord(
-                ronde, slug, vraag["vraag"], aanbieder["model"],
+                ronde, sleutel, vraag["vraag"], aanbieder["model"],
                 uitkomst["antwoord"], genoemde)
             _stand["antwoorden"] += 1
             alle_genoemde.append(genoemde)
@@ -1172,7 +1191,8 @@ def meet_categorie(slug, max_vragen=None):
     nieuw = []
     try:
         _stand["stap"] = "nieuwe winkels uit de antwoorden toevoegen"
-        nieuw = nieuwe_winkels_uit_antwoorden(alle_genoemde, winkels, slug)
+        nieuw = nieuwe_winkels_uit_antwoorden(alle_genoemde, winkels, slug,
+                                              standaard_land=(land or "nl").upper())
         if nieuw:
             winkels = db.winkels_in_categorie_met_kinderen(slug)
             telling, telbaar = tel_uit_antwoorden(db.antwoorden_van_ronde(ronde), winkels)
@@ -1180,6 +1200,14 @@ def meet_categorie(slug, max_vragen=None):
         print(f"Nieuwe winkels toevoegen mislukt voor {slug}: {e}")
 
     rangen = maak_ranglijst(telling, winkels)
+    # Een ronde van een land die NIETS opleverde (alle aanroepen mislukt, of de
+    # kostenrem sloeg meteen toe) niet afronden. Afgerond zou hij voor dertig
+    # dagen de Belgische ranglijst worden, met alleen nullen, in plaats van de
+    # goede ranglijst uit de gewone ronde waar Belgie nu op terugvalt.
+    if land and not telbaar:
+        return {"fout": f"De ronde voor {land.upper()} leverde geen enkele bruikbare "
+                        f"vraag op en is niet afgerond. De oude ranglijst blijft staan.",
+                "ronde": None, "categorie": slug, "land": land}
     db.bewaar_categorie_uitkomsten(ronde, slug, rangen, len(telbaar))
 
     # Opruimen voor de volgende keer: vragen die nooit een winkel opleveren gaan
@@ -1187,9 +1215,9 @@ def meet_categorie(slug, max_vragen=None):
     # de volgende ronde tegelijk goedkoper, want zo'n vraag wordt niet meer
     # gesteld en niet meer gelezen.
     _stand["stap"] = "zwakke vragen opruimen"
-    gesnoeid = snoei_vragen(slug)
+    gesnoeid = snoei_vragen(sleutel)
 
-    return {"ronde": ronde, "categorie": slug, "winkels": len(rangen),
+    return {"ronde": ronde, "categorie": slug, "land": land, "winkels": len(rangen),
             "gemeten_adressen": len(winkels),
             "uitgezette_vragen": gesnoeid.get("uitgezet", 0),
             "vragen": len(vragen), "telbaar": len(telbaar),
@@ -1198,9 +1226,9 @@ def meet_categorie(slug, max_vragen=None):
             "ranglijst": rangen}
 
 
-def _werk(slug, max_vragen):
+def _werk(slug, max_vragen, land=None):
     try:
-        uitkomst = meet_categorie(slug, max_vragen=max_vragen)
+        uitkomst = meet_categorie(slug, max_vragen=max_vragen, land=land)
         if uitkomst.get("fout"):
             _stand["fout"] = uitkomst["fout"]
         print(f"Categoriemeting klaar: {slug}, {uitkomst}")
@@ -1212,7 +1240,7 @@ def _werk(slug, max_vragen):
         _stand["klaar_op"] = time.time()
 
 
-def start_meting(slug, max_vragen=None):
+def start_meting(slug, max_vragen=None, land=None):
     """Start een categoriemeting op een eigen draad.
 
     Nooit in het verzoek zelf: dertig vragen aan twee modellen is een minuut of
@@ -1228,5 +1256,5 @@ def start_meting(slug, max_vragen=None):
                        "vraag_nu": 0, "vragen_totaal": 0, "antwoorden": 0,
                        "mislukt": 0, "gestart_op": time.time(),
                        "klaar_op": None, "fout": None})
-    threading.Thread(target=_werk, args=(slug, max_vragen), daemon=True).start()
+    threading.Thread(target=_werk, args=(slug, max_vragen, land), daemon=True).start()
     return True
