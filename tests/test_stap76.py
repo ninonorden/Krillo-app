@@ -207,15 +207,15 @@ onderhoud.kosten.ruimte_vandaag = lambda: {"past_een_categorie": True}
 onderhoud.categoriemeting.meet_categorie = \
     lambda slug, land=None: gemeten.append((slug, land)) or {"fout": "test"}
 onderhoud.stap_meten(3)
-klopt("bij een gewone achterstand krijgt een land toch een plek per nacht",
-      gemeten == [("g0", None), ("g1", None), ("l1", "be")])
+klopt("landrondes komen BOVENOP de gewone, ook bij een achterstand",
+      gemeten == [("g0", None), ("g1", None), ("g2", None), ("l1", "be"), ("l2", "be")])
 gemeten.clear()
+onderhoud.METEN_LAND_PER_NACHT = 1
 onderhoud.stap_meten(1)
-klopt("met maar een plek gaat de gewone rij voor", gemeten == [("g0", None)])
+klopt("met eigen plekken voor het land", gemeten == [("g0", None), ("l1", "be")])
 gemeten.clear()
-onderhoud.db.categorieen_om_te_meten = lambda *a: []
-onderhoud.stap_meten(3)
-klopt("zonder gewone achterstand meerdere landrondes", gemeten == [("l1", "be"), ("l2", "be")])
+onderhoud.stap_meten(0)
+klopt("op nul meet er niets", gemeten == [])
 
 opruimen()
 print()

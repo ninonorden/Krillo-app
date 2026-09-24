@@ -137,6 +137,79 @@ klopt("de lijst van live landen filtert op vraaglanden", "toegestaan = {\"nl\", 
 klopt("en telt een land pas vanaf drie winkels in een categorie",
       "count(*) FILTER (WHERE winkels >= 3) AS categorieen" in db_bron)
 
+print("\n== 11. GROTE WINKEL BLOKKEERT DE SCANNER: WEL ZIJN PLEK ==")
+appmod.run_scan = lambda url: {"error": "We konden deze website niet bereiken. Check..."}
+appmod.db.bewaar_gratis_scan = lambda *a, **k: None
+appmod._rang_voor_gratis_check = lambda url: {"positie": 1, "van": 42, "categorie": "Elektronica algemeen",
+                                              "land": "the Netherlands", "genoemd": 23, "telbaar": 30,
+                                              "link": "/index/nl/elektronica#p1"}
+klant = appmod.app.test_client()
+antw = klant.post("/api/scan", json={"url": "www.mediamarkt.nl"})
+data = antw.get_json()
+klopt("geen foutmelding maar een uitslag", antw.status_code == 200)
+klopt("met de plek", data.get("rang", {}).get("positie") == 1)
+klopt("zonder verzonnen cijfer", data.get("score") is None and data.get("checks") == [])
+klopt("en eerlijk dat de site niet te lezen was", "could not reach" in (data.get("niet_gelezen") or ""))
+klopt("de pagina toont dan alleen de plek", "if(data.score === null){" in index)
+appmod._rang_voor_gratis_check = lambda url: None
+antw = klant.post("/api/scan", json={"url": "onbekend.nl"})
+klopt("niet in de index en niet te lezen: gewoon de Engelse fout",
+      antw.status_code == 400 and antw.get_json()["error"].startswith("We could not reach"))
+
+print("\n== 12. BELGIE GERICHT VULLEN ==")
+import winkelvinder  # noqa: E402
+gezocht = []
+winkelvinder.bronnen.beschikbaar = lambda: True
+winkelvinder.bronnen.zoek = lambda vraag, land=None, taal=None: gezocht.append((vraag, land, taal)) or [
+    {"url": "https://www.speelgoedwinkel.be/"}, {"url": "https://nederlands.nl/"},
+    {"url": "https://www.bol.com/"}]
+toegevoegd = []
+winkelvinder.db.voeg_benaderingen_toe = lambda regels: toegevoegd.extend(regels) or len(regels)
+uit = winkelvinder.vul_land("be", [("speelgoed", "Speelgoed"), ("boeken", "Boeken"), ("vol", "Vol")],
+                            {"speelgoed": 2, "boeken": 9, "vol": 30}, doel=15, max_zoekopdrachten=12)
+klopt("alleen categorieen met te weinig Belgische winkels", len(gezocht) == 2)
+klopt("de dunste eerst", gezocht[0][0] == "speelgoed webshop Belgie")
+klopt("zoekt in Belgie", gezocht[0][1] == "BE" and gezocht[0][2] == "nl")
+klopt("alleen .be-winkels erbij", {r[0] for r in toegevoegd} == {"https://speelgoedwinkel.be"})
+klopt("met land BE", all(r[2] == "BE" for r in toegevoegd))
+import onderhoud  # noqa: E402
+klopt("de nachtronde vult eerst de landen", "verslag[\"landen_vullen\"] = stap_landen_vullen()" in lees("onderhoud.py"))
+klopt("drie landrondes per nacht extra", onderhoud.METEN_LAND_PER_NACHT == 3)
+klopt("een landronde vanaf drie winkels", onderhoud.MINIMUM_LAND == 3)
+
+print("\n== 13. BREVO: BOUNCES EN SPAMKLACHTEN (STAP 78) ==")
+import db  # noqa: E402
+db.init_db()
+os.environ.pop("BREVO_WEBHOOK_SLEUTEL", None)
+klopt("zonder sleutel in Render bestaat de route niet",
+      klant.post("/webhooks/brevo/iets", json={"event": "spam", "email": "a@b.nl"}).status_code == 404)
+os.environ["BREVO_WEBHOOK_SLEUTEL"] = "geheim-test"
+klopt("met een verkeerde sleutel ook niet",
+      klant.post("/webhooks/brevo/fout", json={"event": "spam", "email": "a@b.nl"}).status_code == 404)
+B1, B2 = "https://bounce-test-78.nl", "https://klacht-test-78.nl"
+for u, e in ((B1, "info@bounce-test-78.nl"), (B2, "info@klacht-test-78.nl")):
+    db.voeg_benadering_toe(u)
+    db.zet_benadering(u, stand="gemaild", email=e, gemaild=True)
+appmod._meld_aan_beheer = lambda *a, **k: None
+klopt("een harde bounce komt binnen",
+      klant.post("/webhooks/brevo/geheim-test",
+                 json={"event": "hard_bounce", "email": "INFO@bounce-test-78.nl"}).status_code == 200)
+klant.post("/webhooks/brevo/geheim-test", json={"event": "spam", "email": "info@klacht-test-78.nl"})
+r1, r2 = db.get_benadering(B1), db.get_benadering(B2)
+klopt("de bounce staat bij de winkel", r1.get("bounce_op") is not None)
+klopt("een bounce meldt de winkel niet af (hij blijft in de index)", not db.is_afgemeld(B1))
+klopt("de klacht staat erbij", r2.get("klacht_op") is not None)
+klopt("en een spamklacht is een afmelding", db.is_afgemeld(B2))
+t = db.trechter_benadering()
+klopt("het beheerscherm telt ze", t["bounces"] >= 1 and t["klachten"] >= 1)
+klopt("en waarschuwt bij te veel", "Te hoog. Zet de mails per dag terug" in lees("templates/admin_benadering.html"))
+conn = db._get_connection()
+with conn:
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM benadering WHERE webshop_url IN (%s, %s)", (B1, B2))
+        cur.execute("DELETE FROM winkelprofielen WHERE webshop_url IN (%s, %s)", (B1, B2))
+conn.close()
+
 print()
 if fouten:
     print(f"FOUT: {len(fouten)} controle(s) mislukt")

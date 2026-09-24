@@ -229,6 +229,59 @@ def zoek_nieuwe_winkels(hoeveel_zoekopdrachten=None, ronde=0):
     return verslag
 
 
+# ---------------------------------------------------------------------------
+# Een land gericht vullen (24 september)
+# ---------------------------------------------------------------------------
+# De gewone winkelvinder zoekt alleen als de voorraad voor de koude mail op
+# raakt, en rouleert daarbij eerst door alle Nederlandse zoekopdrachten
+# voordat Belgie aan de beurt komt. Een land met weinig winkels bleef zo weken
+# dun. Dit zoekt elke nacht gericht per categorie van de index, voor de
+# landen met eigen vragen, tot er genoeg winkels van dat land in zitten.
+
+LANDNAAM_IN_ZOEKOPDRACHT = {"be": "Belgie", "nl": "Nederland", "de": "Deutschland",
+                            "fr": "France"}
+LANDTAAL = {"be": "nl", "nl": "nl", "de": "de", "fr": "fr"}
+
+
+def vul_land(land, categorieen_met_naam, huidige_aantallen, doel=15, max_zoekopdrachten=12):
+    """Zoekt winkels van een land voor de categorieen waar er te weinig zijn.
+
+    categorieen_met_naam: [(slug, naam)]. huidige_aantallen: {slug: aantal}.
+    De dunste categorieen eerst. Geeft een verslag terug."""
+    verslag = {"land": land, "gezocht": 0, "nieuw": 0, "categorieen": []}
+    if not bronnen.beschikbaar():
+        verslag["reden"] = f"Zoekmachine niet beschikbaar: {bronnen.waarom_niet()}"
+        return verslag
+    tekort = sorted([(huidige_aantallen.get(slug, 0), slug, naam)
+                     for slug, naam in categorieen_met_naam
+                     if huidige_aantallen.get(slug, 0) < doel])
+    gebied = LANDNAAM_IN_ZOEKOPDRACHT.get(land, land.upper())
+    for _, slug, naam in tekort[:max_zoekopdrachten]:
+        verslag["gezocht"] += 1
+        try:
+            resultaten = bronnen.zoek(f"{naam.lower()} webshop {gebied}",
+                                      land=land.upper(), taal=LANDTAAL.get(land, "en"))
+        except Exception as e:
+            print(f"Land vullen, zoeken mislukt ({land}, {slug}): {e}")
+            continue
+        hosts = {_domein(r.get("url")) for r in resultaten or []}
+        # Alleen domeinen van dit land (.be voor Belgie). Een .com of .nl in
+        # Belgische zoekresultaten is meestal een Nederlandse winkel die ook
+        # in Belgie levert; die staat al in de Nederlandse lijst.
+        hosts = [h for h in hosts if _is_bruikbaar(h) and h.endswith("." + land)]
+        if not hosts:
+            continue
+        regels = [(scan_engine.normalize_url(h), None, land.upper(), naam) for h in hosts]
+        try:
+            nieuw = int(db.voeg_benaderingen_toe(regels) or 0)
+        except Exception as e:
+            print(f"Land vullen, toevoegen mislukt ({land}, {slug}): {e}")
+            continue
+        verslag["nieuw"] += nieuw
+        verslag["categorieen"].append(f"{slug}: {nieuw} nieuw")
+    return verslag
+
+
 def vul_aan_indien_nodig(ronde=0, ondergrens=None):
     """Zoekt alleen nieuwe winkels als de voorraad onder de grens zakt.
 
