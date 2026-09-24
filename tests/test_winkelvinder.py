@@ -107,8 +107,11 @@ winkelvinder.zoek_nieuwe_winkels(hoeveel_zoekopdrachten=1, ronde=0)
 na = len(db.get_benaderingen(alleen_niet_afgemeld=False))
 zo("de lijst is niet gegroeid", na, voor)
 
-print("\n== zonder zoekmachine gebeurt er niets, zonder foutmelding ==")
+print("\n== zonder zoekmachine en zonder model gebeurt er niets, zonder foutmelding ==")
+# Sinds 24 september valt de winkelvinder zonder Brave terug op een taalmodel
+# (zie test_voor_de_benadering). Pas als dat er ook niet is, gebeurt er niets.
 bronnen.beschikbaar = lambda: False
+os.environ.pop("ANTHROPIC_API_KEY", None)
 uit = winkelvinder.zoek_nieuwe_winkels(hoeveel_zoekopdrachten=1)
 zo("er is niet gezocht", uit["gezocht"], 0)
 klopt("met een reden erbij", "beschikbaar" in (uit["reden"] or ""))

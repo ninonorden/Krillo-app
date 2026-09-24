@@ -26,6 +26,7 @@ Wat dit met opzet NIET doet:
 
 import os
 import re
+import time
 
 import bronnen
 import db
@@ -176,9 +177,11 @@ def zoek_nieuwe_winkels(hoeveel_zoekopdrachten=None, ronde=0):
     hoeveel er nieuw op de lijst gekomen zijn, en waarom er eventueel niets
     gebeurd is."""
     verslag = {"gezocht": 0, "gezien": 0, "nieuw": 0, "reden": None}
-
-    if not bronnen.beschikbaar():
-        verslag["reden"] = f"Zoekmachine niet beschikbaar: {bronnen.waarom_niet()}"
+    via_ai = not brave_bruikbaar()
+    if via_ai and (WINKELVINDER_BRON == "brave" or not os.environ.get("ANTHROPIC_API_KEY")):
+        verslag["reden"] = ("Geen zoekmachine en geen model beschikbaar: "
+                            + (bronnen.waarom_niet() if not bronnen.beschikbaar()
+                               else "Brave staat stil en WINKELVINDER_BRON staat op brave."))
         return verslag
 
     hoeveel = (hoeveel_zoekopdrachten if hoeveel_zoekopdrachten is not None
@@ -190,12 +193,19 @@ def zoek_nieuwe_winkels(hoeveel_zoekopdrachten=None, ronde=0):
     gevonden = {}
     for opdracht in _zoekopdrachten(hoeveel, ronde):
         verslag["gezocht"] += 1
-        try:
-            resultaten = bronnen.zoek(opdracht["vraag"], land=opdracht["land"],
-                                      taal=opdracht["taal"])
-        except Exception as e:
-            print(f"Winkels zoeken mislukt voor {opdracht['vraag']}: {e}")
-            continue
+        if via_ai:
+            # Geen Brave (uit, geen sleutel of tegoed op): het model. Een
+            # branche per keer, met het land erbij.
+            resultaten = [{"url": "https://" + d}
+                          for d in zoek_via_ai(opdracht["branche"], opdracht["land"].lower())]
+            verslag["via_ai"] = verslag.get("via_ai", 0) + 1
+        else:
+            try:
+                resultaten = bronnen.zoek(opdracht["vraag"], land=opdracht["land"],
+                                          taal=opdracht["taal"])
+            except Exception as e:
+                print(f"Winkels zoeken mislukt voor {opdracht['vraag']}: {e}")
+                continue
         for r in resultaten or []:
             host = _domein(r.get("url"))
             verslag["gezien"] += 1
@@ -238,6 +248,70 @@ def zoek_nieuwe_winkels(hoeveel_zoekopdrachten=None, ronde=0):
 # dun. Dit zoekt elke nacht gericht per categorie van de index, voor de
 # landen met eigen vragen, tot er genoeg winkels van dat land in zitten.
 
+# ---------------------------------------------------------------------------
+# Winkels vinden zonder zoekmachine (24 september)
+# ---------------------------------------------------------------------------
+# Brave kost geld per zoekopdracht en het gratis tegoed was op. Een taalmodel
+# kent de webshops van een land ook, en zo'n vraag kost ongeveer een cent.
+# Een model kan een domein verzinnen, daarom gaat elk domein eerst langs DNS:
+# wat niet bestaat komt er niet op. En een winkel die er toch verkeerd op komt,
+# valt bij het indelen en opschonen alsnog af.
+#
+# WINKELVINDER_BRON in Render: "auto" (standaard: Brave als dat werkt, anders
+# het model), "ai" (nooit Brave), "brave" (alleen Brave).
+WINKELVINDER_BRON = os.environ.get("WINKELVINDER_BRON", "auto").strip().lower()
+VINDER_AI_MODEL = os.environ.get("VINDER_AI_MODEL", "claude-sonnet-4-6")
+LANDNAAM_NL = {"nl": "Nederland", "be": "Belgie", "de": "Duitsland", "fr": "Frankrijk",
+               "uk": "het Verenigd Koninkrijk", "us": "de Verenigde Staten"}
+
+
+def brave_bruikbaar():
+    """Of Brave nu gebruikt mag en kan worden."""
+    if WINKELVINDER_BRON == "ai" or not bronnen.beschikbaar():
+        return False
+    return bronnen._op_tot[0] != time.strftime("%Y-%m-%d")
+
+
+def zoek_via_ai(onderwerp, land, hoeveel=30, bestaat=None):
+    """Vraagt een taalmodel om echte webshops van een land in een branche.
+
+    Geeft een lijst schone domeinen terug die in DNS bestaan. Nooit een fout."""
+    if WINKELVINDER_BRON == "brave":
+        return []
+    import beoordeling
+    import categoriemeting
+    import kosten
+    client = categoriemeting._client()
+    if client is None:
+        return []
+    bestaat = bestaat or categoriemeting._domein_bestaat
+    landnaam = LANDNAAM_NL.get((land or "nl").lower(), land)
+    prompt = (f"Noem {hoeveel} echte webshops die in {landnaam} online {onderwerp} verkopen. "
+              f"Vooral kleinere en middelgrote winkels, dus niet alleen de bekendste. Geen "
+              f"marktplaatsen, vergelijkingssites of merken zonder eigen webshop. Alleen "
+              f"winkels waarvan je zeker weet dat ze bestaan; liever minder dan verzonnen. "
+              f'Antwoord ALLEEN met JSON: {{"domeinen": ["winkel.be", "..."]}}')
+    try:
+        gestart = time.monotonic()
+        antwoord = client.messages.create(model=VINDER_AI_MODEL, max_tokens=1500,
+                                          messages=[{"role": "user", "content": prompt}])
+        kosten.registreer_aanroep(
+            provider="anthropic", model=VINDER_AI_MODEL,
+            invoer_tokens=antwoord.usage.input_tokens,
+            uitvoer_tokens=antwoord.usage.output_tokens,
+            soort="winkelvinder-ai", duur_ms=int((time.monotonic() - gestart) * 1000))
+        data = beoordeling._schoon_json(antwoord.content[0].text) or {}
+    except Exception as e:
+        print(f"Winkels zoeken via het model mislukt ({onderwerp}, {land}): {e}")
+        return []
+    uit = []
+    for ruw in data.get("domeinen") or []:
+        domein = categoriemeting._schoon_domein(str(ruw))
+        if domein and _is_bruikbaar(domein) and domein not in uit and bestaat(domein):
+            uit.append(domein)
+    return uit
+
+
 LANDNAAM_IN_ZOEKOPDRACHT = {"be": "Belgie", "nl": "Nederland", "de": "Deutschland",
                             "fr": "France"}
 LANDTAAL = {"be": "nl", "nl": "nl", "de": "de", "fr": "fr"}
@@ -248,27 +322,29 @@ def vul_land(land, categorieen_met_naam, huidige_aantallen, doel=15, max_zoekopd
 
     categorieen_met_naam: [(slug, naam)]. huidige_aantallen: {slug: aantal}.
     De dunste categorieen eerst. Geeft een verslag terug."""
-    verslag = {"land": land, "gezocht": 0, "nieuw": 0, "categorieen": []}
-    if not bronnen.beschikbaar():
-        verslag["reden"] = f"Zoekmachine niet beschikbaar: {bronnen.waarom_niet()}"
-        return verslag
+    verslag = {"land": land, "gezocht": 0, "nieuw": 0, "categorieen": [], "via_ai": 0}
     tekort = sorted([(huidige_aantallen.get(slug, 0), slug, naam)
                      for slug, naam in categorieen_met_naam
                      if huidige_aantallen.get(slug, 0) < doel])
     gebied = LANDNAAM_IN_ZOEKOPDRACHT.get(land, land.upper())
     for _, slug, naam in tekort[:max_zoekopdrachten]:
         verslag["gezocht"] += 1
-        try:
-            resultaten = bronnen.zoek(f"{naam.lower()} webshop {gebied}",
-                                      land=land.upper(), taal=LANDTAAL.get(land, "en"))
-        except Exception as e:
-            print(f"Land vullen, zoeken mislukt ({land}, {slug}): {e}")
-            continue
-        hosts = {_domein(r.get("url")) for r in resultaten or []}
+        hosts = set()
+        if brave_bruikbaar():
+            try:
+                resultaten = bronnen.zoek(f"{naam.lower()} webshop {gebied}",
+                                          land=land.upper(), taal=LANDTAAL.get(land, "en"))
+                hosts = {_domein(r.get("url")) for r in resultaten or []}
+            except Exception as e:
+                print(f"Land vullen, zoeken mislukt ({land}, {slug}): {e}")
+        # Geen Brave, of Brave leverde niets: het model (zie zoek_via_ai).
+        if not {h for h in hosts if h and h.endswith("." + land)}:
+            hosts |= set(zoek_via_ai(naam.lower(), land))
+            verslag["via_ai"] += 1
         # Alleen domeinen van dit land (.be voor Belgie). Een .com of .nl in
         # Belgische zoekresultaten is meestal een Nederlandse winkel die ook
         # in Belgie levert; die staat al in de Nederlandse lijst.
-        hosts = [h for h in hosts if _is_bruikbaar(h) and h.endswith("." + land)]
+        hosts = [h for h in hosts if h and _is_bruikbaar(h) and h.endswith("." + land)]
         if not hosts:
             continue
         regels = [(scan_engine.normalize_url(h), None, land.upper(), naam) for h in hosts]

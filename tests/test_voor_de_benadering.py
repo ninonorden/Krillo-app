@@ -172,6 +172,45 @@ klopt("de dunste eerst", gezocht[0][0] == "speelgoed webshop Belgie")
 klopt("zoekt in Belgie", gezocht[0][1] == "BE" and gezocht[0][2] == "nl")
 klopt("alleen .be-winkels erbij", {r[0] for r in toegevoegd} == {"https://speelgoedwinkel.be"})
 klopt("met land BE", all(r[2] == "BE" for r in toegevoegd))
+print("\n== 12b. ZONDER BRAVE: WINKELS VIA HET MODEL ==")
+import categoriemeting  # noqa: E402
+import kosten  # noqa: E402
+
+
+class _Antw:
+    def __init__(self, tekst):
+        self.content = [type("B", (), {"text": tekst})()]
+        self.usage = type("U", (), {"input_tokens": 10, "output_tokens": 10})()
+
+
+class _Model:
+    class messages:  # noqa: N801
+        @staticmethod
+        def create(**k):
+            _Model.prompt = k["messages"][0]["content"]
+            return _Antw('{"domeinen": ["https://www.echtewinkel.be/", "verzonnen.be", '
+                         '"bol.com", "echtewinkel.be", "andere.nl"]}')
+
+
+categoriemeting._client = lambda: _Model()
+categoriemeting._domein_bestaat = lambda d: d != "verzonnen.be"
+kosten.registreer_aanroep = lambda **k: None
+winkelvinder.WINKELVINDER_BRON = "ai"
+gezocht.clear()
+toegevoegd.clear()
+uit = winkelvinder.vul_land("be", [("speelgoed", "Speelgoed")], {"speelgoed": 0})
+klopt("Brave wordt niet gebruikt", gezocht == [])
+klopt("het model werd gevraagd, met het land erbij", "Belgie" in _Model.prompt and uit["via_ai"] == 1)
+klopt("verzonnen domeinen vallen af (DNS)", "https://verzonnen.be" not in {r[0] for r in toegevoegd})
+klopt("marktplaatsen en andere landen vallen af, dubbele ook",
+      [r[0] for r in toegevoegd] == ["https://echtewinkel.be"])
+winkelvinder.WINKELVINDER_BRON = "auto"
+winkelvinder.bronnen.beschikbaar = lambda: False
+os.environ["ANTHROPIC_API_KEY"] = "alleen-voor-de-test"
+toegevoegd.clear()
+winkelvinder.zoek_nieuwe_winkels(hoeveel_zoekopdrachten=1)
+klopt("ook de gewone winkelvinder valt terug op het model zonder Brave", len(toegevoegd) >= 1)
+
 import onderhoud  # noqa: E402
 klopt("de nachtronde vult eerst de landen", "verslag[\"landen_vullen\"] = stap_landen_vullen()" in lees("onderhoud.py"))
 klopt("drie landrondes per nacht extra", onderhoud.METEN_LAND_PER_NACHT == 3)
@@ -209,6 +248,20 @@ with conn:
         cur.execute("DELETE FROM benadering WHERE webshop_url IN (%s, %s)", (B1, B2))
         cur.execute("DELETE FROM winkelprofielen WHERE webshop_url IN (%s, %s)", (B1, B2))
 conn.close()
+
+print("\n== 14. DEELBEELD EN ICOON IN DE NIEUWE STIJL ==")
+from PIL import Image  # noqa: E402
+beeld = Image.open(os.path.join(APP, "static", "krillo-share-2026.png"))
+klopt("het deelbeeld is 1200 bij 630", beeld.size == (1200, 630))
+klopt("het oude deelbeeld is weg", not os.path.exists(os.path.join(APP, "static", "krillo-share.png")))
+klopt("de homepage wijst naar het nieuwe", "static/krillo-share-2026.png" in index
+      and 'og:image:width" content="1200"' in index)
+klopt("geen Nederlandse deeltekst meer", "Check for free whether AI assistants" not in index)
+antw = klant.get("/favicon.ico")
+klopt("/favicon.ico geeft het nieuwe icoon", antw.status_code == 200
+      and antw.data == open(os.path.join(APP, "static", "favicon.ico"), "rb").read())
+klopt("de icoonlinks hebben een nieuw kenmerk, zodat oude caches het loslaten",
+      "/static/favicon.png?v=2026" in index)
 
 print()
 if fouten:
