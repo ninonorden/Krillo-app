@@ -152,7 +152,7 @@ zo("met onze client id erbij", 'data-api-key="test-client-id"' in p, True)
 # Sinds stap 26 (23 september) is er geen eigen meting meer in de app: de
 # positie komt uit de index. Dus ook geen knop die een meting start.
 zo("er staat GEEN knop meer om zelf te meten", 'id="metenknop"' in p, False)
-zo("wel het blok met je positie", "YOUR POSITION" in p, True)
+zo("wel de kop van de index", "Krillo index" in p, True)
 zo("en nog geen cijfers", "van de" in p and "koopvragen" in p, False)
 
 print("\n== een tweede keer openen wisselt niet opnieuw in ==")
@@ -268,7 +268,7 @@ print("\n== het scherm is Engels en legt uit wat het doet ==")
 p = client.get("/shopify?id_token=" + maak_kaartje(winkel="ustest.myshopify.com")).get_data(as_text=True)
 # Een winkel in de VS: de index meet NL en BE, dus eerlijk zeggen dat er
 # (nog) geen positie komt in plaats van eeuwig "komt eraan" (stap 26).
-for moet in ["We do not measure your market yet", "How it works", "Plans",
+for moet in ["We do not measure <em>your market</em> yet", "How it works", "Plans",
              "Questions people ask us", "Does this change anything in my store?",
              "Will this get me mentioned by ChatGPT?", "$55", "$165", "Watch", "Fix",
              "Cancel any time"]:

@@ -119,7 +119,7 @@ def scherm():
 print("\n== ZONDER POSITIE: EERLIJK 'KOMT ERAAN' ==")
 krillo.klantbeeld.bouw = lambda url, land=None, **k: None
 p = scherm()
-klopt("de kop zegt dat de positie eraan komt", "Your rank is on its way" in p)
+klopt("de kop zegt dat de positie eraan komt", "Your rank is <em>on its way.</em>" in p)
 klopt("geen knop om zelf te meten", 'id="metenknop"' not in p)
 klopt("geen verzonnen cijfer", "#1 of" not in p)
 
@@ -131,8 +131,8 @@ _vb = {"positie": 4, "van": 54, "genoemd": 11, "aanbevolen": 3, "telbaar": 30, "
 _echt_vb = krillo._voorbeeld_voor_app
 krillo._voorbeeld_voor_app = lambda: _vb
 p = scherm()
-klopt("het voorbeeld staat eronder, als voorbeeld gemarkeerd", "This is an example." in p and "Voorbeeldwinkel" in p)
-klopt("met echte cijfers van die winkel", "of the 54 stores we measure" in p)
+klopt("het voorbeeld staat eronder, als voorbeeld gemarkeerd", "What your ranking will look like" in p and "EXAMPLE &middot; VOORBEELDWINKEL" in p)
+klopt("met echte cijfers van die winkel", "#4<small" in p and "/ 54" in p)
 krillo._voorbeeld_voor_app = _echt_vb
 
 print("\n== BIJ HET OPENEN KOMT DE WINKEL OP DE LIJST ==")
@@ -169,13 +169,13 @@ beeld = {
 }
 krillo.klantbeeld.bouw = lambda url, land=None, **k: beeld
 p = scherm()
-klopt("de positie staat erop", '<span class="groot">4</span>' in p and "of the 23 stores we measure" in p)
+klopt("de positie staat erop", "<em>#4</em> of 23 in" in p)
 klopt("met categorie en land", "Netherlands" in p or "Nederland" in p)
-klopt("hoe vaak genoemd, per vraag", '<span class="groot">7</span>' in p and "of the 30 buying questions" in p)
-klopt("de stijging staat erbij", "UP 2" in p)
+klopt("hoe vaak genoemd, per vraag", "AI named you in 7 of 30 buying questions" in p)
+klopt("de stijging staat erbij", ">+2<" in p)
 klopt("de link naar de volledige ranglijst", "https://krilloai.com/index/nl/koffie#p4" in p)
-klopt("dezelfde UI als het dashboard: de gedeelde opmaak", "cijfer" in p and "zijkant" in p and "werkblad" in p)
-klopt("wie net boven hem staat", "WHO IS JUST ABOVE YOU" in p and "Koffie Centrale" in p)
+klopt("dezelfde bouwstenen als de homepage", "indexkaart" in p and "idx-kaart" in p and "sectiekop" in p)
+klopt("wie net boven hem staat", "Your ranking" in p and "Koffie Centrale" in p and "jijrij" in p)
 klopt("de vraag waar hij ontbrak", "Waar koop ik goede espressobonen?" in p)
 klopt("de concurrent bij de gemiste vraag", "<strong>Koffie Centrale</strong>" in p)
 klopt("bol.com apart als platform", "PLATFORMS: BOL.COM" in p)
@@ -216,11 +216,23 @@ shopify_app.winkelgegevens = lambda w, s: {
     "taal": "en-US", "land": "US"}
 p = client.get("/shopify?shop=stap26-us.myshopify.com&id_token="
                + maak_kaartje("stap26-us.myshopify.com")).get_data(as_text=True)
-klopt("de kop zegt het eerlijk", "We do not measure your market yet" in p)
-klopt("geen 'komt eraan'", "Your rank is on its way" not in p)
+klopt("de kop zegt het eerlijk", "We do not measure <em>your market</em> yet" in p)
+klopt("geen 'komt eraan'", "Your rank is <em>on its way.</em>" not in p)
 klopt("en hij komt niet op de lijst",
       sql("SELECT 1 FROM benadering WHERE webshop_url = 'https://stap26-us.com'",
           een=True) is None)
+
+print("\n== ZET DE WINKELIER ZIJN LAND OP NEDERLAND, DAN ZIET DE APP DAT (24 september) ==")
+# Eerst werd het land alleen bij het installeren opgehaald. Nino zette zijn
+# testwinkel op Nederland en de app bleef "we meten jouw markt nog niet" zeggen.
+shopify_app.winkelgegevens = lambda w, s: {
+    "naam": "US", "email": "us@stap26-us.com", "domein": "stap26-us.com",
+    "taal": "nl-NL", "land": "NL"}
+krillo.klantbeeld.bouw = lambda url, land=None, **k: None  # nog geen positie
+p = client.get("/shopify?shop=stap26-us.myshopify.com&id_token="
+               + maak_kaartje("stap26-us.myshopify.com")).get_data(as_text=True)
+klopt("bij de volgende keer openen staat hij in de markt", "Your rank is <em>on its way.</em>" in p)
+klopt("en niet meer 'we meten jouw markt niet'", "your market</em> yet" not in p)
 
 print("\n== DE OUDE METING START NIETS MEER ==")
 r = client.post("/shopify/api/meten", headers={"Authorization": "Bearer " + maak_kaartje()})
