@@ -263,6 +263,17 @@ klopt("/favicon.ico geeft het nieuwe icoon", antw.status_code == 200
 klopt("de icoonlinks hebben een nieuw kenmerk, zodat oude caches het loslaten",
       "/static/favicon.png?v=2026" in index)
 
+print("\n== 15. ENGELSE CATEGORIENAMEN IN APP, MAIL EN GRATIS CHECK ==")
+import categorieen  # noqa: E402
+klopt("elke categorie heeft een Engelse naam",
+      all(slug in categorieen.NAMEN_EN for slug, _, _ in categorieen.CATEGORIEEN))
+klopt("Koffie en thee wordt Coffee and tea", categorieen.naam_en("koffie-thee") == "Coffee and tea")
+klopt("de app, de koude mail en de gratis check gebruiken de Engelse naam",
+      app_bron.count("categorieen.naam_en(") >= 5)
+klopt("het maandbericht ook", "categorieen.naam_en(categorie)" in lees("meldingen.py"))
+klopt("de openbare ranglijst houdt de Nederlandse naam (zoekterm)",
+      "naam=categorieen.naam_van(slug)," in app_bron)
+
 print()
 if fouten:
     print(f"FOUT: {len(fouten)} controle(s) mislukt")
