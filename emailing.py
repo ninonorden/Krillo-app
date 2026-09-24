@@ -633,7 +633,15 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                 taalnaam = _TAALNAAM.get(sitetaal.taal_van_land(beeld.get("land")), "")
             except Exception:
                 taalnaam = ""
-            label = f"One of the questions we asked{', in ' + taalnaam if taalnaam and taalnaam != 'English' else ''}"
+            taaldeel = f", in {taalnaam}" if taalnaam and taalnaam != "English" else ""
+            # Nummer 1 (24 september, na de proefmail over mediamarkt.nl): "#1 of
+            # 42" met daaronder een rood kruis leest als een tegenspraak. Wel
+            # eerlijk laten zien, want ook nummer 1 mist vragen, maar met een kop
+            # die zegt waarom je het ziet.
+            if positie == 1:
+                label = f"Even at #1: a question where you were missing{taaldeel}"
+            else:
+                label = f"One of the questions we asked{taaldeel}"
             regels += (f'<tr><td style="padding:4px 0; font-size:14.5px; color:#D42E22; '
                        f'font-weight:600;"><span style="font-weight:700;">&#10005;</span>'
                        f'&nbsp;&nbsp;{winkel} was not named</td></tr>')
@@ -651,6 +659,11 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
             break
 
     zichtbaar = e(_kaal_adres(link_url).split("/")[0])
+
+    # Nummer 1 heeft niets te repareren maar wel iets te verliezen. Een zin
+    # erbij, zoals de balk op de ranglijst dat ook zegt.
+    bij_een = ("Staying #1 is the hard part: the ranking is measured again every month, "
+               "and the stores below you are moving too. ") if positie == 1 else ""
 
     # De eerste zin verschilt per versie, de rest niet (zie MAILVARIANTEN).
     p = '<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
@@ -697,7 +710,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
           </table>
 
           <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 6px;">
-            The full ranking, and how we measured it, is on a public page. No login, and
+            {bij_een}The full ranking, and how we measured it, is on a public page. No login, and
             nothing to fill in.</p>
 
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
