@@ -832,7 +832,7 @@ def send_opvolging_gratis_test(to_email, webshop_url, site_url=None, taal="en"):
     doorgaan levert alleen spamklachten op."""
     basis = (site_url or "https://krilloai.com").rstrip("/")
     winkel = _kaal_adres(webshop_url)
-    heen = f"{basis}/?winkel={quote(webshop_url or '')}#prijzen"
+    heen = f"{basis}/?winkel={quote(webshop_url or '')}#pricing"
     body = (
         _p(f"A little while ago you had us check whether AI assistants mention "
            f"<strong>{veilig(winkel)}</strong>. You saw the result.")
@@ -1011,7 +1011,7 @@ def send_zichtbaarheidstest(to_email, webshop_url, resultaat, zin, site_url=None
     body = (cijfers + '<h3 style="font-size:15px; margin:24px 0 10px;">The questions</h3>'
             + regels + concurrenten + bronblok + slot)
     if site_url:
-        heen = f"{site_url.rstrip('/')}/?winkel={quote(webshop_url or '')}#prijzen"
+        heen = f"{site_url.rstrip('/')}/?winkel={quote(webshop_url or '')}#pricing"
         body += _score_button(heen, "See the plans")
 
     html = _base_html("What AI said about your store", veilig(zin), body)

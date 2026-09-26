@@ -120,7 +120,14 @@ POGINGEN_BIJ_DRUKTE = 3
 
 # Hoeveel foto's wij per product bekijken. Meer dan dit heeft bijna geen enkele
 # winkel, en elk stuk dat je opvraagt kost punten uit diezelfde emmer.
-FOTOS_PER_PRODUCT = 50
+FOTOS_PER_PRODUCT = 10
+
+# Hoeveel producten per verzoek (25 september). Stond op 250, met 50 foto's
+# per product: Shopify rekent zo'n vraag op ongeveer 250 x 50 punten, en weigert
+# alles boven de 1000 (MAX_COST_EXCEEDED). Het gevolg: "Check my store" zag
+# NOOIT een product, bij geen enkele winkel. 25 x 10 blijft ruim onder de grens;
+# het bladeren haalt de rest op.
+PRODUCTEN_PER_VERZOEK = 25
 
 
 # ---------------------------------------------------------------- de winkel in
@@ -336,7 +343,7 @@ def haal_producten(winkel, sleutel, maximaal=PRODUCTEN_PER_KEER):
     waarop je om het volgende stuk vraagt."""
     alles, vanaf = [], None
     while len(alles) < maximaal:
-        aantal = min(250, maximaal - len(alles))
+        aantal = min(PRODUCTEN_PER_VERZOEK, maximaal - len(alles))
         uit = _graphql(winkel, sleutel, VRAAG_PRODUCTEN,
                        {"aantal": aantal, "vanaf": vanaf,
                         "fotos": FOTOS_PER_PRODUCT})
@@ -893,6 +900,16 @@ def zet_terug(winkel, sleutel, wijziging, klant_url=None):
     # de database staat, ook bij wijzigingen van voor deze verbouwing.
     if delen[1] == "alt" and len(delen) == 4:
         uit = _zet_alt(winkel, sleutel, delen[3], oud or "")
+        # Nakijken of het echt terug is (25 september). Shopify negeert bij
+        # fileUpdate soms een lege beschrijving zonder foutmelding. Dan zou het
+        # scherm "Undone" zeggen terwijl de tekst er nog staat.
+        if uit.get("gelukt"):
+            bestanden = ((uit.get("gegevens") or {}).get("files") or [])
+            nu = (bestanden[0].get("alt") if bestanden and isinstance(bestanden[0], dict) else None)
+            if nu is not None and (nu or "") != (oud or ""):
+                uit = {"gelukt": False,
+                       "fout": "Shopify kept the description. Remove it in your admin: "
+                               "Content, Files, open the image and clear its alt text."}
     elif delen[1] == "tekst" and len(delen) == 3:
         uit = _zet_producttekst(winkel, sleutel, delen[2], oud or "")
     elif delen[1] == "faq":

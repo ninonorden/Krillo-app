@@ -78,15 +78,18 @@ PROEFDAGEN = 7
 # SHOPIFY_BILLING_TEST uit staat (24 september). Zo kan de testmodus uit Render
 # voor de app openbaar gaat, en kan de beoordelaar van Shopify toch een plan
 # afsluiten. Een echte winkel betaalt dan echt.
-ONTWIKKELPLANNEN = {"partner_test", "affiliate", "plus_partner_sandbox", "development", "staff"}
+ONTWIKKELPLANNEN = {"partner_test", "affiliate", "plus_partner_sandbox", "development", "staff", "staff_business", "developer_preview"}
 
 
 def is_ontwikkelwinkel(winkel, sleutel):
+    """Via GraphQL: shop.plan.partnerDevelopment (25 september)."""
     try:
         gegevens = shopify_app.winkelgegevens(winkel, sleutel) or {}
     except Exception:
         return False
-    return (gegevens.get("shopifyplan") or "").lower() in ONTWIKKELPLANNEN
+    if gegevens.get("ontwikkelwinkel"):
+        return True
+    return (gegevens.get("shopifyplan") or "").lower().replace(" ", "_") in ONTWIKKELPLANNEN
 
 
 def testmodus():

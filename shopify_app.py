@@ -515,73 +515,110 @@ def _kop(sleutel):
     return {"X-Shopify-Access-Token": sleutel, "Content-Type": "application/json"}
 
 
+def _graphql_eenvoudig(winkel, sleutel, vraag, variabelen=None):
+    """Een GraphQL-verzoek aan de winkel. Geeft de "data" terug, of None.
+
+    Sinds 25 september gaat ook dit via GraphQL. Hier stonden nog twee
+    REST-verzoeken (shop.json en webhooks.json), en Shopify neemt sinds april
+    2025 geen nieuwe openbare apps meer aan die REST gebruiken."""
+    try:
+        antwoord = requests.post(
+            f"https://{winkel}/admin/api/{API_VERSIE}/graphql.json",
+            headers=_kop(sleutel),
+            json={"query": vraag, "variables": variabelen or {}}, timeout=20)
+        if antwoord.status_code >= 300:
+            print(f"GraphQL-verzoek mislukt voor {winkel}: {antwoord.status_code}")
+            return None
+        inhoud = antwoord.json() or {}
+        if inhoud.get("errors"):
+            print(f"GraphQL-fout voor {winkel}: {str(inhoud['errors'])[:200]}")
+            return None
+        return inhoud.get("data") or None
+    except Exception as e:
+        print(f"GraphQL-verzoek mislukt voor {winkel}: {e}")
+        return None
+
+
+VRAAG_WINKEL = """
+query Winkel {
+  shop {
+    name
+    email
+    primaryDomain { host }
+    billingAddress { countryCodeV2 }
+    plan { partnerDevelopment displayName }
+  }
+  shopLocales(published: true) { locale primary }
+}
+"""
+
+
 def winkelgegevens(winkel, sleutel):
     """Naam, e-mailadres en webadres van de winkel. None bij een fout."""
     winkel = _schoon(winkel)
     if not geldige_winkel(winkel) or not sleutel:
         return None
-    try:
-        antwoord = requests.get(
-            f"https://{winkel}/admin/api/{API_VERSIE}/shop.json",
-            headers=_kop(sleutel), timeout=20)
-        if antwoord.status_code >= 300:
-            print(f"Winkelgegevens ophalen mislukt voor {winkel}: {antwoord.status_code}")
-            return None
-        shop = (antwoord.json() or {}).get("shop") or {}
-        return {
-            "naam": shop.get("name"),
-            "email": shop.get("email"),
-            "domein": shop.get("domain"),
-            "land": shop.get("country_code"),
-            "taal": shop.get("primary_locale"),
-            # Het Shopify-abonnement van de winkel zelf. "partner_test" en
-            # "affiliate" zijn ontwikkelwinkels: daar kan niet echt betaald
-            # worden (zie shopify_billing.testmodus).
-            "shopifyplan": shop.get("plan_name"),
-        }
-    except Exception as e:
-        print(f"Winkelgegevens ophalen mislukt voor {winkel}: {e}")
+    data = _graphql_eenvoudig(winkel, sleutel, VRAAG_WINKEL)
+    if not data or not data.get("shop"):
+        print(f"Winkelgegevens ophalen mislukt voor {winkel}")
         return None
+    shop = data["shop"]
+    talen = data.get("shopLocales") or []
+    hoofdtaal = next((t.get("locale") for t in talen if t.get("primary")), None)
+    plan = shop.get("plan") or {}
+    return {
+        "naam": shop.get("name"),
+        "email": shop.get("email"),
+        "domein": (shop.get("primaryDomain") or {}).get("host"),
+        "land": (shop.get("billingAddress") or {}).get("countryCodeV2"),
+        "taal": hoofdtaal,
+        # Een ontwikkelwinkel (van een partner of van de beoordelaar van
+        # Shopify) kan niet echt betalen; zie shopify_billing.
+        "ontwikkelwinkel": bool(plan.get("partnerDevelopment")),
+        "shopifyplan": plan.get("displayName"),
+    }
+
+
+# De onderwerpen in de vorm die GraphQL wil (APP_UNINSTALLED in plaats van
+# app/uninstalled).
+def _graphql_onderwerp(onderwerp):
+    return onderwerp.upper().replace("/", "_")
+
+
+MAAK_WEBHOOK = """
+mutation MaakWebhook($onderwerp: WebhookSubscriptionTopic!, $adres: URL!) {
+  webhookSubscriptionCreate(topic: $onderwerp,
+                            webhookSubscription: {callbackUrl: $adres, format: JSON}) {
+    userErrors { field message }
+    webhookSubscription { id }
+  }
+}
+"""
 
 
 def meld_webhooks_aan(winkel, sleutel, basis_url):
-    """Meldt de verplichte webhooks aan bij deze winkel.
+    """Meldt de webhooks aan bij deze winkel (via GraphQL, 25 september).
 
-    Geeft terug welke gelukt zijn en welke niet, zodat een halve installatie
-    zichtbaar is in de logs in plaats van dat je er bij de beoordeling van
-    Shopify achterkomt.
-
-    Een webhook die al bestaat geeft een foutmelding van Shopify terug. Dat is
-    geen probleem en telt hier als gelukt: het doel is dat hij er is, niet dat
-    wij hem net hebben aangemaakt."""
+    Geeft terug welke gelukt zijn en welke niet. Een webhook die al bestaat
+    geeft een foutmelding ("already been taken"); dat telt als gelukt, want het
+    doel is dat hij er is."""
     winkel = _schoon(winkel)
     if not geldige_winkel(winkel) or not sleutel:
         return {"gelukt": [], "mislukt": [("alles", "geen geldige winkel of sleutel")]}
 
     gelukt, mislukt = [], []
     for onderwerp, pad in WEBHOOKS:
-        try:
-            antwoord = requests.post(
-                f"https://{winkel}/admin/api/{API_VERSIE}/webhooks.json",
-                headers=_kop(sleutel),
-                json={"webhook": {"topic": onderwerp,
-                                  "address": f"{basis_url}{pad}",
-                                  "format": "json"}},
-                timeout=20,
-            )
-            if antwoord.status_code < 300:
-                gelukt.append(onderwerp)
-            elif "already been taken" in antwoord.text:
-                # Bestaat al. Dat is geen probleem: het doel is dat hij er is,
-                # niet dat wij hem net hebben aangemaakt.
-                gelukt.append(onderwerp)
-            else:
-                # Elke andere 422 is WEL een mislukking. Hier stond eerder dat
-                # een 422 altijd goed was, en dat maakte deze hele functie
-                # nutteloos: hij kon geen enkele fout meer melden.
-                mislukt.append((onderwerp, f"{antwoord.status_code}: {antwoord.text[:150]}"))
-        except Exception as e:
-            mislukt.append((onderwerp, f"{type(e).__name__}: {e}"[:150]))
+        data = _graphql_eenvoudig(winkel, sleutel, MAAK_WEBHOOK, {
+            "onderwerp": _graphql_onderwerp(onderwerp), "adres": f"{basis_url}{pad}"})
+        if data is None:
+            mislukt.append((onderwerp, "geen antwoord van Shopify"))
+            continue
+        fouten = ((data.get("webhookSubscriptionCreate") or {}).get("userErrors") or [])
+        tekst = "; ".join(str(f.get("message") or "") for f in fouten)
+        if not fouten or "already been taken" in tekst or "already exists" in tekst:
+            gelukt.append(onderwerp)
+        else:
+            mislukt.append((onderwerp, tekst[:150]))
 
     if mislukt:
         print(f"LET OP: webhooks niet aangemeld voor {winkel}: {mislukt}")

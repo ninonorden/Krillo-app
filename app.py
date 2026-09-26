@@ -141,6 +141,13 @@ def stuur_oud_domein_door():
     # verhuizing nooit.
     if request.path == "/robots.txt":
         return None
+    # WEBHOOKS WORDEN OOK NIET DOORGESTUURD (25 september). Shopify stuurde
+    # de verplichte privacy-webhooks nog naar www.krillo.nl, kreeg een 301 en
+    # keurde de app af: een webhook moet zelf antwoorden, en bij een foute
+    # handtekening met een 401. Een 301 volgt Shopify niet. Mollie ook niet.
+    # Dus een webhook wordt op het oude domein gewoon hier afgehandeld.
+    if request.path.startswith("/shopify/webhooks/") or request.path.startswith("/webhooks/"):
+        return None
     # DE NOODREM.
     #
     # Staat BASE_URL nog op het OUDE domein, dan zou deze functie krillo.nl
@@ -555,9 +562,23 @@ def _eigen_benchmarkcijfer():
             "deel": round(nooit * 100 / gemeten)}
 
 
-@app.route("/privacybeleid")
+@app.route("/privacy")
 def privacybeleid():
     return render_template("privacybeleid.html")
+
+
+# Engelse adressen (25 september). De site is Engels, maar deze pagina's
+# heetten nog /privacybeleid en /veelgestelde-vragen, en zo stonden ze ook in
+# de Shopify-listing. De oude adressen blijven werken met een 301, zodat links
+# in verstuurde mails en in Google niet breken.
+@app.route("/privacybeleid")
+def privacybeleid_oud():
+    return redirect("/privacy", code=301)
+
+
+@app.route("/veelgestelde-vragen")
+def veelgestelde_vragen_oud():
+    return redirect("/faq", code=301)
 
 
 @app.route("/voorwaarden")
@@ -565,7 +586,7 @@ def voorwaarden():
     return render_template("voorwaarden.html")
 
 
-@app.route("/veelgestelde-vragen")
+@app.route("/faq")
 def veelgestelde_vragen():
     return render_template("faq.html")
 
@@ -734,8 +755,8 @@ def sitemap_xml():
     nieuwste = max([a["datum"] for a in artikelen.ARTIKELEN] or ["2026-08-01"])
     # /uitkomst/<token> staat hier BEWUST niet in. Die pagina's gaan over één
     # winkel met naam en toenaam en horen niet in Google.
-    vast = ["/", "/artikelen", "/zo-meten-we", "/veelgestelde-vragen",
-            "/index", "/demo", "/over-ons", "/voorwaarden", "/privacybeleid",
+    vast = ["/", "/artikelen", "/zo-meten-we", "/faq",
+            "/index", "/demo", "/over-ons", "/voorwaarden", "/privacy",
             "/herroepen"]
     regels = [(p, nieuwste) for p in vast]
     regels += [(f"/artikelen/{a['slug']}", a["datum"]) for a in artikelen.ARTIKELEN]
@@ -1285,7 +1306,7 @@ def _oude_kassa_dicht():
     if (os.environ.get("OUDE_KASSA_AAN") or "").strip().lower() == "ja":
         return None
     return jsonify({"error": "This product is no longer available. See our plans at "
-                             "krilloai.com/#prijzen."}), 410
+                             "krilloai.com/#pricing."}), 410
 
 
 @app.route("/api/checkout/audit", methods=["POST"])
@@ -4960,9 +4981,9 @@ def uitkomst_verder(token):
     uitkomst openen, maar niet of ze daarna ook iets willen."""
     webshop_url = db.winkel_bij_benchmark_token(token)
     if not webshop_url:
-        return redirect("/#prijzen")
+        return redirect("/#pricing")
     db.noteer_doorgeklikt(webshop_url)
-    return redirect(f"/?winkel={quote(webshop_url)}#prijzen")
+    return redirect(f"/?winkel={quote(webshop_url)}#pricing")
 
 
 @app.route("/admin/benchmark")
@@ -5811,6 +5832,7 @@ def _shopify_meten(winkel, webshop_url, email=None):
 # Staat een tekst hier niet in, dan gaat hij onvertaald door. Dat is met opzet:
 # liever een Nederlandse regel dan een lege balk of een foutmelding.
 STAND_ENGELS = {
+    "werk onderbroken": "The check was interrupted. Please click Check my store again.",
     "we beginnen": "starting",
     "je winkel doorlezen": "reading your store",
     "koopvragen maken": "writing shopping questions",
@@ -6285,7 +6307,16 @@ def shopify_start():
     # kreeg opnieuw de vraag of Krillo bij zijn producten mag.
     rij = db.get_shopify_winkel(winkel)
     if rij and rij.get("toegangssleutel") and rij.get("actief"):
-        return _shopify_scherm(winkel, rij)
+        # ALLEEN met een geldige handtekening van Shopify (25 september).
+        # Hier stond het scherm voor iedereen die ?shop=<winkel> intypte: wie
+        # een geinstalleerde winkel kende, zag zijn cijfers en concurrenten
+        # zonder in te loggen. Zonder handtekening sturen wij hem naar de app
+        # in zijn eigen Shopify-beheer; daar krijgt hij het gewoon te zien,
+        # met een kaartje van Shopify erbij.
+        if shopify_app.klopt_query_handtekening(request.args.to_dict()):
+            return _shopify_scherm(winkel, rij)
+        sleutel_app = (os.environ.get("SHOPIFY_API_KEY") or "").strip()
+        return redirect(f"https://{winkel}/admin/apps/{sleutel_app}", code=302)
 
     link = shopify_app.installatielink(winkel, get_base_url())
     if not link:
@@ -6417,9 +6448,19 @@ def shopify_api_werkstand():
     winkel, rij = _shopify_uit_kop()
     if not winkel or not rij:
         return jsonify({"error": "Not allowed."}), 401
-    return jsonify({"stand": _stand_in_taal(
-        _shopify_werk_status.get(winkel),
-        _markt_van(rij.get("webshop_url") or ""))})
+    stand = _shopify_werk_status.get(winkel)
+    # Geen stand terwijl het scherm erom vraagt (25 september): dan is de
+    # server tussendoor herstart en is het werk kwijt. Zonder dit bleef het
+    # scherm eindeloos op "Working" staan met een lopende klok.
+    if not stand:
+        stand = {"mislukt": True, "tekst": "werk onderbroken"}
+    stand = _stand_in_taal(stand, _markt_van(rij.get("webshop_url") or ""))
+    # Losse foutmeldingen van het voorbereiden zijn interne Nederlandse tekst
+    # ("Kostenrem: ..."). Op het Engelse scherm een gewone zin.
+    if stand.get("fouten"):
+        stand = dict(stand, fouten=["Some parts could not be prepared right now. "
+                                    "Try again in a few minutes."])
+    return jsonify({"stand": stand})  # al door _stand_in_taal gegaan, zie hierboven
 
 
 @app.route("/shopify/api/toepassen", methods=["POST"])
@@ -6592,7 +6633,10 @@ def shopify_api_abonnement():
         "prijzen": {k: v["prijs"] for k, v in shopify_billing.PLANNEN.items()},
         "valuta": shopify_billing.PLAN_VALUTA,
         "proefdagen": 0 if rij.get("proef_gehad_op") else shopify_billing.PROEFDAGEN,
-        "test": shopify_billing.testmodus(),
+        # Of het LOPENDE abonnement een test is (25 september), niet alleen de
+        # instelling: in een ontwikkelwinkel is elk abonnement een test, ook
+        # als SHOPIFY_BILLING_TEST uit staat.
+        "test": bool((stand.get("abonnement") or {}).get("test")) or shopify_billing.testmodus(),
     })
 
 

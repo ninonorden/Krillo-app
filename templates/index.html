@@ -956,7 +956,7 @@
       <a href="/index">Index</a>
       <a href="/demo">Product</a>
       <a href="#methode">Method</a>
-      <a href="#prijzen">Pricing</a>
+      <a href="#pricing">Pricing</a>
     </div>
     <a class="nav-cta" href="#scan">Check my store</a>
   </div>
@@ -1144,7 +1144,9 @@
   </div>
 </section>
 
-<section id="prijzen" class="vlak">
+<section id="pricing" class="vlak">
+  {# Het oude anker, zodat links met #prijzen uit verstuurde mails blijven werken. #}
+  <span id="prijzen" style="position:absolute;"></span>
   <div class="wrap">
     <div class="sectiekop">
       <div>
@@ -1235,7 +1237,7 @@
     <div class="checkout-akkoord">
       <label class="checkout-vink">
         <input type="checkbox" id="checkoutVoorwaarden">
-        <span>I agree to the <a href="/voorwaarden" target="_blank">terms</a> and the <a href="/privacybeleid" target="_blank">privacy policy</a>.</span>
+        <span>I agree to the <a href="/voorwaarden" target="_blank">terms</a> and the <a href="/privacy" target="_blank">privacy policy</a>.</span>
       </label>
       <label class="checkout-vink" id="checkoutDirectVeld">
         <input type="checkbox" id="checkoutDirect">
@@ -1264,7 +1266,7 @@
         <a href="/index">The index</a>
         <a href="/demo">Example dashboard</a>
         <a href="/#wat-je-krijgt">What you get</a>
-        <a href="/#prijzen">Pricing</a>
+        <a href="/#pricing">Pricing</a>
         <a href="/mijn-link">Lost my link</a>
       </div>
       <div class="footer-col">
@@ -1273,7 +1275,7 @@
         <a href="/zo-meten-we">How we measure</a>
         <a href="/artikelen">Articles</a>
         <a href="/over-ons">About Krillo</a>
-        <a href="/veelgestelde-vragen">Questions</a>
+        <a href="/faq">Questions</a>
       </div>
       <div class="footer-col">
         <h4>Contact</h4>
@@ -1284,7 +1286,7 @@
     <div class="footer-bottom">
       <div>&copy; 2026 Krillo. Built in the Netherlands.</div>
       <div class="flinks">
-        <a href="/privacybeleid">Privacy policy</a>
+        <a href="/privacy">Privacy policy</a>
         <a href="/voorwaarden">Terms</a>
         <a href="/herroepen">Withdraw a purchase</a>
       </div>
@@ -1380,7 +1382,7 @@
     if(data.score === null){
       html += '<div class="scan-rang" style="border:1px solid #E8E8EC; border-radius:12px; padding:14px 18px; font-size:14px; color:#4A4A55;">';
       html += '<b style="color:#0A0A0B;">We could not read your site itself.</b> It blocks automated visitors, so we cannot score the thirteen technical points from here. Your rank above comes from what AI answered, not from your site. ';
-      html += '<a href="#prijzen">See how we help you move up &rarr;</a></div>';
+      html += '<a href="#pricing">See how we help you move up &rarr;</a></div>';
       resultBox.innerHTML = html;
       return;
     }
@@ -1456,12 +1458,12 @@
       html += '<div class="scan-cta">';
       html += '<div class="scan-cta-text"><strong>' + issueCount + ' of ' + totalCount + ' points can be better.</strong> ';
       html += 'We put them right for you and write the texts for your products.</div>';
-      html += '<a href="#prijzen" class="scan-cta-btn">Let us do it &rarr;</a>';
+      html += '<a href="#pricing" class="scan-cta-btn">Let us do it &rarr;</a>';
       html += '</div>';
     } else {
       html += '<div class="scan-cta scan-cta-good">';
       html += '<div class="scan-cta-text"><strong>Strong result.</strong> Want to know whether AI actually names you? Every month we ask ChatGPT and Gemini the questions buyers ask, and you see whether your store is in the answer.</div>';
-      html += '<a href="#prijzen" class="scan-cta-btn">See what that costs &rarr;</a>';
+      html += '<a href="#pricing" class="scan-cta-btn">See what that costs &rarr;</a>';
       html += '</div>';
     }
 
@@ -1522,7 +1524,7 @@
           '<button type="button" id="ztKnop">Run the free test</button>' +
         '</div>' +
         '<label class="zt-vink"><input type="checkbox" id="ztAkkoord"> ' +
-          'I agree to the <a href="/privacybeleid" target="_blank">privacy policy</a> and want the result by email.' +
+          'I agree to the <a href="/privacy" target="_blank">privacy policy</a> and want the result by email.' +
         '</label>' +
         '<label class="zt-vink"><input type="checkbox" id="ztNieuws"> ' +
           'Send me something now and then about AI visibility for online stores. (optional)' +
@@ -1711,7 +1713,7 @@
                   '<button type="button" id="ztKnop">Send the full test</button>' +
                 '</div>' +
                 '<label class="zt-vink"><input type="checkbox" id="ztAkkoord"> ' +
-                  'I agree to the <a href="/privacybeleid" target="_blank">privacy policy</a> and want the result by email.' +
+                  'I agree to the <a href="/privacy" target="_blank">privacy policy</a> and want the result by email.' +
                 '</label>' +
                 '<label class="zt-vink"><input type="checkbox" id="ztNieuws"> ' +
                   'Send me something now and then about AI visibility for online stores. (optional)' +
@@ -1722,7 +1724,7 @@
       html += '<div class="zt-slot">These are five questions at one moment. AI answers shift from day to day, ' +
               'so a single measurement is a snapshot and not a verdict. We have not yet told you what is wrong ' +
               'on your own site, which other pages matter, or whether what AI says about you is true.</div>';
-      html += '<a href="#prijzen" class="scan-cta-btn">See what you can do about it &rarr;</a>';
+      html += '<a href="#pricing" class="scan-cta-btn">See what you can do about it &rarr;</a>';
     }
     html += '</div>';
     blok.innerHTML = html;
