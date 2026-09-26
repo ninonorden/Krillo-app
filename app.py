@@ -5966,8 +5966,11 @@ def _zonder_opmaak(tekst):
         return ""
     kaal = re.sub(r"<br\s*/?>|</p>|</h[1-6]>", " ", str(tekst), flags=re.I)
     kaal = re.sub(r"<[^>]+>", "", kaal)
-    kaal = (kaal.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-                .replace("&quot;", '"').replace("&#39;", "'").replace("&nbsp;", " "))
+    # Alle HTML-tekens terug naar gewone tekens. Hier stond een eigen lijstje
+    # (&amp; &lt; ...), en daar ontbrak &#x27;: op 26 september stond er
+    # "extra&#x27;s" op het scherm in plaats van "extra's".
+    import html as _html
+    kaal = _html.unescape(kaal).replace("\xa0", " ")
     return re.sub(r"\s+", " ", kaal).strip()
 
 
@@ -6730,8 +6733,31 @@ def shopify_api_terugzetten():
         _shopify_voorstellen.setdefault(winkel, {})[kenmerk] = voorstel
 
     markt = _markt_van(webshop_url) if webshop_url else None
+    # Mag hij hem ook weer aanzetten? Het scherm zei altijd "apply it again
+    # whenever you want", ook tegen een gratis winkel die zijn 3 al gebruikt
+    # had (26 september). De teller loopt alleen op, dus terugzetten geeft geen
+    # gratis wijziging terug; dat moet het scherm dan ook eerlijk zeggen.
+    betaalt, plan, over = _shopify_tegoed(winkel, rij, webshop_url)
     return jsonify({"ok": True, "id": kenmerk,
+                    "betaalt": betaalt, "plan": plan,
+                    "gratis_over": None if betaalt else over,
+                    "gratis_totaal": shopify_werk.GRATIS_WIJZIGINGEN,
                     "voorstel": _voorstel_voor_scherm(voorstel, markt) if voorstel else None})
+
+
+def _shopify_tegoed(winkel, rij, webshop_url):
+    """(betaalt, plan, gratis_over) zoals het toepassen het rekent."""
+    try:
+        stand_nu = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
+    except Exception as e:
+        print(f"Abonnement nakijken mislukt voor {winkel}: {e}")
+        stand_nu = {"actief": False}
+    plan = stand_nu.get("plan") if stand_nu.get("actief") else None
+    betaalt = plan == "fix"
+    al_gedaan = len([w for w in db.get_wijzigingen(webshop_url)
+                     if (w.get("taak_id") or "").startswith("shopify:")])
+    ooit = max(al_gedaan, int(rij.get("wijzigingen_ooit") or 0))
+    return betaalt, plan, max(0, shopify_werk.GRATIS_WIJZIGINGEN - ooit)
 
 
 @app.route("/shopify/api/abonnement")

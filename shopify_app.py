@@ -515,7 +515,7 @@ def _kop(sleutel):
     return {"X-Shopify-Access-Token": sleutel, "Content-Type": "application/json"}
 
 
-def _graphql_eenvoudig(winkel, sleutel, vraag, variabelen=None):
+def _graphql_eenvoudig(winkel, sleutel, vraag, variabelen=None, stil=False):
     """Een GraphQL-verzoek aan de winkel. Geeft de "data" terug, of None.
 
     Sinds 25 september gaat ook dit via GraphQL. Hier stonden nog twee
@@ -531,7 +531,8 @@ def _graphql_eenvoudig(winkel, sleutel, vraag, variabelen=None):
             return None
         inhoud = antwoord.json() or {}
         if inhoud.get("errors"):
-            print(f"GraphQL-fout voor {winkel}: {str(inhoud['errors'])[:200]}")
+            if not stil:
+                print(f"GraphQL-fout voor {winkel}: {str(inhoud['errors'])[:200]}")
             return None
         return inhoud.get("data") or None
     except Exception as e:
@@ -539,18 +540,52 @@ def _graphql_eenvoudig(winkel, sleutel, vraag, variabelen=None):
         return None
 
 
+# LOS VAN ELKAAR (26 september). Hier stond shopLocales in dezelfde vraag als
+# de rest. Voor shopLocales is het recht read_locales nodig, en dat vraagt
+# Krillo niet. Shopify weigerde dan de HELE vraag, dus wisten wij ook het land
+# niet, en viel alles terug op Nederland en Nederlands: een Amerikaanse
+# ontwikkelwinkel kreeg Nederlandse productteksten en "your rank is on its
+# way". Nu komt de winkel eerst, en de taal apart, met terugvalwegen.
 VRAAG_WINKEL = """
 query Winkel {
   shop {
     name
     email
-    primaryDomain { host }
+    primaryDomain { host url }
     billingAddress { countryCodeV2 }
     plan { partnerDevelopment displayName }
   }
-  shopLocales(published: true) { locale primary }
 }
 """
+
+VRAAG_TALEN = """
+query Talen { shopLocales(published: true) { locale primary } }
+"""
+
+# Welke taal een winkel in een land waarschijnlijk spreekt, als we het nergens
+# anders uit kunnen halen. Liever Engels dan Nederlands: een Nederlandse tekst
+# in een Engelse winkel is erger dan andersom, en Krillo verkoopt buiten NL
+# en BE in het Engels.
+TAAL_VAN_LAND = {"NL": "nl", "BE": "nl", "DE": "de", "AT": "de", "FR": "fr",
+                 "ES": "es", "IT": "it"}
+
+
+def _taal_van_etalage(adres):
+    """De taal uit <html lang="..."> van de winkel zelf.
+
+    Werkt zonder extra rechten, ook op een ontwikkelwinkel met wachtwoord: de
+    wachtwoordpagina draagt dezelfde taal. None als het niet lukt."""
+    if not adres:
+        return None
+    try:
+        antwoord = requests.get(adres if adres.startswith("http") else f"https://{adres}",
+                                timeout=6, headers={"User-Agent": "Krillo/1.0"})
+        gevonden = re.search(r"<html[^>]*\blang=[\"']?([a-zA-Z]{2}(?:[-_][a-zA-Z]{2})?)",
+                             antwoord.text[:5000], re.I)
+        return gevonden.group(1) if gevonden else None
+    except Exception as e:
+        print(f"Taal van de etalage lezen mislukt voor {adres}: {e}")
+        return None
 
 
 def winkelgegevens(winkel, sleutel):
@@ -563,14 +598,22 @@ def winkelgegevens(winkel, sleutel):
         print(f"Winkelgegevens ophalen mislukt voor {winkel}")
         return None
     shop = data["shop"]
-    talen = data.get("shopLocales") or []
+    land = (shop.get("billingAddress") or {}).get("countryCodeV2")
+    domein = shop.get("primaryDomain") or {}
+    # De taal: eerst wat Shopify zegt (lukt alleen als de winkel ons dat recht
+    # ooit gaf), dan wat de winkel zelf in zijn pagina zet, dan het land.
+    talen = (_graphql_eenvoudig(winkel, sleutel, VRAAG_TALEN, stil=True) or {}).get("shopLocales") or []
     hoofdtaal = next((t.get("locale") for t in talen if t.get("primary")), None)
+    if not hoofdtaal:
+        hoofdtaal = _taal_van_etalage(domein.get("url") or domein.get("host"))
+    if not hoofdtaal and land:
+        hoofdtaal = TAAL_VAN_LAND.get(land.upper(), "en")
     plan = shop.get("plan") or {}
     return {
         "naam": shop.get("name"),
         "email": shop.get("email"),
-        "domein": (shop.get("primaryDomain") or {}).get("host"),
-        "land": (shop.get("billingAddress") or {}).get("countryCodeV2"),
+        "domein": domein.get("host"),
+        "land": land,
         "taal": hoofdtaal,
         # Een ontwikkelwinkel (van een partner of van de beoordelaar van
         # Shopify) kan niet echt betalen; zie shopify_billing.

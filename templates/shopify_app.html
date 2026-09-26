@@ -792,6 +792,13 @@ and you can switch it off.
           if (!res.ok) { werkFoutTonen(res.data.error || 'We could not apply the changes.'); return; }
           voorstelBlok.style.display = 'none';
           var d = res.data;
+          // Wat nu in de winkel staat hoort niet meer in "What we would change".
+          // Bleef het staan, dan kwam het na een Undo weer tevoorschijn alsof
+          // het nog moest gebeuren.
+          (d.gedaan || []).concat(d.overgeslagen || []).forEach(function(g){
+            var vak = voorstellen.querySelector('input[data-id="' + String(g.id).replace(/"/g,'') + '"]');
+            if (vak && vak.closest('.voorstel')) { vak.closest('.voorstel').remove(); }
+          });
           var melding = d.gedaan.length + ' change(s) applied.';
           if (d.overgeslagen.length) { melding += ' ' + d.overgeslagen.length + ' skipped because text was already there.'; }
           if (d.mislukt.length) { melding += ' ' + d.mislukt.length + ' failed.'; }
@@ -850,12 +857,31 @@ and you can switch it off.
                   // je opnieuw je hele winkel laten nakijken om die ene
                   // wijziging terug te krijgen, en kreeg je er tientallen
                   // andere voorstellen bij die je niet gevraagd had.
+                  // Alleen DEZE wijziging terug in de lijst (26 september). Stond
+                  // de lijst al uit beeld (na het toepassen), dan beginnen we
+                  // met een lege lijst: anders kwamen alle oude voorstellen
+                  // mee terug, ook de andere die net in de winkel gezet waren.
                   if (res.data.voorstel) {
-                    voegVoorstelToe(res.data.voorstel, true);
+                    var d2 = res.data;
+                    var magNog = !!(d2.betaalt || d2.gratis_over > 0);
+                    if (voorstelBlok.style.display === 'none') { voorstellen.innerHTML = ''; }
+                    toonKopieer = (d2.plan === 'watch');
+                    voorstelAangevinkt = magNog;
+                    voegVoorstelToe(d2.voorstel, true);
                     voorstelBlok.style.display = 'block';
-                    toepasKnop.disabled = false;
-                    werkGeluktTonen('Undone. We put it back at the top of the list, '
-                      + 'so you can apply it again whenever you want.');
+                    toepasKnop.disabled = !magNog;
+                    var grens2 = document.getElementById('grensregel');
+                    if (magNog) {
+                      grens2.textContent = '';
+                      werkGeluktTonen('Undone. The old text is back in your store. '
+                        + 'The change is at the top of the list if you want to apply it again.');
+                    } else {
+                      var uitleg = 'Your ' + d2.gratis_totaal + ' free changes are used, so applying it again '
+                        + (d2.plan === 'watch' ? 'is Fix. You can also use Copy and paste it in yourself.'
+                                               : 'is part of Fix.');
+                      grens2.textContent = uitleg;
+                      werkGeluktTonen('Undone. The old text is back in your store. ' + uitleg);
+                    }
                   }
                   haalWijzigingen();
                 })
