@@ -6154,7 +6154,12 @@ def _shopify_scherm(winkel, rij):
         # Kennen wij het land niet, of ligt het buiten NL en BE, dan wacht het
         # scherm er wel op: dat is precies de winkelier die net zijn land op
         # Nederland zette en anders "we meten jouw markt nog niet" blijft lezen.
-        moet_wachten = bekend_land not in ("NL", "BE")
+        # Alleen wachten als wij het land nog niet weten, of als het buiten NL
+        # en BE ligt EN we het de laatste 10 minuten niet nagevraagd hebben.
+        # In de video van 26 september wachtte een Amerikaanse winkel bij ELKE
+        # opening op Shopify; dat hoort maar eens per tien minuten.
+        moet_wachten = (not bekend_land) or (
+            bekend_land not in ("NL", "BE") and _land_verversen_nodig(winkel))
         if moet_wachten or _land_verversen_nodig(winkel):
             land_vraag = _SNEL_POOL.submit(_land_verversen, winkel, sleutel_nu, webshop_url)
             if moet_wachten:
@@ -6399,8 +6404,14 @@ def shopify_start():
     # Geval 1: Shopify heeft het installeren zelf gedaan en stuurt ons een
     # kaartje mee. Dan is dit geen installatiepagina maar het scherm van de app.
     if id_token:
+        _begin_kaartje = time.monotonic()
         echte_winkel, rij = _shopify_uit_kaartje(
             id_token, winkel if shopify_app.geldige_winkel(winkel) else None)
+        _duur_kaartje = time.monotonic() - _begin_kaartje
+        if _duur_kaartje > 1.5:
+            # Het deel VOOR het scherm: kaartje controleren, sleutel ophalen of
+            # verversen, bij een nieuwe installatie de winkelgegevens.
+            print(f"Shopify-kaartje {echte_winkel} traag: {_duur_kaartje:.1f}s")
         if not echte_winkel:
             return "Invalid request.", 401
         if not rij or not rij.get("toegangssleutel"):

@@ -683,7 +683,11 @@ and you can switch it off.
       naKijkKnop.textContent = 'Check again';
       return;
     }
-    lijst.forEach(voegVoorstelToe);
+    // NIET lijst.forEach(voegVoorstelToe): forEach geeft het volgnummer mee als
+    // tweede waarde, en dat werd dan "bovenaan". Zo kwam elk voorstel na het
+    // eerste bovenaan en stond de lijst omgekeerd, met de gratis voorstellen
+    // helemaal onderaan (gezien in de video van 26 september).
+    lijst.forEach(function(v){ voegVoorstelToe(v, false); });
     werkBezig.style.display = 'none';
     voorstelBlok.style.display = 'block';
     naKijkKnop.disabled = false;

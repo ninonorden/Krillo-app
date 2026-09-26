@@ -579,7 +579,7 @@ def _taal_van_etalage(adres):
         return None
     try:
         antwoord = requests.get(adres if adres.startswith("http") else f"https://{adres}",
-                                timeout=6, headers={"User-Agent": "Krillo/1.0"})
+                                timeout=3, headers={"User-Agent": "Krillo/1.0"})
         gevonden = re.search(r"<html[^>]*\blang=[\"']?([a-zA-Z]{2}(?:[-_][a-zA-Z]{2})?)",
                              antwoord.text[:5000], re.I)
         return gevonden.group(1) if gevonden else None
