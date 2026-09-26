@@ -200,8 +200,19 @@ print("\n== een winkel die de app al heeft krijgt GEEN tweede toestemmingsscherm
 db.bewaar_shopify_winkel(WINKEL, "shpat_al_geinstalleerd",
                          geldig_seconden=3599, verversleutel="shprt_test",
                          verversleutel_seconden=7775999, webshop_url="https://testwinkel.nl", email="a@b.nl")
+# 25 september: ZONDER handtekening van Shopify krijgt niemand meer het scherm
+# van een geinstalleerde winkel (anders kon iedereen met ?shop= zijn cijfers
+# zien). Hij gaat naar de app in zijn eigen Shopify-beheer.
 r = client.get(f"/shopify?shop={WINKEL}")
-zo("hij krijgt gewoon het scherm", r.status_code, 200)
+zo("zonder handtekening: naar zijn eigen beheer", r.status_code, 302)
+zo("en niet naar het toestemmingsscherm", "/admin/oauth" in r.headers.get("Location", ""), False)
+zo("maar naar de app in zijn beheer", f"https://{WINKEL}/admin/apps/" in r.headers.get("Location", ""), True)
+import hashlib as _hl, hmac as _hm  # noqa: E402
+_waarden = {"shop": WINKEL, "timestamp": str(int(time.time()))}
+_bericht = "&".join(f"{k}={v}" for k, v in sorted(_waarden.items()))
+_waarden["hmac"] = _hm.new(b"test-geheim", _bericht.encode(), _hl.sha256).hexdigest()
+r = client.get("/shopify", query_string=_waarden)
+zo("met een geldige handtekening krijgt hij gewoon het scherm", r.status_code, 200)
 p = r.get_data(as_text=True)
 zo("en geen toestemmingsscherm", "/admin/oauth" in p, False)
 zo("het is echt het app-scherm", "Krillo" in p, True)

@@ -155,7 +155,7 @@ klopt("het dubbele blok onder het voorbeeldrapport is weg",
 klopt("de zes stukjes onder het monitoringoverzicht zijn weg",
       "Wat je bij monitoring krijgt" not in index)
 klopt("hun opmaak is ook opgeruimd", "audit-teaser" not in index)
-klopt("er staat wel een weg naar de prijzen", 'href="#prijzen"' in index)
+klopt("er staat wel een weg naar de prijzen", 'href="#pricing"' in index)
 # Wat er met opzet moet blijven: het bewijs. Dat was juist de kritiek op het
 # ondernemersforum, dat het te vaag was.
 #

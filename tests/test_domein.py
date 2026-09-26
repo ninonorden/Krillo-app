@@ -129,8 +129,8 @@ klopt("llms.txt noemt geen adres op het oude domein",
 print("\n== GEEN ENKELE PAGINA WIJST NOG NAAR HET OUDE DOMEIN ==")
 # Dit is de belangrijkste controle van dit bestand. Een canonical naar het oude
 # domein maakt de hele verhuizing ongedaan, en je ziet het aan niets.
-paginas = ["/", "/zo-meten-we", "/veelgestelde-vragen", "/over-ons",
-           "/artikelen", "/voorwaarden", "/privacybeleid", "/herroepen",
+paginas = ["/", "/zo-meten-we", "/faq", "/over-ons",
+           "/artikelen", "/voorwaarden", "/privacy", "/herroepen",
            "/onderzoek", "/demo", "/index"]
 for pad in paginas:
     a = k.get(pad, headers={"Host": "krilloai.com"})

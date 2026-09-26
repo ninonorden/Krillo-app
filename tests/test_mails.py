@@ -168,7 +168,7 @@ g = zichtbaar(laatste()["html"])
 klopt("zegt hoeveel vragen er gesteld zijn", "we asked 5 buying questions" in g)
 klopt("en hoeveel er meetelden", "in 3 of them ai named stores" in g)
 klopt("belooft de maandmeting, niet een wekelijkse", "every month" in g and "per week" not in g)
-klopt("de knop gaat naar de plannen", "#prijzen" in laatste()["html"])
+klopt("de knop gaat naar de plannen", "#pricing" in laatste()["html"])
 klopt("het onderwerp noemt de winkel zonder https", laatste()["onderwerp"] == "What AI says about brixt.nl")
 
 import beoordeling  # noqa: E402

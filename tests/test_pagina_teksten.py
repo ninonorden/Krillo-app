@@ -103,7 +103,7 @@ zo("de maandpakketten staan in de gestructureerde gegevens",
 # De navigatie is op 17 september teruggebracht tot vier links, precies zoals
 # in het gekozen ontwerp. Wat bewaakt moet blijven is dat de prijzen bereikbaar
 # zijn vanaf de bovenkant van de pagina.
-zo("en in de navigatie", '#prijzen' in h, True)
+zo("en in de navigatie", '#pricing' in h, True)
 zo("de demo gebruikt hetzelfde aantal vragen als de rest",
    "4 van de 22 koopvragen" in h, False)
 

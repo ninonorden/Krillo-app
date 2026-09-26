@@ -293,6 +293,35 @@ shopify_billing.start_abonnement("onbekend.myshopify.com", "s", "https://krilloa
 klopt("weten wij het plan niet, dan echt (geen gratis abonnementen bij een storing)",
       verzoeken[-1]["test"] is False)
 
+print("\n== 17. SHOPIFY-BEOORDELING (25 SEPTEMBER) ==")
+import shopify_werk  # noqa: E402
+klopt("producten in kleine stukken, onder de kostengrens van Shopify",
+      shopify_werk.PRODUCTEN_PER_VERZOEK * (shopify_werk.FOTOS_PER_PRODUCT + 2) < 1000)
+klopt("geen REST meer: geen shop.json of webhooks.json",
+      "shop.json\"" not in lees("shopify_app.py").replace("(shop.json en webhooks.json)", "")
+      and "webhooks.json\"" not in lees("shopify_app.py"))
+klopt("winkelgegevens via GraphQL, met ontwikkelwinkel", "partnerDevelopment" in lees("shopify_app.py"))
+oud = appmod.app.test_client()
+r = oud.post("/shopify/webhooks/naleving", data=b"{}", headers={"Host": "www.krillo.nl",
+             "X-Shopify-Hmac-Sha256": "fout", "X-Shopify-Topic": "shop/redact"})
+klopt("een webhook op het oude domein wordt NIET doorgestuurd (Shopify volgt geen 301)",
+      r.status_code != 301)
+r = oud.get("/zo-meten-we", headers={"Host": "www.krillo.nl"})
+klopt("gewone pagina's op het oude domein wel", r.status_code == 301)
+klopt("alt terugzetten wordt nagekeken", "Shopify kept the description" in lees("shopify_werk.py"))
+klopt("een onderbroken controle blijft niet eindeloos draaien", "werk onderbroken" in app_bron)
+klopt("de open pagina met ?shop= vraagt een handtekening",
+      "if shopify_app.klopt_query_handtekening(request.args.to_dict()):" in app_bron)
+
+print("\n== 18. ENGELSE ADRESSEN ==")
+r = oud.get("/privacybeleid")
+klopt("/privacybeleid stuurt door naar /privacy", r.status_code == 301 and r.headers["Location"].endswith("/privacy"))
+r = oud.get("/veelgestelde-vragen")
+klopt("/veelgestelde-vragen stuurt door naar /faq", r.status_code == 301 and r.headers["Location"].endswith("/faq"))
+klopt("/privacy en /faq bestaan", oud.get("/privacy").status_code == 200 and oud.get("/faq").status_code == 200)
+klopt("de prijzen heten #pricing, het oude anker werkt nog",
+      'id="pricing"' in index and 'id="prijzen"' in index and 'href="#prijzen"' not in index)
+
 print()
 if fouten:
     print(f"FOUT: {len(fouten)} controle(s) mislukt")

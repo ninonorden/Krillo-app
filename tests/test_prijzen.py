@@ -81,7 +81,7 @@ for sleutel in ("watch", "fix", "merken"):
           f"&euro;{bedrag} <span>/mo</span>" in index)
 
 print("\n== de oude prijzen staan er niet meer ==")
-prijzenblok = index[index.find('<section id="prijzen"'):index.find('<div class="checkout-overlay"')]
+prijzenblok = index[index.find('<section id="pricing"'):index.find('<div class="checkout-overlay"')]
 klopt("geen 39 euro per maand meer", "&euro;39" not in prijzenblok)
 klopt("geen eenmalig bedrag meer", "eenmalig" not in prijzenblok)
 klopt("wel drie maandbedragen", prijzenblok.count("/mo<") == 3)
