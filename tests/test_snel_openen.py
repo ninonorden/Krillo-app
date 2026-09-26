@@ -163,10 +163,15 @@ time.sleep(0.2)
 klopt("geen nieuwe landvraag", tel == [])
 klopt(f"en dus snel ({duur:.2f}s)", duur < 1.0)
 
-print("\n== BUITEN NL/BE: WEL WACHTEN OP HET LAND ==")
+print("\n== BUITEN NL/BE: BINNEN 10 MINUTEN NIET WACHTEN ==")
 db.zet_markt(URL, "en-US", "US")
 shopify_app.winkelgegevens = traag_land
 krillo.klantbeeld.bouw = lambda url, land=None, **k: None
+p, duur, log = open_scherm()
+klopt(f"net nagevraagd: niet wachten ({duur:.2f}s)", duur < TRAAG - 0.3)
+
+print("\n== BUITEN NL/BE, 10 MINUTEN LATER: WEL WACHTEN OP HET LAND ==")
+krillo._land_ververst_op.clear()
 p, duur, log = open_scherm()
 klopt("de landvraag is afgewacht", duur >= TRAAG - 0.1)
 klopt("en het nieuwe land (NL) staat er meteen", "your market</em> yet" not in p)

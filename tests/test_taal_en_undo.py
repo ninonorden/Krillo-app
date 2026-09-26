@@ -114,6 +114,15 @@ import app as appmod  # noqa: E402
 klopt("terugzetten geeft geen gratis wijziging terug (teller loopt alleen op)",
       "ooit = max(al_gedaan, int(rij.get(\"wijzigingen_ooit\") or 0))" in bron)
 
+print("\n== 4. VOLGORDE EN WACHTEN (video 26 september) ==")
+klopt("de voorstellen staan in de volgorde van de server (gratis bovenaan)",
+      "lijst.forEach(function(v){ voegVoorstelToe(v, false); });" in scherm
+      and "lijst.forEach(voegVoorstelToe);" not in scherm)
+klopt("een winkel buiten NL/BE wacht niet bij elke opening op het land",
+      "bekend_land not in (\"NL\", \"BE\") and _land_verversen_nodig(winkel)" in bron)
+klopt("ook het deel voor het scherm komt in de log als het traag is",
+      "Shopify-kaartje" in bron)
+
 print("\n== 3. TEKENS ==")
 klopt("&#x27; wordt een apostrof",
       appmod._zonder_opmaak("<p>zonder allerlei extra&#x27;s.</p>") == "zonder allerlei extra's.")
