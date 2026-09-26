@@ -105,6 +105,7 @@
   .voorstel .waarheen{font-size:16px; font-weight:600;}
   .voorstel .soort{font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-grijs); margin-top:3px;}
   .voorstel .nieuw{font-size:14.5px; color:var(--ink-soft); margin-top:6px;}
+  .voorstel.opslot{cursor:default;}
   .voorstel .oud{font-size:13.5px; color:var(--ink-grijs); text-decoration:line-through; margin-top:4px;}
   #wijzigingen.ingeklapt > .voorstel:nth-child(n+4){display:none;}
 
@@ -371,7 +372,8 @@
         <li>Your rank every month, in your category and your country</li>
         <li>The shopping questions you do not appear in, with the real answer</li>
         <li>Which competitor was named instead of you</li>
-        <li>Every fix written out, ready to copy into your store yourself</li>
+        <li>Every fix written out, with a Copy button, to paste into your store yourself</li>
+        <li>Plus the same {{ gratis_totaal }} free changes applied for you in one click</li>
         <li>Cancel any time, from here</li>
       </ul>
       <div class="voet">
@@ -623,16 +625,39 @@ and you can switch it off.
   function voegVoorstelToe(v, bovenaan){
     if (!v || !v.id) { return; }
     if (voorstellen.querySelector('input[data-id="' + v.id.replace(/"/g,'') + '"]')) { return; }
+    // Drie soorten regels (zie _voorstellen_per_plan in app.py):
+    // op slot (gratis, tekst niet meegestuurd), met Copy-knop (Watch) en gewoon.
     var rij = document.createElement('label');
-    rij.className = 'voorstel';
+    rij.className = 'voorstel' + (v.slot ? ' opslot' : '');
     rij.innerHTML =
-      '<input type="checkbox" checked data-id="' + tekstvak(v.id) + '">'
-      + '<span style="min-width:0;">'
+      (v.slot ? '<input type="checkbox" disabled data-slot="1">'
+              : '<input type="checkbox" ' + (voorstelAangevinkt ? 'checked ' : 'disabled ')
+                + 'data-id="' + tekstvak(v.id) + '">')
+      + '<span style="min-width:0; flex:1;">'
       + '<span class="waarheen">' + tekstvak(v.waar) + '</span>'
       + '<div class="soort">' + tekstvak(v.wat) + '</div>'
       + (v.oud ? '<div class="oud">' + tekstvak(v.oud) + '</div>' : '')
-      + '<div class="nieuw">' + tekstvak(v.nieuw) + '</div>'
+      + (v.slot
+          ? '<div class="nieuw"><a href="#plannen" class="slotlink">Written out in Watch</a></div>'
+          : '<div class="nieuw">' + tekstvak(v.nieuw) + '</div>')
       + '</span>';
+    if (toonKopieer && !v.slot && v.nieuw) {
+      var knop = document.createElement('button');
+      knop.type = 'button';
+      knop.className = 'rustig klein';
+      knop.style.flexShrink = '0';
+      knop.textContent = 'Copy';
+      knop.addEventListener('click', function(e){
+        // De knop staat in een label: zonder dit vinkt een klik ook het vakje om.
+        e.preventDefault();
+        e.stopPropagation();
+        navigator.clipboard.writeText(v.nieuw).then(function(){
+          knop.textContent = 'Copied';
+          setTimeout(function(){ knop.textContent = 'Copy'; }, 2000);
+        });
+      });
+      rij.appendChild(knop);
+    }
     if (bovenaan && voorstellen.firstChild) {
       voorstellen.insertBefore(rij, voorstellen.firstChild);
     } else {
@@ -640,8 +665,14 @@ and you can switch it off.
     }
   }
 
+  // Watch: bij elke fix een Copy-knop, want dat is wat Watch belooft.
+  // Vakjes staan alleen aan zolang er nog iets met een klik in mag.
+  var toonKopieer = false, voorstelAangevinkt = true;
+
   function toonVoorstellen(stand){
     voorstellen.innerHTML = '';
+    toonKopieer = (stand.plan === 'watch');
+    voorstelAangevinkt = !!(stand.betaalt || stand.gratis_over > 0);
     werkGelukt.style.display = 'none';
     var lijst = stand.voorstellen || [];
     if (!lijst.length){
@@ -668,13 +699,22 @@ and you can switch it off.
         grens.textContent += ' ' + stand.aantallen.nog_te_gaan
           + ' more are waiting after this batch.';
       }
+    } else if (stand.plan === 'watch') {
+      // Watch: alles staat uitgeschreven om zelf over te nemen. Met een klik
+      // in de winkel zetten is Fix; alleen de gratis wijzigingen gaan met een klik.
+      grens.textContent = 'Every fix is written out below. Use Copy and paste it into your store yourself. '
+        + (stand.gratis_over > 0
+            ? 'You can also have ' + stand.gratis_over + ' of your ' + stand.gratis_totaal
+              + ' free changes applied for you: tick them and press the button. '
+            : 'Your ' + stand.gratis_totaal + ' free one-click changes are used. ')
+        + 'Fix applies all of them for you in one click.';
     } else if (stand.gratis_over > 0) {
       grens.textContent = 'You have ' + stand.gratis_over + ' of your '
-        + stand.gratis_totaal + ' free changes left. Tick the ones you want most, '
-        + 'the rest stays here.';
+        + stand.gratis_totaal + ' free changes left, shown in full below. '
+        + 'The rest are listed so you can see where text is missing; Watch writes them out, Fix applies them.';
     } else {
       grens.textContent = 'You have used your ' + stand.gratis_totaal
-        + ' free changes. The plan below applies the rest and keeps up with new products.';
+        + ' free changes. Watch writes out every fix for you to copy; Fix applies them for you and keeps up with new products.';
     }
     toepasKnop.disabled = (!stand.betaalt && stand.gratis_over === 0);
     if (stand.fouten && stand.fouten.length){
@@ -757,7 +797,9 @@ and you can switch it off.
           if (d.mislukt.length) { melding += ' ' + d.mislukt.length + ' failed.'; }
           if (d.geblokkeerd && d.geblokkeerd.length) {
             melding += ' ' + d.geblokkeerd.length + ' were not applied: that is where your '
-              + d.gratis_totaal + ' free changes ran out. The plan below applies the rest.';
+              + d.gratis_totaal + ' free changes ran out. '
+              + (d.plan === 'watch' ? 'Copy the rest into your store yourself, or let Fix apply them.'
+                                    : 'Fix, below, applies the rest.');
           } else if (!d.betaalt && d.gratis_over === 0 && d.gedaan.length) {
             melding += ' That was the last of your ' + d.gratis_totaal + ' free changes.';
           }

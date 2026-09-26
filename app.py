@@ -5898,6 +5898,34 @@ def _voorstel_voor_scherm(voorstel, markt=None):
     return uit
 
 
+def _voorstellen_per_plan(voorstellen, plan, gratis_over):
+    """Wat elk plan van de voorstellen te zien krijgt.
+
+    26 september: Watch belooft "every fix written out, ready to copy", maar een
+    gratis winkel zag precies dezelfde teksten. Dan koop je met Watch niets
+    extra's aan fixes, en die belofte is dan lucht. De trap is nu:
+      Fix:    alles, en alles met een klik in de winkel.
+      Watch:  alles uitgeschreven om over te nemen (Copy-knop), plus de
+              gratis wijzigingen met een klik, net als iedereen.
+      Gratis: de teksten van de wijzigingen die hij nog gratis krijgt. Van de
+              rest ziet hij WAAR het ontbreekt, niet de tekst.
+    De tekst van wat op slot staat gaat niet mee naar de browser: vaag maken
+    met CSS laat hem gewoon in de broncode staan. Zijn eigen oude tekst ("oud")
+    mag wel mee, die staat al in zijn winkel."""
+    if plan in ("fix", "watch"):
+        return voorstellen
+    open_ = max(0, int(gratis_over or 0))
+    uit = []
+    for i, v in enumerate(voorstellen):
+        if not v:
+            continue
+        if i < open_:
+            uit.append(v)
+        else:
+            uit.append({k: w for k, w in v.items() if k != "nieuw"} | {"slot": True})
+    return uit
+
+
 def _voorstel_uit_wijziging(wijziging):
     """Bouwt een voorstel terug uit een teruggezette wijziging.
 
@@ -5984,7 +6012,27 @@ def _app_adres_in_beheerscherm(winkel):
     return f"https://admin.shopify.com/store/{winkelnaam_kort}/apps"
 
 
+_voorbeeld_cache = {"op": 0.0, "waarde": None}
+VOORBEELD_BEWAAR_SECONDEN = 600
+
+
 def _voorbeeld_voor_app():
+    """Het voorbeeld, maar hooguit eens per tien minuten opnieuw berekend.
+
+    26 september: de app deed er rond 30 seconden over om te openen. Het
+    voorbeeld is voor iedere winkel zonder positie hetzelfde en verandert
+    alleen na een maandmeting. Elke keer opnieuw bouwen (ranglijst van 500,
+    alle antwoorden van een ronde doorlopen) is dus zonde van de wachttijd."""
+    nu = time.monotonic()
+    if _voorbeeld_cache["waarde"] and nu - _voorbeeld_cache["op"] < VOORBEELD_BEWAAR_SECONDEN:
+        return _voorbeeld_cache["waarde"]
+    waarde = _voorbeeld_bouwen()
+    if waarde:
+        _voorbeeld_cache.update(op=nu, waarde=waarde)
+    return waarde
+
+
+def _voorbeeld_bouwen():
     """Een ECHTE winkel uit de index, als voorbeeld voor wie nog geen positie heeft.
 
     WAAROM (24 september). Een nieuwe installatie ziet eerst een leeg blok:
@@ -6010,6 +6058,56 @@ def _voorbeeld_voor_app():
         return None
 
 
+from concurrent.futures import ThreadPoolExecutor  # noqa: E402
+
+# Een kleine vaste groep draden voor Shopify-vragen die tegelijk kunnen. Klein
+# gehouden: er draait maar een werker met acht draden (Procfile).
+_SNEL_POOL = ThreadPoolExecutor(max_workers=4)
+_land_ververst_op = {}
+LAND_VERVERS_SECONDEN = 600
+
+
+class _Stopwatch:
+    """Houdt bij hoe lang elke stap van het openen duurt, en zet het in de log.
+
+    Alleen als het openen langer dan anderhalve seconde duurde, anders vult het
+    de log voor niets. Voorbeeld in Render: "Shopify-scherm x.myshopify.com
+    traag: 4.2s (sleutel 0.1, land 0.0, positie 3.8, ...)"."""
+
+    def __init__(self, winkel):
+        self.winkel = winkel
+        self.begin = self.vorige = time.monotonic()
+        self.stappen = []
+
+    def tik(self, naam):
+        nu = time.monotonic()
+        self.stappen.append((naam, nu - self.vorige))
+        self.vorige = nu
+
+    def klaar(self):
+        totaal = time.monotonic() - self.begin
+        if totaal > 1.5:
+            delen = ", ".join(f"{n} {t:.1f}" for n, t in self.stappen)
+            print(f"Shopify-scherm {self.winkel} traag: {totaal:.1f}s ({delen})")
+        return totaal
+
+
+def _land_verversen_nodig(winkel):
+    return time.monotonic() - _land_ververst_op.get(winkel, -1e9) > LAND_VERVERS_SECONDEN
+
+
+def _land_verversen(winkel, sleutel, webshop_url):
+    """Taal en land opnieuw bij Shopify vragen (zie _shopify_scherm)."""
+    _land_ververst_op[winkel] = time.monotonic()
+    try:
+        vers = shopify_app.winkelgegevens(winkel, sleutel) or {}
+        if vers.get("land"):
+            db.zet_markt(scan_engine.normalize_url(webshop_url), vers.get("taal"),
+                         vers.get("land"))
+    except Exception as e:
+        print(f"Land van {winkel} verversen mislukt: {e}")
+
+
 def _shopify_scherm(winkel, rij):
     """Het scherm dat de winkelier binnen Shopify ziet.
 
@@ -6031,14 +6129,37 @@ def _shopify_scherm(winkel, rij):
     # installeren opgehaald. Zette de winkelier daarna zijn adres op Nederland,
     # dan bleef de app "we meten jouw markt nog niet" zeggen. Een aanroep bij
     # Shopify per keer openen; mislukt die, dan geldt wat we al wisten.
-    if webshop_url and rij.get("toegangssleutel"):
-        try:
-            vers = shopify_app.winkelgegevens(winkel, _shopify_sleutel(rij)) or {}
-            if vers.get("land"):
-                db.zet_markt(scan_engine.normalize_url(webshop_url), vers.get("taal"),
-                             vers.get("land"))
-        except Exception as e:
-            print(f"Land van {winkel} verversen mislukt: {e}")
+    #
+    # SNELHEID (26 september). Het openen duurde rond 30 seconden. Alles wat
+    # bij Shopify nagevraagd moet worden, liep hier na elkaar. Nu:
+    #  - het land op de achtergrond (hooguit eens per 10 minuten) als de
+    #    winkel al in NL of BE staat; alleen anders wacht het scherm erop;
+    #  - het abonnement wordt meteen gevraagd, zodat het klaar is tegen de tijd
+    #    dat de positie uit de database komt;
+    #  - elke stap wordt getimed en in de log gezet, zodat we in Render zien
+    #    waar de tijd heen gaat in plaats van te raden.
+    klok = _Stopwatch(winkel)
+    sleutel_nu = _shopify_sleutel(rij) if rij.get("toegangssleutel") else None
+    klok.tik("sleutel")
+    abo_vraag = (_SNEL_POOL.submit(shopify_billing.huidig_abonnement, winkel, sleutel_nu)
+                 if sleutel_nu else None)
+    if webshop_url and sleutel_nu:
+        profiel = db.get_winkelprofiel(scan_engine.normalize_url(webshop_url)) or {}
+        bekend_land = (profiel.get("land") or "").upper()
+        # Staat hij al in een land dat wij meten, dan verandert het land bijna
+        # nooit en ververst het op de achtergrond (hooguit eens per 10 minuten).
+        # Kennen wij het land niet, of ligt het buiten NL en BE, dan wacht het
+        # scherm er wel op: dat is precies de winkelier die net zijn land op
+        # Nederland zette en anders "we meten jouw markt nog niet" blijft lezen.
+        moet_wachten = bekend_land not in ("NL", "BE")
+        if moet_wachten or _land_verversen_nodig(winkel):
+            land_vraag = _SNEL_POOL.submit(_land_verversen, winkel, sleutel_nu, webshop_url)
+            if moet_wachten:
+                try:
+                    land_vraag.result(timeout=8)
+                except Exception as e:
+                    print(f"Land van {winkel} verversen duurde te lang of mislukte: {e}")
+    klok.tik("land")
 
     markt = _markt_van(webshop_url) if webshop_url else None
     landcode = ((markt or {}).get("landcode") or "").upper()
@@ -6063,7 +6184,9 @@ def _shopify_scherm(winkel, rij):
         except Exception as e:
             print(f"Positie ophalen mislukt voor {webshop_url}: {e}")
 
+    klok.tik("positie")
     voorbeeld_app = None if beeld else _voorbeeld_voor_app()
+    klok.tik("voorbeeld")
 
     # WAT GRATIS IS EN WAT NIET (24 september). Gratis: je positie, hoe vaak je
     # genoemd en aanbevolen werd, wie er vlak boven je staat, en EEN verloren
@@ -6079,9 +6202,9 @@ def _shopify_scherm(winkel, rij):
     # alles. Liever een keer te veel laten zien dan een betalende klant voor
     # een dichte deur zetten.
     betaalt, proef_over = True, False
-    if beeld and rij.get("toegangssleutel"):
+    if beeld and abo_vraag is not None:
         try:
-            stand_abo = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
+            stand_abo = abo_vraag.result(timeout=15)
             if not stand_abo.get("fout"):
                 betaalt = bool(stand_abo.get("actief"))
         except Exception as e:
@@ -6096,6 +6219,8 @@ def _shopify_scherm(winkel, rij):
         slot = max(0, len(vragen) - 1)
         beeld["verloop"] = []
 
+    klok.tik("abonnement")
+    klok.klaar()
     return render_template(
         "shopify_app.html",
         betaalt=betaalt,
@@ -6388,7 +6513,7 @@ def _shopify_voorstellen_maken(winkel, sleutel, webshop_url):
         markt_gegevens = _markt_van(webshop_url)
         uitkomst = shopify_werk.maak_voorstellen(winkel, sleutel, markt_gegevens)
         _shopify_voorstellen[winkel] = {v["id"]: v for v in uitkomst["voorstellen"]}
-        betaalt = False
+        betaalt, plan = False, None
         try:
             rij = db.get_shopify_winkel(winkel) or {}
             if rij.get("toegangssleutel"):
@@ -6396,24 +6521,35 @@ def _shopify_voorstellen_maken(winkel, sleutel, webshop_url):
                 # uitgeschreven om zelf te doen, en krijgt net als iedereen de
                 # gratis wijzigingen met een klik.
                 stand_nu = shopify_billing.huidig_abonnement(winkel, _shopify_sleutel(rij))
-                betaalt = stand_nu["actief"] and stand_nu.get("plan") == "fix"
+                if stand_nu.get("fout"):
+                    # Shopify gaf geen antwoord. Dan tonen we de teksten (zoals
+                    # Watch), maar zetten we niets extra in de winkel. Liever
+                    # een keer te veel laten lezen dan een betalende klant voor
+                    # een dichte deur.
+                    plan = "watch"
+                elif stand_nu["actief"]:
+                    plan = stand_nu.get("plan")
+                betaalt = plan == "fix" and not stand_nu.get("fout")
         except Exception as e:
             print(f"Abonnement nakijken mislukt voor {winkel}: {e}")
+            plan = "watch"
         rij_nu = db.get_shopify_winkel(winkel) or {}
         al_gedaan = max(
             len([w for w in db.get_wijzigingen(webshop_url or "")
                  if (w.get("taak_id") or "").startswith("shopify:")]),
             int(rij_nu.get("wijzigingen_ooit") or 0))
+        gratis_over = None if betaalt else max(0, shopify_werk.GRATIS_WIJZIGINGEN - al_gedaan)
         _shopify_werk_status[winkel] = {
             "tekst": "klaar", "klaar": True, "mislukt": False,
             "betaalt": betaalt,
-            "gratis_over": None if betaalt else max(
-                0, shopify_werk.GRATIS_WIJZIGINGEN - al_gedaan),
+            "plan": plan,
+            "gratis_over": gratis_over,
             "gratis_totaal": shopify_werk.GRATIS_WIJZIGINGEN,
             "aantallen": uitkomst["aantallen"],
             "fouten": uitkomst["fouten"],
-            "voorstellen": [_voorstel_voor_scherm(stuk, markt_gegevens)
-                            for stuk in uitkomst["voorstellen"]],
+            "voorstellen": _voorstellen_per_plan(
+                [_voorstel_voor_scherm(stuk, markt_gegevens) for stuk in uitkomst["voorstellen"]],
+                plan, gratis_over),
         }
     except Exception as e:
         print(f"Voorstellen maken mislukt voor {winkel}: {e}")
@@ -6522,6 +6658,7 @@ def shopify_api_toepassen():
                             "reden": uit.get("fout")})
     return jsonify({"gedaan": gedaan, "overgeslagen": overgeslagen, "mislukt": mislukt,
                     "geblokkeerd": geblokkeerd, "betaalt": betaalt,
+                    "plan": stand_nu.get("plan") if stand_nu.get("actief") else None,
                     "gratis_over": None if betaalt else over,
                     "gratis_totaal": shopify_werk.GRATIS_WIJZIGINGEN})
 
