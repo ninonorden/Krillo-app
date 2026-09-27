@@ -125,16 +125,23 @@ def balkhoogtes(verloop, hoogte=88):
     lege lijst of bij een positie van een."""
     if not verloop:
         return []
-    slechtste = max((r["positie"] or 1) for r in verloop)
+    # SINDS 27 SEPTEMBER: een betere plek is een HOGER staafje. Het was
+    # andersom ("lager is beter", nummer 1 het kortste staafje), en dat leest
+    # iedereen verkeerd: een grafiek die zakt voelt als achteruitgang, ook als
+    # je gestegen bent. De maat is het grootste aantal winkels in de reeks.
+    ref = max([(r.get("van") or 0) for r in verloop]
+              + [(r["positie"] or 1) for r in verloop])
     uit = []
+    vorige = None
     for r in verloop:
         p = r["positie"] or 1
-        # Lager is beter, dus een lage positie hoort een LAAG staafje te zijn.
-        deel = p / slechtste if slechtste else 1
+        deel = (ref - p + 1) / ref if ref else 1
         uit.append({
             "positie": p,
             "van": r.get("van"),
             "datum": r.get("afgerond_op"),
             "hoogte": max(10, int(round(hoogte * deel))),
+            "gezakt": vorige is not None and p > vorige,
         })
+        vorige = p
     return uit

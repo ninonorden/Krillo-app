@@ -4761,13 +4761,28 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         winkelnaam=_winkelnaam(webshop_url) or webshop_url.replace("https://", ""),
         landnaam=sitetaal.landnaam(beeld.get("land"), taal) if beeld else None,
         modellen=db.modellen_van_ronde(beeld["ronde"]) if beeld else [],
-        categorienaam=categorieen.naam_van(beeld["categorie"]) if beeld else None,
+        # Engelse naam op een Engelse pagina (27 september: de zijbalk liet
+        # "Kleding" zien tussen verder Engelse tekst).
+        categorienaam=((categorieen.naam_en(beeld["categorie"]) if taal == "en"
+                        else categorieen.naam_van(beeld["categorie"])) if beeld else None),
+        buiten_markt=_buiten_markt(webshop_url),
         staven=klantbeeld.balkhoogtes(beeld["verloop"]) if beeld else [],
         voorbeeld=voorbeeld,
         werkblok=(_werkblok(webshop_url, taal, klant_token=klant_token, beheer=beheer)
                   if werk else None),
         basis_url=get_base_url().rstrip("/"),
     )
+
+
+def _buiten_markt(webshop_url):
+    """Verkoopt deze winkel buiten Nederland en Belgie? Dan krijgt hij geen
+    plek in de index, en mag het dashboard niet beloven dat die komt."""
+    try:
+        profiel = db.get_winkelprofiel(webshop_url) or {}
+        land = (profiel.get("land") or "").upper()
+        return bool(land) and land not in ("NL", "BE")
+    except Exception:
+        return False
 
 
 def _abonnement_stand(webshop_url, rapporten=None):
@@ -4860,6 +4875,11 @@ def _werkblok(webshop_url, taal, klant_token=None, beheer=None):
         "abonnement": _abonnement_stand(webshop_url, rapporten)[0],
         "doet_werk": _abonnement_stand(webshop_url, rapporten)[1],
         "opgezegd": _is_opgezegd(webshop_url),
+        # 27 september: einddatum na opzeggen, en of die al voorbij is.
+        "opgezegd_tot": (db.klant_bij_url(webshop_url) or {}).get("opgezegd_op"),
+        "afgelopen": _toegang_voorbij(db.klant_bij_url(webshop_url) or {}),
+        # Doet de Shopify-app het werk zelf? Dan geen "wachten op toegang".
+        "shopify_winkel": bool((db.shopify_winkel_bij_webadres(webshop_url) or {}).get("toegangssleutel")),
         "shopify_beheer": pagina["shopify_beheer"],
         "klant_token": klant_token,
         "webshop_url": webshop_url,

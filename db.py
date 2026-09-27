@@ -2342,11 +2342,26 @@ def start_uitvoering(payment_id, webshop_url, email, platform=None):
     try:
         with conn:
             with conn.cursor() as cur:
+                # DE BEGINSTAND (27 september). Elke maand komt er een nieuwe
+                # opdracht bij, en die begon altijd op "wacht op toegang". Een
+                # Fix-klant die al lang toegang gaf, of een Shopify-winkel waar
+                # de app het werk zelf doet, las dan elke maand opnieuw "we
+                # wachten nog op je toegang". Nu: heeft de app een sleutel, of
+                # gaf hij eerder al toegang, dan begint hij op "bezig".
+                cur.execute("""SELECT 1 FROM shopify_winkels
+                                WHERE webshop_url = %s AND toegangssleutel IS NOT NULL
+                                LIMIT 1""", (webshop_url,))
+                via_app = cur.fetchone() is not None
+                cur.execute("""SELECT 1 FROM uitvoeringen
+                                WHERE webshop_url = %s AND stand IN ('bezig', 'opgeleverd')
+                                LIMIT 1""", (webshop_url,))
+                eerder_toegang = cur.fetchone() is not None
+                begin = "bezig" if (via_app or eerder_toegang) else "wacht_op_toegang"
                 cur.execute(
-                    """INSERT INTO uitvoeringen (payment_id, webshop_url, email, platform)
-                       VALUES (%s, %s, %s, %s)
+                    """INSERT INTO uitvoeringen (payment_id, webshop_url, email, platform, stand)
+                       VALUES (%s, %s, %s, %s, %s)
                        ON CONFLICT (payment_id) DO NOTHING""",
-                    (payment_id, webshop_url, email, (platform or None)),
+                    (payment_id, webshop_url, email, (platform or None), begin),
                 )
         return True
     except Exception as e:

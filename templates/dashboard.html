@@ -32,7 +32,7 @@
       <a class="aan" href="#overzicht">{{ 'Overzicht' if taal == 'nl' else 'Overview' }}</a>
       {% if beeld %}
       <a href="#verloop">{{ 'Verloop' if taal == 'nl' else 'History' }}</a>
-      <a href="#vragen">{{ 'Vragen die je verliest' if taal == 'nl' else 'Questions I lose' }}</a>
+      <a href="#vragen">{{ 'Vragen die je verliest' if taal == 'nl' else 'Questions you lose' }}</a>
       {% endif %}
       <a href="#werk">{{ 'Oplossingen' if taal == 'nl' else 'Fixes' }}</a>
       {% if beeld %}
@@ -74,7 +74,8 @@
     <div class="kaartblok">
       <div class="kaartkop">{{ 'JOUW POSITIE' if taal == 'nl' else 'YOUR POSITION' }}</div>
       <p style="margin:0; font-size:15px;">
-        {% if taal == 'nl' %}Je categorie is nog niet gemeten. Zodra hij aan de beurt is
+        {% if buiten_markt %}{{ werkblok.wt.buiten_markt if werkblok else '' }}
+        {% elif taal == 'nl' %}Je categorie is nog niet gemeten. Zodra hij aan de beurt is
         verschijnt je positie hier, en krijg je bericht.
         {% else %}Your category has not been measured yet. As soon as it comes up, your
         position appears here and we let you know.{% endif %}
@@ -148,16 +149,16 @@
         {{ 'POSITIE PER METING' if taal == 'nl' else 'POSITION OVER TIME' }}</div>
       <div class="staven">
         {% for s in staven %}
-        <div class="staaf {% if loop.last %}nu{% endif %}">
+        <div class="staaf {% if loop.last %}nu{% endif %} {% if loop.last and s.gezakt %}gezakt{% endif %}">
           <div class="bak"><div class="vulling" style="height:{{ s.hoogte }}px;"></div></div>
-          <div class="cijfertje">{{ s.positie }}</div>
+          <div class="cijfertje">#{{ s.positie }}</div>
           <div class="datum">{% if s.datum %}{{ s.datum.strftime('%d %b') | upper }}{% endif %}</div>
         </div>
         {% endfor %}
         <div style="flex-grow:2;"></div>
       </div>
       <p style="margin:16px 0 0; font-size:14px;">
-        {{ 'Lager is beter.' if taal == 'nl' else 'Lower is better.' }}</p>
+        {{ 'Hoe hoger het staafje, hoe beter je plek.' if taal == 'nl' else 'The higher the bar, the better your place.' }}</p>
 
       {% if beeld.boven_mij %}
       <div class="buren">
@@ -210,6 +211,7 @@
             wijzigingen=werkblok.wijzigingen, actieplan=werkblok.actieplan,
             laatste=werkblok.laatste, verloop=werkblok.verloop,
             abonnement=werkblok.abonnement, doet_werk=werkblok.doet_werk, opgezegd=werkblok.opgezegd, shopify_beheer=werkblok.shopify_beheer,
+            opgezegd_tot=werkblok.opgezegd_tot, afgelopen=werkblok.afgelopen, shopify_winkel=werkblok.shopify_winkel,
             klant_token=werkblok.klant_token, webshop_url=werkblok.webshop_url,
             beheer=werkblok.beheer %}
     {% include "_werk.html" %}

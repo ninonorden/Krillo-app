@@ -90,7 +90,9 @@
 <div class="werk" id="werk">
   <div class="werk-kop">
     <div class="titel">
-      {% if uitvoering and uitvoering.stand != 'opgeleverd' %}{{ wt.titel_bezig }}
+      {% if afgelopen %}{{ wt.titel_taken }}
+      {% elif uitvoering and uitvoering.stand == 'wacht_op_toegang' %}{{ wt.titel_wacht }}
+      {% elif uitvoering and uitvoering.stand != 'opgeleverd' %}{{ wt.titel_bezig }}
       {% elif uitvoering and not abonnement %}{{ wt.titel_gedaan }}
       {% else %}{{ wt.titel_taken }}{% endif %}
     </div>
@@ -105,10 +107,23 @@
   <p class="werk-uitleg">{{ wt.taken_wij if doet_werk else wt.taken_zelf }}</p>
   {% endif %}
 
+  {# Afgelopen abonnement (27 september): de betaalde inhoud is voorbij. #}
+  {% if afgelopen %}
+  <div class="werk-leeg"><strong>{{ wt.afgelopen_kop }}</strong>{{ wt.afgelopen_tekst }}<br>
+    <a class="knop-rand" href="/#pricing" style="display:inline-block; margin-top:10px;">{{ wt.eenmalig_knop }}</a></div>
+  {% endif %}
+
   {# Wie betaald heeft om het NIET zelf te doen, ziet eerst hoe ver wij zijn. #}
   {% if uitvoering %}
-    {% if uitvoering.stand == 'wacht_op_toegang' %}
-    <div class="werk-stand wacht"><strong>{{ wt.wacht_kop }}</strong>{{ wt.wacht_tekst }}</div>
+    {% if afgelopen %}
+    {% elif shopify_winkel %}
+    {# Via de app doet Krillo het werk zelf, elke week. Geen "wachten op
+       toegang" en geen "we zijn bezig", maar wat er echt gebeurt. #}
+    <div class="werk-stand klaar"><strong>{{ wt.shopify_auto_kop }}</strong>{{ wt.shopify_auto_tekst }}</div>
+    {% elif uitvoering.stand == 'wacht_op_toegang' %}
+    <div class="werk-stand wacht"><strong>{{ wt.wacht_kop }}</strong>{{ wt.wacht_tekst }}<br>
+      <a class="knop-rand" style="display:inline-block; margin-top:10px; border:1px solid var(--lijn); border-radius:7px; padding:9px 14px; text-decoration:none; color:var(--ink);"
+         href="mailto:hello@krilloai.com?subject=Access%20for%20{{ webshop_url|replace('https://','')|urlencode }}">{{ wt.wacht_knop }}</a></div>
     {% elif uitvoering.stand == 'bezig' %}
     <div class="werk-stand bezig"><strong>{{ wt.bezig_kop }}</strong>{{ wt.bezig_tekst }}</div>
     {% elif uitvoering.stand == 'opgeleverd' %}
@@ -119,7 +134,13 @@
       {{ wt.klaar_vervolg }}
     </div>
 
-    {# Wat er precies veranderd is, met de oude tekst erbij. Ingeklapt: wie het
+    {% endif %}
+  {% endif %}
+
+  {# Sinds 27 september altijd als er wijzigingen zijn, niet alleen bij
+     "opgeleverd": de wekelijkse ronde van de Shopify-app zette wel dingen in
+     de winkel, maar de klant zag ze nergens. Dit is het bewijs van Fix. #}
+  {# Wat er precies veranderd is, met de oude tekst erbij. Ingeklapt: wie het
        niet wil zien heeft er geen last van, wie iets wil terugzetten vindt het
        hier en niet in een oude mail. #}
     {% if wijzigingen %}
@@ -137,11 +158,9 @@
         <p>{{ wt.wijziging_terug }}</p>
       </div>
     </details>
-    {% endif %}
-    {% endif %}
   {% endif %}
 
-  {% if actieplan %}
+  {% if actieplan and not afgelopen %}
     {% if not actieplan.acties %}
     <div class="werk-leeg"><strong>{{ wt.niets_kop }}</strong>{{ wt.niets_tekst }}</div>
     {% endif %}
@@ -155,8 +174,8 @@
       <div class="lijf">
         {% if a.oplossing %}
         <div>
-          <div class="label">{{ wt.letterlijk }}</div>
-          <div class="plak">{{ a.oplossing }}<button class="kopieer" type="button">{{ wt.kopieer }}</button></div>
+          <div class="label">{{ wt.letterlijk_wij if doet_werk else wt.letterlijk }}</div>
+          <div class="plak">{{ a.oplossing }}{% if not doet_werk %}<button class="kopieer" type="button">{{ wt.kopieer }}</button>{% endif %}</div>
         </div>
         {% endif %}
         {% if a.links %}
@@ -170,7 +189,7 @@
         </div>
         {% endif %}
         <div>
-          <div class="label">{% if a.waar %}{{ wt.waar_neerzetten }}{% else %}{{ wt.wat_je_doet }}{% endif %}</div>
+          <div class="label">{% if a.waar %}{{ wt.waar_wij if doet_werk else wt.waar_neerzetten }}{% else %}{{ wt.wat_je_doet }}{% endif %}</div>
           <div class="tekst">{{ a.waar or a.hoe }}</div>
         </div>
         <details>
@@ -182,6 +201,13 @@
     {% endfor %}
 
     {% if actieplan.rest %}<p class="werk-uitleg">{{ actieplan.toelichting }}</p>{% endif %}
+
+    {# Watch: de weg naar Fix, zonder dat hij zelf moet zoeken (27 september). #}
+    {% if abonnement and not doet_werk and not shopify_winkel and not opgezegd and actieplan.acties %}
+    <div class="werk-leeg"><strong>{{ wt.upgrade_kop }}</strong>{{ wt.upgrade_tekst }}<br>
+      <a class="knop-rand" style="display:inline-block; margin-top:10px; border:1px solid var(--lijn); border-radius:7px; padding:9px 14px; text-decoration:none; color:var(--ink);"
+         href="mailto:hello@krilloai.com?subject=Switch%20to%20Fix%20for%20{{ webshop_url|replace('https://','')|urlencode }}">{{ wt.upgrade_knop }}</a></div>
+    {% endif %}
   {% else %}
     <div class="werk-leeg">
       {% if verloop and verloop|length > 1 %}<strong>{{ wt.niets_gemeten_kop }}</strong>{{ wt.niets_gemeten_tekst }}
@@ -221,7 +247,8 @@
     <a class="knop-rand" href="{{ shopify_beheer }}" target="_blank" rel="noopener">{{ wt.shopify_knop }}</a>
   {% elif opgezegd %}
     {# 23 september: wie opzegde las hier "je hebt eenmalig betaald". #}
-    <strong>{{ wt.opgezegd_kop }}</strong>
+    <strong>{% if afgelopen %}{{ wt.afgelopen_kop }}{% else %}{{ wt.opgezegd_kop }}{% endif %}</strong>
+    {% if opgezegd_tot and not afgelopen %}{{ wt.opgezegd_tot }} {{ opgezegd_tot.strftime('%d-%m-%Y') }}. {% endif %}
     {{ wt.opgezegd_tekst }}<br>
     <a class="knop-rand" href="/#pricing">{{ wt.eenmalig_knop }}</a>
   {% elif abonnement %}

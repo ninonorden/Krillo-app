@@ -23,10 +23,31 @@ TEKSTEN = {
         # kop moet daarom waar zijn in allebei de gevallen: mét toegang (wij
         # voeren het uit) en zonder (de klant doet het zelf, kant en klaar).
         "titel_taken": "Jouw oplossingen",
-        "taken_wij": ("Wij voeren dit voor je uit zodra we in je winkel kunnen. "
-                      "Je krijgt achteraf bericht van wat er veranderd is, met de "
-                      "oude tekst erbij. Doe je het liever zelf, dan staat alles "
-                      "hieronder kant en klaar."),
+        "taken_wij": ("Dit zijn de verbeteringen die wij in je winkel zetten. Je hoeft er "
+                      "zelf niets mee te doen: ze staan hier zodat je precies ziet wat wij "
+                      "doen. Na elke ronde krijg je bericht met wat er veranderd is en de oude "
+                      "tekst ernaast."),
+        "titel_wacht": "We wachten op toegang tot je winkel",
+        "wacht_knop": "Mail ons over toegang",
+        "shopify_auto_kop": "Krillo vult je winkel elke week aan",
+        "shopify_auto_tekst": ("Via de Krillo-app in Shopify kijken we elke week je winkel na en "
+                               "vullen we aan wat ontbreekt. Elke wijziging staat hieronder met "
+                               "de oude tekst, en je kunt alles terugzetten in de app."),
+        "letterlijk_wij": "Wat wij in je winkel zetten",
+        "waar_wij": "Waar wij het neerzetten",
+        "upgrade_kop": "Liever niet zelf doen?",
+        "upgrade_tekst": ("Met Fix zetten wij dit allemaal voor je in je winkel, elke maand "
+                          "opnieuw. Mail ons en we zetten je dezelfde dag over, zonder dubbel "
+                          "te betalen."),
+        "upgrade_knop": "Overstappen naar Fix",
+        "opgezegd_tot": "Je houdt volledige toegang tot",
+        "afgelopen_kop": "Je abonnement is afgelopen",
+        "afgelopen_tekst": ("Je pagina blijft bereikbaar met je eerdere uitkomsten. Wil je weer "
+                            "elke maand je plek en je verbeteringen? Je kunt altijd opnieuw beginnen."),
+        "buiten_markt": ("De Krillo-index meet winkels die in Nederland en Belgie verkopen. Jouw "
+                         "winkel verkoopt in een ander land, dus hij heeft nog geen plek in de "
+                         "index. De verbeteringen hieronder werken in elke markt: ze maken je "
+                         "winkel beter leesbaar voor AI."),
         "taken_zelf": ("Elke oplossing hieronder staat uitgeschreven, klaar om zelf in "
                        "je winkel te zetten. Bij Watch doe je dat zelf; bij Fix doen "
                        "wij het."),
@@ -297,10 +318,31 @@ TEKSTEN = {
         "titel_bezig": "We are working on your store",
         "titel_gedaan": "What we did for you",
         "titel_taken": "Your fixes",
-        "taken_wij": ("We carry this out for you as soon as we can get into your "
-                      "store. Afterwards you get a message with what changed and "
-                      "the old text next to it. Prefer to do it yourself? "
-                      "Everything below is ready to use."),
+        "taken_wij": ("These are the fixes we put into your store for you. There is nothing "
+                      "for you to do with them: they are here so you can see exactly what we "
+                      "do. After each round you get a message with what changed and the old "
+                      "text next to it."),
+        "titel_wacht": "Waiting for access to your store",
+        "wacht_knop": "Email us about access",
+        "shopify_auto_kop": "Krillo fills in your store every week",
+        "shopify_auto_tekst": ("Through the Krillo app in Shopify we check your store every week "
+                               "and fill in what is missing. Every change is listed below with "
+                               "the old text, and you can undo any of them in the app."),
+        "letterlijk_wij": "What we put in your store",
+        "waar_wij": "Where we put it",
+        "upgrade_kop": "Rather not do this yourself?",
+        "upgrade_tekst": ("With Fix we put all of this into your store for you, and keep doing it "
+                          "every month. Email us and we switch your plan the same day, without "
+                          "paying twice."),
+        "upgrade_knop": "Switch to Fix",
+        "opgezegd_tot": "You keep full access until",
+        "afgelopen_kop": "Your plan has ended",
+        "afgelopen_tekst": ("Your page stays available with your earlier results. Want your rank "
+                            "and your fixes every month again? You can start a new plan any time."),
+        "buiten_markt": ("The Krillo index measures stores that sell in the Netherlands and "
+                         "Belgium. Your store sells in another country, so it has no rank in the "
+                         "index yet. The fixes below work in any market: they make your store "
+                         "easier for AI to read."),
         "taken_zelf": ("Every fix below is written out and ready to use in your own "
                        "store. With Watch you put them in yourself; with Fix we do "
                        "it for you."),
