@@ -119,9 +119,14 @@ klopt("de voorstellen staan in de volgorde van de server (gratis bovenaan)",
       "lijst.forEach(function(v){ voegVoorstelToe(v, false); });" in scherm
       and "lijst.forEach(voegVoorstelToe);" not in scherm)
 klopt("een winkel buiten NL/BE wacht niet bij elke opening op het land",
-      "bekend_land not in (\"NL\", \"BE\") and _land_verversen_nodig(winkel)" in bron)
+      "moet_wachten = not bekend_land" in bron)
 klopt("ook het deel voor het scherm komt in de log als het traag is",
       "Shopify-kaartje" in bron)
+
+klopt("geen grijze Apply-knop: zonder gratis wijzigingen een knop naar Fix",
+      'id="naarfixknop"' in scherm and "toepasKnopZetten(magNog);" in scherm
+      and "toepasKnop.disabled = !magNog" not in scherm
+      and "toepasKnop.disabled = (!stand.betaalt" not in scherm)
 
 print("\n== 3. TEKENS ==")
 klopt("&#x27; wordt een apostrof",

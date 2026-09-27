@@ -170,11 +170,20 @@ krillo.klantbeeld.bouw = lambda url, land=None, **k: None
 p, duur, log = open_scherm()
 klopt(f"net nagevraagd: niet wachten ({duur:.2f}s)", duur < TRAAG - 0.3)
 
-print("\n== BUITEN NL/BE, 10 MINUTEN LATER: WEL WACHTEN OP HET LAND ==")
+print("\n== BUITEN NL/BE, 10 MINUTEN LATER: OOK NIET WACHTEN, WEL NAVRAGEN ==")
+krillo._land_ververst_op.clear()
+p, duur, log = open_scherm()
+klopt(f"geen wachttijd ({duur:.2f}s)", duur < TRAAG - 0.3)
+time.sleep(TRAAG + 0.3)
+p, duur, log = open_scherm()
+klopt("bij de volgende opening staat het nieuwe land (NL) er", "your market</em> yet" not in p)
+
+print("\n== LAND ONBEKEND: DAN WEL WACHTEN ==")
+sql("DELETE FROM winkelprofielen WHERE webshop_url = %s", (URL,))
 krillo._land_ververst_op.clear()
 p, duur, log = open_scherm()
 klopt("de landvraag is afgewacht", duur >= TRAAG - 0.1)
-klopt("en het nieuwe land (NL) staat er meteen", "your market</em> yet" not in p)
+klopt("en het land staat er meteen", "your market</em> yet" not in p)
 
 print("\n== HET VOORBEELD WORDT BEWAARD ==")
 gebouwd = []
@@ -186,8 +195,13 @@ krillo._voorbeeld_voor_app()
 krillo._voorbeeld_voor_app()
 klopt("drie keer gevraagd, een keer gebouwd", len(gebouwd) == 1)
 krillo._voorbeeld_cache["op"] -= krillo.VOORBEELD_BEWAAR_SECONDEN + 1
-krillo._voorbeeld_voor_app()
-klopt("na tien minuten opnieuw", len(gebouwd) == 2)
+t0 = time.monotonic()
+klopt("na tien minuten krijg je meteen het oude", krillo._voorbeeld_voor_app() == {"naam": "vb"}
+      and time.monotonic() - t0 < 0.2)
+time.sleep(0.3)
+klopt("en wordt er op de achtergrond een nieuwe gebouwd", len(gebouwd) == 2)
+klopt("het opwarmen bij het opstarten gebeurt alleen op Render",
+      'if os.environ.get("RENDER"):' in open(os.path.join(APP, "app.py")).read())
 krillo._voorbeeld_bouwen = lambda: gebouwd.append(1) or None
 krillo._voorbeeld_cache.update(op=0.0, waarde=None)
 krillo._voorbeeld_voor_app()

@@ -233,6 +233,11 @@ krillo.klantbeeld.bouw = lambda url, land=None, **k: None  # nog geen positie
 # eens per 10 minuten na (anders wachtte elke opening op Shopify). Hier doen
 # we alsof die 10 minuten om zijn.
 krillo._land_ververst_op.clear()
+# Sinds 27 september gebeurt dat op de achtergrond: de opening die het
+# nieuwe land ophaalt wacht er niet op, de volgende opening laat het zien.
+client.get("/shopify?shop=stap26-us.myshopify.com&id_token="
+           + maak_kaartje("stap26-us.myshopify.com"))
+time.sleep(0.5)
 p = client.get("/shopify?shop=stap26-us.myshopify.com&id_token="
                + maak_kaartje("stap26-us.myshopify.com")).get_data(as_text=True)
 klopt("bij de volgende keer openen staat hij in de markt", "Your rank is <em>on its way.</em>" in p)
