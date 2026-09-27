@@ -280,6 +280,10 @@
         <div id="voorstellen"></div>
         <div class="knoprij" style="margin-top:14px;">
           <button id="toepasknop">Apply the selected changes</button>
+          {# Als er niets meer gratis toegepast kan worden, staat hier deze knop
+             in plaats van een grijze "Apply" die niets doet. Een knop die uit
+             staat leest als een fout (Nino, 27 september, bij de video). #}
+          <button id="naarfixknop" type="button" style="display:none;">Apply with Fix</button>
         </div>
       </div>
     </div>
@@ -574,6 +578,20 @@ and you can switch it off.
   // winkel kan komen dat wij niet zelf gemaakt hebben.
   var naKijkKnop = document.getElementById('nakijkknop');
   var toepasKnop = document.getElementById('toepasknop');
+  var naarFixKnop = document.getElementById('naarfixknop');
+  // Kan er nog iets met een klik in de winkel? Dan de gewone knop. Anders een
+  // knop naar Fix, nooit een knop die grijs staat en niets doet.
+  function toepasKnopZetten(magNog){
+    toepasKnop.disabled = false;
+    toepasKnop.style.display = magNog ? '' : 'none';
+    if (naarFixKnop) { naarFixKnop.style.display = magNog ? 'none' : ''; }
+  }
+  if (naarFixKnop) {
+    naarFixKnop.addEventListener('click', function(){
+      var doel = document.getElementById('planfix') || document.getElementById('plannen');
+      if (doel) { doel.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+    });
+  }
   var werkBezig = document.getElementById('werkbezig');
   var werkBezigTekst = document.getElementById('werkbezigtekst');
   var werkFout = document.getElementById('werkfout');
@@ -720,7 +738,7 @@ and you can switch it off.
       grens.textContent = 'You have used your ' + stand.gratis_totaal
         + ' free changes. Watch writes out every fix for you to copy; Fix applies them for you and keeps up with new products.';
     }
-    toepasKnop.disabled = (!stand.betaalt && stand.gratis_over === 0);
+    toepasKnopZetten(!!(stand.betaalt || stand.gratis_over > 0));
     if (stand.fouten && stand.fouten.length){
       werkFoutTekst.textContent = 'Some parts could not be prepared: ' + stand.fouten.join(' ');
       werkFout.style.display = 'block';
@@ -873,7 +891,7 @@ and you can switch it off.
                     voorstelAangevinkt = magNog;
                     voegVoorstelToe(d2.voorstel, true);
                     voorstelBlok.style.display = 'block';
-                    toepasKnop.disabled = !magNog;
+                    toepasKnopZetten(magNog);
                     var grens2 = document.getElementById('grensregel');
                     if (magNog) {
                       grens2.textContent = '';

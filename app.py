@@ -6027,12 +6027,37 @@ def _voorbeeld_voor_app():
     alleen na een maandmeting. Elke keer opnieuw bouwen (ranglijst van 500,
     alle antwoorden van een ronde doorlopen) is dus zonde van de wachttijd."""
     nu = time.monotonic()
-    if _voorbeeld_cache["waarde"] and nu - _voorbeeld_cache["op"] < VOORBEELD_BEWAAR_SECONDEN:
+    if _voorbeeld_cache["waarde"]:
+        # Is hij oud, dan geven we hem toch meteen en bouwen we op de
+        # achtergrond een nieuwe (27 september: de log liet 4,6 seconden zien
+        # voor het voorbeeld, bij de eerste opening na een herstart).
+        if nu - _voorbeeld_cache["op"] >= VOORBEELD_BEWAAR_SECONDEN and not _voorbeeld_cache.get("bezig"):
+            _voorbeeld_cache["bezig"] = True
+            _SNEL_POOL.submit(_voorbeeld_verversen)
         return _voorbeeld_cache["waarde"]
-    waarde = _voorbeeld_bouwen()
-    if waarde:
-        _voorbeeld_cache.update(op=nu, waarde=waarde)
-    return waarde
+    return _voorbeeld_verversen()
+
+
+def _voorbeeld_verversen():
+    try:
+        waarde = _voorbeeld_bouwen()
+        if waarde:
+            _voorbeeld_cache.update(op=time.monotonic(), waarde=waarde)
+        return waarde
+    finally:
+        _voorbeeld_cache["bezig"] = False
+
+
+def _voorbeeld_opwarmen():
+    """Bij het opstarten van de server alvast het voorbeeld bouwen.
+
+    Alleen op Render (daar staat RENDER=true), niet in de tests: die tellen hoe
+    vaak het voorbeeld gebouwd wordt."""
+    time.sleep(3)
+    try:
+        _voorbeeld_verversen()
+    except Exception as e:
+        print(f"Voorbeeld opwarmen mislukt: {e}")
 
 
 def _voorbeeld_bouwen():
@@ -6068,6 +6093,10 @@ from concurrent.futures import ThreadPoolExecutor  # noqa: E402
 _SNEL_POOL = ThreadPoolExecutor(max_workers=4)
 _land_ververst_op = {}
 LAND_VERVERS_SECONDEN = 600
+
+
+if os.environ.get("RENDER"):
+    threading.Thread(target=lambda: _voorbeeld_opwarmen(), daemon=True).start()
 
 
 class _Stopwatch:
@@ -6158,8 +6187,10 @@ def _shopify_scherm(winkel, rij):
         # en BE ligt EN we het de laatste 10 minuten niet nagevraagd hebben.
         # In de video van 26 september wachtte een Amerikaanse winkel bij ELKE
         # opening op Shopify; dat hoort maar eens per tien minuten.
-        moet_wachten = (not bekend_land) or (
-            bekend_land not in ("NL", "BE") and _land_verversen_nodig(winkel))
+        # 27 september: alleen nog wachten als wij het land helemaal niet
+        # kennen. Een winkel die zijn land verandert ziet dat bij de volgende
+        # opening; daarvoor wachtte elke Amerikaanse winkel 2,5 seconden.
+        moet_wachten = not bekend_land
         if moet_wachten or _land_verversen_nodig(winkel):
             land_vraag = _SNEL_POOL.submit(_land_verversen, winkel, sleutel_nu, webshop_url)
             if moet_wachten:
