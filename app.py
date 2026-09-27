@@ -628,9 +628,44 @@ def api_herroepen():
                      "Your right of withdrawal stays valid."
         }), 500
     emailing.send_herroeping_bevestiging(email, nummer, webshop_url)
-    beheerder = os.environ.get("BEHEERDER_EMAIL")
+
+    # HET ABONNEMENT STOPPEN (27 september, bij de controle voor de eerste
+    # klant). Hier werd de herroeping vastgelegd en bevestigd, maar het
+    # abonnement bij Mollie liep gewoon door: de klant kreeg "we regelen het"
+    # en een maand later toch een afschrijving. Nu zoeken we zijn abonnement
+    # (op het winkeladres, of anders via zijn mailadres) en zeggen het meteen op.
+    gestopt = "niet gevonden"
+    try:
+        if not webshop_url:
+            gevonden = db.klant_bij_email(email) or {}
+            webshop_url = gevonden.get("webshop_url") or ""
+        if webshop_url:
+            abonnement = payments.zoek_abonnement(webshop_url)
+            if abonnement:
+                uit = payments.zeg_abonnement_op(abonnement["customer_id"],
+                                                 abonnement["subscription_id"])
+                gestopt = "fout: " + str(uit.get("error")) if "error" in uit else "opgezegd"
+            else:
+                gestopt = "geen actief abonnement bij Mollie"
+            if gestopt in ("opgezegd", "geen actief abonnement bij Mollie"):
+                db.zet_klant_opgezegd(webshop_url)
+    except Exception as e:
+        gestopt = f"fout: {e}"
+        print(f"Herroeping: abonnement stoppen mislukt voor {email}: {e}")
+
+    beheerder = (os.environ.get("BEHEERDER_EMAIL") or os.environ.get("BEHEER_EMAIL")
+                 or os.environ.get("SMTP_REPLY_TO") or "").strip()
     if beheerder:
         emailing.send_herroeping_melding(beheerder, email, webshop_url, toelichting, nummer)
+    actie = ("Het abonnement is bij Mollie opgezegd." if gestopt == "opgezegd"
+             else f"<b>Let op: het abonnement kon niet automatisch gestopt worden ({gestopt}).</b> "
+                  "Ga in Mollie naar Klanten, zoek dit adres en zeg het abonnement op.")
+    _meld_aan_beheer(
+        "Herroeping: geld terugbetalen",
+        f"{email} ({webshop_url or 'winkel onbekend'}) heeft herroepen, kenmerk {nummer}. {actie} "
+        "<b>Actie nodig:</b> betaal binnen 14 dagen terug in Mollie (Betalingen, zoek dit "
+        "adres, open de betaling, Terugbetalen). Heeft de klant bij het bestellen "
+        "toegestemd dat we meteen begonnen, dan mag je het deel voor de dagen tot nu inhouden.")
     return jsonify({"ok": True})
 
 
@@ -648,8 +683,6 @@ def api_opzeggen(klant_token):
     if "error" in resultaat:
         return jsonify(resultaat), 400
 
-    db.zet_klant_opgezegd(klant["webshop_url"])
-    emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"])
     # De veertien dagen (24 september). De site belooft: binnen veertien dagen
     # na de eerste betaling opzeggen is die maand terug. Dat terugbetalen doe
     # jij in Mollie; deze melding zegt of het moet, zodat het niet vergeten wordt.
@@ -660,6 +693,13 @@ def api_opzeggen(klant_token):
             dagen = (datetime.now(timezone.utc) - begon).days
     except Exception:
         dagen = None
+    # Binnen veertien dagen krijgt hij zijn geld terug, dan stopt de toegang nu.
+    # Daarna betaalde hij de lopende maand, en die houdt hij (voorwaarden).
+    if dagen is not None and dagen > 14:
+        db.zet_klant_opgezegd(klant["webshop_url"], tot=_einde_betaalde_maand(klant.get("aangemaakt_op")))
+    else:
+        db.zet_klant_opgezegd(klant["webshop_url"])
+    emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"])
     if dagen is not None and dagen <= 14:
         terug = (f"<p><b>Actie nodig: geld terug.</b> Deze klant is {dagen} dagen klant, dus "
                  f"binnen de veertien dagen. Ga in Mollie naar Betalingen, zoek {klant['email']}, "
@@ -1414,8 +1454,10 @@ def checkout_monitoring():
     try:
         if payments.zoek_abonnement(webshop_url):
             return jsonify({
-                "error": "This store already has a Krillo plan. Your dashboard link is in "
-                         "your welcome email, or email hello@krilloai.com if you lost it."
+                "error": "This store already has a Krillo plan. Want to switch from Watch to "
+                         "Fix, or the other way round? Email hello@krilloai.com and we switch "
+                         "you the same day, without paying twice. Your dashboard link is in "
+                         "your welcome email."
             }), 400
     except Exception as e:
         # Kunnen wij het niet nakijken, dan gaan wij door. Iemand tegenhouden
@@ -1598,9 +1640,9 @@ def _levering_mislukt(payment_id, webshop_url, email, soort, reden):
     _meld_aan_beheer(
         "Betaald maar niet geleverd",
         f"Betaling {payment_id} voor {webshop_url} ({soort}, {email}) is binnen, maar "
-        f"de scan lukte niet: {reden}. De betaling staat weer open, dus een volgende "
-        f"melding van Mollie probeert het opnieuw. Lukt dat ook niet, doe het dan met "
-        f"de hand of geef het geld terug.")
+        f"de scan lukte niet: {reden}. Mollie stuurt deze melding niet opnieuw. Ga naar "
+        f"{get_base_url()}/admin/bestellingen en klik bij deze bestelling op 'Opnieuw "
+        f"verwerken'. Lukt dat ook niet, doe het dan met de hand of geef het geld terug.")
 
 
 def _verwerk_betaling(payment_id, base_url):
@@ -1905,9 +1947,20 @@ def _verwerk_betaling(payment_id, base_url):
                                        klant_token)
                     monitoring_url = f"{base_url}/mijn/{klant_token}" if klant_token else None
                     pakket = (metadata.get("pakket") or payments.STANDAARD_PAKKET).lower()
-                    emailing.send_monitoring_welcome_email(
-                        email, webshop_url, scan_result, monitoring_url,
-                        taal=_mailtaal(webshop_url), pakket=pakket)
+                    welkom_ok = False
+                    try:
+                        welkom_ok = emailing.send_monitoring_welcome_email(
+                            email, webshop_url, scan_result, monitoring_url,
+                            taal=_mailtaal(webshop_url), pakket=pakket)
+                    except Exception as e:
+                        print(f"Welkomstmail mislukt voor {webshop_url}: {e}")
+                    # Zonder deze mail heeft een betalende klant geen link naar
+                    # zijn eigen pagina (27 september: dit ging stil mis).
+                    if not welkom_ok:
+                        _meld_aan_beheer(
+                            "Welkomstmail NIET verstuurd",
+                            f"{email} betaalde voor {webshop_url} ({pakket}), maar de welkomstmail "
+                            f"ging niet weg. Stuur hem zijn link met de hand: {monitoring_url}")
                     # En meteen om toegang vragen. Sinds 11 september voeren wij
                     # de verbeteringen ook bij het abonnement uit, en zonder
                     # toegang kan dat niet. Dezelfde mail als bij "wij doen het",
@@ -1966,9 +2019,9 @@ def _verwerk_betaling(payment_id, base_url):
         _meld_aan_beheer(
             "Betaling niet verwerkt",
             f"Bij betaling {payment_id} ging er iets mis na de betaling: "
-            f"{type(e).__name__}: {e}. De betaling staat weer open, dus een volgende "
-            f"melding van Mollie probeert het opnieuw. Blijft het misgaan, doe het dan "
-            f"met de hand of geef het geld terug.")
+            f"{type(e).__name__}: {e}. Mollie stuurt deze melding niet opnieuw. Ga naar "
+            f"{get_base_url()}/admin/bestellingen en klik bij deze bestelling op 'Opnieuw "
+            f"verwerken'. Blijft het misgaan, doe het dan met de hand of geef het geld terug.")
 
 
 @app.route("/admin/inloggen", methods=["GET", "POST"])
@@ -2984,6 +3037,7 @@ def cron_onderhoud():
     # onderhoud.py het werk van klanten verversen zonder app.py te importeren
     # (dat zou een kringetje zijn: app importeert onderhoud).
     onderhoud.NA_METING = _ververs_klantwerk
+    threading.Thread(target=_controleer_betalingen, daemon=True).start()
     gestart = onderhoud.start_ronde()
     return ("ok" if gestart else "loopt al"), 200
 
@@ -3255,7 +3309,13 @@ def _paginagegevens(webshop_url):
     beheer = None
     try:
         rij = db.shopify_winkel_bij_webadres(webshop_url)
-        if rij and rij.get("winkel"):
+        # Alleen als de app er nog in zit EN deze klant niet via de site bij
+        # Mollie betaalt (27 september). Anders zag een Mollie-klant die ooit de
+        # app probeerde "je abonnement loopt via Shopify" in plaats van de
+        # opzegknop, en kon hij nergens opzeggen.
+        klant = db.klant_bij_url(webshop_url) or {}
+        if (rij and rij.get("winkel") and rij.get("toegangssleutel")
+                and rij.get("actief", True) and not klant.get("mollie_klant_id")):
             beheer = _app_adres_in_beheerscherm(rij["winkel"])
     except Exception as e:
         print(f"Shopify-winkel zoeken mislukt voor {webshop_url}: {e}")
@@ -3728,9 +3788,19 @@ def _ververs_klantwerk(ronde, categorie, base_url=None):
         try:
             if _doet_werk_voor(url):
                 kenmerk = f"maand-{ronde}-{url}"[:120]
-                if db.start_uitvoering(kenmerk, url, klant.get("email"),
-                                       (db.get_winkelprofiel(url) or {}).get("platform")):
+                platform = (db.get_winkelprofiel(url) or {}).get("platform")
+                if db.start_uitvoering(kenmerk, url, klant.get("email"), platform):
                     verslag["werklijst"] += 1
+                    # Een Shopify-winkel vult Krillo zelf (wekelijkse ronde).
+                    # Elke andere winkel doe jij nu nog met de hand, en dat
+                    # moet je weten ZONDER zelf de werklijst open te hoeven
+                    # doen (27 september, controle voor de eerste klant).
+                    if not db.shopify_winkel_bij_webadres(url):
+                        _meld_aan_beheer(
+                            "Fix-werk klaar voor een klant",
+                            f"Na de maandmeting van {categorie} staat er nieuw werk klaar voor "
+                            f"{url} ({klant.get('email')}, platform {platform or 'onbekend'}). "
+                            f"Ga naar {get_base_url()}/admin/uitvoeringen.")
         except Exception as e:
             print(f"Werklijst bijwerken mislukt voor {url}: {e}")
 
@@ -4710,13 +4780,56 @@ def _abonnement_stand(webshop_url, rapporten=None):
     zelf doen. Het pakket staat nu bij de klant (Mollie bij de eerste
     betaling, Shopify bij elk lopend abonnement)."""
     klant = db.klant_bij_url(webshop_url) or {}
-    if not klant or klant.get("opgezegd_op"):
+    if not klant or _toegang_voorbij(klant):
         return False, False
     # (Of hij opzegde vraag je met _is_opgezegd hieronder.)
     pakket = (klant.get("pakket") or "").lower()
     heeft_rapport = any((r.get("type") or "") == "monitoring" for r in (rapporten or []))
     abonnement = bool(pakket) or heeft_rapport
     return abonnement, bool(pakket) and pakket != "watch"
+
+
+def _toegang_voorbij(klant):
+    """Of de betaalde periode van een opgezegde klant voorbij is.
+
+    opgezegd_op is sinds 27 september het moment waarop de toegang stopt; dat
+    kan in de toekomst liggen (einde van de betaalde maand)."""
+    eind = klant.get("opgezegd_op")
+    if not eind:
+        return False
+    try:
+        if eind.tzinfo is None:
+            eind = eind.replace(tzinfo=timezone.utc)
+        return eind <= datetime.now(timezone.utc)
+    except Exception:
+        return True
+
+
+def _einde_betaalde_maand(begon, nu=None):
+    """Het einde van de lopende betaalde maand, gerekend vanaf de eerste betaling.
+
+    Een klant die op de 10e begon, betaalt elke 10e; zegt hij op de 25e op, dan
+    loopt zijn toegang tot de 10e van de volgende maand."""
+    nu = nu or datetime.now(timezone.utc)
+    if not begon:
+        return nu
+    if begon.tzinfo is None:
+        begon = begon.replace(tzinfo=timezone.utc)
+    jaar, maand = begon.year, begon.month
+    while True:
+        maand += 1
+        if maand > 12:
+            jaar, maand = jaar + 1, 1
+        # Een maand zonder die dag (31 februari): de laatste dag van die maand.
+        dag = begon.day
+        while True:
+            try:
+                kandidaat = begon.replace(year=jaar, month=maand, day=dag)
+                break
+            except ValueError:
+                dag -= 1
+        if kandidaat > nu:
+            return kandidaat
 
 
 def _is_opgezegd(webshop_url):
@@ -5719,7 +5832,62 @@ def admin_kosten():
     )
 
 
-@app.route("/admin/bestellingen")
+def _is_geleverd(order):
+    """Heeft deze betaalde bestelling iets opgeleverd: een klantregel of een rapport?
+
+    Maandbetalingen van een lopend abonnement dragen geen metadata van ons
+    (type "onbekend"); die tellen we als geleverd, want daar hoort geen nieuwe
+    klant bij."""
+    if order.get("type") in (None, "", "onbekend") or order.get("webshop_url") in (None, "", "-"):
+        return True
+    try:
+        if db.report_bestaat_al(order["id"]):
+            return True
+        return bool(db.klant_bij_url(scan_engine.normalize_url(order["webshop_url"])))
+    except Exception as e:
+        print(f"Levering nakijken mislukt voor {order.get('id')}: {e}")
+        return True
+
+
+def _betaling_opnieuw(payment_id):
+    """Een betaalde bestelling opnieuw laten verwerken (27 september).
+
+    Mollie stuurt een betaalde melding maar een keer als wij meteen 200
+    antwoorden, en dat doen wij. Stopte de verwerking halverwege (een herstart
+    van de server tijdens een upload, een storing), dan kwam er niets meer. Nu
+    kan dat met een knop, en de nachtronde wijst je erop."""
+    db.ontclaim_payment(payment_id)
+    threading.Thread(target=_verwerk_betaling, args=(payment_id, get_base_url()),
+                     daemon=True).start()
+
+
+def _controleer_betalingen():
+    """Nachtelijk: betaalde bestellingen van de laatste dagen zonder levering."""
+    try:
+        nu = datetime.now(timezone.utc)
+        for o in payments.list_recent_orders(limit=50):
+            if _is_geleverd(o):
+                continue
+            betaald = o.get("paid_at")
+            try:
+                betaald_op = datetime.fromisoformat(str(betaald).replace("Z", "+00:00"))
+            except Exception:
+                betaald_op = None
+            # Pas na een uur melden: de verwerking kan nog bezig zijn. En niet
+            # ouder dan vier dagen, anders elke nacht dezelfde melding.
+            if betaald_op and not (timedelta(hours=1) < nu - betaald_op < timedelta(days=4)):
+                continue
+            _meld_aan_beheer(
+                "Betaald maar nog niets geleverd",
+                f"Bestelling {o['id']} ({o.get('type')}, {o.get('webshop_url')}, {o.get('email')}) "
+                f"is betaald op {betaald}, maar er is geen klant of rapport. Ga naar "
+                f"{get_base_url()}/admin/bestellingen en klik bij deze bestelling op "
+                f"'Opnieuw verwerken'.")
+    except Exception as e:
+        print(f"Betalingen nakijken mislukt: {e}")
+
+
+@app.route("/admin/bestellingen", methods=["GET", "POST"])
 def admin_bestellingen():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
@@ -5728,8 +5896,18 @@ def admin_bestellingen():
     if doorsturen:
         return redirect(doorsturen)
 
+    melding = None
+    if request.method == "POST":
+        pid = (request.form.get("payment_id") or "").strip()
+        if re.fullmatch(r"tr_[A-Za-z0-9]+", pid):
+            _betaling_opnieuw(pid)
+            melding = f"Betaling {pid} wordt opnieuw verwerkt. Ververs over een minuut."
+        else:
+            melding = "Dat is geen geldig betalingsnummer."
     orders = payments.list_recent_orders()
-    return render_template("admin_bestellingen.html", orders=orders)
+    for o in orders:
+        o["geleverd"] = _is_geleverd(o)
+    return render_template("admin_bestellingen.html", orders=orders, melding=melding)
 
 
 @app.route("/admin/uitvoeringen", methods=["GET", "POST"])
@@ -7220,8 +7398,11 @@ def shopify_abonnement_gewijzigd():
         # stilgezet worden door iets in Shopify.
         url = scan_engine.normalize_url(rij["webshop_url"])
         klant = db.klant_bij_url(url) or {}
-        if klant and (klant.get("email") or "").strip().lower() == (rij.get("email") or "").strip().lower():
+        if (klant and not klant.get("mollie_klant_id")
+                and (klant.get("email") or "").strip().lower() == (rij.get("email") or "").strip().lower()):
             db.zet_klant_opgezegd(url)
+            _meld_aan_beheer("Shopify-abonnement gestopt",
+                             f"{winkel} ({url}) heeft zijn abonnement in Shopify gestopt.")
     return "", 200
 
 
@@ -7239,8 +7420,15 @@ def shopify_verwijderd():
     rij_weg = db.get_shopify_winkel(winkel) or {}
     db.shopify_verwijderd(winkel)
     # App eruit is ook opzeggen: Shopify stopt het abonnement dan zelf.
+    # MAAR NIET voor een klant die via de site bij Mollie betaalt (27 september,
+    # controle voor de eerste klant). Een Fix-klant van de site die de gratis
+    # app probeert en weer verwijdert, werd hier stilgezet terwijl Mollie
+    # gewoon bleef afschrijven.
     if rij_weg.get("webshop_url"):
-        db.zet_klant_opgezegd(rij_weg["webshop_url"])
+        url_weg = scan_engine.normalize_url(rij_weg["webshop_url"])
+        klant_weg = db.klant_bij_url(url_weg) or {}
+        if klant_weg and not klant_weg.get("mollie_klant_id"):
+            db.zet_klant_opgezegd(url_weg)
     print(f"Shopify-app verwijderd uit {winkel}, sleutel gewist.")
     return "", 200
 
@@ -7415,7 +7603,14 @@ def bedankt():
         try:
             stand = payments.get_payment_status(kenmerk)
             if stand is not None:
-                betaald = bool(stand.get("is_paid"))
+                # Alleen "niet betaald" zeggen als het ZEKER mislukt is. Een
+                # betaling die nog op open of pending staat (een overboeking,
+                # een bank die even nadenkt) kreeg anders "Nothing was charged",
+                # en een uur later toch een afschrijving (27 september).
+                if stand.get("is_paid"):
+                    betaald = True
+                elif stand.get("status") in ("canceled", "failed", "expired"):
+                    betaald = False
         except Exception as e:
             print(f"Betaling natrekken op de bedanktpagina mislukt: {e}")
 

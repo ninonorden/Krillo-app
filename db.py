@@ -2163,6 +2163,22 @@ def wis_shopify_winkel(winkel):
                 webshop_url = (rij or {}).get("webshop_url")
                 cur.execute("DELETE FROM shopify_winkels WHERE winkel = %s", (winkel,))
 
+                # BETAALT DEZE WINKEL VIA DE SITE (Mollie), dan is hij onze
+                # eigen klant en niet alleen een Shopify-installatie (27
+                # september). Het wisverzoek van Shopify gaat over wat wij via
+                # de app kregen, niet over een los klantcontract met ons.
+                # Anders wisten wij de klant, zijn rapporten en zijn werk,
+                # terwijl Mollie gewoon bleef afschrijven. Alleen de rij van de
+                # app hierboven gaat weg.
+                if webshop_url:
+                    cur.execute("SELECT mollie_klant_id FROM klanten WHERE webshop_url = %s",
+                                (webshop_url,))
+                    eigen = cur.fetchone()
+                    if eigen and eigen.get("mollie_klant_id"):
+                        print(f"shop/redact voor {winkel}: {webshop_url} is een klant via de "
+                              f"site, alleen de app-gegevens gewist.")
+                        webshop_url = None
+
                 if webshop_url:
                     # Alle tabellen die op de webshop-URL staan. Bewust een
                     # vaste lijst en geen slimmigheid over alle tabellen heen:
@@ -4363,7 +4379,7 @@ def mollie_klant_van(webshop_url):
         conn.close()
 
 
-def zet_klant_opgezegd(webshop_url, opgezegd=True):
+def zet_klant_opgezegd(webshop_url, opgezegd=True, tot=None):
     """Legt vast dat een klant opzegde, of (opgezegd=False) dat hij weer klant is.
 
     Zonder dit kreeg een klant die opzegde elke maand nog zijn positie per mail
@@ -4377,9 +4393,18 @@ def zet_klant_opgezegd(webshop_url, opgezegd=True):
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute("UPDATE klanten SET opgezegd_op = "
-                            + ("now()" if opgezegd else "NULL")
-                            + " WHERE webshop_url = %s", (webshop_url,))
+                # opgezegd_op is het moment waarop de toegang STOPT. Meestal nu;
+                # bij een gewone opzegging via de site het einde van de betaalde
+                # maand (tot), want dat belooft de voorwaarden (27 september).
+                if not opgezegd:
+                    cur.execute("UPDATE klanten SET opgezegd_op = NULL WHERE webshop_url = %s",
+                                (webshop_url,))
+                elif tot is not None:
+                    cur.execute("UPDATE klanten SET opgezegd_op = %s WHERE webshop_url = %s",
+                                (tot, webshop_url))
+                else:
+                    cur.execute("UPDATE klanten SET opgezegd_op = now() WHERE webshop_url = %s",
+                                (webshop_url,))
         return True
     except Exception as e:
         print(f"Opzegging vastleggen mislukt voor {webshop_url}: {e}")
@@ -6221,7 +6246,7 @@ def klanten_in_ronde(ronde):
                              WHERE y.ronde = u.ronde)           AS van
                       FROM categorie_uitkomsten u
                       JOIN klanten k ON k.webshop_url = u.webshop_url
-                                    AND k.opgezegd_op IS NULL
+                                    AND (k.opgezegd_op IS NULL OR k.opgezegd_op > now())
                  LEFT JOIN categorie_uitkomsten v
                         ON v.webshop_url = u.webshop_url
                        AND v.ronde = (SELECT id FROM vorige)
@@ -6397,7 +6422,7 @@ def klanten_in_categorie(categorie):
                       FROM klanten k
                       JOIN benadering b ON b.webshop_url = k.webshop_url
                      WHERE b.categorie = %s
-                       AND k.opgezegd_op IS NULL
+                       AND (k.opgezegd_op IS NULL OR k.opgezegd_op > now())
                      ORDER BY k.webshop_url""", (categorie,))
                 return [dict(r) for r in cur.fetchall()]
     except Exception as e:

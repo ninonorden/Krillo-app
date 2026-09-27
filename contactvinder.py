@@ -84,7 +84,25 @@ NIET_LEZEN = ("noreply", "no-reply", "donotreply", "geenantwoord", "mailer-daemo
 ALGEMEEN = ("info", "contact", "hallo", "hello", "sales", "verkoop", "shop",
             "winkel", "klantenservice", "service", "support", "bestellingen",
             "orders", "vragen", "mail", "post", "administratie", "office",
-            "bonjour", "onthaal", "klanten", "webshop", "team")
+            "bonjour", "onthaal", "klanten", "webshop", "team",
+            # 27 september erbij: gangbare algemene postbussen die wij misten.
+            "hoi", "hi", "hey", "help", "helpdesk", "klantcontact", "customerservice",
+            "customercare", "care", "bestelling", "order", "algemeen", "receptie",
+            "inkoop", "store", "boutique", "atelier", "studio")
+
+# Vrije mailboxen: bij een eenmanszaak is dit vaak het echte adres.
+VRIJ = ("gmail.com", "hotmail.com", "hotmail.nl", "outlook.com", "outlook.nl", "live.nl",
+        "live.com", "icloud.com", "me.com", "yahoo.com", "ziggo.nl", "kpnmail.nl",
+        "planet.nl", "home.nl", "xs4all.nl", "telenet.be", "skynet.be", "proximus.be",
+        "protonmail.com", "proton.me")
+
+# Woorden in een link die naar een pagina met contactgegevens wijzen. De link
+# die de winkel ZELF op zijn homepage zet is betrouwbaarder dan een pad dat wij
+# raden (27 september: 1299 winkels zonder adres, vaak omdat het adres op
+# /klantenservice/contact of /contact.html stond en niet op /contact).
+LINKWOORDEN = ("contact", "klantenservice", "customer-service", "service", "privacy",
+               "voorwaarden", "terms", "impressum", "colofon", "over-ons", "about",
+               "overons", "faq", "veelgestelde", "help", "disclaimer")
 
 
 def _domein(url):
@@ -111,8 +129,14 @@ def _bruikbaar(adres, winkeldomein):
     # vaak van de bouwer, maar bij eenmanszaken juist wel het echte adres, dus
     # dat laten wij toe zolang de rest klopt.
     eigen_domein = gastheer == winkeldomein or gastheer.endswith("." + winkeldomein)
-    vrij = gastheer in ("gmail.com", "hotmail.com", "outlook.com", "live.nl",
-                        "ziggo.nl", "kpnmail.nl", "telenet.be", "skynet.be")
+    # Dezelfde naam met een andere extensie (winkel.nl met info@winkel.com) is
+    # dezelfde winkel. Alleen de naam voor de eerste punt telt, en die moet
+    # minstens vier tekens zijn: "ab.nl" en "ab.com" kunnen twee bedrijven zijn.
+    naam_winkel = (winkeldomein or "").split(".")[0]
+    if (not eigen_domein and len(naam_winkel) >= 4
+            and gastheer.split(".")[0] == naam_winkel and gastheer.count(".") == 1):
+        eigen_domein = True
+    vrij = gastheer in VRIJ
     if not (eigen_domein or vrij):
         return None
     # Algemeen of persoonlijk. Alleen het deel voor de @ telt.
@@ -140,15 +164,28 @@ def _uit_pagina(html, basis_url, winkeldomein):
     except Exception:
         soep = None
 
+    def neem(adres, vandaan):
+        oordeel = _bruikbaar(adres, winkeldomein)
+        if oordeel:
+            oordeel["vandaan"] = vandaan
+            gevonden.append(oordeel)
+
     if soep is not None:
         for link in soep.find_all("a", href=True):
             href = link["href"]
             if href.lower().startswith("mailto:"):
-                adres = href[7:].split("?")[0]
-                oordeel = _bruikbaar(adres, winkeldomein)
-                if oordeel:
-                    oordeel["vandaan"] = "mailto-link"
-                    gevonden.append(oordeel)
+                from urllib.parse import unquote
+                neem(unquote(href[7:].split("?")[0]), "mailto-link")
+            # Door Cloudflare verborgen adres: /cdn-cgi/l/email-protection#<hex>
+            if "email-protection#" in href:
+                neem(_cloudflare(href.split("#", 1)[1]), "verborgen adres (Cloudflare)")
+        for el in soep.find_all(attrs={"data-cfemail": True}):
+            neem(_cloudflare(el.get("data-cfemail")), "verborgen adres (Cloudflare)")
+        # Gestructureerde gegevens: "email" in de Organization of LocalBusiness.
+        # Staat in een script, dus VOOR het weghalen van de scripts.
+        for blok in soep.find_all("script", attrs={"type": "application/ld+json"}):
+            for adres in re.findall(r'"email"\s*:\s*"(?:mailto:)?([^"]+)"', blok.string or ""):
+                neem(adres, "gestructureerde gegevens")
         # Scripts en stijlen eruit, anders vissen wij adressen uit de code van
         # de winkelsoftware in plaats van van de pagina.
         for weg in soep(["script", "style", "noscript"]):
@@ -158,11 +195,66 @@ def _uit_pagina(html, basis_url, winkeldomein):
         tekst = html
 
     for adres in ADRES.findall(tekst or ""):
-        oordeel = _bruikbaar(adres, winkeldomein)
-        if oordeel:
-            oordeel["vandaan"] = "tekst op de pagina"
-            gevonden.append(oordeel)
+        neem(adres, "tekst op de pagina")
+    # Uitgeschreven tegen spam: "info [at] winkel.nl", "info(at)winkel(dot)nl",
+    # "info @ winkel . nl". Het staat er, de winkel wil er post op.
+    for adres in _ontwarren(tekst or ""):
+        neem(adres, "uitgeschreven adres")
     return gevonden
+
+
+_AT = r"\s*(?:\[\s*at\s*\]|\(\s*at\s*\)|\{\s*at\s*\}|\s+at\s+|\[\s*@\s*\]|\s@\s)\s*"
+_DOT = r"\s*(?:\[\s*(?:dot|punt)\s*\]|\(\s*(?:dot|punt)\s*\)|\s+(?:dot|punt)\s+|\s\.\s|\.)\s*"
+_VERSTOPT = re.compile(r"\b([A-Za-z0-9._%+\-]{2,40})" + _AT
+                       + r"([A-Za-z0-9\-]{2,60})" + _DOT + r"([A-Za-z]{2,10})\b", re.I)
+
+
+def _ontwarren(tekst):
+    """Adressen die om spam te vermijden anders geschreven zijn."""
+    uit = []
+    for gebruiker, domein, extensie in _VERSTOPT.findall(tekst):
+        if gebruiker.lower() in ("at", "dot", "punt"):
+            continue
+        uit.append(f"{gebruiker}@{domein}.{extensie}".lower())
+    return uit
+
+
+def _cloudflare(hexcode):
+    """Een door Cloudflare verborgen adres terugvertalen.
+
+    Cloudflare zet het adres als hex, met de eerste byte als sleutel waarmee de
+    rest ge-xord is. Dat is geen geheim, het is alleen tegen domme spambots."""
+    try:
+        data = bytes.fromhex((hexcode or "").strip())
+        sleutel = data[0]
+        return "".join(chr(b ^ sleutel) for b in data[1:])
+    except Exception:
+        return ""
+
+
+def _contactlinks(html, basis_url, winkeldomein, max_links=8):
+    """De links op een pagina die naar contact, klantenservice, privacy en
+    voorwaarden wijzen, op hetzelfde domein. De winkel wijst zelf de weg."""
+    try:
+        soep = BeautifulSoup(html, "html.parser")
+    except Exception:
+        return []
+    uit = []
+    for link in soep.find_all("a", href=True):
+        href = link["href"].strip()
+        if href.startswith(("mailto:", "tel:", "#", "javascript:")):
+            continue
+        volledig = urljoin(basis_url, href).split("#")[0]
+        if _domein(volledig) != winkeldomein:
+            continue
+        waar = (href + " " + link.get_text(" ", strip=True)).lower()
+        if any(w in waar for w in LINKWOORDEN) and volledig not in uit:
+            uit.append(volledig)
+        if len(uit) >= max_links:
+            break
+    # Contact en klantenservice eerst: daar staat het adres het vaakst.
+    uit.sort(key=lambda u: 0 if ("contact" in u.lower() or "klantenservice" in u.lower()) else 1)
+    return uit
 
 
 def zoek_adres(webshop_url, timeout=12, max_paginas=None):
@@ -187,21 +279,30 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
         return dict(leeg, reden="Dat is geen openbaar webadres.")
 
     alles, bekeken = [], 0
-    for pad in [""] + PADEN:
-        if bekeken >= max_paginas:
-            break
-        doel = urljoin(url + "/", pad.lstrip("/")) if pad else url
+    # Eerst de homepage, dan de links die de winkel zelf naar contact en
+    # voorwaarden zet, en pas daarna de paden die wij raden.
+    wachtrij = [url]
+    gehad = set()
+    while wachtrij and bekeken < max_paginas:
+        doel = wachtrij.pop(0)
+        sleutel = doel.rstrip("/").lower()
+        if sleutel in gehad:
+            continue
+        gehad.add(sleutel)
         try:
             antwoord = requests.get(doel, headers=scan_engine.HEADERS,
                                     timeout=timeout, allow_redirects=True)
         except Exception:
-            continue
-        if antwoord.status_code >= 400:
-            continue
-        bekeken += 1
-        if scan_engine.lijkt_op_blokkadepagina(antwoord.text):
-            continue
-        alles.extend(_uit_pagina(antwoord.text, doel, winkeldomein))
+            antwoord = None
+        if antwoord is not None and antwoord.status_code < 400:
+            bekeken += 1
+            if not scan_engine.lijkt_op_blokkadepagina(antwoord.text):
+                alles.extend(_uit_pagina(antwoord.text, doel, winkeldomein))
+                if doel == url:
+                    wachtrij.extend(_contactlinks(antwoord.text, url, winkeldomein))
+        if doel == url:
+            # Na de homepage (ook als die niet laadde): de geraden paden achteraan.
+            wachtrij.extend(urljoin(url + "/", p.lstrip("/")) for p in PADEN)
         # Zodra wij een algemeen adres op het eigen domein hebben, is verder
         # zoeken zonde van de tijd en van de server van de winkel.
         if any(a["algemeen"] and a["eigen_domein"] for a in alles):

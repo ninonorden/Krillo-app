@@ -180,11 +180,14 @@ def zoek_adressen(hoeveel=None):
 # verbeterde zoeker. Zonder deze lijst zou elke ronde dezelfde honderden winkels
 # opnieuw langslopen, en dat is niet netjes tegenover die winkels en zonde van
 # de tijd.
-HERKANSING_SLEUTEL = "benadering_adres_herkansing"
+# Versie 2 sinds 27 september: de adresvinder volgt nu de eigen links van de
+# winkel en leest verborgen adressen. Alle winkels op "geen adres" (1299 op die
+# dag) krijgen daarom nog een kans; een nieuwe sleutel is een nieuwe lijst.
+HERKANSING_SLEUTEL = "benadering_adres_herkansing_v2"
 
 # Hoeveel oude winkels wij per ronde een tweede kans geven. Dit kost geen
 # AI-geld, alleen paginabezoeken, dus het mag ruim.
-HERKANSINGEN_PER_RONDE = int(os.environ.get("ADRES_HERKANSINGEN_PER_RONDE", "20"))
+HERKANSINGEN_PER_RONDE = int(os.environ.get("ADRES_HERKANSINGEN_PER_RONDE", "25"))
 
 
 def _herkanst_alles():

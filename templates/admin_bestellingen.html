@@ -30,6 +30,11 @@
 <div class="wrap">
   <h1>Bestellingen</h1>
   <div class="sub">{{ orders|length }} betaalde bestelling(en), meest recent bovenaan</div>
+  {% if melding %}<p style="margin:0 0 20px; padding:12px 14px; background:var(--teal-dim); border-radius:8px;">{{ melding }}</p>{% endif %}
+  <p style="font-size:13.5px; color:var(--ink-soft); margin-bottom:20px;">
+    Staat er bij een bestelling "niets geleverd", dan is er betaald maar geen klant of rapport
+    gemaakt (bijvoorbeeld door een herstart tijdens een upload). Klik dan op Opnieuw verwerken.
+  </p>
 
   {% if orders %}
   <table>
@@ -40,6 +45,7 @@
       <th>Bron</th>
       <th>Bedrag</th>
       <th>Betaald op</th>
+      <th>Geleverd</th>
     </tr>
     {% for o in orders %}
     <tr>
@@ -49,6 +55,11 @@
       <td>{{ o.bron or 'rechtstreeks' }}</td>
       <td>€{{ o.amount }}</td>
       <td>{{ o.paid_at }}</td>
+      <td>{% if o.geleverd %}<span class="tag">ja</span>{% else %}
+        <form method="post" style="margin:0;"><input type="hidden" name="payment_id" value="{{ o.id }}">
+          <span class="tag" style="background:#FDECEC; color:#9B1C1C;">niets geleverd</span>
+          <button type="submit" style="margin-top:6px; font:inherit; font-size:12px; padding:5px 10px; border-radius:6px; border:1px solid var(--line); background:#fff; cursor:pointer;">Opnieuw verwerken</button>
+        </form>{% endif %}</td>
     </tr>
     {% endfor %}
   </table>
