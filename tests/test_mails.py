@@ -258,8 +258,10 @@ klopt("Fix komt op de werklijst (anders geen overzicht en geen nameting)",
       "db.start_uitvoering(payment_id, webshop_url, email," in bron
       and bron.rindex("db.start_uitvoering(payment_id, webshop_url, email,")
       > bron.index('if pakket != "watch":'))
-klopt("wie opzegt krijgt geen maandbericht meer",
-      "AND k.opgezegd_op IS NULL" in dbbron)
+# Sinds 27 september is opgezegd_op het moment waarop de toegang stopt (einde
+# van de betaalde maand); tot dan loopt het maandbericht door.
+klopt("wie opzegt krijgt na zijn betaalde maand geen maandbericht meer",
+      "AND (k.opgezegd_op IS NULL OR k.opgezegd_op > now())" in dbbron)
 db.get_or_create_klant("https://opzeg-test.nl", "o@opzeg-test.nl")
 db.zet_klant_opgezegd("https://opzeg-test.nl")
 conn = db._get_connection()
@@ -276,7 +278,9 @@ with conn:
 conn.close()
 klopt("opzeggen via de site legt het vast", 'db.zet_klant_opgezegd(klant["webshop_url"])' in bron)
 klopt("opzeggen in de app ook", 'db.zet_klant_opgezegd(rij["webshop_url"])' in bron)
-klopt("en de app verwijderen ook", 'db.zet_klant_opgezegd(rij_weg["webshop_url"])' in bron)
+# Sinds 27 september alleen als hij niet via de site (Mollie) betaalt.
+klopt("en de app verwijderen ook", "db.zet_klant_opgezegd(url_weg)" in bron
+      and 'not klant_weg.get("mollie_klant_id")' in bron)
 
 gevangen.clear()
 MAILS["welkom fix"]()
