@@ -169,6 +169,9 @@ klopt("een mislukte welkomstmail geeft een melding", "Welkomstmail NIET verstuur
 klopt("nieuw Fix-werk buiten Shopify geeft een melding", "Fix-werk klaar voor een klant" in bron)
 klopt("wisselen van pakket: eerlijk hoe dat gaat", "we switch" in bron and "without paying twice" in bron)
 
+print("\n== 9. TESTABONNEMENT HEET GEEN NIEUWE KLANT (beoordelaar Shopify, 27 september) ==")
+klopt("de melding zegt TEST bij een testabonnement", '"TEST, geen echt geld: " if is_test' in bron)
+
 sql("DELETE FROM klanten WHERE webshop_url = %s", (U,))
 print()
 if fouten:

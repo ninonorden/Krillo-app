@@ -72,7 +72,7 @@ print("\n== het bericht bij Shopify komt precies een keer ==")
 # en dat gebeurt per winkel precies een keer. Zou het aan de wekelijkse ronde
 # hangen, dan kreeg je elke week opnieuw bericht over dezelfde klant.
 begin = bron.find("def shopify_api_abonnement(")
-stuk = bron[begin:begin + 1400]
+stuk = bron[begin:begin + 2600]
 klopt("het hangt aan de eerste keer dat het abonnement loopt",
       'if stand["actief"] and not rij.get("proef_gehad_op")' in stuk)
 klopt("en het bericht staat in datzelfde blok",
