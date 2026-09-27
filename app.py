@@ -7003,10 +7003,16 @@ def shopify_api_abonnement():
         # Shopify komt er geen melding van Mollie binnen, dus zonder dit zou een
         # abonnee via de app pas bij de wekelijkse ronde opvallen.
         plan_nu = shopify_billing.PLANNEN.get(stand.get("plan") or "fix")
+        # Een testabonnement (ontwikkelwinkel, of de beoordelaar van Shopify)
+        # levert geen geld op. Dat moet in de kop staan (27 september: de
+        # beoordelaar startte Watch en jij kreeg "Nieuwe klant, 55 USD").
+        is_test = bool((stand.get("abonnement") or {}).get("test"))
         _meld_nieuwe_klant(
-            f"{plan_nu['naam']} via de Shopify-app", rij.get("webshop_url") or winkel,
+            ("TEST, geen echt geld: " if is_test else "")
+            + f"{plan_nu['naam']} via de Shopify-app", rij.get("webshop_url") or winkel,
             rij.get("email") or "onbekend, via Shopify",
-            f"{plan_nu['prijs']} {shopify_billing.PLAN_VALUTA} per maand",
+            (f"0 (testabonnement, zou {plan_nu['prijs']} {shopify_billing.PLAN_VALUTA} zijn)"
+             if is_test else f"{plan_nu['prijs']} {shopify_billing.PLAN_VALUTA} per maand"),
             extra=f"Winkel in Shopify: {winkel}")
         rij = db.get_shopify_winkel(winkel) or rij
     return jsonify({
