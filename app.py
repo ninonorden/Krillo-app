@@ -558,15 +558,20 @@ def _eigen_benchmarkcijfer():
     staan. Een eigen cijfer over negen winkels is geen onderzoek, en het zo
     noemen is precies de overpromising waar Krillo van weg wil blijven. Dit gaat
     dus vanzelf aan zodra het klopt, zonder dat er iemand aan te pas komt."""
-    try:
-        cijfers = benchmark.tel_op(db.benchmark_regels())
-    except Exception as e:
-        print(f"Eigen benchmarkcijfer ophalen mislukt: {e}")
-        return None
+    # Sinds 28 september uit de hele index (alle landen), niet uit de oude
+    # proefmetingen van 209 Nederlandse winkels.
+    cijfers = db.index_nooit_genoemd()
+    if not cijfers or not cijfers.get("gemeten"):
+        try:
+            cijfers = benchmark.tel_op(db.benchmark_regels())
+            cijfers = {"gemeten": cijfers.get("gemeten"), "nooit": cijfers.get("nooit_genoemd")}
+        except Exception as e:
+            print(f"Eigen benchmarkcijfer ophalen mislukt: {e}")
+            return None
     gemeten = cijfers.get("gemeten") or 0
     if gemeten < MINIMUM_WINKELS_VOOR_VERGELIJKING:
         return None
-    nooit = cijfers.get("nooit_genoemd") or 0
+    nooit = cijfers.get("nooit") or 0
     if not nooit:
         return None
     return {"gemeten": gemeten, "nooit": nooit,
@@ -2474,6 +2479,20 @@ def _benadering_ronde_werk():
     verslag = {"adressen": None, "gemeten_klaar": None, "ingepland": 0,
                "doorgezet": 0, "gemaild": 0, "mislukt": [], "redenen": []}
     benadering.onthoud_ronde()
+
+    # De verkoopagent (stap 125): wie zijn pagina bekeek krijgt een persoonlijke
+    # opvolging. Draait ook als de koude mail uit staat: dit zijn mensen die al
+    # reageerden. Een fout hier mag de rest van de ronde nooit tegenhouden.
+    try:
+        import verkoopagent
+        verslag["opvolging"] = verkoopagent.ronde(
+            get_base_url().rstrip("/"),
+            lambda url: klantbeeld.bouw(url),
+            categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+            binnen_kantooruren=benadering.binnen_kantooruren())
+    except Exception as e:
+        verslag["mislukt"].append(f"opvolging: {e}")
+        print(f"Verkoopagent mislukt: {e}")
 
     # Eerst kijken of de lijst zichzelf moet aanvullen. Zonder dit raakt de
     # benaderlijst gewoon op: bij vijftien mails per dag is tweehonderd winkels
@@ -6095,6 +6114,70 @@ def _controleer_betalingen():
                 f"'Opnieuw verwerken'.")
     except Exception as e:
         print(f"Betalingen nakijken mislukt: {e}")
+
+
+@app.route("/admin/verkoop", methods=["GET", "POST"])
+def admin_verkoop():
+    """De verkoopagent (stap 125): concepten goedkeuren of overslaan."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import verkoopagent as va
+    melding = ""
+    if request.method == "POST":
+        url = (request.form.get("url") or "").strip()
+        actie = request.form.get("actie")
+        if actie == "versturen" and url:
+            melding = "Verstuurd." if va.keur_goed(url, get_base_url().rstrip("/")) else "Versturen mislukt."
+        elif actie == "overslaan" and url:
+            va.sla_over(url)
+            melding = "Overgeslagen."
+        elif actie == "zelf_aan" and va.aantal_goedgekeurd() >= va.VRIJ_NA_GOEDGEKEURD:
+            db.zet_instelling(va.SLEUTEL_ZELF, "ja")
+            melding = "De verkoopagent verstuurt voortaan zelf, binnen kantooruren."
+        elif actie == "zelf_uit":
+            db.zet_instelling(va.SLEUTEL_ZELF, "nee")
+            melding = "Zelf versturen staat uit. Alles wacht weer op jou."
+        elif actie == "nu":
+            verslag = va.ronde(get_base_url().rstrip("/"), lambda u: klantbeeld.bouw(u),
+                               categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+                               binnen_kantooruren=benadering.binnen_kantooruren())
+            melding = f"Ronde gedraaid: {verslag['concepten']} nieuwe concepten, {verslag['verstuurd']} verstuurd."
+    lijst = va.concepten()
+    goed = va.aantal_goedgekeurd()
+    zelf = va.zelf_versturen()
+    blokken = ""
+    for c in lijst:
+        k = c["concept"]
+        tekst = "".join(f"<p>{a}</p>" for a in emailing.alina_s_veilig(k.get("alineas")))
+        blokken += (
+            f"<div style='border:1px solid #ddd;border-radius:10px;padding:16px 20px;margin:14px 0'>"
+            f"<div style='font-size:13px;color:#666'>Aan {escape(c.get('email') or '')} &middot; "
+            f"opvolging {int(c.get('opvolg_aantal') or 0) + 1} van 2 &middot; bekeken "
+            f"{escape(str(c.get('bekeken_op'))[:16])}</div>"
+            f"<div style='font-weight:700;margin:6px 0'>{escape(k.get('onderwerp') or '')}</div>"
+            f"<div style='font-size:14.5px;line-height:1.55'>{tekst}"
+            f"<p><a href='{escape(k.get('link') or '')}'>Open my Krillo page</a></p></div>"
+            f"<form method='post' style='display:inline'><input type='hidden' name='url' value='{escape(c['webshop_url'])}'>"
+            f"<button name='actie' value='versturen' style='padding:8px 14px;background:#1B3FE0;color:#fff;border:0;border-radius:6px'>Versturen</button> "
+            f"<button name='actie' value='overslaan' style='padding:8px 14px'>Overslaan</button></form></div>")
+    if not blokken:
+        blokken = "<p>Er wachten geen concepten. Zodra iemand zijn pagina bekijkt, komt hier binnen het uur een concept.</p>"
+    schakelaar = (
+        "<button name='actie' value='zelf_uit'>Zelf versturen UIT zetten</button>" if zelf else
+        (f"<button name='actie' value='zelf_aan'>Laat de agent zelf versturen</button>"
+         if goed >= va.VRIJ_NA_GOEDGEKEURD else
+         f"<span>Zelf versturen kan na {va.VRIJ_NA_GOEDGEKEURD} goedgekeurde concepten ({goed} nu).</span>"))
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Verkoop | Krillo</title><body style='font-family:Arial,sans-serif;max-width:760px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Verkoopagent</h1>"
+            f"<p>Wie zijn Krillo-pagina bekeek, krijgt een persoonlijke opvolging (hoogstens twee). "
+            f"Stand: <strong>{'verstuurt zelf' if zelf else 'wacht op jouw goedkeuring'}</strong>.</p>"
+            f"<p style='color:#0B7C5E'>{escape(melding)}</p>"
+            f"<form method='post'>{schakelaar} <button name='actie' value='nu'>Nu een ronde draaien</button></form>"
+            f"<h2 style='margin-top:28px'>Concepten ({len(lijst)})</h2>{blokken}</body>")
 
 
 @app.route("/admin/controle", methods=["GET", "POST"])

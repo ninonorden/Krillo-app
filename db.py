@@ -528,6 +528,16 @@ def init_db():
                 # op let.
                 cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS bounce_op TIMESTAMPTZ;")
+                # De verkoopagent (stap 125): hoe vaak en wanneer wij iemand die
+                # zijn pagina bekeek persoonlijk opvolgden, en het concept.
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS opvolg_aantal INTEGER NOT NULL DEFAULT 0;")
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS opvolg_op TIMESTAMPTZ;")
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS opvolg_concept TEXT;")
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS opvolg_stand TEXT;")
                 cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS klacht_op TIMESTAMPTZ;")
                 cur.execute("""CREATE INDEX IF NOT EXISTS benadering_stand
@@ -6664,6 +6674,41 @@ def positie_van_winkel(webshop_url):
                 return dict(rij) if rij else None
     except Exception as e:
         print(f"Positie ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def index_nooit_genoemd():
+    """Hoeveel winkels in de index bij GEEN ENKELE koopvraag genoemd werden.
+
+    Sinds 28 september het cijfer op de homepage ("Never named"). Daarvoor kwam
+    het uit de oude proefmetingen van Nederlandse winkels (209), terwijl de
+    index er inmiddels meer dan duizend telt, in twee landen. Nu: per categorie
+    de nieuwste afgeronde ronde, en daarin elke winkel een keer."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    WITH nieuwste AS (
+                        SELECT DISTINCT ON (categorie, coalesce(land, '')) id
+                          FROM categorie_rondes
+                         WHERE afgerond_op IS NOT NULL
+                      ORDER BY categorie, coalesce(land, ''), id DESC
+                    ),
+                    per_winkel AS (
+                        SELECT u.webshop_url, max(coalesce(u.genoemd, 0)) AS genoemd
+                          FROM categorie_uitkomsten u JOIN nieuwste n ON n.id = u.ronde
+                      GROUP BY u.webshop_url
+                    )
+                    SELECT count(*), count(*) FILTER (WHERE genoemd = 0) FROM per_winkel""")
+                totaal, nooit = cur.fetchone()
+                return {"gemeten": totaal or 0, "nooit": nooit or 0}
+    except Exception as e:
+        print(f"Nooit genoemd ophalen mislukt: {e}")
         return None
     finally:
         conn.close()

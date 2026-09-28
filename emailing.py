@@ -710,14 +710,15 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
           </table>
 
           <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 6px;">
-            {bij_een}The full ranking, and how we measured it, is on a public page. No login, and
-            nothing to fill in.</p>
+            {bij_een}Your own Krillo page shows where you stand, the buying questions you lose
+            with the real AI answer, and what would move you up. No login, and nothing to
+            fill in.</p>
 
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
             <tr><td style="background:#1B3FE0; border-radius:8px;">
               <a href="{link_url}" style="display:inline-block; padding:13px 26px;
                  color:#FFFFFF; text-decoration:none; font-size:14.5px; font-weight:600;">
-                See the full ranking</a>
+                See my Krillo page</a>
             </td></tr>
           </table>
           <p style="font-size:12.5px; color:#6B6D85; margin:0 0 4px;">
@@ -1070,3 +1071,41 @@ def send_shopify_bijgewerkt(to_email, webshop_url, wijzigingen, app_url=None, ta
     return send_email(to_email, f"We filled in {aantal} thing{meervoud} in {winkel}", html)
 
 
+
+
+def send_opvolging(to_email, onderwerp, alinea_s, link_url, afmeld_url=None):
+    """De persoonlijke opvolging van de verkoopagent (stap 125).
+
+    Bewust een gewone, korte mail zonder grote blokken: dit is een briefje van
+    een mens aan iemand die zijn pagina al bekeek, geen tweede reclame. De
+    alinea's komen uit verkoopagent.maak_concept en zijn al nagekeken."""
+    e = _html.escape
+    naam = (os.environ.get("AFZENDER_NAAM") or "").strip()
+    g = BEDRIJFSGEGEVENS
+    tekst = "".join(f'<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+                    f'{a}</p>' for a in alina_s_veilig(alinea_s))
+    afmelden = (f'<a href="{afmeld_url}" style="color:#6B6D85;">No more email from us</a>'
+                if afmeld_url else "Reply and we remove you the same day.")
+    html = f"""
+    <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px;
+                margin:0 auto; padding:24px 16px;">
+      {tekst}
+      <p style="font-size:15px; margin:18px 0;"><a href="{link_url}"
+         style="color:#1B3FE0; font-weight:600;">Open my Krillo page</a></p>
+      <p style="font-size:15px; color:#12142B; margin:0;">{('Kind regards,<br>' + e(naam)) if naam else 'Krillo'}</p>
+      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+        {afmelden} &middot; {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
+    </div>"""
+    koppen = ({"List-Unsubscribe": f"<{afmeld_url}>",
+               "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"} if afmeld_url else None)
+    return send_email(to_email, onderwerp, html, koppen=koppen)
+
+
+def alina_s_veilig(alineas):
+    """De alinea's zijn tekst van ons, maar namen van winkels en vragen komen uit
+    AI-antwoorden. Alles escapen, alleen <strong> van ons zelf terugzetten."""
+    uit = []
+    for a in alineas or []:
+        v = _html.escape(a).replace("&lt;strong&gt;", "<strong>").replace("&lt;/strong&gt;", "</strong>")
+        uit.append(v)
+    return uit
