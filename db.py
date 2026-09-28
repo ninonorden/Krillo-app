@@ -6890,6 +6890,68 @@ def adres_zonder_plek():
         conn.close()
 
 
+# Elke winkel met stand adres, meten of gemeten valt in precies EEN van deze
+# redenen, in deze volgorde. Samen tellen ze op tot het totaal: zo blijft er
+# nooit een groep onverklaard (28 september: 408 met adres, 3 klaar, en de
+# oude diagnose verklaarde er maar 40).
+ADRES_REDENEN = [
+    ("klaar", "klaar voor post"),
+    ("afgemeld", "afgemeld"),
+    ("geen_email", "stand adres maar geen mailadres"),
+    ("al_gemaild", "al eens gemaild"),
+    ("geen_winkel", "geen gewone winkel (merk, platform of keten)"),
+    ("geen_categorie", "nog geen categorie"),
+    ("niet_gemeten", "categorie nog niet gemeten"),
+    ("te_weinig", "wel in de meting, maar te weinig bruikbare antwoorden (minder dan 3)"),
+    ("niet_in_lijst", "categorie gemeten, maar de winkel staat er niet in"),
+]
+
+
+def adres_uitsplitsing():
+    """Waar de winkels met een adres blijven: {reden: aantal}, plus 'soorten'
+    (welke soort de niet-winkels hebben) en 'totaal'."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT CASE
+                      WHEN b.afgemeld THEN 'afgemeld'
+                      WHEN b.email IS NULL OR b.email = '' THEN 'geen_email'
+                      WHEN b.gemaild_op IS NOT NULL THEN 'al_gemaild'
+                      WHEN coalesce(b.soort, 'winkel') <> 'winkel' THEN 'geen_winkel'
+                      WHEN EXISTS (SELECT 1 FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
+                                    WHERE u.webshop_url = b.webshop_url AND coalesce(u.telbaar, 0) >= 3
+                                      AND r.afgerond_op IS NOT NULL) THEN 'klaar'
+                      WHEN EXISTS (SELECT 1 FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
+                                    WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL)
+                           THEN 'te_weinig'
+                      WHEN b.categorie IS NULL THEN 'geen_categorie'
+                      WHEN NOT EXISTS (SELECT 1 FROM categorie_rondes r WHERE r.categorie = b.categorie
+                                          AND r.afgerond_op IS NOT NULL) THEN 'niet_gemeten'
+                      ELSE 'niet_in_lijst' END AS reden,
+                      coalesce(b.soort, 'winkel') AS soort, count(*)
+                      FROM benadering b
+                     WHERE b.stand IN ('adres', 'meten', 'gemeten')
+                  GROUP BY 1, 2""")
+                uit = {sleutel: 0 for sleutel, _ in ADRES_REDENEN}
+                soorten = {}
+                for reden, soort, n in cur.fetchall():
+                    uit[reden] = uit.get(reden, 0) + n
+                    if reden == "geen_winkel":
+                        soorten[soort] = soorten.get(soort, 0) + n
+                uit["soorten"] = soorten
+                uit["totaal"] = sum(v for k, v in uit.items() if k not in ("soorten",))
+                return uit
+    except Exception as e:
+        print(f"Adres uitsplitsen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
 def zet_klant_test(webshop_url, test=True):
     """Markeert een klantregel als test (of weer als echt)."""
     conn = _get_connection()
@@ -6920,7 +6982,21 @@ def klanten_op_lijst():
                                       k.mollie_klant_id
                                  FROM benadering b LEFT JOIN klanten k ON k.webshop_url = b.webshop_url
                                 WHERE b.stand = 'klant' ORDER BY b.webshop_url""")
-                return [dict(r) for r in cur.fetchall()]
+                rijen = [dict(r) for r in cur.fetchall()]
+        # Dezelfde regels als tel_benaderingen, zodat lijst en getal kloppen.
+        beheer = (os.environ.get("BEHEERDER_EMAIL") or os.environ.get("BEHEER_EMAIL") or "").strip().lower()
+        for r in rijen:
+            if not r.get("email"):
+                r["status"] = "geen klantregel"
+            elif r.get("is_test"):
+                r["status"] = "test"
+            elif beheer and r["email"].lower() == beheer:
+                r["status"] = "van jou (telt niet)"
+            elif r.get("opgezegd_op"):
+                r["status"] = "opgezegd"
+            else:
+                r["status"] = "echt"
+        return rijen
     except Exception as e:
         print(f"Klanten op de lijst ophalen mislukt: {e}")
         return []

@@ -887,22 +887,26 @@ def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
     if geen_adres:
         uit.append(("wacht", f"Bij {geen_adres} winkels vonden wij geen algemeen "
                              f"e-mailadres. Die slaan wij over, dat is geen fout."))
-    # Winkels MET adres die toch geen post krijgen, en waarom (28 september).
+    # Winkels MET adres die toch geen post krijgen, en waarom. Sinds 28
+    # september ELKE reden, zodat de getallen optellen tot het totaal. De oude
+    # regel verklaarde 40 van de 408, en dan zoek je op de verkeerde plek.
     try:
-        zonder = db.adres_zonder_plek()
+        delen = db.adres_uitsplitsing()
     except Exception:
-        zonder = None
-    if zonder and sum(zonder.values()):
-        delen = []
-        if zonder["niet_in_lijst"]:
-            delen.append(f"{zonder['niet_in_lijst']} staan nog niet in de ranglijst van hun "
-                         f"categorie (komt bij het herberekenen vannacht)")
-        if zonder["niet_gemeten"]:
-            delen.append(f"{zonder['niet_gemeten']} zitten in een categorie die nog niet gemeten is")
-        if zonder["geen_categorie"]:
-            delen.append(f"{zonder['geen_categorie']} hebben nog geen categorie")
-        uit.append(("wacht", "Winkels met een adres maar nog zonder plek, dus nog geen post: "
-                             + "; ".join(delen) + "."))
+        delen = None
+    if delen and delen.get("totaal"):
+        stukken = []
+        for sleutel, tekst in db.ADRES_REDENEN:
+            n = delen.get(sleutel) or 0
+            if not n or sleutel == "klaar":
+                continue
+            if sleutel == "geen_winkel" and delen.get("soorten"):
+                tekst += " (" + ", ".join(f"{k}: {v}" for k, v in sorted(delen["soorten"].items())) + ")"
+            stukken.append(f"{n} {tekst}")
+        if stukken:
+            uit.append(("wacht", f"Van de {delen['totaal']} winkels met een adres staan er "
+                                 f"{delen.get('klaar') or 0} klaar voor post. De rest: "
+                                 + "; ".join(stukken) + "."))
     return uit
 
 

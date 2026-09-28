@@ -85,7 +85,7 @@
         <tr><td style="padding:4px 14px 4px 0;">{{ k.webshop_url }}</td>
             <td style="padding:4px 14px;">{{ k.email or 'geen klantregel' }}</td>
             <td style="padding:4px 14px;">{{ k.pakket or '' }}</td>
-            <td style="padding:4px 14px;">{% if k.is_test %}test{% elif k.opgezegd_op %}opgezegd{% else %}echt{% endif %}</td>
+            <td style="padding:4px 14px;">{{ k.status }}</td>
             <td style="padding:4px 0;">{% if k.email %}<form method="post" style="display:inline">
               <input type="hidden" name="url" value="{{ k.webshop_url }}">
               {% if k.is_test %}<button name="actie" value="is_echt">Is echt</button>
