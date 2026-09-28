@@ -559,6 +559,9 @@ def init_db():
                 # ging (45 dagen rust) en voor welk moment (nooit twee keer).
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_op TIMESTAMPTZ;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_sleutel TEXT;")
+                # Stap 116: over welke meting wij al een bewegingsmail stuurden.
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS beweging_ronde INTEGER;")
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS beweging_op TIMESTAMPTZ;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS antwoorden (
                         id SERIAL PRIMARY KEY,

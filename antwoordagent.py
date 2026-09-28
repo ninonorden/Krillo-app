@@ -264,7 +264,8 @@ def schrijf_concept(bericht, f, soort, client=None):
         "RULES: Write in the same language as their message. Plain, friendly, short (max 110 "
         "words). Answer what they actually asked. If the facts do not answer it, say you will "
         "check and come back to them, and do not guess. No long dashes. No sales pressure. "
-        f"End with '{afzender}'. No subject line, only the body.\n\n"
+        "Do NOT end with a greeting or a name: the signature is added automatically. "
+        "No subject line, only the body.\n\n"
         f"Their subject: {bericht.get('onderwerp')}\n"
         f"Their message:\n{(bericht.get('tekst') or '')[:3000]}")
     gestart = time.monotonic()
@@ -279,8 +280,23 @@ def schrijf_concept(bericht, f, soort, client=None):
                                   duur_ms=int((time.monotonic() - gestart) * 1000))
     except Exception:
         pass
-    tekst = _schoon(antwoord.content[0].text)
+    tekst = _haal_groet_weg(_schoon(antwoord.content[0].text), afzender)
     return tekst or vast_concept(soort, naam, f)
+
+
+def _haal_groet_weg(tekst, afzender):
+    """De handtekening komt er bij het versturen onder; een groet of naam aan
+    het eind zou er dan dubbel staan. Het model krijgt dat te horen, maar we
+    vertrouwen er niet op."""
+    regels = (tekst or "").rstrip().split("\n")
+    groeten = ("kind regards", "best regards", "regards", "best", "cheers", "thanks", "thank you",
+               "met vriendelijke groet", "vriendelijke groet", "groeten", "groet", "hartelijke groet",
+               "mit freundlichen grüßen", "viele grüße", "cordialement", "bien à vous")
+    while regels and (regels[-1].strip().strip(",.!").lower() in groeten
+                      or regels[-1].strip().strip(",.!").lower() == afzender.lower()
+                      or not regels[-1].strip()):
+        regels.pop()
+    return "\n".join(regels).strip()
 
 
 def _model_indeler(client):

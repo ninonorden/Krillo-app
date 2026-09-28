@@ -58,6 +58,8 @@ GISTEREN = [
      "AND ontvangen_op > now() - interval '24 hours'"),
     ("Seizoensmails verstuurd",
      "SELECT count(*) FROM benadering WHERE seizoen_op > now() - interval '24 hours'"),
+    ("Bewegingsmails verstuurd (plek veranderd)",
+     "SELECT count(*) FROM benadering WHERE beweging_op > now() - interval '24 hours'"),
     ("Gratis checks gedaan",
      "SELECT count(*) FROM zichtbaarheidstests WHERE email <> 'voorproef@krilloai.com' "
      "AND aangevraagd_op > now() - interval '24 hours'"),

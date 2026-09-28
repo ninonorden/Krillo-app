@@ -2535,6 +2535,19 @@ def _benadering_ronde_werk():
         verslag["mislukt"].append(f"seizoen: {e}")
         print(f"Seizoensagent mislukt: {e}")
 
+    # De bewegingsagent (stap 116): wie gemaild is en na de maandmeting echt
+    # verschoof, hoort het. Deelt de rust met de seizoensagent.
+    try:
+        import bewegingsagent
+        verslag["beweging"] = bewegingsagent.ronde(
+            get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
+            categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+            binnen_kantooruren=benadering.binnen_kantooruren(),
+            aan=benadering.instellingen().get("aan", False))
+    except Exception as e:
+        verslag["mislukt"].append(f"beweging: {e}")
+        print(f"Bewegingsagent mislukt: {e}")
+
     # Eerst kijken of de lijst zichzelf moet aanvullen. Zonder dit raakt de
     # benaderlijst gewoon op: bij vijftien mails per dag is tweehonderd winkels
     # binnen twee weken leeg, en dan staat de machine stil zonder dat er iets
@@ -6366,7 +6379,8 @@ def admin_antwoorden():
                f"font-size:14px'>{escape(r.get('tekst') or '')}</div>")
         if r["stand"] == "concept":
             kop += (f"<form method='post' style='margin-top:10px'><input type='hidden' name='id' value='{r['id']}'>"
-                    f"<div style='font-size:13px;color:#666;margin-bottom:4px'>Concept-antwoord (pas gerust aan):</div>"
+                    f"<div style='font-size:13px;color:#666;margin-bottom:4px'>Concept-antwoord (pas gerust aan; "
+                    f"de handtekening met je naam en Krillo komt er vanzelf onder):</div>"
                     f"<textarea name='tekst' rows='9' style='width:100%;font:inherit;font-size:14px;padding:8px'>"
                     f"{escape(r.get('concept') or '')}</textarea><br>"
                     f"<button name='actie' value='versturen' style='padding:8px 14px;background:#1B3FE0;color:#fff;"
@@ -6453,6 +6467,40 @@ def admin_formulieren():
 
 
 FORMULIEREN_PER_DAG = int(os.environ.get("FORMULIEREN_PER_DAG", "5"))
+
+
+@app.route("/admin/merken", methods=["GET", "POST"])
+def admin_merken():
+    """Winkels met een adres die het opschonen als merk of platform aanmerkte,
+    en daarom geen post krijgen (28 september: 59 merken, 5 platforms). Een
+    merk met een eigen webshop hoort er wel bij; met een klik zet je hem terug."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import seizoensagent as sa
+    melding = ""
+    if request.method == "POST":
+        url = (request.form.get("url") or "").strip()
+        if url and request.form.get("actie") == "winkel":
+            db.zet_soort(url, "winkel")
+            melding = f"{url} is weer een winkel en kan post krijgen."
+    rijen = sa._sql("""SELECT webshop_url, soort, email, categorie FROM benadering
+                        WHERE stand IN ('adres', 'meten', 'gemeten') AND coalesce(soort, 'winkel') <> 'winkel'
+                          AND NOT afgemeld ORDER BY soort, webshop_url""", alles=True) or []
+    regels = "".join(
+        f"<tr><td><a href='{escape(r['webshop_url'])}' target='_blank' rel='noopener'>{escape(r['webshop_url'])}</a></td>"
+        f"<td>{escape(r['soort'] or '')}</td><td>{escape(r.get('categorie') or '')}</td>"
+        f"<td><form method='post' style='margin:0'><input type='hidden' name='url' value='{escape(r['webshop_url'])}'>"
+        f"<button name='actie' value='winkel'>Is toch een winkel</button></form></td></tr>" for r in rijen)
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Merken | Krillo</title><body style='font-family:Arial,sans-serif;max-width:900px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Merken en platforms ({len(rijen)})</h1>"
+            f"<p>Deze hebben een adres maar krijgen geen post, omdat ze als merk of platform zijn aangemerkt. "
+            f"Open de site: verkoopt hij zelf online aan kopers, dan is het een winkel.</p>"
+            f"<p style='color:#0B7C5E'>{escape(melding)}</p><table cellpadding='6' style='border-collapse:collapse'>"
+            f"<tr style='text-align:left'><th>Site</th><th>Soort</th><th>Categorie</th><th></th></tr>{regels}</table></body>")
 
 
 @app.route("/admin/seizoen")

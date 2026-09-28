@@ -584,9 +584,8 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     positie, van = beeld["positie"], beeld.get("van") or 0
     genoemd, telbaar = beeld.get("genoemd") or 0, beeld.get("telbaar") or 0
 
-    naam = (os.environ.get("AFZENDER_NAAM") or "").strip()
-    ondertekening = (f'<p style="font-size:14.5px; color:#12142B; margin:22px 0 0;">'
-                     f'Kind regards,<br>{e(naam)}</p>') if naam else ""
+    # Sinds 28 september dezelfde handtekening als elke persoonlijke mail.
+    ondertekening = handtekening_html()
 
     if afmeld_url:
         afmelden = (f'Rather not hear about this? Use '
@@ -1073,6 +1072,31 @@ def send_shopify_bijgewerkt(to_email, webshop_url, wijzigingen, app_url=None, ta
 
 
 
+def handtekening_html():
+    """De handtekening onder elke persoonlijke mail (opvolging, antwoord, koude
+    mail). 28 september, Nino: "nu sluiten wij af met Nino, hoe maken we het
+    professioneler". Naam en functie uit Render (AFZENDER_NAAM, AFZENDER_TITEL),
+    zodat een volledige naam geen codewijziging vraagt. Bewust zonder plaatje:
+    een logo als afbeelding laat mail vaker in de spam belanden en wordt door
+    veel programma's eerst geblokkeerd."""
+    e = _html.escape
+    naam = (os.environ.get("AFZENDER_NAAM") or "Nino").strip()
+    titel = (os.environ.get("AFZENDER_TITEL") or "Founder").strip()
+    return f"""
+      <p style="font-size:15px; color:#12142B; margin:20px 0 10px;">Kind regards,</p>
+      <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        <tr><td style="border-left:3px solid {BLAUW}; padding:2px 0 2px 12px;
+                       font-family:-apple-system,'Segoe UI',Arial,sans-serif;">
+          <div style="font-size:15px; font-weight:700; color:#12142B;">{e(naam)}</div>
+          <div style="font-size:13px; color:#4A4A55;">{e(titel)}, Krillo</div>
+          <div style="font-size:13px; color:#4A4A55; margin-top:4px;">
+            <a href="https://krilloai.com" style="color:{BLAUW}; text-decoration:none;">krilloai.com</a>
+            &middot; <a href="mailto:hello@krilloai.com" style="color:{BLAUW}; text-decoration:none;">hello@krilloai.com</a></div>
+          <div style="font-size:12px; color:#6B6D85; margin-top:2px;">AI visibility for online stores</div>
+        </td></tr>
+      </table>"""
+
+
 def send_opvolging(to_email, onderwerp, alinea_s, link_url, afmeld_url=None):
     """De persoonlijke opvolging van de verkoopagent (stap 125).
 
@@ -1092,7 +1116,7 @@ def send_opvolging(to_email, onderwerp, alinea_s, link_url, afmeld_url=None):
       {tekst}
       <p style="font-size:15px; margin:18px 0;"><a href="{link_url}"
          style="color:#1B3FE0; font-weight:600;">Open my Krillo page</a></p>
-      <p style="font-size:15px; color:#12142B; margin:0;">{('Kind regards,<br>' + e(naam)) if naam else 'Krillo'}</p>
+      {handtekening_html()}
       <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
         {afmelden} &middot; {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
     </div>"""
@@ -1127,6 +1151,7 @@ def send_antwoord(to_email, onderwerp, tekst):
     <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px;
                 margin:0 auto; padding:24px 16px;">
       {lijf}
+      {handtekening_html()}
       <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
         {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
     </div>"""
