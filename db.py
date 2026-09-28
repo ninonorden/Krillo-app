@@ -886,6 +886,15 @@ def init_db():
                 # want deze mensen hebben er zelf om gevraagd.
                 cur.execute("ALTER TABLE zichtbaarheidstests "
                             "ADD COLUMN IF NOT EXISTS opgevolgd_op TIMESTAMPTZ;")
+                # Stap 118 (28 september): de reeks na de gratis check. De
+                # tweede mail is persoonlijk als de winkel in de index staat
+                # (welke ronde, zodat de derde mail weet of er nieuws is), en
+                # na de volgende maandmeting komt er een derde met zijn nieuwe
+                # plek. maand_gekeken_op zorgt dat wie nog geen nieuws heeft
+                # achteraan de rij gaat en de rest niet blokkeert.
+                for kolom in ("opvolg_ronde INTEGER", "opvolg_persoonlijk BOOLEAN",
+                              "maandbericht_op TIMESTAMPTZ", "maand_gekeken_op TIMESTAMPTZ"):
+                    cur.execute(f"ALTER TABLE zichtbaarheidstests ADD COLUMN IF NOT EXISTS {kolom};")
                 # Tests die uren geleden begonnen en nooit afgemaakt zijn, zijn
                 # omgevallen processen. Die vrijgeven, anders blokkeren ze de
                 # winkel voorgoed zodra het slot hieronder actief wordt.
@@ -3851,6 +3860,9 @@ def leads_om_op_te_volgen(na_dagen=3, hoeveel=5):
                           AND z.email IS NOT NULL AND z.email <> ''
                           AND z.aangevraagd_op < now() - (%s || ' days')::interval
                           AND k.webshop_url IS NULL
+                          -- Wie terugmailde, is in gesprek met een mens (stap 126).
+                          AND NOT EXISTS (SELECT 1 FROM antwoorden a
+                                           WHERE a.van = lower(z.email))
                      ORDER BY z.email, z.aangevraagd_op DESC
                         LIMIT %s""",
                     (str(int(na_dagen)), hoeveel),
@@ -3863,7 +3875,7 @@ def leads_om_op_te_volgen(na_dagen=3, hoeveel=5):
         conn.close()
 
 
-def markeer_lead_opgevolgd(test_id):
+def markeer_lead_opgevolgd(test_id, ronde=None, persoonlijk=False):
     """Zet vast dat deze aanvrager een tweede bericht gehad heeft.
 
     Per e-mailadres en niet per test, want iemand die drie winkels getest heeft
@@ -3878,9 +3890,69 @@ def markeer_lead_opgevolgd(test_id):
                                 WHERE email = (SELECT email FROM zichtbaarheidstests
                                                 WHERE id = %s)
                                   AND opgevolgd_op IS NULL""", (test_id,))
-                return cur.rowcount > 0
+                gelukt = cur.rowcount > 0
+                cur.execute("""UPDATE zichtbaarheidstests SET opvolg_ronde = %s, opvolg_persoonlijk = %s
+                                WHERE id = %s""", (ronde, bool(persoonlijk), test_id))
+                return gelukt
     except Exception as e:
         print(f"Lead als opgevolgd markeren mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def leads_voor_maandbericht(limiet=10, na_dagen=7):
+    """Stap 118: wie de tweede mail kreeg, krijgt na de volgende maandmeting
+    een derde met zijn nieuwe plek. Hier de kandidaten; of er echt nieuws is
+    (een nieuwere ronde) kijkt de aanroeper. Een keer per e-mailadres, alleen
+    met het vinkje, geen klant, niet afgemeld, niet in gesprek."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT DISTINCT ON (z.email) z.id, z.webshop_url, z.email, z.opvolg_ronde,
+                              z.maand_gekeken_op
+                         FROM zichtbaarheidstests z
+                    LEFT JOIN klanten k ON k.webshop_url = z.webshop_url
+                        WHERE z.nieuwsbrief_akkoord = TRUE
+                          AND z.opgevolgd_op IS NOT NULL
+                          AND z.opgevolgd_op < now() - (%s || ' days')::interval
+                          AND z.email IS NOT NULL AND z.email <> ''
+                          AND k.webshop_url IS NULL
+                          AND NOT EXISTS (SELECT 1 FROM zichtbaarheidstests y
+                                           WHERE y.email = z.email AND y.maandbericht_op IS NOT NULL)
+                          AND NOT EXISTS (SELECT 1 FROM antwoorden a WHERE a.van = lower(z.email))
+                     ORDER BY z.email, z.opgevolgd_op DESC""",
+                    (str(int(na_dagen)),))
+                rijen = [dict(r) for r in cur.fetchall()]
+        # Wie het langst niet bekeken is eerst, zodat winkels zonder nieuws
+        # de rest niet blokkeren.
+        rijen.sort(key=lambda r: (r["maand_gekeken_op"] is not None, str(r["maand_gekeken_op"] or "")))
+        return rijen[:limiet]
+    except Exception as e:
+        print(f"Leads voor het maandbericht ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def markeer_maandbericht(test_id, verstuurd):
+    """Gekeken, en (als verstuurd) het maandbericht is weg. Faalt nooit hard."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE zichtbaarheidstests SET maand_gekeken_op = now(),
+                                      maandbericht_op = CASE WHEN %s THEN now() ELSE maandbericht_op END
+                                WHERE id = %s""", (bool(verstuurd), test_id))
+                return True
+    except Exception as e:
+        print(f"Maandbericht markeren mislukt: {e}")
         return False
     finally:
         conn.close()

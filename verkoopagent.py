@@ -144,7 +144,8 @@ def kies_winnaar():
     return None
 
 
-def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam=None, versie="a"):
+def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam=None, versie="a",
+                 aanleiding="pagina"):
     """Het briefje, als onderwerp plus alinea's. Geeft None als er niets eerlijks
     te zeggen valt (geen plek in de index)."""
     if not beeld or not beeld.get("positie"):
@@ -164,7 +165,12 @@ def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam
         else:
             onderwerp = f"{naam}: #{positie} of {van} in {cat}"
         alineas.append("Hi,")
-        alineas.append(f"You looked at your Krillo page for {naam}. One thing stood out to me.")
+        # Stap 118: dezelfde brief voor wie de gratis check deed. Die bekeek
+        # geen pagina, dus dat zeggen we dan ook niet.
+        if aanleiding == "check":
+            alineas.append(f"A few days ago you checked {naam} with Krillo. One thing stood out to me.")
+        else:
+            alineas.append(f"You looked at your Krillo page for {naam}. One thing stood out to me.")
     else:
         onderwerp = f"Re: {naam} in the Krillo index"
         alineas.append("Hi,")
@@ -296,3 +302,31 @@ def ronde(basis_url, bouw_beeld, categorienaam=None, binnen_kantooruren=True):
             if verstuur(url, basis_url):
                 verslag["verstuurd"] += 1
     return verslag
+
+
+def maak_maandbericht(beeld, link_url="", categorienaam=None):
+    """Stap 118, de derde mail na de gratis check: zijn nieuwe plek na de
+    maandmeting. Alleen echte beweging of een eerlijk "gelijk gebleven"; geen
+    reclametekst erbij, want dit is nieuws, en nieuws wordt gelezen."""
+    if not beeld or not beeld.get("positie"):
+        return None
+    naam = _kaal(beeld.get("webshop_url"))
+    cat = categorienaam or beeld.get("categorie") or "your category"
+    nu, van, vorige = beeld["positie"], beeld.get("van") or 0, beeld.get("vorige_positie")
+    if vorige and vorige > nu:
+        onderwerp = f"{naam} moved up: #{nu} in {cat}"
+        zin = f"In this month's measurement {naam} went from #{vorige} to <strong>#{nu}</strong> of {van} in {cat}."
+    elif vorige and vorige < nu:
+        onderwerp = f"{naam} dropped to #{nu} in {cat}"
+        zin = f"In this month's measurement {naam} went from #{vorige} to <strong>#{nu}</strong> of {van} in {cat}."
+    else:
+        onderwerp = f"{naam}: #{nu} in {cat} this month"
+        zin = f"In this month's measurement {naam} is <strong>#{nu}</strong> of {van} in {cat}."
+    alineas = ["Hi,", zin]
+    boven = [b.get("naam") or _kaal(b.get("webshop_url")) for b in (beeld.get("boven_mij") or [])][-2:]
+    if nu == 1:
+        alineas.append("You are the store AI names first. We measure again next month.")
+    elif boven:
+        alineas.append(f"Just above you: {' and '.join(boven)}.")
+    alineas.append("Your page has every question and the real answers. Questions? Just reply.")
+    return {"onderwerp": onderwerp, "alineas": alineas, "link": link_url, "nummer": 3, "versie": None}

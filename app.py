@@ -2815,19 +2815,91 @@ def _volg_gratis_tests_op():
             if db.is_afgemeld(lead["webshop_url"]):
                 db.markeer_lead_opgevolgd(lead["id"])
                 continue
-            gelukt = emailing.send_opvolging_gratis_test(
-                lead["email"], lead["webshop_url"], get_base_url(),
-                taal=_mailtaal(lead["webshop_url"]))
+            # STAP 118 (28 september): persoonlijk als de winkel in de index
+            # staat, met de ene vraag die hij verliest, zoals de verkoopagent.
+            # Anders de algemene herinnering van altijd.
+            gelukt, ronde, persoonlijk = _persoonlijke_opvolging(lead)
+            if gelukt is None:
+                gelukt = emailing.send_opvolging_gratis_test(
+                    lead["email"], lead["webshop_url"], get_base_url(),
+                    taal=_mailtaal(lead["webshop_url"]))
             # Ook bij een mislukte verzending afvinken. Blijft hij openstaan,
             # dan probeert elke ronde hetzelfde adres opnieuw, en een adres dat
             # blijft weigeren is precies wat je reputatie sloopt.
-            db.markeer_lead_opgevolgd(lead["id"])
+            db.markeer_lead_opgevolgd(lead["id"], ronde=ronde, persoonlijk=persoonlijk)
             if gelukt:
                 gedaan += 1
             print(f"Opvolging naar {lead['email']} voor {lead['webshop_url']}: "
                   f"{'gelukt' if gelukt else 'mislukt'}")
         except Exception as e:
             print(f"Opvolging mislukt voor {lead.get('email')}: {e}")
+    try:
+        gedaan += _stuur_maandberichten()
+    except Exception as e:
+        print(f"Maandberichten na de gratis check mislukt: {e}")
+    return gedaan
+
+
+def _afmeldlink(webshop_url):
+    token = db.get_benchmark_token(webshop_url)
+    basis = get_base_url().rstrip("/")
+    return (f"{basis}/afmelden/{token}" if token else None), (f"{basis}/uitkomst/{token}" if token else basis)
+
+
+def _persoonlijke_opvolging(lead):
+    """De tweede mail na de gratis check, persoonlijk. Geeft (gelukt, ronde,
+    persoonlijk); gelukt is None als er niets persoonlijks te zeggen valt."""
+    import verkoopagent as va
+    url = lead["webshop_url"]
+    try:
+        beeld = klantbeeld.bouw(url)
+    except Exception as e:
+        print(f"Beeld voor opvolging mislukt voor {url}: {e}")
+        beeld = None
+    if not beeld or not beeld.get("positie"):
+        return None, None, False
+    afmeld, pagina = _afmeldlink(url)
+    concept = va.maak_concept({"webshop_url": url}, beeld, va._vraag_voor(url, beeld), link_url=pagina,
+                              nummer=1, categorienaam=categorieen.naam_en(beeld["categorie"]),
+                              versie=va.kies_versie(url), aanleiding="check")
+    if not concept:
+        return None, None, False
+    gelukt = emailing.send_opvolging(lead["email"], concept["onderwerp"], concept["alineas"],
+                                     concept["link"], afmeld_url=afmeld)
+    return gelukt, beeld.get("ronde"), True
+
+
+MAANDBERICHTEN_PER_RONDE = int(os.environ.get("MAANDBERICHTEN_PER_RONDE", "5"))
+
+
+def _stuur_maandberichten():
+    """De derde mail na de gratis check: zijn nieuwe plek, maar alleen als er
+    sinds de tweede mail een nieuwe meting is. Geen nieuws, geen mail."""
+    import verkoopagent as va
+    gedaan = 0
+    for lead in db.leads_voor_maandbericht(limiet=MAANDBERICHTEN_PER_RONDE * 4):
+        if gedaan >= MAANDBERICHTEN_PER_RONDE:
+            break
+        url = lead["webshop_url"]
+        if db.is_afgemeld(url):
+            db.markeer_maandbericht(lead["id"], True)  # nooit meer proberen
+            continue
+        try:
+            beeld = klantbeeld.bouw(url)
+        except Exception:
+            beeld = None
+        if not beeld or not beeld.get("ronde") or beeld.get("ronde") == lead.get("opvolg_ronde"):
+            db.markeer_maandbericht(lead["id"], False)
+            continue
+        afmeld, pagina = _afmeldlink(url)
+        bericht = va.maak_maandbericht(beeld, link_url=pagina,
+                                       categorienaam=categorieen.naam_en(beeld["categorie"]))
+        gelukt = bool(bericht) and emailing.send_opvolging(
+            lead["email"], bericht["onderwerp"], bericht["alineas"], bericht["link"], afmeld_url=afmeld)
+        # Ook mislukt afvinken: hetzelfde adres elke ronde opnieuw proberen
+        # sloopt de reputatie van het domein.
+        db.markeer_maandbericht(lead["id"], True)
+        gedaan += 1 if gelukt else 0
     return gedaan
 
 
