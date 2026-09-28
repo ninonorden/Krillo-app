@@ -1,0 +1,134 @@
+"""Het ochtendbericht: een mail per ochtend met wat de agents deden en wat jij moet doen.
+
+WAAROM DIT BESTAAT (stap 132, 28 september). Er draaien nu zes agents: de
+koude mail, de adresvinder, de verkoopagent, de antwoordagent, de opvolging
+van de gratis check en de nachtcontrole. Elk heeft een eigen beheerpagina. Om
+te weten of alles liep moest Nino zes pagina's openen, en wat hij zelf moest
+doen (een antwoord goedkeuren, een concept versturen) stond verspreid. Nu komt
+het elke ochtend in een mail, in deze volgorde:
+
+1. WAT JIJ MOET DOEN, bovenaan, met een link per ding. Is er niets, dan staat
+   er "niets", en dat is ook nieuws.
+2. WAT DE AGENTS GISTEREN DEDEN: echte tellingen uit de database, de laatste
+   24 uur. Een agent die nul doet, staat er ook in (dat is precies wat je moet
+   zien).
+3. De diagnose van de benadering, zoals het oude dagbericht die al gaf.
+
+Elke telling apart: een telling die faalt, wordt "onbekend" en neemt de rest
+niet mee. Dit bericht mag nooit de ronde laten omvallen.
+"""
+import json
+
+import db
+
+
+def _tel(sql, waarden=None):
+    conn = db._get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, waarden)
+                rij = cur.fetchone()
+                return int(rij[0] or 0) if rij else 0
+    except Exception as e:
+        print(f"Ochtendbericht, telling mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+# (wat, sql). Alles over de laatste 24 uur.
+GISTEREN = [
+    ("Koude mails verstuurd",
+     "SELECT count(*) FROM benadering WHERE gemaild_op > now() - interval '24 hours'"),
+    ("Mensen die hun Krillo-pagina openden",
+     "SELECT count(*) FROM benadering WHERE bekeken_op > now() - interval '24 hours'"),
+    ("Doorgeklikt naar de prijzen",
+     "SELECT count(*) FROM benadering WHERE doorgeklikt_op > now() - interval '24 hours'"),
+    ("Persoonlijke opvolgingen verstuurd (verkoopagent)",
+     "SELECT count(*) FROM benadering WHERE opvolg_stand = 'verstuurd' "
+     "AND opvolg_op > now() - interval '24 hours'"),
+    ("Antwoorden van winkels binnen",
+     "SELECT count(*) FROM antwoorden WHERE soort NOT IN ('test', 'automatisch') "
+     "AND ontvangen_op > now() - interval '24 hours'"),
+    ("Waarvan afgemeld",
+     "SELECT count(*) FROM antwoorden WHERE soort = 'afmelden' "
+     "AND ontvangen_op > now() - interval '24 hours'"),
+    ("Gratis checks gedaan",
+     "SELECT count(*) FROM zichtbaarheidstests WHERE email <> 'voorproef@krilloai.com' "
+     "AND aangevraagd_op > now() - interval '24 hours'"),
+    ("Opvolgingen na de gratis check",
+     "SELECT count(*) FROM zichtbaarheidstests WHERE opgevolgd_op > now() - interval '24 hours' "
+     "OR maandbericht_op > now() - interval '24 hours'"),
+    ("Categorieen gemeten",
+     "SELECT count(*) FROM categorie_rondes WHERE afgerond_op > now() - interval '24 hours'"),
+    ("Nieuwe echte klanten",
+     "SELECT count(*) FROM klanten WHERE NOT is_test AND aangemaakt_op > now() - interval '24 hours'"),
+]
+
+
+def te_doen(basis_url):
+    """Wat Nino moet doen, met een link. Lijst van (tekst, link)."""
+    uit = []
+    n = _tel("SELECT count(*) FROM antwoorden WHERE stand = 'concept'")
+    if n:
+        uit.append((f"{n} antwoord(en) van winkels wachten op jouw goedkeuring", f"{basis_url}/admin/antwoorden"))
+    n = _tel("SELECT count(*) FROM benadering WHERE opvolg_stand = 'concept'")
+    if n:
+        uit.append((f"{n} opvolging(en) van de verkoopagent staan klaar", f"{basis_url}/admin/verkoop"))
+    n = _tel("SELECT count(*) FROM uitvoeringen WHERE stand IN ('wacht_op_toegang', 'bezig')")
+    if n:
+        uit.append((f"{n} Fix-opdracht(en) lopen nog", f"{basis_url}/admin/uitvoeringen"))
+    try:
+        controle = json.loads(db.get_instelling("nachtcontrole") or "{}")
+    except Exception:
+        controle = {}
+    if controle.get("fout"):
+        uit.append((f"De nachtcontrole vond {len(controle['fout'])} probleem/problemen: "
+                    + "; ".join(controle["fout"][:3]), f"{basis_url}/admin/controle"))
+    return uit
+
+
+def verzamel(basis_url):
+    gisteren = [(wat, _tel(sql)) for wat, sql in GISTEREN]
+    try:
+        klaar_voor_post = len(db.te_mailen_met_positie(10000))
+    except Exception:
+        klaar_voor_post = None
+    return {"te_doen": te_doen(basis_url), "gisteren": gisteren, "klaar_voor_post": klaar_voor_post}
+
+
+def tekst(gegevens, extra_regels=None):
+    """(onderwerp, html). Gewone taal, geen opmaak die in een mailprogramma breekt."""
+    from html import escape
+    doen = gegevens["te_doen"]
+    telling = dict(gegevens["gisteren"])
+    mails = telling.get("Koude mails verstuurd")
+    klikken = telling.get("Mensen die hun Krillo-pagina openden")
+    onderwerp = (f"Krillo ochtend: {len(doen) or 'niets'} voor jou, "
+                 f"{mails if mails is not None else '?'} mails, "
+                 f"{klikken if klikken is not None else '?'} bekeken")
+    stuk = ["<div style='font-family:Arial,sans-serif;font-size:15px;line-height:1.55;max-width:600px'>",
+            "<h2 style='font-size:17px;margin:0 0 8px'>Wat jij vandaag moet doen</h2>"]
+    if doen:
+        stuk.append("<ul style='padding-left:18px;margin:0 0 18px'>" + "".join(
+            f"<li style='margin-bottom:6px'>{escape(t)}: <a href='{escape(l)}'>openen</a></li>" for t, l in doen)
+            + "</ul>")
+    else:
+        stuk.append("<p style='margin:0 0 18px'>Niets. Alles loopt vanzelf.</p>")
+    stuk.append("<h2 style='font-size:17px;margin:0 0 8px'>Wat de agents de laatste 24 uur deden</h2>"
+                "<table cellpadding='4' style='border-collapse:collapse;margin-bottom:18px'>")
+    for wat, n in gegevens["gisteren"]:
+        stuk.append(f"<tr><td>{escape(wat)}</td><td style='text-align:right;font-weight:700'>"
+                    f"{'onbekend' if n is None else n}</td></tr>")
+    if gegevens.get("klaar_voor_post") is not None:
+        stuk.append(f"<tr><td>Winkels klaar voor de koude mail</td><td style='text-align:right;"
+                    f"font-weight:700'>{gegevens['klaar_voor_post']}</td></tr>")
+    stuk.append("</table>")
+    if extra_regels:
+        stuk.append("<h2 style='font-size:17px;margin:0 0 8px'>De benadering</h2>")
+        stuk.extend(f"<p style='margin:0 0 8px'>{escape(r)}</p>" for r in extra_regels)
+    stuk.append("</div>")
+    return onderwerp, "".join(stuk)

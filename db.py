@@ -248,6 +248,10 @@ def init_db():
                 # Mollie alleen niet genoeg is.
                 cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS mollie_klant_id TEXT;")
                 cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS pakket TEXT;")
+                # 28 september, Nino: "bij benadering staat 3 klanten maar dat
+                # klopt niet". Het waren een testabonnement (de beoordelaar van
+                # Shopify) en proefbetalingen. Die tellen nergens als klant.
+                cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS facturen (
                         factuurnummer SERIAL PRIMARY KEY,
@@ -4842,10 +4846,24 @@ def tel_benaderingen():
             with conn.cursor() as cur:
                 cur.execute("SELECT stand, COUNT(*) FROM benadering GROUP BY stand")
                 per_stand = {rij[0]: rij[1] for rij in cur.fetchall()}
+                # "Klant" telt alleen echte klanten: een klantregel die geen
+                # test is, niet van Nino zelf, en niet opgezegd.
+                beheer = (os.environ.get("BEHEERDER_EMAIL") or os.environ.get("BEHEER_EMAIL") or "").strip().lower()
+                cur.execute("""SELECT COUNT(*) FROM benadering b
+                                WHERE b.stand = 'klant' AND EXISTS (
+                                    SELECT 1 FROM klanten k WHERE k.webshop_url = b.webshop_url
+                                       AND NOT k.is_test AND lower(coalesce(k.email, '')) <> %s
+                                       AND (k.opgezegd_op IS NULL OR k.opgezegd_op > now()))""",
+                            (beheer or "-",))
+                echt = cur.fetchone()[0]
+                if per_stand.get("klant"):
+                    per_stand["klant_test"] = per_stand["klant"] - echt
+                per_stand["klant"] = echt
                 cur.execute("""SELECT COUNT(*) FROM benadering
                                 WHERE gemaild_op >= date_trunc('day', now())""")
                 vandaag = cur.fetchone()[0]
-        return {"per_stand": per_stand, "totaal": sum(per_stand.values()),
+        return {"per_stand": per_stand,
+                "totaal": sum(v for k, v in per_stand.items() if k != "klant_test"),
                 "vandaag_gemaild": vandaag}
     except Exception as e:
         print(f"Benaderlijst tellen mislukt: {e}")
@@ -6868,5 +6886,43 @@ def adres_zonder_plek():
     except Exception as e:
         print(f"Adres zonder plek tellen mislukt: {e}")
         return None
+    finally:
+        conn.close()
+
+
+def zet_klant_test(webshop_url, test=True):
+    """Markeert een klantregel als test (of weer als echt)."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE klanten SET is_test = %s WHERE webshop_url = %s",
+                            (bool(test), webshop_url))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Klant als test markeren mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def klanten_op_lijst():
+    """De winkels met stand klant, met hun klantregel: voor het beheerscherm."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT b.webshop_url, k.email, k.pakket, k.is_test, k.opgezegd_op,
+                                      k.mollie_klant_id
+                                 FROM benadering b LEFT JOIN klanten k ON k.webshop_url = b.webshop_url
+                                WHERE b.stand = 'klant' ORDER BY b.webshop_url""")
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Klanten op de lijst ophalen mislukt: {e}")
+        return []
     finally:
         conn.close()

@@ -66,7 +66,7 @@ def _oud(tijd, nu, dagen):
     return nu - tijd > timedelta(days=dagen)
 
 
-def controleer(app, nu=None):
+def controleer(app, nu=None, proef=True):
     """Loopt alles na. Geeft {"goed": [...], "fout": [...]} terug."""
     nu = nu or datetime.now(timezone.utc)
     goed, fout = [], []
@@ -153,7 +153,92 @@ def controleer(app, nu=None):
         fout.append("SMTP_REPLY_TO gaat naar de antwoordagent, maar BEHEERDER_EMAIL ontbreekt: "
                     "meldingen komen dan nergens aan.")
 
+    # 5. De kassa zelf, met de testsleutel van Mollie (stap 134 deel 2).
+    if proef:
+        try:
+            g, f = proefbetaling(app)
+            goed += g
+            fout += f
+        except Exception as e:
+            fout.append(f"Proefbetaling mislukt: {e}")
+
     return {"goed": goed, "fout": fout, "op": nu.isoformat()}
+
+
+PROEFWINKEL = "https://nachtcontrole.krilloai.com"
+PROEFADRES = "nachtcontrole@krilloai.com"
+
+
+def proefbetaling(app, sleutel=None):
+    """Stap 134 deel 2: de kassa zoals een klant hem gebruikt, met de
+    TESTsleutel van Mollie. Er gaat geen geld om en er ontstaat geen klant.
+
+    Wat hij nakijkt: de kassa geeft een betaallink; Mollie kent de betaling,
+    met het juiste bedrag, de juiste terugkeerlink en onze webhook; en onze
+    webhook verwerkt een open (niet betaalde) betaling zonder fout en zonder
+    klant te maken. Wat hij NIET kan: echt betalen. Dat kan in testmodus
+    alleen met de hand op de pagina van Mollie.
+
+    Geeft (goed, fout): twee lijsten. Zonder MOLLIE_TEST_KEY slaat hij over."""
+    import payments
+    sleutel = (sleutel if sleutel is not None else os.environ.get("MOLLIE_TEST_KEY") or "").strip()
+    goed, fout = [], []
+    if not sleutel:
+        return ["Proefbetaling overgeslagen (zet MOLLIE_TEST_KEY in Render om de kassa elke nacht na te lopen)"], []
+    if not sleutel.startswith("test_"):
+        return [], ["MOLLIE_TEST_KEY begint niet met test_: dat is geen testsleutel. Proefbetaling niet gedaan."]
+    klant = app.test_client()
+    with payments.met_sleutel(sleutel):
+        try:
+            r = klant.post("/api/checkout/monitoring", json={
+                "email": PROEFADRES, "url": PROEFWINKEL, "pakket": "fix",
+                "voorwaarden_akkoord": True})
+            data = r.get_json(silent=True) or {}
+        except Exception as e:
+            return goed, [f"De kassa gaf een fout: {type(e).__name__}: {e}"]
+        if r.status_code != 200 or not data.get("checkout_url") or not data.get("payment_id"):
+            return goed, [f"De kassa geeft geen betaallink ({r.status_code}): {str(data)[:200]}"]
+        goed.append("Kassa geeft een betaallink")
+        p = payments.betaling_nakijken(data["payment_id"]) or {}
+        if p.get("mode") != "test":
+            fout.append("De proefbetaling staat NIET in testmodus. Kijk direct in Mollie.")
+        verwacht = payments.PAKKETTEN["fix"]["prijs"]["value"]
+        if p.get("bedrag") != verwacht:
+            fout.append(f"Bedrag bij Mollie is {p.get('bedrag')}, verwacht {verwacht}.")
+        if not str(p.get("webhook_url") or "").endswith("/webhooks/mollie"):
+            fout.append(f"De webhook bij Mollie klopt niet: {p.get('webhook_url')}.")
+        if "/bedankt" not in str(p.get("redirect_url") or ""):
+            fout.append(f"De terugkeerlink bij Mollie klopt niet: {p.get('redirect_url')}.")
+        if p and not fout:
+            goed.append("Mollie kent de proefbetaling met het goede bedrag en de goede links")
+        # Niet via de route zelf: die verwerkt op de achtergrond in een eigen
+        # draad, en die kent de testsleutel niet (en zou jou dan melden dat de
+        # betaling niet op te halen is). Hier dezelfde verwerking, direct.
+        try:
+            import sys
+            appmod = sys.modules.get("app")
+            regels = {r.rule for r in app.url_map.iter_rules()}
+            if "/webhooks/mollie" not in regels:
+                fout.append("De webhook /webhooks/mollie bestaat niet meer.")
+            elif appmod is not None and hasattr(appmod, "_verwerk_betaling"):
+                appmod._verwerk_betaling(data["payment_id"], "https://krilloai.com")
+                if _vraag("SELECT count(*) FROM klanten WHERE webshop_url = %s", (PROEFWINKEL,)):
+                    fout.append("De verwerking maakte een klant van een NIET betaalde betaling.")
+                else:
+                    goed.append("Verwerking van een open betaling maakt geen klant")
+        except Exception as e:
+            fout.append(f"Verwerken van de proefbetaling gaf een fout: {type(e).__name__}: {e}")
+    # De toestemmingsregel van de proef hoort niet tussen die van klanten.
+    try:
+        conn = db._get_connection()
+        if conn is not None:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM toestemmingen WHERE email = %s", (PROEFADRES,))
+            conn.close()
+    except Exception:
+        pass
+    return goed, fout
 
 
 def draai(app, melden):

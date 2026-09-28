@@ -74,6 +74,29 @@
     {% endfor %}
   </div>
 
+  {# 28 september: "klant" telt alleen echte klanten. Hier zie je wie er met
+     stand klant op de lijst staat, en zet je een test met een klik apart. #}
+  {% if klanten_lijst %}
+  <div class="kaart">
+    <div class="uitleg">
+      <b>Klanten: {{ tellingen.per_stand.get('klant', 0) }} echt{% if tellingen.per_stand.get('klant_test') %}, {{ tellingen.per_stand.get('klant_test') }} test of opgezegd (niet meegeteld){% endif %}.</b>
+      <table style="margin-top:10px; border-collapse:collapse;">
+        {% for k in klanten_lijst %}
+        <tr><td style="padding:4px 14px 4px 0;">{{ k.webshop_url }}</td>
+            <td style="padding:4px 14px;">{{ k.email or 'geen klantregel' }}</td>
+            <td style="padding:4px 14px;">{{ k.pakket or '' }}</td>
+            <td style="padding:4px 14px;">{% if k.is_test %}test{% elif k.opgezegd_op %}opgezegd{% else %}echt{% endif %}</td>
+            <td style="padding:4px 0;">{% if k.email %}<form method="post" style="display:inline">
+              <input type="hidden" name="url" value="{{ k.webshop_url }}">
+              {% if k.is_test %}<button name="actie" value="is_echt">Is echt</button>
+              {% else %}<button name="actie" value="is_test">Is een test</button>{% endif %}
+            </form>{% endif %}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="kaart rem {% if not instellingen.aan %}uit{% endif %}">
     <div class="uitleg">
       <b>Staat er nu {% if instellingen.aan %}aan{% else %}uit{% endif %}.</b>

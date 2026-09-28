@@ -72,8 +72,27 @@ MONITORING_PRICE = PAKKETTEN["fix"]["prijs"]
 UITVOERING_PRICE = {"currency": "EUR", "value": "149.00"}
 
 
+# Stap 134 deel 2 (28 september): de nachtcontrole loopt de echte kassa na
+# met de TESTsleutel van Mollie. Die sleutel geldt alleen binnen die ene
+# controle (per thread), zodat een klant die op datzelfde moment betaalt
+# gewoon de echte sleutel krijgt.
+import contextlib
+import threading
+_lokaal = threading.local()
+
+
+@contextlib.contextmanager
+def met_sleutel(sleutel):
+    vorige = getattr(_lokaal, "sleutel", None)
+    _lokaal.sleutel = sleutel
+    try:
+        yield
+    finally:
+        _lokaal.sleutel = vorige
+
+
 def get_mollie_client():
-    api_key = os.environ.get("MOLLIE_API_KEY")
+    api_key = getattr(_lokaal, "sleutel", None) or os.environ.get("MOLLIE_API_KEY")
     if not api_key:
         return None
     client = Client()
@@ -356,6 +375,8 @@ def get_payment_status(payment_id):
             "metadata": payment.metadata,
             "created_at": payment.created_at,
             "bedrag": bedrag,
+            # "test" of "live": een proefbetaling maakt geen echte klant.
+            "mode": getattr(payment, "mode", None),
         }
     except (MollieError, Exception):
         return None
@@ -431,4 +452,22 @@ def klant_bij_id(customer_id):
         return {"webshop_url": metadata.get("webshop_url"), "email": klant.get("email")}
     except (MollieError, Exception) as e:
         print(f"Mollie-klant {customer_id} ophalen mislukt: {e}")
+        return None
+
+
+def betaling_nakijken(payment_id):
+    """Voor de nachtcontrole: de kale gegevens van een betaling (met de sleutel
+    die op dat moment geldt). Geeft een dict of None."""
+    client = get_mollie_client()
+    if client is None:
+        return None
+    try:
+        p = client.payments.get(payment_id)
+        return {"status": p.status, "mode": getattr(p, "mode", None),
+                "bedrag": (p.amount or {}).get("value"),
+                "checkout_url": getattr(p, "checkout_url", None),
+                "webhook_url": getattr(p, "webhook_url", None),
+                "redirect_url": getattr(p, "redirect_url", None)}
+    except Exception as e:
+        print(f"Betaling nakijken mislukt: {e}")
         return None

@@ -2011,8 +2011,11 @@ def _verwerk_betaling(payment_id, base_url):
                                 monitoring_url)
                         except Exception as e:
                             print(f"Toegangsmail bij Fix mislukt voor {webshop_url}: {e}")
+                    if status.get("mode") == "test":
+                        db.zet_klant_test(webshop_url)
                     _meld_nieuwe_klant(
-                        "Abonnement", webshop_url, email, "maandpakket",
+                        ("TEST, geen echt geld: " if status.get("mode") == "test" else "") + "Abonnement",
+                        webshop_url, email, "maandpakket",
                         extra=(f'Zijn pagina: <a href="{monitoring_url}">{monitoring_url}</a>'
                                if monitoring_url else None))
 
@@ -2929,9 +2932,13 @@ def _dagbericht_sturen():
         diagnose = benadering.waarom_gaat_er_niets_uit(
             moment_laatste_ronde=benadering.laatste_ronde(),
             meetruimte=dagpot, metingen_bezig=bezig)
-        onderwerp, regels = benadering.dagbericht_tekst(
+        _, regels = benadering.dagbericht_tekst(
             diagnose, dagpot=dagpot, trechter=db.trechter_benadering())
-        body = "".join(f"<p>{emailing.veilig(r)}</p>" for r in regels)
+        # Sinds stap 132 (28 september) is het dagbericht het ochtendbericht:
+        # eerst wat jij moet doen, dan wat elke agent deed, dan deze diagnose.
+        import ochtendbericht
+        onderwerp, body = ochtendbericht.tekst(
+            ochtendbericht.verzamel(get_base_url().rstrip("/")), extra_regels=regels)
         if emailing.send_email(ontvanger, onderwerp, body):
             benadering.onthoud_dagbericht()
     except Exception as e:
@@ -3269,6 +3276,10 @@ def admin_benadering():
                 melding = (f"{url} wordt nu gemeten en daarna gemaild. Dit duurt een "
                            f"paar minuten. Ververs deze pagina, de uitkomst komt in "
                            f"het logboek hierboven te staan.")
+        elif actie in ("is_test", "is_echt"):
+            url = (request.form.get("url") or "").strip()
+            db.zet_klant_test(url, actie == "is_test")
+            melding = f"{url} telt nu {'NIET ' if actie == 'is_test' else ''}als klant."
         elif actie == "stand":
             url = (request.form.get("url") or "").strip()
             nieuwe = (request.form.get("stand") or "").strip()
@@ -3299,6 +3310,7 @@ def admin_benadering():
         dagpot=kosten.ruimte_voor_benadering(),
         regels=db.get_benaderingen(alleen_niet_afgemeld=False),
         tellingen=db.tel_benaderingen(),
+        klanten_lijst=db.klanten_op_lijst(),
         instellingen=inst,
         mag_nu=mag,
         reden=reden,
@@ -6367,6 +6379,21 @@ def admin_antwoorden():
             f"{blokken or '<p>Nog niets binnengekomen.</p>'}</body>")
 
 
+@app.route("/admin/ochtendbericht")
+def admin_ochtendbericht():
+    """Het ochtendbericht (stap 132) nu bekijken, zonder op de ochtend te wachten."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import ochtendbericht
+    onderwerp, body = ochtendbericht.tekst(ochtendbericht.verzamel(get_base_url().rstrip("/")))
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Ochtendbericht | Krillo</title><body style='margin:40px auto;max-width:640px;padding:0 16px'>"
+            f"<p style='font-family:Arial,sans-serif;color:#666'>Onderwerp: {escape(onderwerp)}</p>{body}</body>")
+
+
 @app.route("/admin/controle", methods=["GET", "POST"])
 def admin_controle():
     """De uitkomst van de controleagent, en een knop om hem nu te draaien."""
@@ -7501,7 +7528,8 @@ def shopify_api_abonnement():
         # Elke keer dat wij een lopend abonnement zien: klantregel aanwezig en
         # niet opgezegd. Ook bij iemand die eerder opzegde en terugkwam.
         try:
-            _shopify_klant_actief(winkel, rij, stand.get("plan"))
+            _shopify_klant_actief(winkel, rij, stand.get("plan"),
+                                  is_test=bool((stand.get("abonnement") or {}).get("test")))
         except Exception as e:
             print(f"Shopify-klant bijwerken mislukt voor {winkel}: {e}")
     if stand["actief"] and not rij.get("proef_gehad_op"):
@@ -7845,7 +7873,7 @@ def shopify_winkel_wissen():
     return "", 200
 
 
-def _shopify_klant_actief(winkel, rij, plan=None):
+def _shopify_klant_actief(winkel, rij, plan=None, is_test=False):
     """Een winkel met een lopend Shopify-abonnement is klant, met alles erbij.
 
     WAAROM (23 september). De maandmeting en het maandbericht kijken naar de
@@ -7877,6 +7905,8 @@ def _shopify_klant_actief(winkel, rij, plan=None):
     db.zet_klant_opgezegd(webshop_url, opgezegd=False)
     if plan:
         db.zet_klant_pakket(webshop_url, plan)
+    # Een testabonnement (ontwikkelwinkel, de beoordelaar) telt nooit als klant.
+    db.zet_klant_test(webshop_url, bool(is_test))
     _zet_in_index(webshop_url)
     return True
 
