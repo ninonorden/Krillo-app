@@ -98,7 +98,8 @@ klopt("alleen een echte mail wordt bij de winkel bewaard",
       "if gelukt and not proef:\n            db.zet_mail_variant(webshop_url, variant)" in bron)
 
 print("\n== 3. DE BALK NA DE KLIK ==")
-klopt("de link uit de mail geeft het kenmerk mee", '?jij={token}#p{beeld[\'positie\']}' in bron)
+# Sinds 28 september (stap 135) opent de link een eigen voorproef-dashboard.
+klopt("de link uit de mail opent zijn eigen voorproef", "proef=token" in bron)
 import app as appmod  # noqa: E402
 import sitetaal  # noqa: E402
 
