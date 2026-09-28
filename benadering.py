@@ -887,6 +887,22 @@ def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
     if geen_adres:
         uit.append(("wacht", f"Bij {geen_adres} winkels vonden wij geen algemeen "
                              f"e-mailadres. Die slaan wij over, dat is geen fout."))
+    # Winkels MET adres die toch geen post krijgen, en waarom (28 september).
+    try:
+        zonder = db.adres_zonder_plek()
+    except Exception:
+        zonder = None
+    if zonder and sum(zonder.values()):
+        delen = []
+        if zonder["niet_in_lijst"]:
+            delen.append(f"{zonder['niet_in_lijst']} staan nog niet in de ranglijst van hun "
+                         f"categorie (komt bij het herberekenen vannacht)")
+        if zonder["niet_gemeten"]:
+            delen.append(f"{zonder['niet_gemeten']} zitten in een categorie die nog niet gemeten is")
+        if zonder["geen_categorie"]:
+            delen.append(f"{zonder['geen_categorie']} hebben nog geen categorie")
+        uit.append(("wacht", "Winkels met een adres maar nog zonder plek, dus nog geen post: "
+                             + "; ".join(delen) + "."))
     return uit
 
 

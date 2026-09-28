@@ -85,7 +85,64 @@ def _kaal(url):
     return (url or "").replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
 
 
-def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam=None):
+# ZELFVERBETERING (blok E, 28 september). Twee versies van de uitleg lopen
+# naast elkaar; het scorebord telt per versie hoeveel mensen daarna
+# doorklikten naar de prijzen. Na MIN_PER_VERSIE verstuurde briefjes per versie
+# en een duidelijk verschil wint de beste vanzelf, en krijgt iedereen die.
+# Nieuwe uitdagers schrijven gebeurt (nog) niet vanzelf: een nieuwe tekst gaat
+# eerst langs Nino, want dit zijn echte mails aan echte winkeliers.
+VERSIES = {
+    "a": ("This is usually fixable within a few weeks. AI names stores whose pages answer "
+          "the question in plain words: fuller product descriptions, image descriptions, "
+          "and a questions page. With Fix we write those and put them in your store; with "
+          "Watch you get them written out to do yourself."),
+    "b": ("The stores AI names have one thing in common: their product pages answer the "
+          "shopper's question in plain words. We can write that for your products and, with "
+          "Fix, put it in your store for you. Every change keeps the old text, so nothing is "
+          "lost."),
+}
+MIN_PER_VERSIE = 30
+SLEUTEL_WINNAAR = "verkoop_winnaar"
+
+
+def kies_versie(webshop_url):
+    winnaar = db.get_instelling(SLEUTEL_WINNAAR)
+    if winnaar in VERSIES:
+        return winnaar
+    import hashlib
+    return "ab"[int(hashlib.sha256((webshop_url or "").encode()).hexdigest(), 16) % 2]
+
+
+def scorebord():
+    """Per versie: verstuurd, doorgeklikt na de opvolging, betaald."""
+    rijen = _sql("""SELECT opvolg_variant AS versie, count(*) AS verstuurd,
+                           count(*) FILTER (WHERE doorgeklikt_op > opvolg_op) AS doorgeklikt,
+                           count(*) FILTER (WHERE EXISTS (SELECT 1 FROM klanten k
+                                            WHERE k.webshop_url = benadering.webshop_url)) AS klant
+                      FROM benadering
+                     WHERE opvolg_variant IS NOT NULL AND opvolg_stand = 'verstuurd'
+                  GROUP BY opvolg_variant ORDER BY opvolg_variant""", alles=True) or []
+    for r in rijen:
+        r["score"] = (r["doorgeklikt"] + 3 * r["klant"]) / r["verstuurd"] if r["verstuurd"] else 0
+    return rijen
+
+
+def kies_winnaar():
+    """Kiest vanzelf de betere versie zodra er genoeg bewijs is. Geeft de winnaar of None."""
+    bord = {r["versie"]: r for r in scorebord()}
+    if not all(v in bord and bord[v]["verstuurd"] >= MIN_PER_VERSIE for v in VERSIES):
+        return None
+    a, b = bord["a"], bord["b"]
+    # Pas een winnaar als het verschil minstens 5 procentpunt is en minstens 3 mensen.
+    verschil = a["score"] - b["score"]
+    if abs(verschil) >= 0.05 and abs((a["doorgeklikt"] + a["klant"]) - (b["doorgeklikt"] + b["klant"])) >= 3:
+        winnaar = "a" if verschil > 0 else "b"
+        db.zet_instelling(SLEUTEL_WINNAAR, winnaar)
+        return winnaar
+    return None
+
+
+def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam=None, versie="a"):
     """Het briefje, als onderwerp plus alinea's. Geeft None als er niets eerlijks
     te zeggen valt (geen plek in de index)."""
     if not beeld or not beeld.get("positie"):
@@ -96,7 +153,14 @@ def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam
     boven = [b.get("naam") or _kaal(b.get("webshop_url")) for b in (beeld.get("boven_mij") or [])][-2:]
     alineas = []
     if nummer == 1:
-        onderwerp = f"{naam}: the one question you could win"
+        # Het onderwerp belooft alleen wat erin staat (28 september: een
+        # nummer 1 kreeg "the one question you could win" zonder vraag).
+        if positie == 1:
+            onderwerp = f"{naam}: #1 in {cat}, and how to keep it"
+        elif vraag and vraag.get("concurrenten"):
+            onderwerp = f"{naam}: the one question you could win"
+        else:
+            onderwerp = f"{naam}: #{positie} of {van} in {cat}"
         alineas.append("Hi,")
         alineas.append(f"You looked at your Krillo page for {naam}. One thing stood out to me.")
     else:
@@ -112,16 +176,14 @@ def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam
         alineas.append("Staying #1 is the hard part: we measure again every month, and the stores "
                        "below you are working on it.")
     elif nummer == 1:
-        alineas.append("This is usually fixable within a few weeks. AI names stores whose pages answer "
-                       "the question in plain words: fuller product descriptions, image descriptions, "
-                       "and a questions page. With Fix we write those and put them in your store; with "
-                       "Watch you get them written out to do yourself.")
+        alineas.append(VERSIES.get(versie, VERSIES["a"]))
     else:
         alineas.append("If it helps, just reply with a question. I look at every reply myself.")
     if nummer == 1:
         alineas.append("Your page shows every question you lose, with the real answer. "
                        "Questions? Just reply to this email.")
-    return {"onderwerp": onderwerp, "alineas": alineas, "link": link_url, "nummer": nummer}
+    return {"onderwerp": onderwerp, "alineas": alineas, "link": link_url, "nummer": nummer,
+            "versie": versie}
 
 
 def _vraag_voor(webshop_url, beeld):
@@ -175,9 +237,15 @@ def verstuur(webshop_url, basis_url):
                                      concept.get("link"), afmeld_url=afmeld)
     if gelukt:
         _sql("""UPDATE benadering SET opvolg_aantal = opvolg_aantal + 1, opvolg_op = now(),
-                                      opvolg_stand = 'verstuurd' WHERE webshop_url = %s""",
-             (webshop_url,))
+                                      opvolg_stand = 'verstuurd', opvolg_variant = %s
+                 WHERE webshop_url = %s""", (concept.get("versie"), webshop_url))
     return gelukt
+
+
+def schrijf_opnieuw(webshop_url):
+    """Het concept weggooien; de volgende ronde schrijft een nieuw (met de nieuwste tekst)."""
+    _sql("UPDATE benadering SET opvolg_stand = NULL, opvolg_concept = NULL WHERE webshop_url = %s",
+         (webshop_url,))
 
 
 def keur_goed(webshop_url, basis_url):
@@ -198,6 +266,10 @@ def ronde(basis_url, bouw_beeld, categorienaam=None, binnen_kantooruren=True):
     """Een ronde: concepten maken voor wie aan de beurt is, en (als dat aanstaat)
     versturen. Geeft een kort verslag."""
     verslag = {"concepten": 0, "verstuurd": 0, "overgeslagen": 0}
+    try:
+        verslag["winnaar"] = kies_winnaar()
+    except Exception as e:
+        print(f"Winnaar kiezen mislukt: {e}")
     for w in warme_winkels(limiet=PER_RONDE):
         url = w["webshop_url"]
         try:
@@ -209,7 +281,8 @@ def ronde(basis_url, bouw_beeld, categorienaam=None, binnen_kantooruren=True):
         concept = maak_concept(w, beeld, _vraag_voor(url, beeld) if beeld else None,
                                link_url=f"{basis_url}/uitkomst/{token}" if token else basis_url,
                                nummer=(w.get("opvolg_aantal") or 0) + 1,
-                               categorienaam=categorienaam(beeld) if (categorienaam and beeld) else None)
+                               categorienaam=categorienaam(beeld) if (categorienaam and beeld) else None,
+                               versie=kies_versie(url))
         if not concept:
             sla_over(url)
             verslag["overgeslagen"] += 1

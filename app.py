@@ -6134,6 +6134,9 @@ def admin_verkoop():
         elif actie == "overslaan" and url:
             va.sla_over(url)
             melding = "Overgeslagen."
+        elif actie == "opnieuw" and url:
+            va.schrijf_opnieuw(url)
+            melding = "Weggegooid; klik op Nu een ronde draaien voor een nieuw concept."
         elif actie == "zelf_aan" and va.aantal_goedgekeurd() >= va.VRIJ_NA_GOEDGEKEURD:
             db.zet_instelling(va.SLEUTEL_ZELF, "ja")
             melding = "De verkoopagent verstuurt voortaan zelf, binnen kantooruren."
@@ -6147,6 +6150,14 @@ def admin_verkoop():
             melding = f"Ronde gedraaid: {verslag['concepten']} nieuwe concepten, {verslag['verstuurd']} verstuurd."
     lijst = va.concepten()
     goed = va.aantal_goedgekeurd()
+    winnaar = db.get_instelling(va.SLEUTEL_WINNAAR)
+    regels = "".join(f"<tr><td>{escape(r['versie'])}</td><td>{r['verstuurd']}</td><td>{r['doorgeklikt']}</td>"
+                     f"<td>{r['klant']}</td></tr>" for r in va.scorebord())
+    bord = (f"<p>Twee versies van de uitleg lopen naast elkaar. Na {va.MIN_PER_VERSIE} briefjes per versie "
+            f"en een duidelijk verschil kiest de agent zelf de winnaar. "
+            f"{'Winnaar: versie ' + escape(winnaar) + '.' if winnaar else 'Nog geen winnaar.'}</p>"
+            f"<table cellpadding='6' style='border-collapse:collapse'><tr><th>Versie</th><th>Verstuurd</th>"
+            f"<th>Doorgeklikt</th><th>Klant</th></tr>{regels or '<tr><td colspan=4>Nog niets verstuurd.</td></tr>'}</table>")
     zelf = va.zelf_versturen()
     blokken = ""
     for c in lijst:
@@ -6162,7 +6173,8 @@ def admin_verkoop():
             f"<p><a href='{escape(k.get('link') or '')}'>Open my Krillo page</a></p></div>"
             f"<form method='post' style='display:inline'><input type='hidden' name='url' value='{escape(c['webshop_url'])}'>"
             f"<button name='actie' value='versturen' style='padding:8px 14px;background:#1B3FE0;color:#fff;border:0;border-radius:6px'>Versturen</button> "
-            f"<button name='actie' value='overslaan' style='padding:8px 14px'>Overslaan</button></form></div>")
+            f"<button name='actie' value='overslaan' style='padding:8px 14px'>Overslaan</button> "
+            f"<button name='actie' value='opnieuw' style='padding:8px 14px'>Opnieuw schrijven</button></form></div>")
     if not blokken:
         blokken = "<p>Er wachten geen concepten. Zodra iemand zijn pagina bekijkt, komt hier binnen het uur een concept.</p>"
     schakelaar = (
@@ -6177,6 +6189,7 @@ def admin_verkoop():
             f"Stand: <strong>{'verstuurt zelf' if zelf else 'wacht op jouw goedkeuring'}</strong>.</p>"
             f"<p style='color:#0B7C5E'>{escape(melding)}</p>"
             f"<form method='post'>{schakelaar} <button name='actie' value='nu'>Nu een ronde draaien</button></form>"
+            f"<h2 style='margin-top:28px'>Scorebord</h2>{bord}"
             f"<h2 style='margin-top:28px'>Concepten ({len(lijst)})</h2>{blokken}</body>")
 
 

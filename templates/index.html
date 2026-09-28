@@ -981,9 +981,9 @@
     <div class="indexkaart">
       <div class="kop">THE INDEX TODAY</div>
       {% if index and index.cijfers %}
-      <div class="rij"><span class="naam">Categories</span><span class="getal">{{ index.cijfers.categorieen }}</span></div>
-      <div class="rij"><span class="naam">Stores ranked</span><span class="getal">{{ index.cijfers.winkels }}</span></div>
-      <div class="rij"><span class="naam">Answers on record</span><span class="getal">{{ index.cijfers.antwoorden }}</span></div>
+      {% if index.cijfers.categorieen %}<div class="rij"><span class="naam">Categories</span><span class="getal">{{ index.cijfers.categorieen }}</span></div>{% endif %}
+      {% if index.cijfers.winkels %}<div class="rij"><span class="naam">Stores ranked</span><span class="getal">{{ index.cijfers.winkels }}</span></div>{% endif %}
+      {% if index.cijfers.antwoorden %}<div class="rij"><span class="naam">Answers on record</span><span class="getal">{{ index.cijfers.antwoorden }}</span></div>{% endif %}
       {% endif %}
       {# ONS EIGEN CIJFER. Het sterkste getal dat wij hebben is van onszelf en
          niet geleend uit een Amerikaans onderzoek. Staat er nog te weinig

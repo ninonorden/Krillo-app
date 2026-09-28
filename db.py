@@ -539,6 +539,8 @@ def init_db():
                 cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS opvolg_stand TEXT;")
                 cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS opvolg_variant TEXT;")
+                cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS klacht_op TIMESTAMPTZ;")
                 cur.execute("""CREATE INDEX IF NOT EXISTS benadering_stand
                                ON benadering (stand);""")
@@ -4616,11 +4618,15 @@ def te_mailen_met_positie(limiet):
                        AND b.email IS NOT NULL AND b.email <> ''
                        AND b.gemaild_op IS NULL
                        AND coalesce(b.soort, 'winkel') = 'winkel'
+                       -- SINDS 28 SEPTEMBER zonder "u.categorie = b.categorie".
+                       -- Een winkel in een kleine categorie (make-up) staat in
+                       -- de ranglijst van de grote (cosmetica); die eis hield
+                       -- hem voorgoed uit de post. 409 winkels met een adres,
+                       -- 4 klaar voor post.
                        AND EXISTS (
                            SELECT 1 FROM categorie_uitkomsten u
                              JOIN categorie_rondes r ON r.id = u.ronde
                             WHERE u.webshop_url = b.webshop_url
-                              AND u.categorie = b.categorie
                               AND coalesce(u.telbaar, 0) >= 3
                               AND r.afgerond_op IS NOT NULL)
                   ORDER BY b.toegevoegd_op, b.webshop_url
@@ -5826,37 +5832,37 @@ def landrondes_om_te_meten(land, minimum=10, ouder_dan_dagen=30):
 
 
 def index_cijfers():
-    """De cijfers die op de site staan. Allemaal in EEN query.
+    """De cijfers die op de site staan (blok "The index today").
 
-    WAAROM DIT BESTAAT. Op het ontwerp stonden [31] categorieen en [924] winkels
-    tussen vierkante haakjes. Zulke getallen met de hand in een sjabloon zetten
-    gaat altijd mis: over twee maanden klopt er niets meer van, en wij zijn juist
-    het bedrijf dat anderen erop controleert of hun site waar is.
+    SINDS 28 SEPTEMBER elk cijfer apart. Het waren vijf tellingen in een
+    query; ging er een mis, dan viel het hele blok weg (twee keer gezien na
+    een upload). Nu mist hooguit dat ene cijfer, en staat de fout in de log.
 
-    Alles hier komt rechtstreeks uit wat er gemeten is. Staat er morgen een
+    Alles komt rechtstreeks uit wat er gemeten is. Staat er morgen een
     categorie bij, dan staat dat vanzelf op de homepage."""
-    conn = _get_connection()
-    if conn is None:
-        return {}
-    try:
-        with conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("""
-                    SELECT
-                      (SELECT count(DISTINCT categorie) FROM categorie_rondes
-                        WHERE afgerond_op IS NOT NULL)            AS categorieen,
-                      (SELECT count(DISTINCT webshop_url) FROM categorie_uitkomsten)
-                                                                  AS winkels,
-                      (SELECT count(*) FROM categorie_antwoorden)  AS antwoorden,
-                      (SELECT count(*) FROM gratis_scans)          AS checks,
-                      (SELECT min(gemeten_op) FROM categorie_antwoorden) AS sinds
-                """)
-                return dict(cur.fetchone() or {})
-    except Exception as e:
-        print(f"Indexcijfers ophalen mislukt: {e}")
-        return {}
-    finally:
-        conn.close()
+    vragen = {
+        "categorieen": """SELECT count(DISTINCT categorie) FROM categorie_rondes
+                           WHERE afgerond_op IS NOT NULL""",
+        "winkels": "SELECT count(DISTINCT webshop_url) FROM categorie_uitkomsten",
+        "antwoorden": "SELECT count(*) FROM categorie_antwoorden",
+        "checks": "SELECT count(*) FROM gratis_scans",
+    }
+    uit = {}
+    for naam, vraag in vragen.items():
+        conn = _get_connection()
+        if conn is None:
+            continue
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("SET LOCAL statement_timeout = 8000")
+                    cur.execute(vraag)
+                    uit[naam] = (cur.fetchone() or [None])[0]
+        except Exception as e:
+            print(f"Indexcijfer {naam} ophalen mislukt: {e}")
+        finally:
+            conn.close()
+    return uit
 
 
 def landen_in_index(minimum_categorieen=1):
@@ -6709,6 +6715,46 @@ def index_nooit_genoemd():
                 return {"gemeten": totaal or 0, "nooit": nooit or 0}
     except Exception as e:
         print(f"Nooit genoemd ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def adres_zonder_plek():
+    """Waarom winkels MET een adres toch geen post krijgen (28 september).
+
+    Telt per reden: geen categorie, categorie nog niet gemeten, of wel gemeten
+    maar de winkel staat (nog) niet in de ranglijst."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    WITH kandidaat AS (
+                        SELECT b.webshop_url, b.categorie FROM benadering b
+                         WHERE b.stand IN ('adres', 'meten', 'gemeten') AND NOT b.afgemeld
+                           AND b.email IS NOT NULL AND b.email <> '' AND b.gemaild_op IS NULL
+                           AND coalesce(b.soort, 'winkel') = 'winkel'
+                           AND NOT EXISTS (SELECT 1 FROM categorie_uitkomsten u
+                                             JOIN categorie_rondes r ON r.id = u.ronde
+                                            WHERE u.webshop_url = b.webshop_url
+                                              AND coalesce(u.telbaar, 0) >= 3
+                                              AND r.afgerond_op IS NOT NULL))
+                    SELECT
+                      count(*) FILTER (WHERE categorie IS NULL),
+                      count(*) FILTER (WHERE categorie IS NOT NULL AND NOT EXISTS (
+                          SELECT 1 FROM categorie_rondes r WHERE r.categorie = kandidaat.categorie
+                             AND r.afgerond_op IS NOT NULL)),
+                      count(*) FILTER (WHERE categorie IS NOT NULL AND EXISTS (
+                          SELECT 1 FROM categorie_rondes r WHERE r.categorie = kandidaat.categorie
+                             AND r.afgerond_op IS NOT NULL))
+                      FROM kandidaat""")
+                a, b, c = cur.fetchone()
+                return {"geen_categorie": a or 0, "niet_gemeten": b or 0, "niet_in_lijst": c or 0}
+    except Exception as e:
+        print(f"Adres zonder plek tellen mislukt: {e}")
         return None
     finally:
         conn.close()
