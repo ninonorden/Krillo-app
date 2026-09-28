@@ -51,6 +51,26 @@
 
   <div class="werkblad" id="overzicht">
 
+    {% if proef and beeld %}
+    {# DE GRATIS VOORPROEF na de koude mail (stap 135). Zijn eigen dashboard,
+       met zijn eigen cijfers, en een knop die meteen het afrekenen opent. #}
+    <div class="proefbalk">
+      <div>
+        <div class="proefkop">{{ 'Je eigen Krillo-dashboard, gratis voorproef' if taal == 'nl' else 'Your own Krillo dashboard, free preview' }}</div>
+        <div class="proeftekst">
+          {% if taal == 'nl' %}{{ beeld.naam }} staat op <strong>#{{ beeld.positie }}</strong> van {{ beeld.van }} in {{ categorienaam }}.
+          Elke maand dit overzicht, alle antwoorden, en de verbeteringen die je hoger zetten: dat is Watch of Fix.
+          {% else %}{{ beeld.naam }} is <strong>#{{ beeld.positie }}</strong> of {{ beeld.van }} in {{ categorienaam }}.
+          This page every month, every answer, and the fixes that move you up: that is Watch or Fix.{% endif %}
+        </div>
+      </div>
+      <div class="proefknoppen">
+        <a class="knop-licht" href="/uitkomst/{{ proef }}/verder?plan=watch">Watch &middot; &euro;{{ prijzen.watch }}/{{ 'mnd' if taal == 'nl' else 'mo' }}</a>
+        <a class="knop-vol" href="/uitkomst/{{ proef }}/verder?plan=fix">Fix &middot; &euro;{{ prijzen.fix }}/{{ 'mnd' if taal == 'nl' else 'mo' }}</a>
+      </div>
+    </div>
+    {% endif %}
+
     {% if voorbeeld %}
     <div class="voorbeeldbalk">
       <strong>{{ 'Dit is een voorbeeld' if taal == 'nl' else 'This is an example' }}.</strong>
@@ -219,20 +239,20 @@
     <div class="vragenblok">
       <div class="vragenkop">
         <div class="titel">{{ categorienaam }} &middot; {{ landnaam }}</div>
-        <div class="onder">{% if taal == 'nl' %}Alle {{ ranglijst|length }} winkels die we in deze categorie meten. Genoemd: je stond in het antwoord. Aanbevolen: de assistent raadde je aan.
-          {% else %}All {{ ranglijst|length }} stores we measure in this category. Named: you were in the answer. Recommended: the assistant advised you.{% endif %}</div>
+        <div class="onder">{% if taal == 'nl' %}Alle {{ ranglijst|length }} winkels die we in deze categorie meten. De volgorde is hoe vaak AI een winkel <strong>aanraadt</strong>, daarna hoe vaak hij hem <strong>noemt</strong>. Aangeraden worden brengt kopers, dus dat telt eerst.
+          {% else %}All {{ ranglijst|length }} stores we measure in this category. The order is by how often AI <strong>recommends</strong> a store, then by how often it <strong>names</strong> it. Being advised is what brings buyers, so it counts first.{% endif %}</div>
       </div>
       <table class="lijst">
         <thead><tr><th>#</th><th>{{ 'Winkel' if taal == 'nl' else 'Store' }}</th>
-          <th class="r">{{ 'Genoemd' if taal == 'nl' else 'Named' }}</th>
-          <th class="r">{{ 'Aanbevolen' if taal == 'nl' else 'Recommended' }}</th></tr></thead>
+          <th class="r">{{ 'Aanbevolen' if taal == 'nl' else 'Recommended' }}</th>
+          <th class="r">{{ 'Genoemd' if taal == 'nl' else 'Named' }}</th></tr></thead>
         <tbody>
         {% for r in ranglijst %}
         <tr class="{{ 'jij' if r.webshop_url == beeld.webshop_url }}">
           <td class="p">{{ r.positie }}</td>
           <td>{{ r.naam or r.webshop_url | replace('https://','') }}{% if r.webshop_url == beeld.webshop_url %} <span class="jijlabel">{{ 'jij' if taal == 'nl' else 'you' }}</span>{% endif %}</td>
+          <td class="r"><strong>{{ r.aanbevolen }}</strong></td>
           <td class="r">{{ r.genoemd }} / {{ beeld.telbaar }}</td>
-          <td class="r">{{ r.aanbevolen }}</td>
         </tr>
         {% endfor %}
         </tbody>
@@ -280,6 +300,13 @@
             {% for m in v.per_model %}<span class="asst {{ 'ja' if m.genoemd else 'nee' }}" title="{{ m.assistent }}">{{ m.assistent }} {{ '&#10003;'|safe if m.genoemd else '&#10005;'|safe }}</span>{% endfor %}
           </span>
         </summary>
+        {% if v.slot %}
+        <div class="antwoord slotvak">
+          {{ 'Het echte antwoord en wie er in jouw plaats genoemd werd, zie je met Watch of Fix.' if taal == 'nl'
+             else 'The real answer, and who was named instead of you, is part of Watch and Fix.' }}
+          <a href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Bekijk alles' if taal == 'nl' else 'See everything' }} &rarr;</a>
+        </div>
+        {% else %}
         {% for m in v.per_model %}
         <div class="antwoord">
           <div class="wie"><strong>{{ m.assistent }}</strong>:
@@ -290,6 +317,7 @@
           {% if m.fragment %}<blockquote>{{ m.fragment }}</blockquote>{% endif %}
         </div>
         {% endfor %}
+        {% endif %}
       </details>
       {% endfor %}
     </div>
@@ -311,7 +339,47 @@
     {% endif %}
 
     {# ================================================================ VERBETERINGEN EN ABONNEMENT #}
-    {% if pagina in ('verbeteringen', 'abonnement') %}
+    {% if (proef or voorbeeld) and pagina in ('verbeteringen', 'abonnement') %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'WAT WE VOOR JE ZOUDEN DOEN' if taal == 'nl' else 'WHAT WE WOULD DO FOR YOU' }}</div>
+      <p style="margin:0 0 14px; font-size:15.5px;">
+        {% if taal == 'nl' %}Je verliest {{ beeld.gemiste_vragen|length }} of meer koopvragen aan andere winkels. Dit is wat AI nodig heeft om jou te noemen, en wat we daarvoor in je winkel zetten:
+        {% else %}You lose {{ beeld.gemiste_vragen|length }} or more buying questions to other stores. This is what AI needs to name you, and what we put in your store for it:{% endif %}
+      </p>
+      <div class="drie">
+        <div><strong>{{ 'Productteksten' if taal == 'nl' else 'Product descriptions' }}</strong>
+          {{ 'Volledige teksten die de vragen van kopers beantwoorden, in de taal van je winkel.' if taal == 'nl' else 'Full texts that answer what shoppers ask, in your store\'s language.' }}</div>
+        <div><strong>{{ 'Beschrijvingen bij foto\'s' if taal == 'nl' else 'Image descriptions' }}</strong>
+          {{ 'Zodat AI ziet wat je verkoopt, ook op de foto.' if taal == 'nl' else 'So AI can see what you sell, in the photo too.' }}</div>
+        <div><strong>{{ 'Een vragenpagina' if taal == 'nl' else 'A questions page' }}</strong>
+          {{ 'De vragen die kopers aan ChatGPT stellen, met jouw antwoord.' if taal == 'nl' else 'The questions shoppers ask ChatGPT, answered by you.' }}</div>
+      </div>
+    </div>
+    <div class="twee gelijk">
+      <div class="kaartblok plankaart">
+        <div class="kaartkop">WATCH</div>
+        <div class="plannaam">&euro;{{ prijzen.watch }} <small>/ {{ 'maand' if taal == 'nl' else 'month' }}</small></div>
+        <ul class="planlijst">
+          <li>{{ 'Elke maand je plek, zoals hierboven' if taal == 'nl' else 'Your place every month, like above' }}</li>
+          <li>{{ 'Alle vragen die je verliest, met het echte antwoord' if taal == 'nl' else 'Every question you lose, with the real answer' }}</li>
+          <li>{{ 'Elke verbetering uitgeschreven, om zelf over te nemen' if taal == 'nl' else 'Every fix written out, to copy in yourself' }}</li>
+        </ul>
+        <a class="knop-rand" href="{{ '/uitkomst/' ~ proef ~ '/verder?plan=watch' if proef else '/?plan=watch#pricing' }}">{{ 'Start Watch' }}</a>
+      </div>
+      <div class="kaartblok plankaart aangeraden">
+        <div class="kaartkop">FIX &middot; {{ 'AANGERADEN' if taal == 'nl' else 'RECOMMENDED' }}</div>
+        <div class="plannaam">&euro;{{ prijzen.fix }} <small>/ {{ 'maand' if taal == 'nl' else 'month' }}</small></div>
+        <ul class="planlijst">
+          <li>{{ 'Alles van Watch' if taal == 'nl' else 'Everything in Watch' }}</li>
+          <li>{{ 'Wij zetten elke verbetering in je winkel' if taal == 'nl' else 'We put every fix into your store for you' }}</li>
+          <li>{{ 'Elke wijziging met de oude tekst, alles kan terug' if taal == 'nl' else 'Every change with the old text, all can be undone' }}</li>
+        </ul>
+        <a class="knop-vol" href="{{ '/uitkomst/' ~ proef ~ '/verder?plan=fix' if proef else '/?plan=fix#pricing' }}">{{ 'Start Fix' }}</a>
+      </div>
+    </div>
+    <p class="klein">{{ 'Maandelijks opzegbaar. Binnen 14 dagen opzeggen: je eerste maand terug.' if taal == 'nl'
+         else 'Cancel any month. Cancel within 14 days and you get your first month back.' }}</p>
+    {% elif pagina in ('verbeteringen', 'abonnement') %}
 
     {# Verbeteringen: drie tegels bovenaan, ANDERS per pakket (28 september).
        Watch: wat klaarstaat om zelf te doen. Fix: wat wij deden en wat nog komt. #}
@@ -440,6 +508,11 @@
 
     {% endif %}
 
+    {% if proef %}
+    <p class="klein">{{ 'Je kreeg onze mail omdat je winkel in de Krillo-index staat.' if taal == 'nl'
+         else 'You got our email because your store is in the Krillo index.' }}
+      <a href="/afmelden/{{ proef }}" style="color:var(--ink-grijs);">{{ 'Geen mail meer' if taal == 'nl' else 'No more email' }}</a></p>
+    {% endif %}
     <div style="font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs);">
       <a href="/index" style="color:var(--ink-grijs); text-decoration:none;">{{ t.terug_index | upper }}</a>
       &middot;

@@ -28,6 +28,9 @@ PAGINAS = [
 ]
 PAD_NAAR_PAGINA = {pad: naam for naam, pad, _ in PAGINAS}
 
+# In de gratis voorproef (na de koude mail) zijn zoveel vragen helemaal open.
+PROEF_OPEN_VRAGEN = 2
+
 
 def assistent_naam(model):
     """Van "gpt-5.6-terra" naar "ChatGPT". Een klant kent de merknaam, niet het model."""

@@ -4743,7 +4743,7 @@ def openbare_categorie(land, slug):
 
 
 def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer=None,
-               pagina="overzicht"):
+               pagina="overzicht", proef=None):
     """Het dashboard van een winkel. Dezelfde pagina's voor het openbare
     voorbeeld, voor een klant en voor de beheerweergave.
 
@@ -4765,7 +4765,10 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
     taal = sitetaal.kies_taal(pad_taal=request.args.get("taal"))
 
     # Waar elke knop van de zijbalk heen gaat.
-    if klant_token:
+    if proef:
+        # De gratis voorproef na de koude mail (stap 135, 28 september).
+        basis, achter = f"/uitkomst/{proef}", ""
+    elif klant_token:
         basis, achter = f"/mijn/{klant_token}", ""
     elif beheer:
         basis, achter = None, None
@@ -4795,6 +4798,16 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 print(f"Vragen voor het dashboard mislukt voor {webshop_url}: {e}")
                 gegevens["vragen"] = {"vragen": [], "gewonnen": 0, "verloren": 0, "totaal": 0,
                                       "per_assistent": []}
+            if proef:
+                # In de voorproef zijn de eerste twee vragen helemaal open, de
+                # rest staat op slot: de vraag zelf wel, het antwoord en wie
+                # er genoemd werd niet. Dat gaat ook NIET mee naar de browser.
+                for i, v in enumerate(gegevens["vragen"]["vragen"]):
+                    if i >= dp.PROEF_OPEN_VRAGEN:
+                        v["per_model"] = [{"assistent": m["assistent"], "genoemd": m["genoemd"],
+                                           "aanbevolen": False, "anderen": [], "fragment": ""}
+                                          for m in v["per_model"]]
+                        v["slot"] = True
             gegevens["balken"] = dp.balken_per_assistent(gegevens["vragen"]["per_assistent"])
         if pagina == "overzicht":
             eigen = [{"naam": winkelnaam, "jij": True,
@@ -4829,10 +4842,19 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         werk_deel=("fixes" if pagina == "verbeteringen" else "plan"),
         volgende_meting_na=timedelta(days=30),
         voorbeeld=voorbeeld,
+        proef=proef,
+        prijzen={"watch": _prijs_euro("watch"), "fix": _prijs_euro("fix")},
         werkblok=werkblok,
         basis_url=get_base_url().rstrip("/"),
         **gegevens,
     )
+
+
+def _prijs_euro(pakket):
+    try:
+        return int(float(payments.PAKKETTEN[pakket]["prijs"]["value"]))
+    except Exception:
+        return None
 
 
 def _plan_uitleg(webshop_url, werkblok, taal="en"):
@@ -5182,12 +5204,14 @@ def uitkomst(token):
         print(f"Positie ophalen voor de uitkomstlink mislukt voor {webshop_url}: {e}")
         beeld = None
     if beeld and beeld.get("land"):
-        # ?jij= (stap 56): dan weet de ranglijst wie er kijkt en zet hij een
-        # balk bovenaan met zijn eigen plek en de volgende stap. Zonder die
-        # balk kwam iemand uit de mail op een lijst vol andere winkels, en
-        # moest hij zelf bedenken wat hij daarmee moest.
-        return redirect(f"/index/{beeld['land']}/{beeld['categorie']}"
-                        f"?jij={token}#p{beeld['positie']}")
+        # SINDS 28 SEPTEMBER (stap 135): zijn EIGEN dashboard, als gratis
+        # voorproef. Hiervoor ging hij naar de openbare ranglijst met een balk
+        # bovenaan, en van de 24 die hun uitkomst openden ging er 1 naar de
+        # prijzen. Op een lijst vol andere winkels zie je niet wat JIJ krijgt.
+        # Nu ziet hij zijn plek, zijn buren, zijn verloren vragen met het echte
+        # antwoord, en wat Watch en Fix voor hem doen, met een knop die meteen
+        # het afrekenen opent met zijn winkel al ingevuld.
+        return _dashboard(webshop_url, land=beeld["land"], proef=token, pagina="overzicht")
     # Nog geen positie: naar de openbare index. De oude uitkomstpagina hieronder
     # is Nederlands en uit het oude model (23 september); die tonen wij niet
     # meer aan iemand die een Engelse mail kreeg.
@@ -5223,6 +5247,23 @@ def uitkomst(token):
     )
 
 
+@app.route("/uitkomst/<token>/<pad>")
+def uitkomst_pagina(token, pad):
+    """De andere pagina's van de voorproef (ranking, questions, fixes, plan)."""
+    import dashboardpaginas as dp
+    webshop_url = db.winkel_bij_benchmark_token(token)
+    if not webshop_url or pad not in dp.PAD_NAAR_PAGINA:
+        return redirect(f"/uitkomst/{token}" if webshop_url else "/index")
+    try:
+        beeld = klantbeeld.bouw(webshop_url)
+    except Exception:
+        beeld = None
+    if not (beeld and beeld.get("land")):
+        return redirect("/index")
+    return _dashboard(webshop_url, land=beeld["land"], proef=token,
+                      pagina=dp.PAD_NAAR_PAGINA[pad])
+
+
 @app.route("/uitkomst/<token>/verder")
 def uitkomst_verder(token):
     """De knop op de uitkomstpagina. Telt de doorklik en stuurt dan door.
@@ -5234,7 +5275,12 @@ def uitkomst_verder(token):
     if not webshop_url:
         return redirect("/#pricing")
     db.noteer_doorgeklikt(webshop_url)
-    return redirect(f"/?winkel={quote(webshop_url)}#pricing")
+    # Met ?plan= opent de homepage meteen het afrekenvenster voor dat pakket,
+    # met zijn winkel ingevuld. Een klik minder op het moment dat telt.
+    plan = request.args.get("plan")
+    plan = plan if plan in ("watch", "fix") else None
+    return redirect(f"/?winkel={quote(webshop_url)}&utm_source=koude_mail"
+                    + (f"&plan={plan}" if plan else "") + "#pricing")
 
 
 @app.route("/admin/benchmark")

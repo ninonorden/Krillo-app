@@ -2036,6 +2036,13 @@
       // Niets overschrijven wat iemand zelf al ingetypt heeft.
       if (veld && !veld.value) { veld.value = winkel; }
     });
+    // Met ?plan=watch of ?plan=fix (uit de voorproef, 28 september) meteen
+    // het afrekenvenster openen. Hij koos al; hem nog laten zoeken kost klanten.
+    var plan = new URLSearchParams(window.location.search).get('plan');
+    if (plan === 'watch' || plan === 'fix') {
+      var knop = document.getElementById(plan === 'watch' ? 'watchCheckoutBtn' : 'fixCheckoutBtn');
+      if (knop) { setTimeout(function(){ knop.click(); }, 150); }
+    }
   } catch (e) {
     // Een oude browser zonder URLSearchParams. Dan typt hij het gewoon zelf,
     // net als eerst. Geen reden om de pagina hierop te laten struikelen.

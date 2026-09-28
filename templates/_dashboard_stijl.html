@@ -170,4 +170,27 @@
     table.lijst th, table.lijst td{padding:10px 14px;}
   }
 
+
+  /* ---- DE VOORPROEF (stap 135) ---- */
+  .proefbalk{background:#1B3FE0; color:#fff; border-radius:12px; padding:20px 24px; display:flex;
+             justify-content:space-between; gap:18px; align-items:center; flex-wrap:wrap;}
+  .proefkop{font-family:var(--disp); font-weight:700; font-size:20px; letter-spacing:-0.02em;}
+  .proeftekst{font-size:15px; color:#DCE3FF; margin-top:4px; max-width:640px;}
+  .proeftekst strong{color:#fff;}
+  .proefknoppen{display:flex; gap:10px; flex-wrap:wrap;}
+  .knop-vol{display:inline-block; background:var(--ink); color:#fff; border-radius:8px;
+            padding:11px 16px; text-decoration:none; font-weight:600; font-size:14.5px;}
+  .proefbalk .knop-vol{background:#fff; color:#1B3FE0;}
+  .knop-licht{display:inline-block; border:1px solid rgba(255,255,255,0.55); color:#fff;
+              border-radius:8px; padding:11px 16px; text-decoration:none; font-weight:600; font-size:14.5px;}
+  .slotvak{background:var(--zand); margin:0 26px 16px; border-radius:8px; padding:12px 14px;}
+  .slotvak a{font-weight:600; color:#1B3FE0; text-decoration:none; margin-left:6px;}
+  .drie{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; font-size:14.5px;
+        color:var(--ink-zacht);}
+  .drie strong{display:block; color:var(--ink); margin-bottom:4px;}
+  @media(max-width:900px){ .drie{grid-template-columns:1fr;} }
+  .twee.gelijk{grid-template-columns:1fr 1fr;}
+  @media(max-width:900px){ .twee.gelijk{grid-template-columns:1fr;} }
+  .plankaart .plannaam small{font-size:15px; font-weight:400; color:var(--ink-grijs);}
+  .plankaart.aangeraden{border:2px solid #1B3FE0;}
 </style>
