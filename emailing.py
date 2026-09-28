@@ -1109,3 +1109,25 @@ def alina_s_veilig(alineas):
         v = _html.escape(a).replace("&lt;strong&gt;", "<strong>").replace("&lt;/strong&gt;", "</strong>")
         uit.append(v)
     return uit
+
+
+def send_antwoord(to_email, onderwerp, tekst):
+    """Een antwoord van de antwoordagent (stap 126), nadat Nino het goedkeurde.
+
+    Een gewone, kale mail: zo ziet een antwoord van een mens eruit. Geen knop,
+    geen blokken. De tekst is platte tekst; alles wordt ge-escaped en alleen
+    de regels worden alinea's, zodat een link of naam uit zijn mail nooit als
+    HTML meegaat."""
+    g = BEDRIJFSGEGEVENS
+    alineas = [a.strip() for a in (tekst or "").split("\n\n") if a.strip()]
+    lijf = "".join(
+        '<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+        + _html.escape(a).replace("\n", "<br>") + "</p>" for a in alineas)
+    html = f"""
+    <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px;
+                margin:0 auto; padding:24px 16px;">
+      {lijf}
+      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+        {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
+    </div>"""
+    return send_email(to_email, onderwerp, html)

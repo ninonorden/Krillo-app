@@ -1529,6 +1529,9 @@ def _meld_aan_beheer(kop, bericht):
              or os.environ.get("SMTP_REPLY_TO") or "").strip()
     if not adres:
         return False
+    # Stap 126: nooit naar de antwoordagent zelf.
+    if adres.lower().endswith(".krilloai.com"):
+        return False
     try:
         return emailing.send_email(
             adres, f"Krillo: {kop}",
@@ -2108,6 +2111,27 @@ def brevo_webhook(sleutel):
                 _meld_aan_beheer("Spamklacht op een koude mail",
                                  f"{email} markeerde onze mail als spam. De winkel is "
                                  f"afgemeld. Kijk op /admin/benadering naar het percentage.")
+    return "", 200
+
+
+@app.route("/webhooks/inbound/<sleutel>", methods=["POST"])
+def inbound_webhook(sleutel):
+    """De antwoordagent (stap 126): Brevo stuurt hier elke mail die op het
+    antwoordadres binnenkomt. Zelfde sleutel als de Brevo-webhook hierboven,
+    zodat er geen nieuwe sleutel in Render hoeft."""
+    goed = (os.environ.get("BREVO_WEBHOOK_SLEUTEL") or "").strip()
+    if not goed or not hmac.compare_digest(sleutel, goed):
+        return "", 404
+    import antwoordagent
+    try:
+        antwoordagent.verwerk(request.get_json(silent=True) or {}, get_base_url().rstrip("/"),
+                              _meld_aan_beheer)
+    except Exception as e:
+        # Toch 200: anders stuurt Brevo hem steeds opnieuw. Wel een belletje.
+        print(f"Antwoord verwerken mislukt: {e}")
+        _meld_aan_beheer("Antwoord verwerken mislukt",
+                         f"Er kwam een mail binnen op het antwoordadres, maar verwerken ging mis: "
+                         f"{escape(str(e))}. Kijk in de Render-logs.")
     return "", 200
 
 
@@ -6189,8 +6213,86 @@ def admin_verkoop():
             f"Stand: <strong>{'verstuurt zelf' if zelf else 'wacht op jouw goedkeuring'}</strong>.</p>"
             f"<p style='color:#0B7C5E'>{escape(melding)}</p>"
             f"<form method='post'>{schakelaar} <button name='actie' value='nu'>Nu een ronde draaien</button></form>"
+            f"<p><a href='/admin/antwoorden'>Antwoorden van winkels</a></p>"
             f"<h2 style='margin-top:28px'>Scorebord</h2>{bord}"
             f"<h2 style='margin-top:28px'>Concepten ({len(lijst)})</h2>{blokken}</body>")
+
+
+@app.route("/admin/antwoorden", methods=["GET", "POST"])
+def admin_antwoorden():
+    """De antwoordagent (stap 126): wie terugmailde, met een concept-antwoord."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import antwoordagent as aa
+    basis = get_base_url().rstrip("/")
+    melding = ""
+    if request.method == "POST":
+        actie = request.form.get("actie")
+        try:
+            nr = int(request.form.get("id") or 0)
+        except ValueError:
+            nr = 0
+        if actie == "versturen" and nr:
+            melding = ("Verstuurd." if aa.verstuur(nr, request.form.get("tekst") or "")
+                       else "Versturen mislukt (leeg, al verstuurd, of Brevo weigerde).")
+        elif actie == "klaar" and nr:
+            aa.klaar(nr)
+            melding = "Op klaar gezet, er gaat niets uit."
+        elif actie == "koppelen":
+            _, melding = aa.koppel_brevo(basis, (os.environ.get("BREVO_WEBHOOK_SLEUTEL") or "").strip(),
+                                         request.form.get("domein") or None)
+        elif actie == "test":
+            doel = f"test@{aa.domein()}"
+            melding = (f"Testmail verstuurd naar {doel}. Ververs deze pagina over een minuut: "
+                       f"hij moet hieronder staan als 'test'." if emailing.send_email(
+                           doel, aa.TEST_ONDERWERP, "<p>Test van de antwoordagent.</p>")
+                       else "Testmail versturen mislukt.")
+    rijen = aa.lijst()
+    kleur = {"concept": "#1B3FE0", "afgemeld": "#B42318", "verstuurd": "#0B7C5E"}
+    blokken = ""
+    for r in rijen:
+        kop = (f"<div style='font-size:13px;color:#666'>{escape(str(r['ontvangen_op'])[:16])} &middot; "
+               f"{escape(r.get('naam') or '')} &lt;{escape(r['van'])}&gt; &middot; "
+               f"{escape(r.get('webshop_url') or 'winkel onbekend')} &middot; soort <strong>{escape(r.get('soort') or '')}"
+               f"</strong> &middot; <span style='color:{kleur.get(r['stand'], '#666')}'>{escape(r['stand'])}</span></div>"
+               f"<div style='font-weight:700;margin:6px 0'>{escape(r.get('onderwerp') or '')}</div>"
+               f"<div style='white-space:pre-wrap;background:#F4F5F8;padding:10px 12px;border-radius:8px;"
+               f"font-size:14px'>{escape(r.get('tekst') or '')}</div>")
+        if r["stand"] == "concept":
+            kop += (f"<form method='post' style='margin-top:10px'><input type='hidden' name='id' value='{r['id']}'>"
+                    f"<div style='font-size:13px;color:#666;margin-bottom:4px'>Concept-antwoord (pas gerust aan):</div>"
+                    f"<textarea name='tekst' rows='9' style='width:100%;font:inherit;font-size:14px;padding:8px'>"
+                    f"{escape(r.get('concept') or '')}</textarea><br>"
+                    f"<button name='actie' value='versturen' style='padding:8px 14px;background:#1B3FE0;color:#fff;"
+                    f"border:0;border-radius:6px'>Versturen</button> "
+                    f"<button name='actie' value='klaar' style='padding:8px 14px'>Zelf afgehandeld</button></form>")
+        elif r["stand"] == "verstuurd" and r.get("concept"):
+            kop += (f"<div style='font-size:13px;color:#666;margin-top:8px'>Ons antwoord:</div>"
+                    f"<div style='white-space:pre-wrap;font-size:14px'>{escape(r['concept'])}</div>")
+        blokken += f"<div style='border:1px solid #ddd;border-radius:10px;padding:14px 18px;margin:14px 0'>{kop}</div>"
+    wacht = sum(1 for r in rijen if r["stand"] == "concept")
+    gekoppeld = db.get_instelling("antwoord_gekoppeld")
+    reply = (os.environ.get("SMTP_REPLY_TO") or "").strip()
+    stand = ("gekoppeld aan " + escape(aa.domein())) if gekoppeld else "nog niet gekoppeld"
+    reply_ok = reply.lower().endswith("@" + aa.domein())
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Antwoorden | Krillo</title><body style='font-family:Arial,sans-serif;max-width:760px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Antwoordagent</h1>"
+            f"<p>Wie op een mail van ons antwoordt, komt hier. Afmelden gaat vanzelf; al het andere krijgt "
+            f"een concept dat pas weggaat als jij op Versturen drukt.</p>"
+            f"<p>Brevo: <strong>{stand}</strong>. Antwoordadres in Render (SMTP_REPLY_TO): "
+            f"<strong>{escape(reply) or 'niet ingevuld'}</strong>"
+            f"{'' if reply_ok else ' (antwoorden komen nog NIET hier)'}.</p>"
+            f"<p style='color:#0B7C5E'>{escape(melding)}</p>"
+            f"<form method='post'>Domein <input name='domein' value='{escape(aa.domein())}' size='18'> "
+            f"<button name='actie' value='koppelen'>Koppel bij Brevo</button> "
+            f"<button name='actie' value='test'>Stuur een testmail</button></form>"
+            f"<p style='margin-top:10px'><a href='/admin/verkoop'>Naar de verkoopagent</a></p>"
+            f"<h2 style='margin-top:28px'>Binnengekomen ({wacht} wachten op jou)</h2>"
+            f"{blokken or '<p>Nog niets binnengekomen.</p>'}</body>")
 
 
 @app.route("/admin/controle", methods=["GET", "POST"])

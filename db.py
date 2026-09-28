@@ -542,6 +542,26 @@ def init_db():
                             "ADD COLUMN IF NOT EXISTS opvolg_variant TEXT;")
                 cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS klacht_op TIMESTAMPTZ;")
+                # De antwoordagent (stap 126): wanneer een winkel ons terugmailde.
+                # Wie antwoordde, krijgt geen automatische opvolging meer: dan
+                # is er een gesprek, en dat voert een mens.
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS antwoord_op TIMESTAMPTZ;")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS antwoorden (
+                        id SERIAL PRIMARY KEY,
+                        bericht_id TEXT UNIQUE,
+                        ontvangen_op TIMESTAMPTZ NOT NULL DEFAULT now(),
+                        van TEXT,
+                        naam TEXT,
+                        onderwerp TEXT,
+                        tekst TEXT,
+                        webshop_url TEXT,
+                        soort TEXT,
+                        concept TEXT,
+                        stand TEXT NOT NULL DEFAULT 'nieuw',
+                        afgehandeld_op TIMESTAMPTZ
+                    );""")
                 cur.execute("""CREATE INDEX IF NOT EXISTS benadering_stand
                                ON benadering (stand);""")
                 # Koppelingen met winkels die niet op Shopify draaien.
@@ -4629,7 +4649,27 @@ def te_mailen_met_positie(limiet):
                             WHERE u.webshop_url = b.webshop_url
                               AND coalesce(u.telbaar, 0) >= 3
                               AND r.afgerond_op IS NOT NULL)
-                  ORDER BY b.toegevoegd_op, b.webshop_url
+                  -- STAP 127 (28 september): de kansrijkste winkels eerst.
+                  -- Plek 2 tot 8 heeft iets te winnen en is dichtbij; wie al
+                  -- genoemd wordt snapt het probleem sneller; op Shopify of
+                  -- WooCommerce kan Fix het werk zelf doen. Nummer 1 en de
+                  -- staart komen later, niet nooit.
+                  ORDER BY (
+                      SELECT CASE WHEN u.positie BETWEEN 2 AND 8 THEN 30
+                                  WHEN u.positie BETWEEN 9 AND 15 THEN 20
+                                  WHEN u.positie = 1 THEN 10 ELSE 0 END
+                             -- Nummer 1 wordt altijd genoemd; de bonus is voor wie
+                             -- genoemd wordt maar niet bovenaan staat.
+                             + CASE WHEN coalesce(u.genoemd, 0) > 0 AND u.positie > 1
+                                    THEN 10 ELSE 0 END
+                        FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
+                       WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
+                    ORDER BY u.ronde DESC LIMIT 1)
+                    + coalesce((SELECT CASE WHEN lower(p.platform) IN ('shopify', 'woocommerce')
+                                            THEN 10 ELSE 0 END
+                                  FROM winkelprofielen p WHERE p.webshop_url = b.webshop_url), 0)
+                    DESC NULLS LAST,
+                    b.toegevoegd_op, b.webshop_url
                      LIMIT %s""", (int(limiet),))
                 return [dict(r) for r in cur.fetchall()]
     except Exception as e:

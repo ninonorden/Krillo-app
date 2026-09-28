@@ -136,6 +136,23 @@ def controleer(app, nu=None):
     except Exception as e:
         fout.append(f"Benadering nakijken mislukt: {e}")
 
+    # 4. De antwoordagent (stap 126): ligt er een winkel te wachten, en komen
+    # de meldingen nog bij Nino aan?
+    try:
+        import antwoordagent
+        wacht = antwoordagent.wachtend_sinds(24)
+        if wacht:
+            fout.append(f"{wacht} antwoord(en) van winkels wachten al meer dan een dag op /admin/antwoorden.")
+        else:
+            goed.append("Geen antwoorden die blijven liggen")
+    except Exception as e:
+        fout.append(f"Antwoorden nakijken mislukt: {e}")
+    reply = (os.environ.get("SMTP_REPLY_TO") or "").strip().lower()
+    beheer = (os.environ.get("BEHEERDER_EMAIL") or os.environ.get("BEHEER_EMAIL") or "").strip()
+    if reply.endswith(".krilloai.com") and not beheer:
+        fout.append("SMTP_REPLY_TO gaat naar de antwoordagent, maar BEHEERDER_EMAIL ontbreekt: "
+                    "meldingen komen dan nergens aan.")
+
     return {"goed": goed, "fout": fout, "op": nu.isoformat()}
 
 

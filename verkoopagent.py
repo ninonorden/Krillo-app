@@ -68,6 +68,8 @@ def warme_winkels(limiet=50, nu=None):
            AND b.email IS NOT NULL
            AND NOT b.afgemeld
            AND b.bounce_op IS NULL
+           -- Wie terugmailde, is in gesprek met een mens (stap 126).
+           AND b.antwoord_op IS NULL
            AND b.opvolg_aantal < %s
            AND (b.opvolg_stand IS NULL OR b.opvolg_stand NOT IN ('concept'))
            AND NOT EXISTS (SELECT 1 FROM klanten k WHERE k.webshop_url = b.webshop_url)
