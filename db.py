@@ -248,6 +248,8 @@ def init_db():
                 # Mollie alleen niet genoeg is.
                 cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS mollie_klant_id TEXT;")
                 cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS pakket TEXT;")
+                # Stap 106: maand of jaar, voor de pagina Abonnement en het opzeggen.
+                cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS periode TEXT;")
                 # 28 september, Nino: "bij benadering staat 3 klanten maar dat
                 # klopt niet". Het waren een testabonnement (de beoordelaar van
                 # Shopify) en proefbetalingen. Die tellen nergens als klant.
@@ -4435,8 +4437,8 @@ def ruim_verlopen_gegevens(maanden=12):
         conn.close()
 
 
-def zet_mollie_klant(webshop_url, mollie_klant_id, pakket=None):
-    """Bewaart bij de klant welke Mollie-klant en welk pakket erbij horen."""
+def zet_mollie_klant(webshop_url, mollie_klant_id, pakket=None, periode=None):
+    """Bewaart bij de klant welke Mollie-klant, welk pakket en welke periode erbij horen."""
     if not webshop_url or not mollie_klant_id:
         return False
     conn = _get_connection()
@@ -4446,8 +4448,9 @@ def zet_mollie_klant(webshop_url, mollie_klant_id, pakket=None):
         with conn:
             with conn.cursor() as cur:
                 cur.execute("UPDATE klanten SET mollie_klant_id = %s, "
-                            "pakket = coalesce(%s, pakket) WHERE webshop_url = %s",
-                            (mollie_klant_id, pakket, webshop_url))
+                            "pakket = coalesce(%s, pakket), periode = coalesce(%s, periode) "
+                            "WHERE webshop_url = %s",
+                            (mollie_klant_id, pakket, periode, webshop_url))
                 return cur.rowcount > 0
     except Exception as e:
         print(f"Mollie-klant bewaren mislukt voor {webshop_url}: {e}")

@@ -106,6 +106,10 @@ def verhoog_volume_stapsgewijs():
     if verstreken < OPBOUW_DAGEN:
         return {"verhoogd": False,
                 "reden": f"Volgende verhoging over {OPBOUW_DAGEN - verstreken} dag(en)."}
+    # Stap 117: nooit omhoog als het niet goed landt.
+    gezond = verzendgezondheid()
+    if not gezond["gezond"]:
+        return {"verhoogd": False, "reden": f"Niet omhoog: {gezond['reden']}"}
     if db.gemaild_sinds(vorige) < max(1, nu * min(verstreken, OPBOUW_DAGEN) // 3):
         return {"verhoogd": False,
                 "reden": "Sinds de vorige verhoging is er te weinig verstuurd om te weten "
@@ -118,6 +122,75 @@ def verhoog_volume_stapsgewijs():
     db.zet_instelling(OPBOUW_SLEUTEL, vandaag)
     print(f"Benadering, volume verhoogd van {nu} naar {nieuw} mails per dag.")
     return {"verhoogd": True, "van": nu, "naar": nieuw}
+
+# STAP 117 (28 september): de automatische rem. De opbouw hierboven ging alleen
+# omhoog. Loopt het mis (veel teruggekaatste mail, of iemand drukt op "spam"),
+# dan moet het volume vanzelf omlaag, voordat Gmail het hele domein wantrouwt.
+# Een spammelding weegt het zwaarst: Google wil onder de 0,1 procent blijven,
+# en bij twintig mails per dag is een enkele melding al te veel.
+REM_BOUNCE_PROCENT = float(os.environ.get("REM_BOUNCE_PROCENT", "5"))
+REM_MIN_MAILS = 20
+REM_SLEUTEL = "benadering_rem_op"
+
+
+def verzendgezondheid():
+    """Hoe de koude mail de laatste 7 dagen landt. {gemaild, bounces,
+    klachten, bounce_procent, gezond, reden}."""
+    try:
+        conn = db._get_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT count(*),
+                                      count(*) FILTER (WHERE bounce_op IS NOT NULL),
+                                      count(*) FILTER (WHERE klacht_op IS NOT NULL)
+                                 FROM benadering WHERE gemaild_op > now() - interval '7 days'""")
+                gemaild, bounces, klachten = cur.fetchone()
+        conn.close()
+    except Exception as e:
+        return {"gezond": True, "reden": f"Niet te meten: {e}", "gemaild": 0, "bounces": 0,
+                "klachten": 0, "bounce_procent": 0.0}
+    procent = round(100.0 * bounces / gemaild, 1) if gemaild else 0.0
+    if klachten:
+        return {"gezond": False, "gemaild": gemaild, "bounces": bounces, "klachten": klachten,
+                "bounce_procent": procent,
+                "reden": f"{klachten} spammelding(en) in de laatste 7 dagen."}
+    if gemaild >= REM_MIN_MAILS and procent > REM_BOUNCE_PROCENT:
+        return {"gezond": False, "gemaild": gemaild, "bounces": bounces, "klachten": 0,
+                "bounce_procent": procent,
+                "reden": f"{procent} procent kwam terug ({bounces} van {gemaild}), boven de "
+                         f"{REM_BOUNCE_PROCENT:g} procent."}
+    return {"gezond": True, "gemaild": gemaild, "bounces": bounces, "klachten": klachten,
+            "bounce_procent": procent, "reden": "In orde."}
+
+
+def rem_als_nodig(melden=None, gezondheid=None):
+    """Halveert het volume (niet onder 5) als het niet gezond is, hoogstens een
+    keer per dag, en zet de opbouw een week terug. Geeft wat er gebeurde."""
+    g = gezondheid or verzendgezondheid()
+    if g["gezond"]:
+        return {"geremd": False, "reden": g["reden"]}
+    klok = datetime.now(KLOK) if KLOK else datetime.now()
+    vandaag = klok.strftime("%Y-%m-%d")
+    if (db.get_instelling(REM_SLEUTEL) or "") == vandaag:
+        return {"geremd": False, "reden": "Vandaag al geremd."}
+    nu = instellingen()["per_dag"]
+    nieuw = max(5, nu // 2)
+    db.zet_instelling("mail_per_dag", str(nieuw))
+    db.zet_instelling("mail_per_ronde", str(max(1, nieuw // 10)))
+    db.zet_instelling(REM_SLEUTEL, vandaag)
+    # De opbouw begint opnieuw te tellen: pas over een week weer omhoog.
+    db.zet_instelling(OPBOUW_SLEUTEL, vandaag)
+    if melden:
+        try:
+            melden("De koude mail is afgeremd",
+                   f"{g['reden']} Het volume is automatisch van {nu} naar {nieuw} per dag gezet. "
+                   f"Over een week gaat het vanzelf weer omhoog als het dan goed gaat. Kijk op "
+                   f"/admin/benadering welke adressen terugkwamen.")
+        except Exception:
+            pass
+    print(f"Benadering, rem: van {nu} naar {nieuw} per dag. {g['reden']}")
+    return {"geremd": True, "van": nu, "naar": nieuw, "reden": g["reden"]}
+
 
 # Buiten deze uren gaat er geen post uit. Een mail die om drie uur 's nachts
 # binnenkomt leest als een machine, en dat is hij ook, maar dat hoeft er niet
@@ -150,6 +223,16 @@ def binnen_kantooruren(moment=None):
 
 # ------------------------------------------------------------- 1. adres zoeken
 
+def _onthoud_platform(url, uitkomst):
+    """Zag de adresvinder Shopify, dan onthouden (stap 156): de koude mail zegt
+    dan dat de app het werk doet. Faalt nooit hard."""
+    try:
+        if (uitkomst or {}).get("platform"):
+            db.zet_platform(url, uitkomst["platform"])
+    except Exception as e:
+        print(f"Platform onthouden mislukt voor {url}: {e}")
+
+
 def zoek_adressen(hoeveel=None):
     """Zoekt bij een paar nieuwe winkels het mailadres op hun eigen site."""
     hoeveel = hoeveel if hoeveel is not None else instellingen()["adressen_per_ronde"]
@@ -159,6 +242,7 @@ def zoek_adressen(hoeveel=None):
         gedaan["bekeken"] += 1
         try:
             uitkomst = contactvinder.zoek_adres(url)
+            _onthoud_platform(url, uitkomst)
         except Exception as e:
             print(f"Adres zoeken mislukt voor {url}: {e}")
             db.zet_benadering(url, stand="geen_adres",
@@ -247,6 +331,7 @@ def herkans_adressen(hoeveel=None):
         gedaan["bekeken"] += 1
         try:
             uitkomst = contactvinder.zoek_adres(url)
+            _onthoud_platform(url, uitkomst)
         except Exception as e:
             print(f"Herkansing adres zoeken mislukt voor {url}: {e}")
             continue

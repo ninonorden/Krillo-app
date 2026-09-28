@@ -38,11 +38,17 @@ AUDIT_PRICE = {"currency": "EUR", "value": "79.00"}
 PAKKETTEN = {
     "watch": {
         "prijs": {"currency": "EUR", "value": "49.00"},
+        # Stap 106 (28 september): per jaar twee maanden gratis. Geld meteen
+        # binnen, en wie een jaar vooruit betaalt blijft (bij kleine
+        # abonnementen blijft na een jaar maar 23 tot 45 procent van de
+        # maandomzet over, ChartMogul 2025).
+        "jaarprijs": {"currency": "EUR", "value": "490.00"},
         "naam": "Watch",
         "omschrijving": "Krillo Watch, your monthly rank and fixes to do yourself",
     },
     "fix": {
         "prijs": {"currency": "EUR", "value": "149.00"},
+        "jaarprijs": {"currency": "EUR", "value": "1490.00"},
         "naam": "Fix",
         "omschrijving": "Krillo Fix, your monthly rank and we carry out the fixes",
     },
@@ -57,6 +63,42 @@ PAKKETTEN = {
 # pakket waar de site naartoe stuurt en waar het verschil met de rest van de
 # markt in zit.
 STANDAARD_PAKKET = "fix"
+
+
+PERIODES = ("maand", "jaar")
+
+
+def periode_van(periode):
+    """Maand of jaar; alles wat onbekend is wordt maand."""
+    return "jaar" if (periode or "").strip().lower() == "jaar" else "maand"
+
+
+def prijs_van(pakket, periode="maand"):
+    """Het bedrag (Mollie-vorm) voor dit pakket en deze periode. Een pakket
+    zonder jaarprijs (merken) is altijd per maand."""
+    gekozen = pakket_van(pakket)
+    if periode_van(periode) == "jaar" and gekozen.get("jaarprijs"):
+        return gekozen["jaarprijs"]
+    return gekozen["prijs"]
+
+
+def _is_jaarinterval(interval):
+    t = (interval or "").strip().lower()
+    return t.startswith("12 month") or t.startswith("1 year") or t == "12 months"
+
+
+def periode_bij_bedrag(waarde, interval=None):
+    """Maand of jaar. Met het interval van Mollie is het zeker. Zonder interval
+    gaat een maandprijs voor: 490 euro is ZOWEL Watch per jaar ALS merken per
+    maand, en een merk is per maand (28 september, gevonden door de tests)."""
+    if interval:
+        return "jaar" if _is_jaarinterval(interval) else "maand"
+    if any(str(waarde) == p["prijs"]["value"] for p in PAKKETTEN.values()):
+        return "maand"
+    for pakket in PAKKETTEN.values():
+        if pakket.get("jaarprijs") and str(waarde) == pakket["jaarprijs"]["value"]:
+            return "jaar"
+    return "maand"
 
 
 def pakket_van(naam):
@@ -161,7 +203,7 @@ def create_uitvoering_payment(base_url, webshop_url, email, bedrijfsnaam=None, b
 
 
 def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, bron=None,
-                             pakket=STANDAARD_PAKKET):
+                             pakket=STANDAARD_PAKKET, periode="maand"):
     """Stap 1 van het abonnement: klant aanmaken en de eerste betaling starten.
     Zodra deze betaling lukt (zie webhook), maken we het echte, doorlopende
     abonnement aan via create_subscription hieronder."""
@@ -176,9 +218,10 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
             "metadata": {"webshop_url": webshop_url},
         })
         gekozen = pakket_van(pakket)
+        periode = periode_van(periode) if gekozen.get("jaarprijs") else "maand"
         first_payment = customer.payments.create({
-            "amount": gekozen["prijs"],
-            "description": f"{gekozen['omschrijving']}, first month",
+            "amount": prijs_van(pakket, periode),
+            "description": f"{gekozen['omschrijving']}, " + ("first year" if periode == "jaar" else "first month"),
             "redirectUrl": f"{base_url}/bedankt?type=monitoring",
             "webhookUrl": f"{base_url}/webhooks/mollie",
             "sequenceType": "first",
@@ -188,7 +231,10 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
                          # Het pakket MOET mee in de metadata. De webhook maakt
                          # daarna het doorlopende abonnement aan, en die weet
                          # anders niet of het 49 of 149 per maand wordt.
-                         "pakket": (pakket or STANDAARD_PAKKET)},
+                         "pakket": (pakket or STANDAARD_PAKKET),
+                         # En de periode: de webhook maakt daarmee een jaar-
+                         # of maandabonnement, met het juiste bedrag.
+                         "periode": periode},
         })
         _zet_terugkeerlink_met_kenmerk(client, first_payment, base_url, "monitoring")
         return {"checkout_url": first_payment.checkout_url, "payment_id": first_payment.id, "customer_id": customer.id}
@@ -225,7 +271,18 @@ def alle_klanten(client):
         pagina = pagina.get_next()
 
 
-def create_subscription(customer_id, pakket=STANDAARD_PAKKET, webhook_url=None, startdatum=None):
+def over_een_jaar(vandaag=None):
+    """Dezelfde dag volgend jaar (29 februari wordt 28 februari)."""
+    from datetime import date
+    vandaag = vandaag or date.today()
+    try:
+        return vandaag.replace(year=vandaag.year + 1)
+    except ValueError:
+        return vandaag.replace(year=vandaag.year + 1, day=28)
+
+
+def create_subscription(customer_id, pakket=STANDAARD_PAKKET, webhook_url=None, startdatum=None,
+                        periode="maand"):
     """Stap 2, wordt aangeroepen vanuit de webhook zodra de eerste betaling is gelukt.
     Zet het echte, maandelijks terugkerende abonnement op.
 
@@ -243,11 +300,14 @@ def create_subscription(customer_id, pakket=STANDAARD_PAKKET, webhook_url=None, 
     try:
         customer = client.customers.get(customer_id)
         gekozen = pakket_van(pakket)
+        jaar = periode_van(periode) == "jaar" and bool(gekozen.get("jaarprijs"))
+        # Een jaarabonnement: de eerste betaling was het eerste jaar, dus de
+        # volgende incasso is over een jaar, niet over een maand.
         gegevens = {
-            "amount": gekozen["prijs"],
-            "interval": "1 month",
-            "startDate": (startdatum or over_een_maand()).isoformat(),
-            "description": f"{gekozen['omschrijving']} (monthly)",
+            "amount": prijs_van(pakket, "jaar" if jaar else "maand"),
+            "interval": "12 months" if jaar else "1 month",
+            "startDate": (startdatum or (over_een_jaar() if jaar else over_een_maand())).isoformat(),
+            "description": f"{gekozen['omschrijving']} ({'yearly' if jaar else 'monthly'})",
         }
         if webhook_url:
             gegevens["webhookUrl"] = webhook_url
@@ -257,7 +317,7 @@ def create_subscription(customer_id, pakket=STANDAARD_PAKKET, webhook_url=None, 
         return {"error": str(e)}
 
 
-def pakket_bij_bedrag(waarde):
+def pakket_bij_bedrag(waarde, interval=None):
     """Welk pakket hoort bij dit maandbedrag, of None als we het niet weten.
 
     Waarom op bedrag: bij Mollie staat het abonnement als bedrag plus
@@ -265,9 +325,17 @@ def pakket_bij_bedrag(waarde):
     klopt, want dat is wat er echt afgeschreven wordt."""
     if not waarde:
         return None
-    for sleutel, pakket in PAKKETTEN.items():
-        if str(waarde) == pakket["prijs"]["value"]:
-            return sleutel
+    # Met het interval: alleen de prijzen van die periode. Zonder interval eerst
+    # de maandprijzen (zie periode_bij_bedrag: 490 is ook merken per maand).
+    jaar = _is_jaarinterval(interval) if interval else None
+    if jaar is not True:
+        for sleutel, pakket in PAKKETTEN.items():
+            if str(waarde) == pakket["prijs"]["value"]:
+                return sleutel
+    if jaar is not False:
+        for sleutel, pakket in PAKKETTEN.items():
+            if pakket.get("jaarprijs") and str(waarde) == pakket["jaarprijs"]["value"]:
+                return sleutel
     return None
 
 
@@ -315,7 +383,8 @@ def zoek_abonnement(webshop_url):
                             "next_payment_date": sub.get("nextPaymentDate"),
                             "bedrag": bedrag.get("value"),
                             "omschrijving": sub.get("description"),
-                            "pakket": pakket_bij_bedrag(bedrag.get("value"))}
+                            "pakket": pakket_bij_bedrag(bedrag.get("value"), sub.get("interval")),
+                            "periode": periode_bij_bedrag(bedrag.get("value"), sub.get("interval"))}
     except (MollieError, Exception) as e:
         print(f"Abonnement zoeken mislukt: {e}")
     return None
@@ -365,9 +434,19 @@ def get_payment_status(payment_id):
             bedrag = float(payment.amount.get("value")) if payment.amount else None
         except (TypeError, ValueError):
             bedrag = None
+        # Het interval van het abonnement (maand of jaar), voor de factuur.
+        # Een extra vraag aan Mollie, alleen bij betalingen van een abonnement.
+        interval = None
+        sub_id, klant_id = getattr(payment, "subscription_id", None), getattr(payment, "customer_id", None)
+        if sub_id and klant_id:
+            try:
+                interval = client.customers.get(klant_id).subscriptions.get(sub_id).interval
+            except Exception:
+                interval = None
         return {
             "status": payment.status,
             "is_paid": payment.is_paid(),
+            "interval": interval,
             # Voor de maandbetalingen van een abonnement: die hebben geen
             # metadata van ons, alleen een abonnement en een klant.
             "subscription_id": getattr(payment, "subscription_id", None),

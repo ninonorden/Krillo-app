@@ -712,7 +712,10 @@ def api_opzeggen(klant_token):
     # Binnen veertien dagen krijgt hij zijn geld terug, dan stopt de toegang nu.
     # Daarna betaalde hij de lopende maand, en die houdt hij (voorwaarden).
     if dagen is not None and dagen > 14:
-        db.zet_klant_opgezegd(klant["webshop_url"], tot=_einde_betaalde_maand(klant.get("aangemaakt_op")))
+        # Een jaarklant houdt toegang tot het eind van zijn betaalde jaar.
+        jaar = (abonnement.get("periode") == "jaar") or (klant.get("periode") == "jaar")
+        db.zet_klant_opgezegd(klant["webshop_url"],
+                              tot=_einde_betaalde_maand(klant.get("aangemaakt_op"), maanden=12 if jaar else 1))
     else:
         db.zet_klant_opgezegd(klant["webshop_url"])
     emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"])
@@ -1505,7 +1508,8 @@ def checkout_monitoring():
         print(f"Shopify-abonnement nakijken bij de kassa mislukt: {e}")
 
     result = payments.create_monitoring_signup(get_base_url(), email, webshop_url,
-                                               bedrijfsnaam, bron=bron, pakket=pakket)
+                                               bedrijfsnaam, bron=bron, pakket=pakket,
+                                               periode=payments.periode_van(data.get("periode")))
     if "payment_id" in result:
         db.leg_toestemming_vast(result["payment_id"], email, webshop_url, "monitoring", voorwaarden, False)
     if "error" in result:
@@ -1768,13 +1772,16 @@ def _verwerk_betaling(payment_id, base_url):
             elif payment_type == "uitvoering":
                 omschrijving = f"Krillo carries out the improvements for {webshop_url}"
             elif payment_type == "maandbetaling":
-                pakket_maand = payments.pakket_bij_bedrag(
-                    f"{status.get('bedrag'):.2f}" if status.get("bedrag") is not None else None)
-                omschrijving = (f"Krillo {payments.pakket_van(pakket_maand)['naam']}, monthly, "
+                bedrag_tekst = f"{status.get('bedrag'):.2f}" if status.get("bedrag") is not None else None
+                pakket_maand = payments.pakket_bij_bedrag(bedrag_tekst, status.get("interval"))
+                soort_periode = ("yearly" if payments.periode_bij_bedrag(bedrag_tekst, status.get("interval")) == "jaar"
+                                 else "monthly")
+                omschrijving = (f"Krillo {payments.pakket_van(pakket_maand)['naam']}, {soort_periode}, "
                                 f"for {webshop_url}")
             else:
                 pakketnaam = payments.pakket_van(metadata.get("pakket"))["naam"]
-                omschrijving = f"Krillo {pakketnaam}, first month, for {webshop_url}"
+                eerste = "first year" if payments.periode_van(metadata.get("periode")) == "jaar" else "first month"
+                omschrijving = f"Krillo {pakketnaam}, {eerste}, for {webshop_url}"
             bedrag = status.get("bedrag")
             if bedrag is not None:
                 factuurnummer = db.maak_factuur(payment_id, email, bedrijfsnaam,
@@ -1916,7 +1923,8 @@ def _verwerk_betaling(payment_id, base_url):
                     # elke maand honderd euro te veel afgeschreven.
                     uitkomst = payments.create_subscription(
                         customer_id, pakket=metadata.get("pakket"),
-                        webhook_url=f"{base_url}/webhooks/mollie") or {}
+                        webhook_url=f"{base_url}/webhooks/mollie",
+                        periode=metadata.get("periode")) or {}
                 if uitkomst.get("error"):
                     print(f"LET OP: doorlopend abonnement NIET aangemaakt voor "
                           f"{webshop_url} ({customer_id}): {uitkomst['error']}")
@@ -1952,7 +1960,8 @@ def _verwerk_betaling(payment_id, base_url):
                     klant_token = db.get_or_create_klant(webshop_url, email)
                     if klant_token and customer_id:
                         db.zet_mollie_klant(webshop_url, customer_id,
-                                            (metadata.get("pakket") or "").lower() or None)
+                                            (metadata.get("pakket") or "").lower() or None,
+                                            payments.periode_van(metadata.get("periode")))
                     if not klant_token:
                         _meld_aan_beheer(
                             "Aanmelding op een webshop van een andere klant",
@@ -2644,6 +2653,13 @@ def _benadering_ronde_werk():
         # Niet in een keer naar honderd: Gmail en Outlook kijken vooral naar
         # hoe SNEL je volume oploopt, en een jong domein dat van vijftien
         # naar honderd springt ziet er precies zo uit als een gekaapt domein.
+        # Eerst de rem (stap 117): landt de post slecht, dan eerst omlaag.
+        try:
+            rem = benadering.rem_als_nodig(melden=_meld_aan_beheer)
+            if rem.get("geremd"):
+                verslag["volume"] = f"geremd van {rem['van']} naar {rem['naar']} per dag"
+        except Exception as e:
+            print(f"Rem nakijken mislukt: {e}")
         opbouw = benadering.verhoog_volume_stapsgewijs()
         if opbouw.get("verhoogd"):
             verslag["volume"] = f"{opbouw['van']} naar {opbouw['naar']} per dag"
@@ -3166,7 +3182,7 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
             # verdwijnt die winkel uit de index (23 september).
             afmeld_url=None if proef else f"{basis}/afmelden/{token}",
             onderwerp_voor=f"[TEST {variant}] " if proef else "",
-            variant=variant)
+            variant=variant, platform=(db.get_winkelprofiel(webshop_url) or {}).get("platform"))
         # Alleen een echte mail telt mee in de vergelijking van de versies.
         if gelukt and not proef:
             db.zet_mail_variant(webshop_url, variant)
@@ -4000,8 +4016,9 @@ def _doet_werk_voor(webshop_url):
             # Geen pakket bekend bij een lopend abonnement: dan kijken we naar
             # het bedrag. Watch is het goedkoopste pakket.
             bedrag = str(abonnement.get("bedrag") or "")
-            watch = payments.PAKKETTEN["watch"]["prijs"]["value"]
-            return bedrag != watch
+            watch = (payments.PAKKETTEN["watch"]["prijs"]["value"],
+                     payments.PAKKETTEN["watch"].get("jaarprijs", {}).get("value"))
+            return bedrag not in watch
     except Exception as e:
         print(f"Abonnement opvragen mislukt voor {webshop_url}: {e}")
     try:
@@ -5074,10 +5091,21 @@ def _plan_uitleg(webshop_url, werkblok, taal="en"):
                     "Je betaalt via je Shopify-factuur. Wijzigen of opzeggen doe je in Shopify, bij de app.")
     elif klant.get("aangemaakt_op"):
         begon = klant["aangemaakt_op"].strftime("%d-%m-%Y")
-        betaling = (f"Customer since {begon}. You pay monthly by direct debit through Mollie; "
-                    f"every payment gets an invoice by email." if en else
-                    f"Klant sinds {begon}. Je betaalt maandelijks via Mollie; bij elke betaling "
-                    f"krijg je een factuur per mail.")
+        if klant.get("periode") == "jaar":
+            betaling = (f"Customer since {begon}. You pay yearly, in advance, through Mollie (two "
+                        f"months free); every payment gets an invoice by email." if en else
+                        f"Klant sinds {begon}. Je betaalt per jaar vooruit via Mollie (twee maanden "
+                        f"gratis); bij elke betaling krijg je een factuur per mail.")
+            punten = [p.replace("Cancel any time, from this page",
+                                "Cancel any time from this page; it then does not renew")
+                      .replace("Elke maand opzegbaar, vanaf deze pagina",
+                               "Opzegbaar vanaf deze pagina; het jaar verlengt dan niet")
+                      for p in punten]
+        else:
+            betaling = (f"Customer since {begon}. You pay monthly by direct debit through Mollie; "
+                        f"every payment gets an invoice by email." if en else
+                        f"Klant sinds {begon}. Je betaalt maandelijks via Mollie; bij elke betaling "
+                        f"krijg je een factuur per mail.")
     else:
         betaling = ""
     return {"naam": naam, "punten": punten, "betaling": betaling}
@@ -5129,11 +5157,12 @@ def _toegang_voorbij(klant):
         return True
 
 
-def _einde_betaalde_maand(begon, nu=None):
-    """Het einde van de lopende betaalde maand, gerekend vanaf de eerste betaling.
+def _einde_betaalde_maand(begon, nu=None, maanden=1):
+    """Het einde van de lopende betaalde periode, gerekend vanaf de eerste betaling.
 
     Een klant die op de 10e begon, betaalt elke 10e; zegt hij op de 25e op, dan
-    loopt zijn toegang tot de 10e van de volgende maand."""
+    loopt zijn toegang tot de 10e van de volgende maand. Met maanden=12 (een
+    jaarabonnement, stap 106) tot dezelfde dag na een heel betaald jaar."""
     nu = nu or datetime.now(timezone.utc)
     if not begon:
         return nu
@@ -5141,9 +5170,9 @@ def _einde_betaalde_maand(begon, nu=None):
         begon = begon.replace(tzinfo=timezone.utc)
     jaar, maand = begon.year, begon.month
     while True:
-        maand += 1
-        if maand > 12:
-            jaar, maand = jaar + 1, 1
+        maand += max(1, int(maanden))
+        while maand > 12:
+            jaar, maand = jaar + 1, maand - 12
         # Een maand zonder die dag (31 februari): de laatste dag van die maand.
         dag = begon.day
         while True:

@@ -2,7 +2,7 @@
 
 WAAROM DIT BESTAAT (stap 151, 28 september). Een winkel die al een koude mail
 kreeg en niets deed, is niet "nee"; het was geen goed moment. Vlak voor een
-koopmoment (Black Friday, Sinterklaas, Moederdag) is het wel een goed moment:
+koopmoment (Sinterklaas, Kerst, Moederdag) is het wel een goed moment:
 dan vragen kopers AI waar ze moeten kopen, en een winkelier denkt precies dan
 na over zijn verkoop. Nino: "voor alles gelijk goed gezet, automatisch, ook
 voor holidays van andere landen".
@@ -11,7 +11,7 @@ HOE HET WERKT
 - KALENDER hieronder: elk moment met per land de datum (vast, "tweede zondag
   van mei", of op Pasen gebaseerd, elk jaar opnieuw uitgerekend), hoeveel
   dagen van tevoren wij mailen, en voor welke categorieen het past. Moederdag
-  past bij sieraden en parfum, niet bij gereedschap. Black Friday past overal.
+  past bij sieraden en parfum, niet bij gereedschap.
 - Elke ronde: welke momenten hebben NU hun mailvenster open (vanaf "dagen van
   tevoren", twee weken lang)? Welke winkels in dat land en die categorie
   kregen eerder een koude mail, deden niets, en hoorden al 45 dagen niets van
@@ -84,10 +84,6 @@ def _koningsdag(j):
     return d - timedelta(days=1) if d.weekday() == ZO else d
 
 
-def _black_friday(j):
-    return nde_weekdag(j, 11, DO, 4) + timedelta(days=1)
-
-
 def _fete_des_meres(j):
     # Laatste zondag van mei; valt die op Pinksteren, dan de eerste van juni.
     d = nde_weekdag(j, 5, ZO, -1)
@@ -158,7 +154,8 @@ KALENDER = {
     "singlesday": ("Singles' Day", {l: _vast(11, 11) for l in ("nl", "be", "de", "fr", "gb", "us")}, 28,
                    {"elektronica", "audio", "gaming", "computers-accessoires", "telefoon-accessoires",
                     "kleding", "kleding-dames", "kleding-heren", "schoenen", "cosmetica", "makeup"}),
-    "blackfriday": ("Black Friday", {l: _black_friday for l in ("nl", "be", "de", "fr", "gb", "us")}, 42, ALLES),
+    # Black Friday bewust NIET (Nino, 28 september): in Nederland en Belgie
+    # klein en vooral Amerikaans, en daar zitten wij (nog) niet.
     "sinterklaas": ("Sinterklaas", {"nl": _vast(12, 5), "be": _vast(12, 6)}, 42, KINDEREN),
     "kerst": ("Christmas", {l: _vast(12, 25) for l in ("nl", "be", "de", "fr", "gb", "us")}, 42,
               CADEAU | {"feestartikelen", "woondecoratie", "verlichting"}),
@@ -306,7 +303,7 @@ def ronde(basis_url, bouw_beeld, vraag_voor, categorienaam=None, verstuur=None, 
     komend = momenten_rond(vandaag, dagen_vooruit=120)
 
     def beter_moment_komt(w, moment):
-        """Een speelgoedwinkel wacht op Sinterklaas in plaats van Black Friday te
+        """Een speelgoedwinkel wacht op Sinterklaas in plaats van een algemeen moment te
         krijgen en daarna 45 dagen rust. Geldt alleen voor algemene momenten."""
         if moment["cats"] != ALLES:
             return False

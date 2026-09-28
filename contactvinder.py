@@ -60,6 +60,13 @@ PADEN = [
     "/policies/terms-of-service", "/pages/terms-of-service",
     "/over-ons", "/pages/over-ons", "/pages/about-us", "/about", "/service",
     "/disclaimer", "/impressum",
+    # Stap 128 deel 2 (28 september): de vaste beleidspagina's van Shopify. In
+    # de EU moet een Shopify-winkel zijn contactgegevens tonen, en dat staat
+    # op /policies/contact-information, ook als de winkel geen eigen
+    # contactpagina met adres heeft. Retourbeleid en verzendbeleid noemen ook
+    # vaak "mail ons op ...".
+    "/policies/contact-information", "/policies/legal-notice",
+    "/policies/refund-policy", "/policies/shipping-policy",
 ]
 
 ADRES = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
@@ -266,6 +273,12 @@ def _contactlinks(html, basis_url, winkeldomein, max_links=8):
 _FORM = re.compile(r"<form\b[^>]*>(.*?)</form>", re.I | re.S)
 
 
+def is_shopify(html):
+    """Draait deze winkel op Shopify? Aan vaste sporen in de broncode."""
+    t = (html or "")[:400000]
+    return "cdn.shopify.com" in t or "Shopify.theme" in t or "myshopify.com" in t
+
+
 def heeft_formulier(html):
     """True als deze pagina een contactformulier heeft (een tekstvak plus een
     mailveld, of het vaste contactformulier van Shopify)."""
@@ -295,7 +308,7 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
     url = scan_engine.normalize_url((webshop_url or "").strip())
     winkeldomein = _domein(url)
     leeg = {"adres": None, "algemeen": False, "vandaan": None, "alles": [], "reden": None,
-            "formulier": None}
+            "formulier": None, "platform": None}
     if not winkeldomein:
         return dict(leeg, reden="Geen geldig webadres.")
     if scan_engine.is_intern_adres(url):
@@ -303,6 +316,7 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
 
     alles, bekeken = [], 0
     formulier = None
+    platform = None
     # Eerst de homepage, dan de links die de winkel zelf naar contact en
     # voorwaarden zet, en pas daarna de paden die wij raden.
     wachtrij = [url]
@@ -328,7 +342,15 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
                     wachtrij.extend(_contactlinks(antwoord.text, url, winkeldomein))
         if doel == url:
             # Na de homepage (ook als die niet laadde): de geraden paden achteraan.
-            wachtrij.extend(urljoin(url + "/", p.lstrip("/")) for p in PADEN)
+            paden = list(PADEN)
+            # Een Shopify-winkel: eerst zijn vaste beleidspagina's, want daar
+            # staat in de EU verplicht een contactadres (stap 128 deel 2).
+            if antwoord is not None and is_shopify(antwoord.text):
+                platform = "shopify"
+                eerst = ["/policies/contact-information", "/policies/legal-notice"]
+                shopify = eerst + [p for p in PADEN if p.startswith("/policies/") and p not in eerst]
+                paden = shopify + [p for p in paden if p not in shopify]
+            wachtrij.extend(urljoin(url + "/", p.lstrip("/")) for p in paden)
         # Zodra wij een algemeen adres op het eigen domein hebben, is verder
         # zoeken zonde van de tijd en van de server van de winkel.
         if any(a["algemeen"] and a["eigen_domein"] for a in alles):
@@ -342,6 +364,7 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
             uniek.append(a)
 
     leeg["formulier"] = formulier
+    leeg["platform"] = platform
     if not uniek:
         return dict(leeg, reden="Geen mailadres op de site gevonden."
                     + (" Wel een contactformulier." if formulier else ""))
@@ -355,7 +378,8 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
         for a in uniek:
             if eis(a):
                 return {"adres": a["adres"], "algemeen": True, "vandaan": a["vandaan"],
-                        "alles": [x["adres"] for x in uniek], "reden": None, "formulier": formulier}
+                        "alles": [x["adres"] for x in uniek], "reden": None, "formulier": formulier,
+                        "platform": platform}
 
     return dict(leeg, alles=[x["adres"] for x in uniek],
                 reden="Alleen persoonlijke adressen gevonden. Die slaan wij over.")

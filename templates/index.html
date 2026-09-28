@@ -556,6 +556,13 @@
   .prijzen-kop{max-width:580px; margin-bottom:44px;}
   .prijzen-kop p{font-size:16px; color:var(--ink-soft); margin-top:14px;}
   .price-amount{font-family:var(--disp); font-weight:400; font-size:32px;}
+  .periode-keuze{display:inline-flex; gap:4px; padding:4px; border:1px solid var(--line, #E4E2DA);
+    border-radius:999px; background:#fff; margin:0 0 22px;}
+  .periode-keuze button{border:0; background:none; font:inherit; font-size:14px; padding:8px 16px;
+    border-radius:999px; cursor:pointer; color:var(--ink-soft, #4A4A55);}
+  .periode-keuze button.aan{background:var(--ink, #0A0A0B); color:#fff;}
+  .periode-keuze .gratis{font-size:12px; font-weight:600; margin-left:4px; color:#0B7C5E;}
+  .periode-keuze button.aan .gratis{color:#9BE7C9;}
   .price-amount span{font-family:var(--body); font-weight:400; font-size:14px; color:var(--ink-soft);}
   /* De regels in een kaart zijn gewone tekst, geen flexrij.
      Dit was de lelijkste fout op de hele pagina. Met display:flex op de li werd
@@ -1159,10 +1166,18 @@
        payments.PAKKETTEN. Een prijs op de site die niet klopt met wat er
        afgeschreven wordt is een onjuiste mededeling over een
        betalingsverplichting. Een test bewaakt dat ze gelijk blijven. #}
+    {# Stap 106 (28 september): per maand of per jaar, met twee maanden gratis.
+       De jaarbedragen moeten gelijk zijn aan payments.PAKKETTEN[...]["jaarprijs"];
+       test_jaarabonnement bewaakt dat. #}
+    <div class="periode-keuze" role="group" aria-label="Billing period">
+      <button type="button" class="aan" data-periode="maand">Monthly</button>
+      <button type="button" data-periode="jaar">Yearly <span class="gratis">2 months free</span></button>
+    </div>
+
     <div class="price-grid">
       <div class="price-card">
         <div class="price-name">Watch</div>
-        <div class="price-amount">&euro;49 <span>/mo</span></div>
+        <div class="price-amount" data-maand="&euro;49 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;490 &lt;span&gt;/year&lt;/span&gt;">&euro;49 <span>/mo</span></div>
         <ul class="price-feats">
           <li><strong>Your rank every month</strong>, in your category and your country</li>
           <li>The buying questions you do not appear in, with the real answer</li>
@@ -1176,7 +1191,7 @@
       <div class="price-card featured">
         <div class="price-badge">Recommended</div>
         <div class="price-name">Fix</div>
-        <div class="price-amount">&euro;149 <span>/mo</span></div>
+        <div class="price-amount" data-maand="&euro;149 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;1,490 &lt;span&gt;/year&lt;/span&gt;">&euro;149 <span>/mo</span></div>
         <ul class="price-feats">
           <li><strong>Everything in Watch</strong></li>
           <li><strong>We make the fixes in your store</strong>: on Shopify through our app, elsewhere by our team with your access</li>
@@ -1799,6 +1814,7 @@
   // Nu gelijk aan payments.STANDAARD_PAKKET.
   var currentType = 'fix';
 
+  var periode = 'maand';
   var includesContent = {
     audit: {
       items: [
@@ -1898,7 +1914,11 @@
     // dertig dagen geld terug belooft klopt alleen bij de audit, en bij de
     // andere twee is het een onjuiste mededeling over een betalingsverplichting.
     var garantieVeld = document.getElementById('checkoutGarantie');
-    if(garantieVeld){ garantieVeld.textContent = content.garantie || ''; }
+    if(garantieVeld){
+      garantieVeld.textContent = (periode === 'jaar' && (type === 'watch' || type === 'fix'))
+        ? 'Paid yearly, in advance. Cancel within fourteen days of your first payment and you get the full year back. After that your plan runs to the end of the year you paid for, and does not renew if you cancel.'
+        : (content.garantie || '');
+    }
 
     if(type === 'audit'){
       eyebrow.textContent = 'Full audit \u00b7 \u20ac79 one-off';
@@ -1909,11 +1929,11 @@
       title.textContent = 'Which store should we work on?';
       emailField.style.display = 'block';
     } else if(type === 'watch'){
-      eyebrow.textContent = 'Watch \u00b7 \u20ac49 /mo';
+      eyebrow.textContent = periode === 'jaar' ? 'Watch \u00b7 \u20ac490 /year, 2 months free' : 'Watch \u00b7 \u20ac49 /mo';
       title.textContent = 'Which store should we watch?';
       emailField.style.display = 'block';
     } else {
-      eyebrow.textContent = 'Fix \u00b7 \u20ac149 /mo';
+      eyebrow.textContent = periode === 'jaar' ? 'Fix \u00b7 \u20ac1,490 /year, 2 months free' : 'Fix \u00b7 \u20ac149 /mo';
       title.textContent = 'Which store should we fix?';
       emailField.style.display = 'block';
     }
@@ -1969,6 +1989,7 @@
                 voorwaarden_akkoord: vinkVoorwaarden.checked,
                 directe_uitvoering_akkoord: vinkDirect.checked,
                 pakket: pakketten[currentType] || 'fix',
+                periode: (currentType === 'watch' || currentType === 'fix') ? periode : 'maand',
                 herkomst: bepaalHerkomst()};
 
     fetch(endpoint, {
@@ -1992,6 +2013,20 @@
       submitBtn.textContent = 'Continue to payment';
     });
   }
+
+  // Maand of jaar (stap 106). Wisselt de bedragen op de kaarten en gaat mee
+  // naar de kassa; de server rekent het bedrag zelf uit payments.PAKKETTEN.
+  document.querySelectorAll('.periode-keuze button').forEach(function(knop){
+    knop.addEventListener('click', function(){
+      periode = knop.getAttribute('data-periode') === 'jaar' ? 'jaar' : 'maand';
+      document.querySelectorAll('.periode-keuze button').forEach(function(k){
+        k.classList.toggle('aan', k === knop);
+      });
+      document.querySelectorAll('.price-amount[data-jaar]').forEach(function(el){
+        el.innerHTML = el.getAttribute(periode === 'jaar' ? 'data-jaar' : 'data-maand');
+      });
+    });
+  });
 
   var auditBtn = document.getElementById('auditCheckoutBtn');
   var uitvoeringBtn = document.getElementById('uitvoeringCheckoutBtn');

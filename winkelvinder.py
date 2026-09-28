@@ -74,6 +74,12 @@ VORMEN = [
     "online kopen gratis verzending",
     "online bestellen webwinkel",
     "kopen bij onze webshop",
+    # Stap 156 (28 september): kleine Shopify-winkels, ook dropshippers. Die
+    # laten de standaard voettekst van Shopify staan ("Mogelijk gemaakt door
+    # Shopify"); grote winkels halen die weg. Zo vindt de zoekmachine precies
+    # de kleine winkels die Watch willen en waar de app het werk kan doen.
+    '"Mogelijk gemaakt door Shopify" webshop',
+    '"Powered by Shopify" online winkel',
 ]
 
 # Wat geen webshop is. Marktplaatsen, prijsvergelijkers, kranten, sociale

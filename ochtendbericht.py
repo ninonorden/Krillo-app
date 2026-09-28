@@ -105,6 +105,15 @@ def te_doen(basis_url):
 
 def verzamel(basis_url):
     gisteren = [(wat, _tel(sql)) for wat, sql in GISTEREN]
+    # Hoe de post landt (stap 117): zelfde telling als de automatische rem.
+    try:
+        import benadering
+        g = benadering.verzendgezondheid()
+        gisteren.append((f"Teruggekaatst, laatste 7 dagen (rem boven {benadering.REM_BOUNCE_PROCENT:g}%)",
+                         g["bounces"]))
+        gisteren.append(("Spammeldingen, laatste 7 dagen (rem bij 1)", g["klachten"]))
+    except Exception:
+        pass
     try:
         klaar_voor_post = len(db.te_mailen_met_positie(10000))
     except Exception:

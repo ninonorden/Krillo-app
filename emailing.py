@@ -550,7 +550,7 @@ _TAALNAAM = {"nl": "Dutch", "de": "German", "fr": "French", "en": "English",
 
 def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                         categorienaam=None, landnaam=None, afmeld_url=None,
-                        onderwerp_voor="", variant="a"):
+                        onderwerp_voor="", variant="a", platform=None):
     """De koude mail aan een winkel die in de Krillo index staat.
 
     OMGEBOUWD 23 SEPTEMBER (stap 36). Dit was de laatste mail uit het oude
@@ -664,6 +664,16 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     bij_een = ("Staying #1 is the hard part: the ranking is measured again every month, "
                "and the stores below you are moving too. ") if positie == 1 else ""
 
+    # Stap 156 (28 september): een kleine Shopify-winkel wil weten dat het werk
+    # niet op hem neerkomt. Alleen als de adresvinder of scan Shopify zag; nooit
+    # gegokt.
+    shopify_regel = ""
+    if (platform or "").lower() == "shopify":
+        shopify_regel = ('<p style="font-size:15px; color:#12142B; line-height:1.65; margin:10px 0 6px;">'
+                         'Your store runs on Shopify, so this takes you almost no time: the Krillo '
+                         'app on the Shopify App Store writes the product texts and puts them in '
+                         'your store, and you can undo every change.</p>')
+
     # De eerste zin verschilt per versie, de rest niet (zie MAILVARIANTEN).
     p = '<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
     if variant == "b":
@@ -712,6 +722,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
             {bij_een}Your own Krillo page shows where you stand, the buying questions you lose
             with the real AI answer, and what would move you up. No login, and nothing to
             fill in.</p>
+          {shopify_regel}
 
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
             <tr><td style="background:#1B3FE0; border-radius:8px;">
