@@ -2029,6 +2029,13 @@
 // wel, precies op het moment dat hij besloten had verder te willen.
 (function(){
   try {
+    // ?plan= eerst: ook ZONDER winkel in de link (de knoppen op /demo) moet
+    // het afrekenvenster opengaan. Dat werkte niet (Nino, 28 september).
+    var plan = new URLSearchParams(window.location.search).get('plan');
+    if (plan === 'watch' || plan === 'fix') {
+      var knop = document.getElementById(plan === 'watch' ? 'watchCheckoutBtn' : 'fixCheckoutBtn');
+      if (knop) { setTimeout(function(){ knop.click(); }, 300); }
+    }
     var winkel = new URLSearchParams(window.location.search).get('winkel');
     if (!winkel) { return; }
     ['checkoutUrl', 'scanUrlInput'].forEach(function(id){
@@ -2036,13 +2043,7 @@
       // Niets overschrijven wat iemand zelf al ingetypt heeft.
       if (veld && !veld.value) { veld.value = winkel; }
     });
-    // Met ?plan=watch of ?plan=fix (uit de voorproef, 28 september) meteen
-    // het afrekenvenster openen. Hij koos al; hem nog laten zoeken kost klanten.
-    var plan = new URLSearchParams(window.location.search).get('plan');
-    if (plan === 'watch' || plan === 'fix') {
-      var knop = document.getElementById(plan === 'watch' ? 'watchCheckoutBtn' : 'fixCheckoutBtn');
-      if (knop) { setTimeout(function(){ knop.click(); }, 150); }
-    }
+
   } catch (e) {
     // Een oude browser zonder URLSearchParams. Dan typt hij het gewoon zelf,
     // net als eerst. Geen reden om de pagina hierop te laten struikelen.

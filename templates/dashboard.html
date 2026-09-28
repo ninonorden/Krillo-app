@@ -239,14 +239,15 @@
     <div class="vragenblok">
       <div class="vragenkop">
         <div class="titel">{{ categorienaam }} &middot; {{ landnaam }}</div>
-        <div class="onder">{% if taal == 'nl' %}Alle {{ ranglijst|length }} winkels die we in deze categorie meten. De volgorde is hoe vaak AI een winkel <strong>aanraadt</strong>, daarna hoe vaak hij hem <strong>noemt</strong>. Aangeraden worden brengt kopers, dus dat telt eerst.
-          {% else %}All {{ ranglijst|length }} stores we measure in this category. The order is by how often AI <strong>recommends</strong> a store, then by how often it <strong>names</strong> it. Being advised is what brings buyers, so it counts first.{% endif %}</div>
+        <div class="onder">{% if taal == 'nl' %}Alle {{ ranglijst|length if ranglijst else beeld.van }} winkels die we in deze categorie meten. De volgorde is hoe vaak AI een winkel <strong>aanraadt</strong>, daarna hoe vaak hij hem <strong>noemt</strong>. Aangeraden worden brengt kopers, dus dat telt eerst.
+          {% else %}All {{ ranglijst|length if ranglijst else beeld.van }} stores we measure in this category. The order is by how often AI <strong>recommends</strong> a store, then by how often it <strong>names</strong> it. Being advised is what brings buyers, so it counts first.{% endif %}</div>
       </div>
       <table class="lijst">
         <thead><tr><th>#</th><th>{{ 'Winkel' if taal == 'nl' else 'Store' }}</th>
           <th class="r">{{ 'Aanbevolen' if taal == 'nl' else 'Recommended' }}</th>
           <th class="r">{{ 'Genoemd' if taal == 'nl' else 'Named' }}</th></tr></thead>
         <tbody>
+        {% if not ranglijst %}<tr><td colspan="4" style="color:var(--ink-grijs);">{{ 'De lijst laadt nu even niet. Ververs de pagina over een minuut.' if taal == 'nl' else 'The list does not load right now. Refresh the page in a minute.' }}</td></tr>{% endif %}
         {% for r in ranglijst %}
         <tr class="{{ 'jij' if r.webshop_url == beeld.webshop_url }}">
           <td class="p">{{ r.positie }}</td>
@@ -379,6 +380,8 @@
     </div>
     <p class="klein">{{ 'Maandelijks opzegbaar. Binnen 14 dagen opzeggen: je eerste maand terug.' if taal == 'nl'
          else 'Cancel any month. Cancel within 14 days and you get your first month back.' }}</p>
+    {% if voorbeeld %}<p class="klein">{{ 'In het dashboard van een klant staat hier zijn eigen pakket, wanneer we meten, en opzeggen.' if taal == 'nl'
+         else 'In a customer\'s own dashboard, this page shows their current plan, when we measure, and how to cancel.' }}</p>{% endif %}
     {% elif pagina in ('verbeteringen', 'abonnement') %}
 
     {# Verbeteringen: drie tegels bovenaan, ANDERS per pakket (28 september).

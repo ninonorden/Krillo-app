@@ -25,6 +25,7 @@ from urllib.parse import quote
 
 from flask import (Flask, request, jsonify, render_template, redirect, Response, send_from_directory,
                    has_request_context, session, url_for)
+from markupsafe import escape
 import scan_engine
 from scan_engine import run_scan
 import payments
@@ -436,6 +437,9 @@ def _bewaard(sleutel, functie, *args):
     return copy.deepcopy(vak["waarde"])
 
 
+_laatste_indexcijfers = {}
+
+
 @app.route("/")
 def home():
     g = _thuisgegevens()
@@ -468,6 +472,13 @@ def _bereken_thuis():
     try:
         landen = db.landen_in_index()
         cijfers = db.index_cijfers()
+        # Lukt het even niet (28 september: het blok "The index today" liet
+        # alleen nog het percentage zien), dan de laatste goede cijfers.
+        if cijfers and cijfers.get("categorieen"):
+            _laatste_indexcijfers.update(cijfers)
+        elif _laatste_indexcijfers:
+            print("Indexcijfers leeg, laatste goede cijfers gebruikt.")
+            cijfers = dict(_laatste_indexcijfers)
         voorbeeldland = landen[0]["land"] if landen else None
         rijen = (db.categorieen_per_land(voorbeeldland, MINIMUM_PER_LAND)
                  if voorbeeldland else [])
@@ -3044,6 +3055,10 @@ def cron_onderhoud():
     # (dat zou een kringetje zijn: app importeert onderhoud).
     onderhoud.NA_METING = _ververs_klantwerk
     threading.Thread(target=_controleer_betalingen, daemon=True).start()
+    # De controleagent (stap 134): loopt de klantweg na en mailt als er iets mis is.
+    import nachtcontrole
+    threading.Thread(target=nachtcontrole.draai, args=(app, _meld_aan_beheer),
+                     daemon=True).start()
     gestart = onderhoud.start_ronde()
     return ("ok" if gestart else "loopt al"), 200
 
@@ -4814,12 +4829,22 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                       "punten": [(r.get("afgerond_op"), r["positie"]) for r in beeld.get("verloop") or []]}]
             gegevens["grafiek_eigen"] = dp.lijngrafiek(eigen, taal=taal)
         if pagina == "ranglijst":
-            try:
-                gegevens["ranglijst"] = db.ranglijst_per_land(beeld["categorie"], beeld.get("land"),
-                                                             limiet=500).get("rijen") or []
-            except Exception as e:
-                print(f"Ranglijst voor het dashboard mislukt: {e}")
-                gegevens["ranglijst"] = []
+            # Twee keer proberen (28 september: de demo liet "All 0 stores" zien
+            # terwijl dezelfde ranglijst een regel hoger wel lukte; een tijdelijk
+            # verbindingsprobleem met de database). Lukt het echt niet, dan in
+            # de log, en het scherm zegt eerlijk dat de lijst even niet laadt.
+            gegevens["ranglijst"] = []
+            for poging in range(2):
+                try:
+                    gegevens["ranglijst"] = db.ranglijst_per_land(
+                        beeld["categorie"], beeld.get("land"), limiet=500).get("rijen") or []
+                except Exception as e:
+                    print(f"Ranglijst voor het dashboard mislukt (poging {poging + 1}): {e}")
+                if gegevens["ranglijst"]:
+                    break
+                time.sleep(0.4)
+            if not gegevens["ranglijst"]:
+                print(f"Ranglijst voor het dashboard LEEG voor {webshop_url} ({beeld['categorie']})")
             buren = dp.buren_verloop(beeld)
             gegevens["grafiek_buren"] = dp.lijngrafiek(buren, breedte=1000, hoogte=280, taal=taal)
             anderen = [b for b in buren if not b.get("jij")]
@@ -6070,6 +6095,34 @@ def _controleer_betalingen():
                 f"'Opnieuw verwerken'.")
     except Exception as e:
         print(f"Betalingen nakijken mislukt: {e}")
+
+
+@app.route("/admin/controle", methods=["GET", "POST"])
+def admin_controle():
+    """De uitkomst van de controleagent, en een knop om hem nu te draaien."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import nachtcontrole
+    if request.method == "POST":
+        uit = nachtcontrole.draai(app, lambda kop, tekst: None)
+    else:
+        try:
+            uit = json.loads(db.get_instelling("nachtcontrole") or "null")
+        except Exception:
+            uit = None
+    rijen = "".join(f"<li style='color:#9B1C1C'>{escape(f)}</li>" for f in (uit or {}).get("fout", []))
+    rijen += "".join(f"<li style='color:#0B7C5E'>{escape(g)}</li>" for g in (uit or {}).get("goed", []))
+    kop = ("Nog nooit gedraaid." if not uit else
+           f"Laatste controle {escape(uit.get('op', '')[:16])}: {len(uit.get('fout', []))} fout, "
+           f"{len(uit.get('goed', []))} goed.")
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Controle | Krillo</title><body style='font-family:Arial,sans-serif;max-width:760px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.6'><h1>Nachtcontrole</h1><p>{kop}</p>"
+            f"<form method='post'><button style='padding:8px 14px'>Nu controleren</button></form>"
+            f"<ul>{rijen}</ul></body>")
 
 
 @app.route("/admin/bestellingen", methods=["GET", "POST"])
