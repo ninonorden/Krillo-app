@@ -172,6 +172,8 @@ def zoek_adressen(hoeveel=None):
         else:
             db.zet_benadering(url, stand="geen_adres",
                               notitie=uitkomst.get("reden") or "Niets gevonden.")
+            if uitkomst.get("formulier"):
+                db.zet_formulier(url, uitkomst["formulier"])
             gedaan["niets"] += 1
     return gedaan
 
@@ -183,7 +185,9 @@ def zoek_adressen(hoeveel=None):
 # Versie 2 sinds 27 september: de adresvinder volgt nu de eigen links van de
 # winkel en leest verborgen adressen. Alle winkels op "geen adres" (1299 op die
 # dag) krijgen daarom nog een kans; een nieuwe sleutel is een nieuwe lijst.
-HERKANSING_SLEUTEL = "benadering_adres_herkansing_v2"
+# Versie 3 sinds 28 september (stap 156): nu ook het contactformulier onthouden,
+# dus iedereen op "geen adres" komt nog een keer langs.
+HERKANSING_SLEUTEL = "benadering_adres_herkansing_v3"
 
 # Hoeveel oude winkels wij per ronde een tweede kans geven. Dit kost geen
 # AI-geld, alleen paginabezoeken, dus het mag ruim.
@@ -251,6 +255,9 @@ def herkans_adressen(hoeveel=None):
                               email_bron=uitkomst.get("vandaan"),
                               notitie="Adres alsnog gevonden bij de tweede poging.")
             gedaan["gevonden"] += 1
+        elif uitkomst.get("formulier"):
+            db.zet_formulier(url, uitkomst["formulier"])
+            gedaan["formulier"] = gedaan.get("formulier", 0) + 1
     if behandeld:
         _onthoud_herkansing(behandeld)
     return gedaan
@@ -756,6 +763,14 @@ def mag_nog_een_poging(webshop_url):
     return meetpogingen(webshop_url) < MAX_MEETPOGINGEN
 
 
+def _klaar_voor_post():
+    try:
+        delen = db.adres_uitsplitsing()
+        return None if delen is None else int(delen.get("klaar") or 0)
+    except Exception:
+        return None
+
+
 def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
                              metingen_bezig=0):
     """Vertelt in gewone taal waarom er op dit moment geen post uitgaat.
@@ -828,6 +843,18 @@ def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
     if not tellingen.get("totaal"):
         uit.append(("blok", "Er staan geen winkels op de lijst. Plak er eerst "
                             "een lijst in."))
+    elif _klaar_voor_post() is not None:
+        # Sinds 28 september de ECHTE telling: winkels met adres en een plek in
+        # de index (zelfde regels als de post zelf). Hier stond de stand
+        # "gemeten", uit het oude model: dat gaf "3 staan klaar" terwijl er
+        # 309 klaar stonden, en dan zet je de dagrem niet hoger.
+        klaar = _klaar_voor_post()
+        if klaar:
+            dagen = -(-klaar // max(1, inst["per_dag"]))
+            uit.append(("goed", f"{klaar} winkels staan klaar om post te krijgen. Bij "
+                                f"{inst['per_dag']} per dag is dat {dagen} dag(en) werk."))
+        else:
+            uit.append(("wacht", "Er staan nu geen winkels klaar voor post. Zie hieronder waarom."))
     elif gemeten:
         uit.append(("goed", f"{gemeten} winkels staan klaar om post te krijgen."))
     elif adres:

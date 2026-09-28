@@ -2521,6 +2521,20 @@ def _benadering_ronde_werk():
         verslag["mislukt"].append(f"opvolging: {e}")
         print(f"Verkoopagent mislukt: {e}")
 
+    # De seizoensagent (stap 151): vlak voor een koopmoment een mail aan wie
+    # eerder een koude mail kreeg. Alleen als de benadering aanstaat.
+    try:
+        import seizoensagent
+        import verkoopagent as _va
+        verslag["seizoen"] = seizoensagent.ronde(
+            get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url), _va._vraag_voor,
+            categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+            binnen_kantooruren=benadering.binnen_kantooruren(),
+            aan=benadering.instellingen().get("aan", False))
+    except Exception as e:
+        verslag["mislukt"].append(f"seizoen: {e}")
+        print(f"Seizoensagent mislukt: {e}")
+
     # Eerst kijken of de lijst zichzelf moet aanvullen. Zonder dit raakt de
     # benaderlijst gewoon op: bij vijftien mails per dag is tweehonderd winkels
     # binnen twee weken leeg, en dan staat de machine stil zonder dat er iets
@@ -6338,7 +6352,12 @@ def admin_antwoorden():
     kleur = {"concept": "#1B3FE0", "afgemeld": "#B42318", "verstuurd": "#0B7C5E"}
     blokken = ""
     for r in rijen:
-        kop = (f"<div style='font-size:13px;color:#666'>{escape(str(r['ontvangen_op'])[:16])} &middot; "
+        try:
+            from zoneinfo import ZoneInfo
+            tijd = r["ontvangen_op"].astimezone(ZoneInfo("Europe/Amsterdam")).strftime("%d-%m %H:%M")
+        except Exception:
+            tijd = str(r["ontvangen_op"])[:16]
+        kop = (f"<div style='font-size:13px;color:#666'>{escape(tijd)} &middot; "
                f"{escape(r.get('naam') or '')} &lt;{escape(r['van'])}&gt; &middot; "
                f"{escape(r.get('webshop_url') or 'winkel onbekend')} &middot; soort <strong>{escape(r.get('soort') or '')}"
                f"</strong> &middot; <span style='color:{kleur.get(r['stand'], '#666')}'>{escape(r['stand'])}</span></div>"
@@ -6377,6 +6396,97 @@ def admin_antwoorden():
             f"<p style='margin-top:10px'><a href='/admin/verkoop'>Naar de verkoopagent</a></p>"
             f"<h2 style='margin-top:28px'>Binnengekomen ({wacht} wachten op jou)</h2>"
             f"{blokken or '<p>Nog niets binnengekomen.</p>'}</body>")
+
+
+@app.route("/admin/formulieren", methods=["GET", "POST"])
+def admin_formulieren():
+    """Stap 156: winkels zonder info@ maar met een contactformulier. Het bericht
+    staat klaar; Nino plakt het er met de hand in. Bewust niet automatisch
+    (captcha's, en een machine die formulieren invult is spam)."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import verkoopagent as va
+    melding = ""
+    if request.method == "POST":
+        url = (request.form.get("url") or "").strip()
+        if url and db.markeer_formulier_gedaan(url):
+            melding = f"{url} afgevinkt." if request.form.get("actie") == "gedaan" else f"{url} overgeslagen."
+    basis = get_base_url().rstrip("/")
+    blokken = ""
+    import ochtendbericht
+    vandaag = ochtendbericht._tel("SELECT count(*) FROM benadering WHERE formulier_op >= date_trunc('day', now())") or 0
+    for w in db.formulier_winkels(limiet=max(0, FORMULIEREN_PER_DAG - vandaag)):
+        url = w["webshop_url"]
+        try:
+            beeld = klantbeeld.bouw(url)
+        except Exception:
+            beeld = None
+        token = db.get_benchmark_token(url)
+        bericht = va.formulier_bericht(
+            beeld, va._vraag_voor(url, beeld) if beeld else None,
+            link_url=f"{basis}/uitkomst/{token}" if token else basis,
+            categorienaam=categorieen.naam_en(beeld["categorie"]) if beeld else None)
+        if not bericht:
+            continue
+        blokken += (
+            f"<div style='border:1px solid #ddd;border-radius:10px;padding:14px 18px;margin:14px 0'>"
+            f"<div style='font-weight:700'>{escape(url)} &middot; #{escape(str(w.get('positie')))}</div>"
+            f"<p style='margin:6px 0'><a href='{escape(w['formulier_url'])}' target='_blank' rel='noopener'>"
+            f"1. Open het contactformulier</a> &middot; 2. Kopieer dit bericht &middot; 3. Vul als naam "
+            f"Nino en als mail hello@krilloai.com in</p>"
+            f"<textarea readonly rows='11' style='width:100%;font:inherit;font-size:14px;padding:8px' "
+            f"onclick='this.select()'>{escape(bericht)}</textarea>"
+            f"<form method='post' style='margin-top:8px'><input type='hidden' name='url' value='{escape(url)}'>"
+            f"<button name='actie' value='gedaan' style='padding:8px 14px;background:#1B3FE0;color:#fff;border:0;"
+            f"border-radius:6px'>Geplakt en verstuurd</button> "
+            f"<button name='actie' value='overslaan' style='padding:8px 14px'>Overslaan</button></form></div>")
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Formulieren | Krillo</title><body style='font-family:Arial,sans-serif;max-width:760px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Contactformulieren</h1>"
+            f"<p>Winkels zonder info@ maar met een contactformulier en een plek in de index. Het bericht "
+            f"staat klaar. Hoogstens {FORMULIEREN_PER_DAG} per dag: dit is handwerk, en zo blijft het "
+            f"persoonlijk.</p><p style='color:#0B7C5E'>{escape(melding)}</p>"
+            f"{blokken or ('<p>Voor vandaag gedaan. Morgen staan er nieuwe klaar.</p>' if vandaag >= FORMULIEREN_PER_DAG else '<p>Er staan nu geen winkels klaar. De adresvinder vult dit vanzelf aan.</p>')}</body>")
+
+
+FORMULIEREN_PER_DAG = int(os.environ.get("FORMULIEREN_PER_DAG", "5"))
+
+
+@app.route("/admin/seizoen")
+def admin_seizoen():
+    """De kalender van de seizoensagent (stap 151): elk moment per land, wanneer
+    de mails lopen, en hoeveel er voor dat moment al uit zijn."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import seizoensagent as sa
+    vandaag = datetime.now(timezone.utc).date()
+    rijen = ""
+    for m in sa.momenten_rond(vandaag, dagen_vooruit=370):
+        if m["datum"] < vandaag:
+            continue
+        n = sa._sql("SELECT count(*) AS n FROM benadering WHERE seizoen_sleutel = %s AND seizoen_op IS NOT NULL",
+                    (m["sleutel"],)) or {}
+        nu = m["open_op"] <= vandaag < m["dicht_op"]
+        cats = "alle categorieen" if m["cats"] == sa.ALLES else f"{len(m['cats'])} categorieen"
+        rijen += (f"<tr style='{'background:#EEF1FD;font-weight:700' if nu else ''}'>"
+                  f"<td>{escape(m['naam'])}</td><td>{m['land'].upper()}</td><td>{m['datum']:%d-%m-%Y}</td>"
+                  f"<td>{m['open_op']:%d-%m} tot {m['dicht_op']:%d-%m}{' (NU)' if nu else ''}</td>"
+                  f"<td>{cats}</td><td style='text-align:right'>{n.get('n', 0)}</td></tr>")
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Seizoen | Krillo</title><body style='font-family:Arial,sans-serif;max-width:900px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Seizoensagent</h1>"
+            f"<p>Vlak voor elk koopmoment een korte mail aan winkels die eerder een koude mail kregen en "
+            f"niets deden. Hoogstens een per 45 dagen per winkel, {sa.PER_DAG} per dag, alleen als de "
+            f"benadering aanstaat. Vandaag verstuurd: {sa.vandaag_verstuurd()}.</p>"
+            f"<table cellpadding='6' style='border-collapse:collapse;width:100%'><tr style='text-align:left'>"
+            f"<th>Moment</th><th>Land</th><th>Datum</th><th>Mails lopen</th><th>Voor</th><th>Verstuurd</th></tr>"
+            f"{rijen}</table></body>")
 
 
 @app.route("/admin/ochtendbericht")

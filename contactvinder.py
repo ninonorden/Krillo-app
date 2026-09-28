@@ -257,6 +257,28 @@ def _contactlinks(html, basis_url, winkeldomein, max_links=8):
     return uit
 
 
+# Stap 156 (28 september): een contactformulier herkennen. Veel kleine
+# (Shopify-)winkels hebben geen info@ maar wel een formulier. Dat vullen wij
+# NIET automatisch in: vaak zit er een captcha op, en een formulier dat een
+# machine invult is precies het soort post waar een winkelier een hekel aan
+# heeft. Wij onthouden alleen WAAR het formulier staat, en zetten een
+# persoonlijk bericht klaar dat Nino er met de hand in plakt.
+_FORM = re.compile(r"<form\b[^>]*>(.*?)</form>", re.I | re.S)
+
+
+def heeft_formulier(html):
+    """True als deze pagina een contactformulier heeft (een tekstvak plus een
+    mailveld, of het vaste contactformulier van Shopify)."""
+    for m in _FORM.finditer(html or ""):
+        blok = m.group(0).lower()
+        if 'value="contact"' in blok and "form_type" in blok:
+            return True  # Shopify: <input type="hidden" name="form_type" value="contact">
+        if "<textarea" in blok and ('type="email"' in blok or "email" in blok):
+            if "search" not in blok[:200] and "newsletter" not in blok and "nieuwsbrief" not in blok:
+                return True
+    return False
+
+
 def zoek_adres(webshop_url, timeout=12, max_paginas=None):
     """Zoekt het mailadres van deze winkel.
 
@@ -272,13 +294,15 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
     max_paginas = MAX_PAGINAS if max_paginas is None else max_paginas
     url = scan_engine.normalize_url((webshop_url or "").strip())
     winkeldomein = _domein(url)
-    leeg = {"adres": None, "algemeen": False, "vandaan": None, "alles": [], "reden": None}
+    leeg = {"adres": None, "algemeen": False, "vandaan": None, "alles": [], "reden": None,
+            "formulier": None}
     if not winkeldomein:
         return dict(leeg, reden="Geen geldig webadres.")
     if scan_engine.is_intern_adres(url):
         return dict(leeg, reden="Dat is geen openbaar webadres.")
 
     alles, bekeken = [], 0
+    formulier = None
     # Eerst de homepage, dan de links die de winkel zelf naar contact en
     # voorwaarden zet, en pas daarna de paden die wij raden.
     wachtrij = [url]
@@ -298,6 +322,8 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
             bekeken += 1
             if not scan_engine.lijkt_op_blokkadepagina(antwoord.text):
                 alles.extend(_uit_pagina(antwoord.text, doel, winkeldomein))
+                if not formulier and heeft_formulier(antwoord.text):
+                    formulier = doel
                 if doel == url:
                     wachtrij.extend(_contactlinks(antwoord.text, url, winkeldomein))
         if doel == url:
@@ -315,8 +341,10 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
             gezien.add(a["adres"])
             uniek.append(a)
 
+    leeg["formulier"] = formulier
     if not uniek:
-        return dict(leeg, reden="Geen mailadres op de site gevonden.")
+        return dict(leeg, reden="Geen mailadres op de site gevonden."
+                    + (" Wel een contactformulier." if formulier else ""))
 
     # De volgorde van voorkeur: algemeen op het eigen domein, dan algemeen
     # elders, en anders niets. Een persoonlijk adres geven wij bewust niet
@@ -327,7 +355,7 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
         for a in uniek:
             if eis(a):
                 return {"adres": a["adres"], "algemeen": True, "vandaan": a["vandaan"],
-                        "alles": [x["adres"] for x in uniek], "reden": None}
+                        "alles": [x["adres"] for x in uniek], "reden": None, "formulier": formulier}
 
     return dict(leeg, alles=[x["adres"] for x in uniek],
                 reden="Alleen persoonlijke adressen gevonden. Die slaan wij over.")

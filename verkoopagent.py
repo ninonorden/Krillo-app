@@ -330,3 +330,23 @@ def maak_maandbericht(beeld, link_url="", categorienaam=None):
         alineas.append(f"Just above you: {' and '.join(boven)}.")
     alineas.append("Your page has every question and the real answers. Questions? Just reply.")
     return {"onderwerp": onderwerp, "alineas": alineas, "link": link_url, "nummer": 3, "versie": None}
+
+
+def formulier_bericht(beeld, vraag=None, link_url="", categorienaam=None):
+    """Stap 156: het bericht dat Nino in een contactformulier plakt, bij een
+    winkel zonder info@. Platte tekst (een formulier kent geen opmaak), kort,
+    en met dezelfde eerlijke feiten als de koude mail. Geeft None zonder plek."""
+    if not beeld or not beeld.get("positie"):
+        return None
+    naam = _kaal(beeld.get("webshop_url"))
+    cat = categorienaam or beeld.get("categorie") or "your category"
+    regels = ["Hi,", ""]
+    regels.append(f"I run Krillo. Every month we ask ChatGPT and Gemini the questions shoppers ask "
+                  f"in {cat}, and see which stores they name.")
+    if vraag and vraag.get("concurrenten"):
+        wie = " and ".join(vraag["concurrenten"][:2])
+        regels.append(f"When someone asks \"{vraag['vraag']}\", AI names {wie}, not {naam}.")
+    regels.append(f"{naam} is #{beeld['positie']} of {beeld.get('van') or '?'} in {cat} right now.")
+    regels += ["", f"Your own page, with every question and the real answers (free): {link_url}", "",
+               "No need to reply if it is not for you. We will not contact you again.", "", "Nino, Krillo"]
+    return "\n".join(regels)

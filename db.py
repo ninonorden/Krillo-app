@@ -551,6 +551,14 @@ def init_db():
                 # is er een gesprek, en dat voert een mens.
                 cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS antwoord_op TIMESTAMPTZ;")
+                # Stap 156: waar het contactformulier staat (voor winkels zonder
+                # info@), en wanneer Nino er een bericht in plakte.
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS formulier_url TEXT;")
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS formulier_op TIMESTAMPTZ;")
+                # Stap 151: de seizoensagent. Wanneer de laatste seizoensmail
+                # ging (45 dagen rust) en voor welk moment (nooit twee keer).
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_op TIMESTAMPTZ;")
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_sleutel TEXT;")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS antwoorden (
                         id SERIAL PRIMARY KEY,
@@ -4713,6 +4721,9 @@ def te_mailen_met_positie(limiet):
                      WHERE b.stand IN ('adres', 'meten', 'gemeten') AND b.afgemeld = FALSE
                        AND b.email IS NOT NULL AND b.email <> ''
                        AND b.gemaild_op IS NULL
+                       -- Stap 156: wie via zijn formulier benaderd is, kreeg de
+                       -- belofte "we will not contact you again".
+                       AND b.formulier_op IS NULL
                        AND coalesce(b.soort, 'winkel') = 'winkel'
                        -- SINDS 28 SEPTEMBER zonder "u.categorie = b.categorie".
                        -- Een winkel in een kleine categorie (make-up) staat in
@@ -7000,5 +7011,71 @@ def klanten_op_lijst():
     except Exception as e:
         print(f"Klanten op de lijst ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+def zet_formulier(webshop_url, formulier_url):
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET formulier_url = %s WHERE webshop_url = %s",
+                            (formulier_url, webshop_url))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Formulier bewaren mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def formulier_winkels(limiet=10):
+    """Winkels zonder mailadres maar met een contactformulier EN een plek in de
+    index, nog niet via het formulier benaderd. Kansrijkste eerst (zelfde score
+    als de koude mail)."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT b.webshop_url, b.naam, b.formulier_url, u.positie, u.genoemd, u.categorie
+                      FROM benadering b
+                      JOIN LATERAL (SELECT u.positie, u.genoemd, u.categorie FROM categorie_uitkomsten u
+                                      JOIN categorie_rondes r ON r.id = u.ronde
+                                     WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
+                                       AND coalesce(u.telbaar, 0) >= 3
+                                  ORDER BY u.ronde DESC LIMIT 1) u ON TRUE
+                     WHERE b.formulier_url IS NOT NULL AND b.formulier_op IS NULL
+                       AND NOT b.afgemeld AND b.gemaild_op IS NULL
+                       AND coalesce(b.soort, 'winkel') = 'winkel'
+                       AND NOT EXISTS (SELECT 1 FROM klanten k WHERE k.webshop_url = b.webshop_url)
+                  ORDER BY CASE WHEN u.positie BETWEEN 2 AND 8 THEN 0
+                                WHEN u.positie BETWEEN 9 AND 15 THEN 1 ELSE 2 END, u.positie
+                     LIMIT %s""", (int(limiet),))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Formulierwinkels ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def markeer_formulier_gedaan(webshop_url):
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET formulier_op = now() WHERE webshop_url = %s", (webshop_url,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Formulier afvinken mislukt: {e}")
+        return False
     finally:
         conn.close()

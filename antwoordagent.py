@@ -80,6 +80,10 @@ def _zonder_citaat(tekst):
     regels = []
     for regel in (tekst or "").splitlines():
         s = regel.strip()
+        # De onzichtbare meetlink van Brevo (r.hello.krilloai.com/tr/op/...)
+        # komt als tekstregel mee; die hoort niet bij wat hij schreef.
+        if re.fullmatch(r"\[?[^\s]*/tr/(op|cl)/[^\s]*(\([^)]*\))?", s):
+            continue
         if s.startswith(">"):
             break
         if re.match(r"^(on .+ wrote:|op .+ schreef.*:|am .+ schrieb.*:|-----\s*original message|"
@@ -294,9 +298,15 @@ def _model_indeler(client):
 
 # ---------------------------------------------------------------- verwerken
 
-def _eigen_adres(adres):
+def _eigen_adres(adres, onderwerp=""):
+    """Mail die we NIET verwerken: van ons eigen domein, of Nino die op een
+    melding van Krillo antwoordt (dan komt er "Re: Krillo:" voor). Een gewone
+    mail van Nino zelf verwerken we wel: zo kan hij de agent testen (28
+    september: zijn testmail verdween stil, omdat al zijn mail genegeerd werd)."""
     beheer = (os.environ.get("BEHEERDER_EMAIL") or os.environ.get("BEHEER_EMAIL") or "").strip().lower()
-    return adres.endswith("@krilloai.com") or (beheer and adres == beheer)
+    if adres.endswith("@krilloai.com") or adres.endswith(".krilloai.com"):
+        return True
+    return bool(beheer and adres == beheer and (onderwerp or "").lower().lstrip().startswith(("re: krillo:", "fwd: krillo:")))
 
 
 def verwerk(data, basis_url, melden, client=None):
@@ -312,7 +322,7 @@ def verwerk(data, basis_url, melden, client=None):
         if not b["van"]:
             continue
         soort = soort_van(b["onderwerp"], b["tekst"], _model_indeler(client) if client else None)
-        if soort != "test" and _eigen_adres(b["van"]):
+        if soort != "test" and _eigen_adres(b["van"], b["onderwerp"]):
             # Nino die op een melding antwoordt, of een lus: niet verwerken.
             verslag.append({"van": b["van"], "soort": "eigen"})
             continue

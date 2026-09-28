@@ -56,6 +56,8 @@ GISTEREN = [
     ("Waarvan afgemeld",
      "SELECT count(*) FROM antwoorden WHERE soort = 'afmelden' "
      "AND ontvangen_op > now() - interval '24 hours'"),
+    ("Seizoensmails verstuurd",
+     "SELECT count(*) FROM benadering WHERE seizoen_op > now() - interval '24 hours'"),
     ("Gratis checks gedaan",
      "SELECT count(*) FROM zichtbaarheidstests WHERE email <> 'voorproef@krilloai.com' "
      "AND aangevraagd_op > now() - interval '24 hours'"),
@@ -81,6 +83,14 @@ def te_doen(basis_url):
     n = _tel("SELECT count(*) FROM uitvoeringen WHERE stand IN ('wacht_op_toegang', 'bezig')")
     if n:
         uit.append((f"{n} Fix-opdracht(en) lopen nog", f"{basis_url}/admin/uitvoeringen"))
+    n = _tel("""SELECT count(*) FROM benadering b WHERE b.formulier_url IS NOT NULL AND b.formulier_op IS NULL
+                AND NOT b.afgemeld AND b.gemaild_op IS NULL AND EXISTS (
+                    SELECT 1 FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
+                     WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
+                       AND coalesce(u.telbaar, 0) >= 3)""")
+    if n:
+        uit.append((f"{n} winkel(s) zonder info@ maar met een contactformulier: het bericht staat klaar "
+                    f"(hoogstens 5 per dag)", f"{basis_url}/admin/formulieren"))
     try:
         controle = json.loads(db.get_instelling("nachtcontrole") or "{}")
     except Exception:
