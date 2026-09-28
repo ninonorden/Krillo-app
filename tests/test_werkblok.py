@@ -64,15 +64,17 @@ a = k.get(f"/mijn/{tok}")
 h = a.get_data(as_text=True)
 zo("het dashboard laadt", a.status_code, 200)
 klopt("met een eerlijke melding dat er nog niet gemeten is", "not been measured yet" in h)
-klopt("en met zijn werk eronder", 'id="werk"' in h)
+# Sinds 28 september staat het werk op een eigen pagina (/fixes).
+klopt("en met zijn werk op de pagina Verbeteringen",
+      'id="werk"' in k.get(f"/mijn/{tok}/fixes").get_data(as_text=True))
 
 print("\n== HET OUDE ADRES STUURT DOOR ==")
 a = k.get(f"/monitoring/{tok}")
 zo("een 301", a.status_code, 301)
-zo("naar het werkblok in het dashboard", a.headers.get("Location"), f"/mijn/{tok}#werk")
+zo("naar het werkblok in het dashboard", a.headers.get("Location"), f"/mijn/{tok}/fixes")
 klopt("de detailpagina bestaat nog", k.get(f"/monitoring/{tok}/details").status_code == 200)
 det = lees("templates/monitoring_details.html")
-klopt("en wijst terug naar het dashboard", "/mijn/{{ klant_token }}#werk" in det)
+klopt("en wijst terug naar het dashboard", "/mijn/{{ klant_token }}/fixes" in det)
 
 print("\n== GEEN MAIL WIJST NOG NAAR HET OUDE SCHERM ==")
 for bestand in ("app.py", "meldingen.py", "emailing.py"):
@@ -104,8 +106,12 @@ a = k.get("/admin/voorbeeld?key=testsleutel&url=https://werkblok-zonder-meting.n
           follow_redirects=True)
 h = a.get_data(as_text=True)
 zo("hij laadt", a.status_code, 200)
-klopt("het is het dashboard, met het werkblok", 'class="werk"' in h)
-klopt("en met het beheerblok", "Beheerweergave" in h)
+klopt("het is het dashboard, met het werkblok",
+      'class="werk"' in k.get("/admin/voorbeeld?key=testsleutel&url=https://werkblok-zonder-meting.nl&pagina=verbeteringen",
+                              follow_redirects=True).get_data(as_text=True))
+klopt("en met het beheerblok (op de pagina Abonnement)",
+      "Beheerweergave" in k.get("/admin/voorbeeld?key=testsleutel&url=https://werkblok-zonder-meting.nl&pagina=abonnement",
+                                follow_redirects=True).get_data(as_text=True))
 klopt("en zonder opzegknop", 'id="opzegKnop"' not in h)
 
 print("\n== HET OPENBARE VOORBEELD KRIJGT GEEN ECHT WERKBLOK ==")

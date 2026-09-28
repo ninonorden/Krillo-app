@@ -271,8 +271,9 @@ klopt("de buren staan zonder https ervoor",
       "r.naam or r.webshop_url | replace('https://','')" in dash)
 # Zes metingen in september gaven zes keer SEP onder de staafjes, en dat zegt
 # niets. De dag erbij zegt wel iets.
+# Sinds 28 september is het verloop een lijngrafiek (dashboardpaginas.py).
 klopt("bij het verloop staat de dag en niet alleen de maand",
-      "s.datum.strftime('%d %b')" in dash)
+      'd.strftime("%d %b")' in open(os.path.join(APP, "dashboardpaginas.py"), encoding="utf-8").read())
 
 print("\n== het openbare voorbeeld en de klantlink ==")
 zo("het voorbeelddashboard staat er", klant.get("/demo").status_code, 200)

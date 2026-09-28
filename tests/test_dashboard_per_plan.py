@@ -25,7 +25,7 @@ U="https://fietsenwinkel-demo.nl"
 nu=datetime.datetime.now(datetime.timezone.utc)
 beeld={"webshop_url":U,"naam":"fietsenwinkel-demo.nl","categorie":"fietsen","land":"nl","ronde":1,
  "positie":7,"van":42,"vorige_positie":9,"verschil":2,"genoemd":6,"aanbevolen":2,"telbaar":30,
- "gemeten_op":nu,"verloop":[{"positie":9,"ronde":0},{"positie":7,"ronde":1}],
+ "gemeten_op":nu,"verloop":[{"positie":9,"ronde":0,"afgerond_op":nu-datetime.timedelta(days=30)},{"positie":7,"ronde":1,"afgerond_op":nu}],
  "boven_mij":[{"positie":4,"webshop_url":"https://a.nl","naam":"Fietsplaats","genoemd":14},{"positie":5,"webshop_url":"https://b.nl","naam":"Bike Totaal","genoemd":12},{"positie":6,"webshop_url":"https://c.nl","naam":"Stadsfiets","genoemd":9}],
  "gemiste_vragen":[{"vraag":"Welke webshop verkoopt goede e-bikes?","concurrenten":["Fietsplaats","Stella"],"platforms":["bol.com"],"aanbevolen":[],"model":"gpt"},
                    {"vraag":"Waar koop ik een bakfiets online?","concurrenten":["Bakfiets.nl"],"platforms":[],"aanbevolen":[],"model":"gemini"}]}
@@ -56,7 +56,10 @@ def klopt(o, v):
 pagina = {}
 for naam,args in {"watch":("watch",None),"fix_wacht":("fix","wacht_op_toegang"),"fix_klaar":("fix","opgeleverd",True),"opgezegd":("watch",None,False,nu+datetime.timedelta(days=12)),"afgelopen":("watch",None,False,nu-datetime.timedelta(days=1))}.items():
     klant(*args)
-    pagina[naam]=c.get("/mijn/dashtok?taal=en").get_data(as_text=True)
+    # Sinds 28 september staan de verbeteringen en het abonnement op eigen pagina's.
+    pagina[naam]=(c.get("/mijn/dashtok/fixes?taal=en").get_data(as_text=True)
+                  + c.get("/mijn/dashtok/plan?taal=en").get_data(as_text=True)
+                  + c.get("/mijn/dashtok?taal=en").get_data(as_text=True))
 w, fw, fk, og, af = (pagina[n] for n in ("watch","fix_wacht","fix_klaar","opgezegd","afgelopen"))
 print("\n== WATCH ==")
 klopt("kopieerknoppen", "Copy this exactly" in w and 'class="kopieer"' in w)
@@ -76,7 +79,7 @@ st = klantbeeld.balkhoogtes([{"positie":9,"van":42},{"positie":7,"van":42}])
 klopt("betere plek is een hoger staafje", st[1]["hoogte"] > st[0]["hoogte"])
 st = klantbeeld.balkhoogtes([{"positie":5,"van":42},{"positie":8,"van":42}])
 klopt("gezakt wordt gemarkeerd", st[1]["gezakt"] and not st[0]["gezakt"])
-klopt("de uitleg klopt", "The higher the bar, the better your place." in w)
+klopt("de uitleg klopt: nummer 1 bovenaan", "Number 1 is at the top." in w)
 sql("DELETE FROM uitvoeringen WHERE webshop_url=%s",(U,)); sql("DELETE FROM klanten WHERE webshop_url=%s",(U,))
 sql("DELETE FROM wijzigingen WHERE webshop_url=%s",(U,))
 print()
