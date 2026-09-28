@@ -88,6 +88,7 @@
 </style>
 
 <div class="werk" id="werk">
+  {% if werk_deel != 'plan' %}
   <div class="werk-kop">
     <div class="titel">
       {% if afgelopen %}{{ wt.titel_taken }}
@@ -144,7 +145,7 @@
        niet wil zien heeft er geen last van, wie iets wil terugzetten vindt het
        hier en niet in een oude mail. #}
     {% if wijzigingen %}
-    <details>
+    <details{% if doet_werk %} open{% endif %}>
       <summary>{{ wt.wijzigingen_kop }} ({{ wijzigingen|length }})</summary>
       <div class="inhoud">
         {% for w in wijzigingen %}
@@ -221,6 +222,9 @@
     <span>{{ wt.details_tekst }}</span>
   </a>
 
+  {% endif %}
+
+  {% if werk_deel != 'fixes' %}
   {# Opzeggen. Drie gevallen, en ze mogen niet door elkaar lopen: via Shopify,
      via ons, of er loopt niets. Zie de uitleg bovenaan dit bestand. #}
   <div class="werk-opzeg">
@@ -262,6 +266,7 @@
     <a class="knop-rand" href="/#pricing">{{ wt.eenmalig_knop }}</a>
   {% endif %}
   </div>
+  {% endif %}
 </div>
 
 <script>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ beeld.naam if beeld else winkelnaam }} | Krillo</title>
+<title>{{ paginanaam }} · {{ beeld.naam if beeld else winkelnaam }} | Krillo</title>
 {% if voorbeeld %}
 <meta name="description" content="A real Krillo dashboard of a real store, with real measured numbers. No account needed.">
 <link rel="canonical" href="{{ basis_url }}/demo">
@@ -28,18 +28,16 @@
       {% endif %}
     </div>
 
-    <div class="zijmenu">
-      <a class="aan" href="#overzicht">{{ 'Overzicht' if taal == 'nl' else 'Overview' }}</a>
+    {# ECHTE PAGINA'S sinds 28 september. Hiervoor sprong elke knop naar een
+       stukje van dezelfde lange pagina; Nino: "amateuristisch". Nu heeft elke
+       pagina een eigen adres, en de knop van de pagina waar je bent staat aan. #}
+    <div class="zijmenu" role="navigation">
+      {% for l in links %}
+      <a class="{{ 'aan' if l.aan }}" href="{{ l.href }}">{{ l.label }}</a>
+      {% endfor %}
       {% if beeld %}
-      <a href="#verloop">{{ 'Verloop' if taal == 'nl' else 'History' }}</a>
-      <a href="#vragen">{{ 'Vragen die je verliest' if taal == 'nl' else 'Questions you lose' }}</a>
-      {% endif %}
-      <a href="#werk">{{ 'Oplossingen' if taal == 'nl' else 'Fixes' }}</a>
-      {% if beeld %}
-      <a href="/index/{{ beeld.land }}/{{ beeld.categorie }}">
-        {{ 'Openbare index' if taal == 'nl' else 'Public index' }}</a>
-      {% else %}
-      <a href="/index">{{ 'Openbare index' if taal == 'nl' else 'Public index' }}</a>
+      <a class="uit" href="/index/{{ beeld.land }}/{{ beeld.categorie }}" target="_blank" rel="noopener">
+        {{ 'Openbare index' if taal == 'nl' else 'Public index' }} &#8599;</a>
       {% endif %}
     </div>
 
@@ -66,11 +64,24 @@
     </div>
     {% endif %}
 
-    {% if not beeld %}
-    {# Een betalende klant van wie de categorie nog niet gemeten is. Tot 21
-       september kreeg die hier een foutpagina en had hij alleen het oude
-       werkscherm. Nu ziet hij waar hij aan toe is, en daaronder zijn werk. #}
-    <div class="werkkop"><h1>{{ winkelnaam }}</h1></div>
+    <div class="werkkop">
+      <div>
+        <h1>{{ paginanaam }}</h1>
+        {% if beeld %}
+        <div class="regel">
+          {{ beeld.naam | upper }} &middot;
+          {% if beeld.gemeten_op %}{{ t.gemeten_op | upper }} {{ beeld.gemeten_op.strftime('%d %b %Y') | upper }} &middot; {% endif %}
+          {{ beeld.telbaar }} {{ 'KOOPVRAGEN' if taal == 'nl' else 'BUYING QUESTIONS' }}
+          {% if modellen %} &middot; {{ modellen | length }} {{ 'ASSISTENTEN' if taal == 'nl' else 'ASSISTANTS' }}{% endif %}
+          &middot; {{ landnaam | upper }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not beeld and pagina in ('overzicht', 'ranglijst', 'vragen') %}
+    {# Een betalende klant van wie de categorie nog niet gemeten is, of die
+       buiten NL en BE verkoopt. Eerlijk zeggen waar hij aan toe is. #}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'JOUW POSITIE' if taal == 'nl' else 'YOUR POSITION' }}</div>
       <p style="margin:0; font-size:15px;">
@@ -81,18 +92,13 @@
         position appears here and we let you know.{% endif %}
       </p>
     </div>
-    {% else %}
-    <div class="werkkop">
-      <h1>{{ beeld.naam }}</h1>
-      <div class="regel">
-        {% if beeld.gemeten_op %}{{ t.gemeten_op | upper }}
-          {{ beeld.gemeten_op.strftime('%d %b %Y') | upper }} &middot; {% endif %}
-        {{ beeld.telbaar }} {{ 'KOOPVRAGEN' if taal == 'nl' else 'BUYING QUESTIONS' }}
-        {% if modellen %} &middot; {{ modellen | length }}
-          {{ 'ASSISTENTEN' if taal == 'nl' else 'ASSISTANTS' }}{% endif %}
-        &middot; {{ landnaam | upper }}
-      </div>
-    </div>
+    {% endif %}
+
+    {# ================================================================ OVERZICHT #}
+    {% if pagina == 'overzicht' and beeld %}
+    {% if volgende %}
+    <div class="volgende"><span class="pijl">&rarr;</span> {{ volgende }}</div>
+    {% endif %}
 
     <div class="paneel">
       <div class="cijfer">
@@ -143,27 +149,31 @@
       </div>
     </div>
 
-    {% if staven | length > 1 %}
-    <div class="kaartblok" id="verloop">
-      <div class="kaartkop">
-        {{ 'POSITIE PER METING' if taal == 'nl' else 'POSITION OVER TIME' }}</div>
-      <div class="staven">
-        {% for s in staven %}
-        <div class="staaf {% if loop.last %}nu{% endif %} {% if loop.last and s.gezakt %}gezakt{% endif %}">
-          <div class="bak"><div class="vulling" style="height:{{ s.hoogte }}px;"></div></div>
-          <div class="cijfertje">#{{ s.positie }}</div>
-          <div class="datum">{% if s.datum %}{{ s.datum.strftime('%d %b') | upper }}{% endif %}</div>
-        </div>
-        {% endfor %}
-        <div style="flex-grow:2;"></div>
-      </div>
-      <p style="margin:16px 0 0; font-size:14px;">
-        {{ 'Hoe hoger het staafje, hoe beter je plek.' if taal == 'nl' else 'The higher the bar, the better your place.' }}</p>
 
+    <div class="twee">
+      <div class="kaartblok" id="verloop">
+        <div class="kaartkop">{{ 'JOUW PLEK PER METING' if taal == 'nl' else 'YOUR PLACE PER MEASUREMENT' }}</div>
+        {% if grafiek_eigen %}
+        {{ grafiek_eigen }}
+        <p class="klein">{{ 'Nummer 1 staat bovenaan. Elke maand een nieuwe meting.' if taal == 'nl'
+             else 'Number 1 is at the top. A new measurement every month.' }}</p>
+        {% else %}
+        <p class="klein" style="margin:0;">{{ 'Dit is je eerste meting. Na de volgende meting zie je hier de lijn van je plek.' if taal == 'nl'
+             else 'This is your first measurement. After the next one, the line of your place appears here.' }}</p>
+        {% endif %}
+      </div>
+      <div class="kaartblok">
+        <div class="kaartkop">{{ 'GENOEMD PER ASSISTENT' if taal == 'nl' else 'NAMED PER ASSISTANT' }}</div>
+        {{ balken }}
+        <p class="klein">{{ 'In hoeveel antwoorden van elke assistent je winkel voorkwam.' if taal == 'nl'
+             else 'In how many answers of each assistant your store appeared.' }}</p>
+      </div>
+    </div>
+
+    <div class="twee">
       {% if beeld.boven_mij %}
-      <div class="buren">
-        <div class="titel">
-          {{ 'WIE ER VLAK BOVEN JE STAAT' if taal == 'nl' else 'WHO IS JUST ABOVE YOU' }}</div>
+      <div class="kaartblok">
+        <div class="kaartkop">{{ 'WIE ER VLAK BOVEN JE STAAT' if taal == 'nl' else 'WHO IS JUST ABOVE YOU' }}</div>
         {% for r in beeld.boven_mij %}
         <div class="buurrij">
           <span class="p">{{ r.positie }}</span>
@@ -171,40 +181,226 @@
           <span style="font-family:var(--mono); font-size:13px;">{{ r.genoemd }} / {{ beeld.telbaar }}</span>
         </div>
         {% endfor %}
+        <a class="verder" href="{{ link_van.ranglijst }}">{{ 'Hele ranglijst' if taal == 'nl' else 'Full ranking' }} &rarr;</a>
+      </div>
+      {% endif %}
+      {% if beeld.gemiste_vragen %}
+      <div class="kaartblok">
+        <div class="kaartkop">{{ 'VRAGEN DIE JE VERLIEST' if taal == 'nl' else 'QUESTIONS YOU LOSE' }}</div>
+        {% for v in beeld.gemiste_vragen[:3] %}
+        <div class="kortevraag">
+          <div class="vraag">{{ v.vraag }}</div>
+          <div class="wie">{% if taal == 'nl' %}Wel genoemd:{% else %}Named instead of you:{% endif %}
+            {% for c in v.concurrenten[:3] %}<strong>{{ c }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}
+            {% if not v.concurrenten %}{{ 'geen enkele winkel' if taal == 'nl' else 'no store at all' }}{% endif %}</div>
+        </div>
+        {% endfor %}
+        <a class="verder" href="{{ link_van.vragen }}">{{ 'Alle vragen' if taal == 'nl' else 'All questions' }} &rarr;</a>
       </div>
       {% endif %}
     </div>
     {% endif %}
 
-    {% if beeld.gemiste_vragen %}
-    <div class="vragenblok" id="vragen">
+    {# ================================================================ RANGLIJST #}
+    {% if pagina == 'ranglijst' and beeld %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'JIJ EN DE WINKELS BOVEN JE, PER METING' if taal == 'nl' else 'YOU AND THE STORES ABOVE YOU, PER MEASUREMENT' }}</div>
+      {% if grafiek_buren %}
+      {{ grafiek_buren }}
+      <div class="legenda">
+        {% for r in buren %}<span><i style="background:{{ r.kleur }}"></i>{{ r.naam }}</span>{% endfor %}
+      </div>
+      {% else %}
+      <p class="klein" style="margin:0;">{{ 'Na de volgende meting zie je hier hoe jij en je buren bewegen.' if taal == 'nl'
+           else 'After the next measurement you see here how you and your neighbours move.' }}</p>
+      {% endif %}
+    </div>
+
+    <div class="vragenblok">
       <div class="vragenkop">
-        <div class="titel">
-          {{ 'De vragen die je verliest' if taal == 'nl' else 'The questions you lose' }}</div>
-        <div class="onder">
-          {% if taal == 'nl' %}Het echte antwoord, en wie er genoemd werd in plaats van jou.
-          {% else %}The real answer, and who was named instead of you.{% endif %}</div>
+        <div class="titel">{{ categorienaam }} &middot; {{ landnaam }}</div>
+        <div class="onder">{% if taal == 'nl' %}Alle {{ ranglijst|length }} winkels die we in deze categorie meten. Genoemd: je stond in het antwoord. Aanbevolen: de assistent raadde je aan.
+          {% else %}All {{ ranglijst|length }} stores we measure in this category. Named: you were in the answer. Recommended: the assistant advised you.{% endif %}</div>
       </div>
-      {% for v in beeld.gemiste_vragen %}
-      <div class="vraagrij">
-        <div class="vraag">{{ v.vraag }}</div>
-        <div class="wie">
-          {% if taal == 'nl' %}Wel genoemd:{% else %}Named instead of you:{% endif %}
-          {% for c in v.concurrenten %}<strong>{{ c }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}
-          {% if not v.concurrenten %}<span style="color:var(--ink-grijs);">
-            {{ 'geen enkele winkel' if taal == 'nl' else 'no store at all' }}</span>{% endif %}
-        </div>
-      </div>
-      {% endfor %}
+      <table class="lijst">
+        <thead><tr><th>#</th><th>{{ 'Winkel' if taal == 'nl' else 'Store' }}</th>
+          <th class="r">{{ 'Genoemd' if taal == 'nl' else 'Named' }}</th>
+          <th class="r">{{ 'Aanbevolen' if taal == 'nl' else 'Recommended' }}</th></tr></thead>
+        <tbody>
+        {% for r in ranglijst %}
+        <tr class="{{ 'jij' if r.webshop_url == beeld.webshop_url }}">
+          <td class="p">{{ r.positie }}</td>
+          <td>{{ r.naam or r.webshop_url | replace('https://','') }}{% if r.webshop_url == beeld.webshop_url %} <span class="jijlabel">{{ 'jij' if taal == 'nl' else 'you' }}</span>{% endif %}</td>
+          <td class="r">{{ r.genoemd }} / {{ beeld.telbaar }}</td>
+          <td class="r">{{ r.aanbevolen }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
     </div>
     {% endif %}
 
+    {# ================================================================ VRAGEN #}
+    {% if pagina == 'vragen' and beeld %}
+    <div class="paneel">
+      <div class="cijfer">
+        <div class="label">{{ 'GEWONNEN' if taal == 'nl' else 'QUESTIONS WON' }}</div>
+        <div class="rij"><span class="groot">{{ vragen.gewonnen }}</span>
+          <span class="naast">{{ t.van_de }} {{ vragen.totaal }}</span></div>
+        <div class="bij">{{ 'Hier noemde minstens een assistent je winkel.' if taal == 'nl' else 'At least one assistant named your store.' }}</div>
+      </div>
+      <div class="cijfer">
+        <div class="label">{{ 'VERLOREN' if taal == 'nl' else 'QUESTIONS LOST' }}</div>
+        <div class="rij"><span class="groot">{{ vragen.verloren }}</span>
+          <span class="naast">{{ t.van_de }} {{ vragen.totaal }}</span></div>
+        <div class="bij">{{ 'Hier werden anderen genoemd. Daar valt te winnen.' if taal == 'nl' else 'Others were named here. This is where you can win.' }}</div>
+      </div>
+      <div class="cijfer">
+        <div class="label">{{ 'PER ASSISTENT' if taal == 'nl' else 'PER ASSISTANT' }}</div>
+        {{ balken }}
+      </div>
+    </div>
+
+    <div class="vragenblok" id="vragen">
+      <div class="vragenkop">
+        <div class="titel">{{ 'Alle koopvragen' if taal == 'nl' else 'All buying questions' }}</div>
+        <div class="onder">{% if taal == 'nl' %}De echte vraag zoals een koper hem stelt, in de taal van de markt. Klik een vraag open voor het echte antwoord.
+          {% else %}The real question a shopper asks, in the language of the market. Open a question for the real answer.{% endif %}</div>
+        <div class="filters" role="tablist">
+          <button type="button" class="aan" data-filter="alle">{{ 'Alle' if taal == 'nl' else 'All' }} ({{ vragen.totaal }})</button>
+          <button type="button" data-filter="verloren">{{ 'Verloren' if taal == 'nl' else 'Lost' }} ({{ vragen.verloren }})</button>
+          <button type="button" data-filter="gewonnen">{{ 'Gewonnen' if taal == 'nl' else 'Won' }} ({{ vragen.gewonnen }})</button>
+        </div>
+      </div>
+      {% for v in vragen.vragen %}
+      <details class="vraagrij" data-stand="{{ 'gewonnen' if v.gewonnen else 'verloren' }}">
+        <summary>
+          <span class="vraag">{{ v.vraag }}</span>
+          <span class="stippen">
+            {% for m in v.per_model %}<span class="asst {{ 'ja' if m.genoemd else 'nee' }}" title="{{ m.assistent }}">{{ m.assistent }} {{ '&#10003;'|safe if m.genoemd else '&#10005;'|safe }}</span>{% endfor %}
+          </span>
+        </summary>
+        {% for m in v.per_model %}
+        <div class="antwoord">
+          <div class="wie"><strong>{{ m.assistent }}</strong>:
+            {% if m.genoemd %}{{ 'noemde je winkel' if taal == 'nl' else 'named your store' }}{% if m.aanbevolen %} {{ 'en raadde hem aan' if taal == 'nl' else 'and recommended it' }}{% endif %}.
+            {% else %}{{ 'noemde je winkel niet' if taal == 'nl' else 'did not name your store' }}.{% endif %}
+            {% if m.anderen %}{{ 'Wel genoemd:' if taal == 'nl' else 'Named:' }} {% for c in m.anderen %}<strong>{{ c }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+          </div>
+          {% if m.fragment %}<blockquote>{{ m.fragment }}</blockquote>{% endif %}
+        </div>
+        {% endfor %}
+      </details>
+      {% endfor %}
+    </div>
+    <script>
+    (function(){
+      var knoppen = document.querySelectorAll('.filters button');
+      knoppen.forEach(function(k){
+        k.addEventListener('click', function(){
+          knoppen.forEach(function(x){ x.classList.remove('aan'); });
+          k.classList.add('aan');
+          var f = k.dataset.filter;
+          document.querySelectorAll('.vraagrij').forEach(function(r){
+            r.style.display = (f === 'alle' || r.dataset.stand === f) ? '' : 'none';
+          });
+        });
+      });
+    })();
+    </script>
     {% endif %}
 
-    {# WAT ER KLAARSTAAT OM GOED TE KEUREN.
-       Op het voorbeeld staat hier GEEN nagemaakte lijst met knoppen. Dat zou een
-       scherm zijn dat werk toont dat niet bestaat, en dat is precies het soort
-       belofte waar wij anderen op controleren. Er staat wat er komt te staan. #}
+    {# ================================================================ VERBETERINGEN EN ABONNEMENT #}
+    {% if pagina in ('verbeteringen', 'abonnement') %}
+
+    {# Verbeteringen: drie tegels bovenaan, ANDERS per pakket (28 september).
+       Watch: wat klaarstaat om zelf te doen. Fix: wat wij deden en wat nog komt. #}
+    {% if pagina == 'verbeteringen' and werkblok and not werkblok.afgelopen %}
+    {% set acties = (werkblok.actieplan.acties if werkblok.actieplan else []) %}
+    <div class="paneel">
+      {% if werkblok.doet_werk %}
+      <div class="cijfer">
+        <div class="label">{{ 'VERANDERD IN JE WINKEL' if taal == 'nl' else 'CHANGED IN YOUR STORE' }}</div>
+        <div class="rij"><span class="groot">{{ werkblok.wijzigingen|length }}</span>
+          <span class="naast">{{ 'wijzigingen' if taal == 'nl' else 'changes' }}</span></div>
+        <div class="bij">{{ 'Elk met de oude tekst ernaast, alles kan terug.' if taal == 'nl' else 'Each with the old text, every one can be undone.' }}</div>
+      </div>
+      <div class="cijfer">
+        <div class="label">{{ 'NOG TE DOEN' if taal == 'nl' else 'STILL TO DO' }}</div>
+        <div class="rij"><span class="groot">{{ acties|length }}</span>
+          <span class="naast">{{ 'verbeteringen' if taal == 'nl' else 'fixes' }}</span></div>
+        <div class="bij">{{ 'Die zetten wij erin. Jij hoeft niets te doen.' if taal == 'nl' else 'We put these in. There is nothing for you to do.' }}</div>
+      </div>
+      <div class="cijfer">
+        <div class="label">{{ 'STAND' if taal == 'nl' else 'STATUS' }}</div>
+        <div class="rij"><span class="groot" style="font-size:24px; line-height:1.2;">
+          {% if werkblok.shopify_winkel %}{{ 'Elke week' if taal == 'nl' else 'Every week' }}
+          {% elif werkblok.uitvoering and werkblok.uitvoering.stand == 'wacht_op_toegang' %}{{ 'Wacht op toegang' if taal == 'nl' else 'Waiting for access' }}
+          {% elif werkblok.uitvoering and werkblok.uitvoering.stand == 'opgeleverd' %}{{ 'Klaar' if taal == 'nl' else 'Done' }}
+          {% else %}{{ 'Bezig' if taal == 'nl' else 'Working' }}{% endif %}</span></div>
+        <div class="bij">{% if werkblok.shopify_winkel %}{{ 'De app vult je winkel elke week aan.' if taal == 'nl' else 'The app fills in your store every week.' }}
+          {% else %}{{ 'Na elke ronde krijg je een overzicht per mail.' if taal == 'nl' else 'After each round you get an overview by email.' }}{% endif %}</div>
+      </div>
+      {% else %}
+      <div class="cijfer">
+        <div class="label">{{ 'KLAAR VOOR JOU' if taal == 'nl' else 'READY FOR YOU' }}</div>
+        <div class="rij"><span class="groot">{{ acties|length }}</span>
+          <span class="naast">{{ 'verbeteringen' if taal == 'nl' else 'fixes' }}</span></div>
+        <div class="bij">{{ 'Uitgeschreven, met een kopieerknop.' if taal == 'nl' else 'Written out, with a copy button.' }}</div>
+      </div>
+      <div class="cijfer">
+        <div class="label">{{ 'WAAR ZE OVER GAAN' if taal == 'nl' else 'WHAT THEY TARGET' }}</div>
+        <div class="rij"><span class="groot">{{ beeld.gemiste_vragen|length if beeld else 0 }}</span>
+          <span class="naast">{{ 'verloren vragen' if taal == 'nl' else 'lost questions' }}</span></div>
+        <div class="bij">{{ 'Elke verbetering hoort bij vragen waar je nu ontbreekt.' if taal == 'nl' else 'Each fix is aimed at questions where you are missing now.' }}</div>
+      </div>
+      <div class="cijfer">
+        <div class="label">{{ 'TIJD PER STUK' if taal == 'nl' else 'TIME EACH' }}</div>
+        <div class="rij"><span class="groot" style="font-size:24px; line-height:1.2;">{{ '5 tot 15 min' if taal == 'nl' else '5 to 15 min' }}</span></div>
+        <div class="bij">{{ 'Liever niet zelf? Met Fix doen wij het.' if taal == 'nl' else 'Rather not do it yourself? With Fix we do it.' }}</div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if pagina == 'abonnement' and plan_uitleg %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'JOUW PAKKET' if taal == 'nl' else 'YOUR PLAN' }}</div>
+      <div class="plannaam">{{ plan_uitleg.naam }}</div>
+      <ul class="planlijst">{% for punt in plan_uitleg.punten %}<li>{{ punt }}</li>{% endfor %}</ul>
+      <p class="klein">{{ plan_uitleg.betaling }}</p>
+    </div>
+
+    <div class="twee">
+      <div class="kaartblok">
+        <div class="kaartkop">{{ 'WANNEER WE METEN' if taal == 'nl' else 'WHEN WE MEASURE' }}</div>
+        <p style="margin:0 0 8px; font-size:15px;">
+          {% if beeld and beeld.gemeten_op %}
+          {{ 'Laatste meting' if taal == 'nl' else 'Last measurement' }}: <strong>{{ beeld.gemeten_op.strftime('%d %b %Y') }}</strong><br>
+          {{ 'Volgende meting rond' if taal == 'nl' else 'Next measurement around' }}: <strong>{{ (beeld.gemeten_op + volgende_meting_na).strftime('%d %b %Y') }}</strong>
+          {% else %}{{ 'Je eerste meting komt zodra je categorie aan de beurt is.' if taal == 'nl' else 'Your first measurement comes as soon as your category is up.' }}{% endif %}
+        </p>
+        <p class="klein">{{ 'Elke maand stellen we dezelfde koopvragen aan ChatGPT en Gemini, voor alle winkels in je categorie tegelijk. Zo is je plek eerlijk te vergelijken.' if taal == 'nl'
+             else 'Every month we ask ChatGPT and Gemini the same buying questions, for all stores in your category at once. That keeps your place fair to compare.' }}</p>
+      </div>
+      <div class="kaartblok">
+        {% if plan_uitleg.naam == 'Watch' and not werkblok.opgezegd %}
+        <div class="kaartkop">{{ 'MET FIX ERBIJ' if taal == 'nl' else 'WHAT FIX ADDS' }}</div>
+        <ul class="planlijst">
+          <li>{{ 'Wij zetten elke verbetering in je winkel' if taal == 'nl' else 'We put every fix into your store' }}</li>
+          <li>{{ 'Nieuwe producten elke week aangevuld' if taal == 'nl' else 'New products filled in every week' }}</li>
+          <li>{{ 'Elke wijziging met de oude tekst, alles kan terug' if taal == 'nl' else 'Every change with the old text, all can be undone' }}</li>
+        </ul>
+        <a class="knop-rand" href="mailto:hello@krilloai.com?subject=Switch%20to%20Fix%20for%20{{ winkelnaam|urlencode }}">{{ 'Overstappen naar Fix' if taal == 'nl' else 'Switch to Fix' }}</a>
+        {% else %}
+        <div class="kaartkop">{{ 'HULP NODIG' if taal == 'nl' else 'NEED HELP' }}</div>
+        <p style="margin:0 0 10px; font-size:15px;">{{ 'Vragen over je plek, een wijziging die terug moet, of je factuur? Mail ons, we antwoorden binnen een werkdag.' if taal == 'nl'
+             else 'Questions about your place, a change you want undone, or your invoice? Email us, we answer within one working day.' }}</p>
+        <a class="knop-rand" href="mailto:hello@krilloai.com">hello@krilloai.com</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
     {% if werkblok %}
     {# Het echte werk van deze klant. Zie templates/_werk.html. #}
     {% with wt=werkblok.wt, uitvoering=werkblok.uitvoering,
@@ -213,7 +409,7 @@
             abonnement=werkblok.abonnement, doet_werk=werkblok.doet_werk, opgezegd=werkblok.opgezegd, shopify_beheer=werkblok.shopify_beheer,
             opgezegd_tot=werkblok.opgezegd_tot, afgelopen=werkblok.afgelopen, shopify_winkel=werkblok.shopify_winkel,
             klant_token=werkblok.klant_token, webshop_url=werkblok.webshop_url,
-            beheer=werkblok.beheer %}
+            beheer=werkblok.beheer, werk_deel=werk_deel %}
     {% include "_werk.html" %}
     {% endwith %}
     {% else %}
@@ -240,6 +436,8 @@
       <a class="knop vol" href="/#pricing">
         {{ 'Bekijk wat Fix kost' if taal == 'nl' else 'See what Fix costs' }}</a>
     </div>
+    {% endif %}
+
     {% endif %}
 
     <div style="font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs);">

@@ -2153,7 +2153,13 @@ def _is_aan_de_beurt(webshop_url, vandaag, alles=False):
     # kosten dus ook dubbel.
     if laatste is not None:
         try:
-            if laatste.date() == vandaag.date():
+            # Allebei in UTC vergelijken (28 september). De database geeft de
+            # tijd terug in zijn eigen tijdzone en "vandaag" is UTC; rond
+            # middernacht vielen die op twee verschillende dagen, en dan werd
+            # dezelfde klant in een nacht twee keer gemeten en gemaild.
+            def _utc_dag(t):
+                return (t.astimezone(timezone.utc) if t.tzinfo else t).date()
+            if _utc_dag(laatste) == _utc_dag(vandaag):
                 return False
         except (AttributeError, TypeError):
             pass
@@ -3178,7 +3184,7 @@ def monitoring_doorsturen(klant_token):
 
     Blijft bestaan als doorverwijzing, want deze link staat in elke mail die
     tot die dag verstuurd is. Een 301: de oude plek komt niet terug."""
-    return redirect(f"/mijn/{klant_token}#werk", code=301)
+    return redirect(f"/mijn/{klant_token}/fixes", code=301)
 
 
 @app.route("/monitoring/<klant_token>/details")
@@ -4736,42 +4742,144 @@ def openbare_categorie(land, slug):
     )
 
 
-def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer=None):
-    """Het dashboard van een winkel. Dezelfde pagina voor het openbare
+def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer=None,
+               pagina="overzicht"):
+    """Het dashboard van een winkel. Dezelfde pagina's voor het openbare
     voorbeeld, voor een klant en voor de beheerweergave.
 
-    Een pagina en geen twee: zou het voorbeeld zijn eigen sjabloon krijgen, dan
-    laat je bezoekers straks iets zien dat een klant niet krijgt.
+    SINDS 28 SEPTEMBER vijf echte pagina's (zie dashboardpaginas.PAGINAS), elk
+    met een eigen adres: /mijn/<token>, /mijn/<token>/ranking, /questions,
+    /fixes en /plan (en hetzelfde onder /demo). Daarvoor was het een lange
+    pagina met een zijbalk die alleen naar beneden scrolde.
 
-    SINDS 21 SEPTEMBER staat het werk van de klant hier ook in (zie
-    templates/_werk.html). Daarvoor stond dat op een eigen oud scherm,
-    /monitoring/<token>, en stuurde dit dashboard erheen. Nu is er een scherm.
-
-    Het openbare voorbeeld heeft een gemeten winkel nodig. Een klant niet: een
-    betalende klant van wie de categorie nog niet gemeten is, krijgt het
-    dashboard zonder cijfers maar met zijn werk, in plaats van een foutpagina."""
+    Een klant ziet zijn eigen versie: Watch krijgt de verbeteringen om zelf te
+    doen, Fix ziet wat wij deden. Dat verschil zit in _werkblok en
+    _plan_uitleg, niet in losse sjablonen, zodat het nooit uit elkaar loopt."""
+    import dashboardpaginas as dp
+    if pagina not in {n for n, _, _ in dp.PAGINAS}:
+        pagina = "overzicht"
     beeld = klantbeeld.bouw(webshop_url, land=land)
     werk = klant_token is not None or beheer is not None
     if not beeld and not werk:
         return None
     taal = sitetaal.kies_taal(pad_taal=request.args.get("taal"))
+
+    # Waar elke knop van de zijbalk heen gaat.
+    if klant_token:
+        basis, achter = f"/mijn/{klant_token}", ""
+    elif beheer:
+        basis, achter = None, None
+    else:
+        basis, achter = "/demo", ""
+    extra = f"?taal={taal}" if request.args.get("taal") else ""
+    links, link_van = [], {}
+    for naam, pad, labels in dp.PAGINAS:
+        if basis is None:
+            href = (f"/admin/voorbeeld?url={quote(webshop_url)}&pagina={naam}"
+                    + (f"&taal={taal}" if request.args.get("taal") else ""))
+        else:
+            href = basis + (f"/{pad}" if pad else "") + extra
+        links.append({"naam": naam, "label": labels.get(taal, labels["en"]), "href": href,
+                      "aan": naam == pagina})
+        link_van[naam] = href
+    paginanaam = next(l["label"] for l in links if l["aan"])
+
+    werkblok = _werkblok(webshop_url, taal, klant_token=klant_token, beheer=beheer) if werk else None
+    gegevens = {}
+    if beeld:
+        winkelnaam = beeld.get("naam")
+        if pagina in ("overzicht", "vragen"):
+            try:
+                gegevens["vragen"] = dp.vragen_overzicht(beeld["ronde"], webshop_url, winkelnaam)
+            except Exception as e:
+                print(f"Vragen voor het dashboard mislukt voor {webshop_url}: {e}")
+                gegevens["vragen"] = {"vragen": [], "gewonnen": 0, "verloren": 0, "totaal": 0,
+                                      "per_assistent": []}
+            gegevens["balken"] = dp.balken_per_assistent(gegevens["vragen"]["per_assistent"])
+        if pagina == "overzicht":
+            eigen = [{"naam": winkelnaam, "jij": True,
+                      "punten": [(r.get("afgerond_op"), r["positie"]) for r in beeld.get("verloop") or []]}]
+            gegevens["grafiek_eigen"] = dp.lijngrafiek(eigen, taal=taal)
+        if pagina == "ranglijst":
+            try:
+                gegevens["ranglijst"] = db.ranglijst_per_land(beeld["categorie"], beeld.get("land"),
+                                                             limiet=500).get("rijen") or []
+            except Exception as e:
+                print(f"Ranglijst voor het dashboard mislukt: {e}")
+                gegevens["ranglijst"] = []
+            buren = dp.buren_verloop(beeld)
+            gegevens["grafiek_buren"] = dp.lijngrafiek(buren, breedte=1000, hoogte=280, taal=taal)
+            anderen = [b for b in buren if not b.get("jij")]
+            gegevens["buren"] = ([{"naam": b["naam"], "kleur": dp.KLEUREN_ANDEREN[i % 3]}
+                                  for i, b in enumerate(anderen)]
+                                 + [{"naam": winkelnaam, "kleur": dp.KLEUR_JIJ}])
     return render_template(
         "dashboard.html",
-        t=sitetaal.teksten(taal), taal=taal, beeld=beeld,
+        t=sitetaal.teksten(taal), taal=taal, beeld=beeld, pagina=pagina,
+        paginanaam=paginanaam, links=links, link_van=link_van,
         winkelnaam=_winkelnaam(webshop_url) or webshop_url.replace("https://", ""),
         landnaam=sitetaal.landnaam(beeld.get("land"), taal) if beeld else None,
         modellen=db.modellen_van_ronde(beeld["ronde"]) if beeld else [],
-        # Engelse naam op een Engelse pagina (27 september: de zijbalk liet
-        # "Kleding" zien tussen verder Engelse tekst).
+        # Engelse naam op een Engelse pagina (27 september).
         categorienaam=((categorieen.naam_en(beeld["categorie"]) if taal == "en"
                         else categorieen.naam_van(beeld["categorie"])) if beeld else None),
         buiten_markt=_buiten_markt(webshop_url),
-        staven=klantbeeld.balkhoogtes(beeld["verloop"]) if beeld else [],
+        volgende=dp.volgende_stap(beeld, werkblok, taal),
+        plan_uitleg=_plan_uitleg(webshop_url, werkblok, taal) if werkblok else None,
+        werk_deel=("fixes" if pagina == "verbeteringen" else "plan"),
+        volgende_meting_na=timedelta(days=30),
         voorbeeld=voorbeeld,
-        werkblok=(_werkblok(webshop_url, taal, klant_token=klant_token, beheer=beheer)
-                  if werk else None),
+        werkblok=werkblok,
         basis_url=get_base_url().rstrip("/"),
+        **gegevens,
     )
+
+
+def _plan_uitleg(webshop_url, werkblok, taal="en"):
+    """Wat er in het pakket van deze klant zit, voor de pagina Abonnement.
+
+    Watch en Fix zijn verschillende producten, en de klant moet op zijn eigen
+    pagina kunnen lezen wat HIJ gekocht heeft, niet een algemene prijslijst."""
+    en = taal != "nl"
+    klant = db.klant_bij_url(webshop_url) or {}
+    pakket = (klant.get("pakket") or "").lower()
+    via_shopify = bool(werkblok and werkblok.get("shopify_beheer"))
+    if pakket == "watch":
+        naam = "Watch"
+        punten = (["Your rank in the index every month, in your category and country",
+                   "Every buying question you lose, with the store named instead",
+                   "Every fix written out, ready to copy into your store yourself",
+                   "Cancel any time, from this page"] if en else
+                  ["Elke maand je plek in de index, in je categorie en land",
+                   "Elke koopvraag die je verliest, met de winkel die wel genoemd werd",
+                   "Elke verbetering uitgeschreven, klaar om zelf over te nemen",
+                   "Elke maand opzegbaar, vanaf deze pagina"])
+    elif pakket:
+        naam = "Fix"
+        punten = (["Everything in Watch",
+                   "We write every change and put it in your store for you",
+                   "Every change listed with the old text, and every change can be undone",
+                   "At the next monthly measurement you see the difference"] if en else
+                  ["Alles van Watch",
+                   "Wij schrijven elke wijziging en zetten hem in je winkel",
+                   "Elke wijziging staat erbij met de oude tekst, en alles kan terug",
+                   "Bij de volgende maandmeting zie je het verschil"])
+    else:
+        naam = "Krillo"
+        punten = []
+    if via_shopify:
+        betaling = ("You pay through your Shopify invoice. You change or cancel your plan in "
+                    "Shopify, under the Krillo app." if en else
+                    "Je betaalt via je Shopify-factuur. Wijzigen of opzeggen doe je in Shopify, bij de app.")
+    elif klant.get("aangemaakt_op"):
+        begon = klant["aangemaakt_op"].strftime("%d-%m-%Y")
+        betaling = (f"Customer since {begon}. You pay monthly by direct debit through Mollie; "
+                    f"every payment gets an invoice by email." if en else
+                    f"Klant sinds {begon}. Je betaalt maandelijks via Mollie; bij elke betaling "
+                    f"krijg je een factuur per mail.")
+    else:
+        betaling = ""
+    return {"naam": naam, "punten": punten, "betaling": betaling}
 
 
 def _buiten_markt(webshop_url):
@@ -4888,7 +4996,8 @@ def _werkblok(webshop_url, taal, klant_token=None, beheer=None):
 
 
 @app.route("/demo")
-def openbaar_voorbeeld():
+@app.route("/demo/<pad>")
+def openbaar_voorbeeld(pad=""):
     """Het dashboard van een ECHTE winkel, zonder inloggen.
 
     Waarom dit bestaat: op de homepage staat een knop naar het dashboard, en een
@@ -4904,7 +5013,11 @@ def openbaar_voorbeeld():
             "fout.html", titel="There is no example yet",
             bericht="As soon as the first category is measured, a real "
                     "dashboard of a real store appears here."), 404
-    pagina = _dashboard(keuze["webshop_url"], land=keuze.get("land"), voorbeeld=True)
+    import dashboardpaginas as dp
+    if pad and pad not in dp.PAD_NAAR_PAGINA:
+        return redirect("/demo")
+    pagina = _dashboard(keuze["webshop_url"], land=keuze.get("land"), voorbeeld=True,
+                        pagina=dp.PAD_NAAR_PAGINA.get(pad, "overzicht"))
     if pagina is None:
         return render_template(
             "fout.html", titel="There is no example yet",
@@ -4914,7 +5027,8 @@ def openbaar_voorbeeld():
 
 
 @app.route("/mijn/<klant_token>")
-def klant_dashboard(klant_token):
+@app.route("/mijn/<klant_token>/<pad>")
+def klant_dashboard(klant_token, pad=""):
     """Het dashboard van een klant, achter zijn geheime link.
 
     Geen wachtwoord: de link IS de sleutel. Dat is bewust, want een wachtwoord
@@ -4926,7 +5040,11 @@ def klant_dashboard(klant_token):
             "fout.html", titel="This link no longer works",
             bericht="Ask for a new one on /mijn-link and we will email it "
                     "again."), 404
-    return _dashboard(klant["webshop_url"], klant_token=klant_token)
+    import dashboardpaginas as dp
+    if pad and pad not in dp.PAD_NAAR_PAGINA:
+        return redirect(f"/mijn/{klant_token}")
+    return _dashboard(klant["webshop_url"], klant_token=klant_token,
+                      pagina=dp.PAD_NAAR_PAGINA.get(pad, "overzicht"))
 
 
 @app.route("/mijn-link", methods=["GET", "POST"])
@@ -5198,7 +5316,8 @@ def admin_voorbeeld():
     # de dertien controlepunten is nog een eigen scherm.
     if request.args.get("details") != "ja":
         return _dashboard(webshop_url,
-                          beheer={"sleutel": admin_key, "taakstand": taakstand})
+                          beheer={"sleutel": admin_key, "taakstand": taakstand},
+                          pagina=request.args.get("pagina") or "overzicht")
 
     pagina = _paginagegevens(webshop_url)
     return render_template(
