@@ -796,6 +796,17 @@ def api_opzeggen(klant_token):
     # Binnen veertien dagen krijgt hij zijn geld terug, dan stopt de toegang nu.
     # Daarna betaalde hij de lopende maand, en die houdt hij (voorwaarden).
     tot = None
+    # Stap 167: tijdens de gratis proef. Er is niets betaald (alleen de cent), dus
+    # niets terug; hij houdt toegang tot het einde van zijn gratis dagen.
+    gratis_tot = klant.get("gratis_tot")
+    if gratis_tot and gratis_tot >= datetime.now(timezone.utc).date():
+        tot = datetime.combine(gratis_tot, datetime.min.time(), tzinfo=timezone.utc) + timedelta(days=1)
+        db.zet_klant_opgezegd(klant["webshop_url"], tot=tot)
+        emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"], tot=tot, terug=False)
+        _meld_aan_beheer("Gratis proef gestopt",
+                         f"{klant['email']} stopte de gratis proef van {klant['webshop_url']}. "
+                         f"Er is niets betaald en niets terug te betalen.")
+        return jsonify({"ok": True})
     if dagen is not None and dagen > 14:
         # Een jaarklant houdt toegang tot het eind van zijn betaalde jaar.
         jaar = (abonnement.get("periode") == "jaar") or (klant.get("periode") == "jaar")
@@ -2121,10 +2132,21 @@ def checkout_monitoring():
         doorverwijzer = doorverwijzen.code_bij_kassa(webshop_url, data.get("ref"))
     except Exception as e:
         print(f"Doorverwijzer nakijken bij de kassa mislukt: {e}")
+    # Stap 167: Watch per maand begint met 14 gratis dagen, een keer per winkel.
+    # Vraagt de site om de proef maar was deze winkel of dit adres al klant,
+    # dan zeggen wij dat eerlijk in plaats van stil 49 euro te vragen.
+    proef = False
+    if data.get("proef"):
+        import proefperiode
+        proef = proefperiode.mag_proef(webshop_url, email, pakket, payments.periode_van(data.get("periode")))
+        if not proef:
+            return jsonify({"error": "This store or email address already had Krillo, so the free trial is not "
+                                     "available again. You can start Watch at EUR 49 a month instead.",
+                            "zonder_proef": True}), 409
     result = payments.create_monitoring_signup(get_base_url(), email, webshop_url,
                                                bedrijfsnaam, bron=bron, pakket=pakket,
                                                periode=payments.periode_van(data.get("periode")),
-                                               doorverwijzer=doorverwijzer)
+                                               doorverwijzer=doorverwijzer, proef=proef)
     if "payment_id" in result:
         db.leg_toestemming_vast(result["payment_id"], email, webshop_url, "monitoring", voorwaarden, False)
     if "error" in result:
@@ -2453,7 +2475,8 @@ def _verwerk_betaling(payment_id, base_url):
                 eerste = "first year" if payments.periode_van(metadata.get("periode")) == "jaar" else "first month"
                 omschrijving = f"Krillo {pakketnaam}, {eerste}, for {webshop_url}"
             bedrag = status.get("bedrag")
-            if bedrag is not None:
+            # Stap 167: voor de cent van de gratis proef geen factuur.
+            if bedrag is not None and not metadata.get("proef"):
                 factuurnummer = db.maak_factuur(payment_id, email, bedrijfsnaam,
                                                 omschrijving, bedrag, bron=bron)
                 if factuurnummer and factuurnummer.get("nieuw"):
@@ -2591,9 +2614,12 @@ def _verwerk_betaling(payment_id, base_url):
                     # Zonder dit werd elk abonnement het standaardbedrag, ook
                     # als iemand Watch van 49 euro gekozen had, en dan wordt er
                     # elke maand honderd euro te veel afgeschreven.
+                    # Stap 167: bij de gratis proef begint het abonnement na de 14 dagen.
+                    import proefperiode
                     uitkomst = payments.create_subscription(
                         customer_id, pakket=metadata.get("pakket"),
                         webhook_url=f"{base_url}/webhooks/mollie",
+                        startdatum=proefperiode.eerste_incasso() if metadata.get("proef") else None,
                         periode=metadata.get("periode")) or {}
                 if uitkomst.get("error"):
                     print(f"LET OP: doorlopend abonnement NIET aangemaakt voor "
@@ -2632,6 +2658,9 @@ def _verwerk_betaling(payment_id, base_url):
                         db.zet_mollie_klant(webshop_url, customer_id,
                                             (metadata.get("pakket") or "").lower() or None,
                                             payments.periode_van(metadata.get("periode")))
+                        if metadata.get("proef"):
+                            import proefperiode
+                            proefperiode.zet_gratis_tot(webshop_url, proefperiode.laatste_gratis_dag())
                     if not klant_token:
                         _meld_aan_beheer(
                             "Aanmelding op een webshop van een andere klant",
@@ -2647,9 +2676,11 @@ def _verwerk_betaling(payment_id, base_url):
                     pakket = (metadata.get("pakket") or payments.STANDAARD_PAKKET).lower()
                     welkom_ok = False
                     try:
+                        import proefperiode
                         welkom_ok = emailing.send_monitoring_welcome_email(
                             email, webshop_url, scan_result, monitoring_url,
-                            taal=_mailtaal(webshop_url), pakket=pakket)
+                            taal=_mailtaal(webshop_url), pakket=pakket,
+                            gratis_tot=proefperiode.laatste_gratis_dag() if metadata.get("proef") else None)
                     except Exception as e:
                         print(f"Welkomstmail mislukt voor {webshop_url}: {e}")
                     # Zonder deze mail heeft een betalende klant geen link naar
@@ -2695,8 +2726,9 @@ def _verwerk_betaling(payment_id, base_url):
                     elif metadata.get("doorverwijzer"):
                         _leg_doorverwijzing_vast(metadata, webshop_url, payment_id)
                     _meld_nieuwe_klant(
-                        ("TEST, geen echt geld: " if status.get("mode") == "test" else "") + "Abonnement",
-                        webshop_url, email, "maandpakket",
+                        ("TEST, geen echt geld: " if status.get("mode") == "test" else "")
+                        + ("Gratis proef Watch (14 dagen, daarna 49 euro per maand)" if metadata.get("proef") else "Abonnement"),
+                        webshop_url, email, "1 cent nu, 49 euro vanaf dag 15" if metadata.get("proef") else "maandpakket",
                         extra=(f'Zijn pagina: <a href="{monitoring_url}">{monitoring_url}</a>'
                                if monitoring_url else None))
 
@@ -3262,6 +3294,16 @@ def _benadering_ronde_werk():
     except Exception as e:
         verslag["mislukt"].append(f"klantagenten: {e}")
         print(f"Klantagenten mislukt: {e}")
+
+    # Stap 167: drie dagen voor het einde van de gratis proef een herinnering.
+    try:
+        import proefperiode
+        if benadering.binnen_kantooruren():
+            verslag["proef"] = proefperiode.ronde(get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
+                                                  prijs=_prijs_euro("watch") or 49)
+    except Exception as e:
+        verslag["mislukt"].append(f"proef: {e}")
+        print(f"Proefherinnering mislukt: {e}")
 
     # Stap 166: plekmeldingen, wie zijn plek claimde hoort het als die verandert.
     try:
@@ -6024,6 +6066,13 @@ def _plan_uitleg(webshop_url, werkblok, taal="en"):
                       .replace("Elke maand opzegbaar, vanaf deze pagina",
                                "Opzegbaar vanaf deze pagina; het jaar verlengt dan niet")
                       for p in punten]
+        elif klant.get("gratis_tot") and klant["gratis_tot"] >= datetime.now().date():
+            # Stap 167: tijdens de gratis proef.
+            tot = klant["gratis_tot"].strftime("%d-%m-%Y")
+            betaling = (f"Free trial until {tot}. After that Watch is EUR 49 a month by direct debit through "
+                        f"Mollie. Cancel before {tot} on this page and you pay nothing." if en else
+                        f"Gratis proef tot {tot}. Daarna is Watch 49 euro per maand via Mollie. Zeg je voor "
+                        f"{tot} op via deze pagina, dan betaal je niets.")
         else:
             betaling = (f"Customer since {begon}. You pay monthly by direct debit through Mollie; "
                         f"every payment gets an invoice by email." if en else

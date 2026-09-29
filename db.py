@@ -600,6 +600,9 @@ def init_db():
                 # Stap 166: plekmelding, claim je plek.
                 import plekmelding
                 plekmelding.maak_tabellen(cur)
+                # Stap 167: Watch 14 dagen gratis.
+                import proefperiode
+                proefperiode.maak_tabellen(cur)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS antwoorden (
                         id SERIAL PRIMARY KEY,

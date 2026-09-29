@@ -745,7 +745,8 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
           <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 6px;">
             {bij_een}Your own Krillo page shows where you stand, the buying questions you lose
             with the real AI answer, and what would move you up. No login, and nothing to
-            fill in.</p>
+            fill in. Want your rank every month and the fixes to win those questions? Watch is
+            free for the first 14 days.</p>
           {shopify_regel}
           {klant_regel}
 
@@ -786,7 +787,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
 
 
 def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None,
-                                  taal="en", pakket="fix"):
+                                  taal="en", pakket="fix", gratis_tot=None):
     """De welkomstmail na de eerste betaling van Watch of Fix.
 
     HERSCHREVEN 21 SEPTEMBER. Hiervoor heette dit "Welcome to Krillo monitoring"
@@ -849,6 +850,11 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
              + (f"; it scores {score} of 100 on them today." if (scan_result or {}).get("checks")
                 else "; the first one follows within a week."))
         + werk
+        # Stap 167: bij de gratis proef precies zeggen wanneer er iets betaald wordt.
+        + (_p(f"<strong>Your free trial.</strong> Watch is free until {gratis_tot.strftime('%d-%m-%Y')}. "
+              f"After that it is EUR 49 a month by direct debit, and you can cancel any month. Cancel "
+              f"before then on the Plan page of your dashboard and you pay nothing. We remind you three "
+              f"days before it ends.") if gratis_tot else "")
         + _score_button(report_url, "Open your dashboard")
     )
     html = _base_html(f"Welcome to Krillo {naam}", "Thank you for choosing Krillo.", body)

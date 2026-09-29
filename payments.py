@@ -203,7 +203,7 @@ def create_uitvoering_payment(base_url, webshop_url, email, bedrijfsnaam=None, b
 
 
 def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, bron=None,
-                             pakket=STANDAARD_PAKKET, periode="maand", doorverwijzer=None):
+                             pakket=STANDAARD_PAKKET, periode="maand", doorverwijzer=None, proef=False):
     """Stap 1 van het abonnement: klant aanmaken en de eerste betaling starten.
     Zodra deze betaling lukt (zie webhook), maken we het echte, doorlopende
     abonnement aan via create_subscription hieronder."""
@@ -219,9 +219,13 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
         })
         gekozen = pakket_van(pakket)
         periode = periode_van(periode) if gekozen.get("jaarprijs") else "maand"
+        # Stap 167: de gratis proef. Een cent, zodat er een machtiging komt; het
+        # abonnement begint pas na de 14 gratis dagen (zie de webhook).
+        proef = bool(proef) and (pakket or "").lower() == "watch" and periode == "maand"
         first_payment = customer.payments.create({
-            "amount": prijs_van(pakket, periode),
-            "description": f"{gekozen['omschrijving']}, " + ("first year" if periode == "jaar" else "first month"),
+            "amount": ({"currency": "EUR", "value": "0.01"} if proef else prijs_van(pakket, periode)),
+            "description": ("Krillo Watch, 14 days free (1 cent to confirm your bank account)" if proef else
+                            f"{gekozen['omschrijving']}, " + ("first year" if periode == "jaar" else "first month")),
             "redirectUrl": f"{base_url}/bedankt?type=monitoring",
             "webhookUrl": f"{base_url}/webhooks/mollie",
             "sequenceType": "first",
@@ -237,7 +241,8 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
                          "periode": periode,
                          # Stap 94: via wiens link. De webhook legt het vast
                          # zodra er echt betaald is.
-                         "doorverwijzer": doorverwijzer},
+                         "doorverwijzer": doorverwijzer,
+                         "proef": proef},
         })
         _zet_terugkeerlink_met_kenmerk(client, first_payment, base_url, "monitoring")
         return {"checkout_url": first_payment.checkout_url, "payment_id": first_payment.id, "customer_id": customer.id}
@@ -375,7 +380,10 @@ def zoek_abonnement(webshop_url):
             if metadata.get("webshop_url") != webshop_url:
                 continue
             for sub in customer.subscriptions.list():
-                if sub.get("status") == "active":
+                # Ook "pending" (29 september, stap 167): een abonnement dat pas
+                # na de gratis proef begint kan bij Mollie nog op pending staan.
+                # Het moet dan wel op te zeggen zijn, en geen tweede opleveren.
+                if sub.get("status") in ("active", "pending"):
                     # Het BEDRAG en de omschrijving gaan mee. Daaraan is te
                     # zien welk pakket iemand heeft, en dat bepaalt of wij het
                     # werk in zijn winkel doen (Fix) of dat hij het zelf doet

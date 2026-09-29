@@ -259,8 +259,9 @@ def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam
     else:
         alineas.append("If it helps, just reply with a question. I look at every reply myself.")
     if nummer == 1:
+        # Stap 167: de gratis proef is de kleinste stap die er is; zeg het.
         alineas.append("Your page shows every question you lose, with the real answer. "
-                       "Questions? Just reply to this email.")
+                       "You can try Watch free for 14 days. Questions? Just reply to this email.")
     return {"onderwerp": onderwerp, "alineas": alineas, "link": link_url, "nummer": nummer,
             "versie": versie}
 
