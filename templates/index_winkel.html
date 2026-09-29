@@ -62,6 +62,36 @@
   <p><a href="/index/{{ land }}/{{ slug }}">See the full ranking for {{ categorie }}</a></p>
   {% endif %}
 
+  {# Stap 166: claim je plek. Alleen een mailadres, met dubbele bevestiging. #}
+  <div style="border:1px solid #E8E8EC; border-radius:12px; padding:18px 20px; margin:28px 0;">
+    <h2 style="font-size:22px; margin:0 0 6px;">Follow this rank</h2>
+    <p style="margin:0 0 12px;">Get an email when {{ naam }} moves up or down in the next measurement. Free, one click to stop.</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <input id="plekEmail" type="email" placeholder="you@yourstore.com" autocomplete="email"
+             style="flex:1; min-width:200px; height:46px; border:1.5px solid #D8D8DE; border-radius:8px; padding:0 12px;">
+      <button id="plekKnop" type="button" class="knop vol" style="height:46px;">Follow</button>
+    </div>
+    <p id="plekUit" style="margin:8px 0 0; font-size:14px;"></p>
+    <script>
+      (function(){
+        var k = document.getElementById('plekKnop'), uit = document.getElementById('plekUit');
+        k.addEventListener('click', function(){
+          var email = document.getElementById('plekEmail').value.trim();
+          if(!email){ uit.textContent = 'Enter your email address.'; return; }
+          k.disabled = true;
+          fetch('/api/plekmelding', {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({email: email, land: {{ land | tojson }}, slug: {{ slug | tojson }}, winkel: {{ winkel | tojson }}})})
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+              uit.textContent = d.ok ? (d.al ? 'You already follow this rank.' : 'Check your inbox and click the link to confirm.') : (d.fout || 'Something went wrong.');
+              if(!d.ok) k.disabled = false;
+            })
+            .catch(function(){ uit.textContent = 'Something went wrong. Try again.'; k.disabled = false; });
+        });
+      })();
+    </script>
+  </div>
+
   <div class="cta">
     <h2>Is this your store?</h2>
     <p>See the buying questions where AI names someone else instead of you, and what to change. Free, no account.</p>

@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 {# Stap 148: de agentwereld. Ververst elke minuut vanzelf. Alles uit echte
    tellingen, zie agentwereld.py. Geen scripts van buiten. #}
-<meta http-equiv="refresh" content="60">
+<meta http-equiv="refresh" content="300">
 <title>Agentwereld | Krillo</title>
 <style>
   body{margin:0; background:#F3EFE6; font-family:-apple-system,'Segoe UI',Arial,sans-serif; color:#2E2A24;}
@@ -31,7 +31,7 @@
 <div class="kop">
   <h1>Het Krillo-dorp</h1>
   <div class="stand">{{ w.werkend }} van {{ w.agents|length }} agents aan het werk (laatste uur) &middot;
-    {{ w.klanten }} betalende klant{{ '' if w.klanten == 1 else 'en' }} &middot; ververst elke minuut</div>
+    {{ w.klanten }} betalende klant{{ '' if w.klanten == 1 else 'en' }} &middot; ververst elke vijf minuten</div>
 </div>
 <div class="wereld">
 <svg viewBox="0 0 1000 640" role="img" aria-label="Het dorp van de Krillo-agents">

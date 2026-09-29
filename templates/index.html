@@ -962,8 +962,11 @@
     <div class="navlinks">
       <a href="/index">Index</a>
       <a href="/demo">Product</a>
-      <a href="#methode">Method</a>
+      {# 29 september: de gratis tools stonden alleen in de voettekst. Een
+         bezoeker die nog niet wil kopen, moet iets gratis kunnen doen. #}
+      <a href="/tools">Free tools</a>
       <a href="#pricing">Pricing</a>
+      <a href="/partners">For agencies</a>
     </div>
     <a class="nav-cta" href="#scan">Check my store</a>
   </div>
@@ -1145,6 +1148,36 @@
         <div>
           <h3>Every answer kept in full</h3>
           <p>{% if index and index.cijfers and index.cijfers.antwoorden %}{{ index.cijfers.antwoorden }} complete answers are on record. That is how we show movement.{% else %}Every answer is kept in full, with the date it was given.{% endif %}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# GRATIS TOOLS EN BUREAUS (29 september). Otterly en Peec zetten hun gratis
+   tools en hun partnerprogramma zichtbaar op de site; bij ons stonden ze alleen
+   in de voettekst. Wie nog niet koopt, kan hier iets gratis doen, en een bureau
+   ziet meteen dat het aan ons kan verdienen. #}
+<section id="gratis" class="vlak">
+  <div class="wrap">
+    <div class="methode-blok">
+      <h2>Free, no account</h2>
+      <div class="methode-grid">
+        <div>
+          <h3><a href="/tools/ai-crawler-check" style="color:inherit;">Can AI read your store?</a></h3>
+          <p>We check whether ChatGPT, Gemini and Perplexity are allowed in by your robots.txt.</p>
+        </div>
+        <div>
+          <h3><a href="/tools/product-data-check" style="color:inherit;">Does your product page give AI the facts?</a></h3>
+          <p>Price, stock, brand and reviews in the code, the details AI answers are built from.</p>
+        </div>
+        <div>
+          <h3><a href="/index" style="color:inherit;">Where do you rank?</a></h3>
+          <p>The public rankings per category and country, with every question we asked.</p>
+        </div>
+        <div>
+          <h3><a href="/partners" style="color:inherit;">Agency or freelancer?</a></h3>
+          <p>Show your clients where AI recommends them, and earn 20 percent of what they pay, for as long as they pay, up to 12 months.</p>
         </div>
       </div>
     </div>
