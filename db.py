@@ -526,6 +526,12 @@ def init_db():
                             "ADD COLUMN IF NOT EXISTS bekeken_aantal INTEGER NOT NULL DEFAULT 0;")
                 cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS doorgeklikt_op TIMESTAMPTZ;")
+                # 29 september: of er op de uitkomst ook echt een MENS was
+                # (scrollen, tikken, muis). Mailbeveiliging opent elke link om
+                # hem te controleren; die telde als "bekeken" en kreeg dan een
+                # opvolgmail van de verkoopagent.
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS mens_op TIMESTAMPTZ;")
                 # Welke versie van de koude mail deze winkel kreeg (stap 56).
                 # Zonder dit weet je wel HOEVEEL mensen klikken, maar niet door
                 # WELKE mail. Dan kun je twee versies nooit eerlijk vergelijken.
@@ -608,6 +614,8 @@ def init_db():
                 merkenbureaus.maak_tabellen(cur)
                 import lijstjesagent
                 lijstjesagent.maak_tabellen(cur)
+                import linkedinagent
+                linkedinagent.maak_tabellen(cur)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS antwoorden (
                         id SERIAL PRIMARY KEY,
@@ -1996,6 +2004,25 @@ def get_shopify_winkels(alleen_actief=True):
     except Exception as e:
         print(f"Shopify-winkels ophalen mislukt: {e}")
         return []
+    finally:
+        conn.close()
+
+
+def noteer_uitkomst_mens(webshop_url):
+    """Op de uitkomst van deze winkel deed iemand iets wat alleen een mens doet."""
+    if not webshop_url:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET mens_op = now() WHERE webshop_url = %s", (webshop_url,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Mens op de uitkomst noteren mislukt: {e}")
+        return False
     finally:
         conn.close()
 

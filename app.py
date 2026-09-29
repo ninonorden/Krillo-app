@@ -351,6 +351,12 @@ def _warm_op_na_start():
                     # wachtten dan 14 seconden op de homepage.
                     time.sleep(0.3)
             sitemap_inhoud()
+            # De voorbeeldpagina achter "Product" alvast opbouwen, zodat de
+            # eerste bezoeker na een upload niet op het opbouwen wacht.
+            with app.test_request_context("/demo"):
+                demo = _maak_demo("")
+                if demo:
+                    _demo_bewaard[("", "")] = (time.time(), demo)
         except Exception as e:
             print(f"Opwarmen mislukt: {e}")
     threading.Thread(target=_warm, daemon=True).start()
@@ -411,7 +417,14 @@ def _tel_bezoek(antwoord):
             html = antwoord.get_data(as_text=True)
             plek = html.rfind("</body>")
             if plek != -1:
-                antwoord.set_data(html[:plek] + MENS_SCRIPT + html[plek:])
+                script = MENS_SCRIPT
+                # Op de uitkomst uit de koude mail: het kenmerk mee, zodat de
+                # verkoopagent weet dat er een mens keek en geen controlerobot.
+                delen = pad.split("/")
+                if (len(delen) >= 3 and delen[1] == "uitkomst"
+                        and re.fullmatch(r"[A-Za-z0-9_-]{6,80}", delen[2] or "")):
+                    script = script.replace("'/api/mens'", f"'/api/mens?t={delen[2]}'")
+                antwoord.set_data(html[:plek] + script + html[plek:])
     except Exception as e:
         print(f"Bezoek tellen mislukt: {e}")
     return antwoord
@@ -430,6 +443,14 @@ def api_mens():
     ua = (request.headers.get("User-Agent", "") or "").lower()
     if ua and not any(r in ua for r in BEZOEK_ROBOTS):
         kenmerk = _bezoeker_kenmerk()
+        token = (request.args.get("t") or "")[:80]
+        if token:
+            try:
+                winkel = db.winkel_bij_benchmark_token(token)
+                if winkel:
+                    db.noteer_uitkomst_mens(winkel)
+            except Exception as e:
+                print(f"Mens op de uitkomst mislukt: {e}")
         if app.testing:
             db.noteer_mens(kenmerk)
         else:
@@ -1045,6 +1066,64 @@ def lijstje_stop(token):
         _meld_aan_beheer("Lijstje afgemeld", f"{escape(domein)} wil geen mail meer over GEO-lijstjes.")
     return render_template("fout.html", titel="Done",
                            bericht="You will not hear from us again. Sorry for the interruption."), 200
+
+
+@app.route("/admin/linkedin", methods=["GET", "POST"])
+def admin_linkedin():
+    """De posts van de LinkedIn-agent: kopieren, plaatje downloaden, geplaatst."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import linkedinagent
+    if request.method == "POST":
+        if request.form.get("actie") == "geplaatst":
+            linkedinagent.zet_geplaatst(int(request.form.get("id") or 0))
+        elif request.form.get("actie") == "vullen":
+            linkedinagent.klaarzetten(
+                get_base_url().rstrip("/"),
+                db.categorieen_per_land(linkedinagent.LAND, MINIMUM_PER_LAND) or [],
+                _ranglijst_bewaard, categorieen.naam_en, sitetaal.landnaam(linkedinagent.LAND, "en"))
+        return redirect("/admin/linkedin")
+    blokken = []
+    for p in linkedinagent.posts():
+        tag = (f"<p><b>Tag deze winkels</b> (typ @ en de naam in de post, als ze een bedrijfspagina hebben): "
+               f"{escape(p['taggen'])}</p>") if p.get("taggen") else ""
+        knop = ("<p style='color:#0B7C5E'>Geplaatst.</p>" if p["stand"] == "geplaatst" else
+                f"<form method='post'><input type='hidden' name='id' value='{p['id']}'>"
+                f"<button name='actie' value='geplaatst'>Geplaatst</button></form>")
+        blokken.append(
+            f"<div style='border:1px solid #ddd;border-radius:10px;padding:16px;margin:16px 0;display:flex;gap:20px;flex-wrap:wrap'>"
+            f"<div style='flex:1;min-width:300px'><h3>{p['dag']:%A %d %B} &middot; {escape(p['soort'])}</h3>"
+            f"<textarea id='t{p['id']}' rows='12' style='width:100%;font:14px system-ui'>{escape(p['tekst'])}</textarea>"
+            f"<p><button onclick=\"navigator.clipboard.writeText(document.getElementById('t{p['id']}').value);"
+            f"this.textContent='Gekopieerd'\">Kopieer tekst</button> "
+            f"<a href='/admin/linkedin/beeld/{p['id']}.png' download='krillo-{p['dag']}.png'>Download plaatje</a></p>"
+            f"{tag}{knop}</div>"
+            f"<img src='/admin/linkedin/beeld/{p['id']}.png' style='width:300px;height:300px;border:1px solid #eee'></div>")
+    return (f"<!doctype html><meta charset='utf-8'><title>LinkedIn</title>"
+            f"<body style='font-family:system-ui;max-width:1000px;margin:30px auto;padding:0 16px'>"
+            f"<p><a href='/admin'>Terug</a></p><h1>LinkedIn-posts voor de bedrijfspagina</h1>"
+            f"<p>Maandag, woensdag en vrijdag een post, een week vooruit klaargezet uit de echte meetdata. "
+            f"Plaatsen: open de bedrijfspagina Krillo, klik <b>Start a post</b> (je post dan als Krillo), plak de "
+            f"tekst, klik op het fotoicoon en kies het plaatje, <b>Post</b>. Daarna hier op Geplaatst. "
+            f"Beste moment: tussen 8:00 en 9:30.</p>"
+            f"<form method='post'><button name='actie' value='vullen'>Nu de komende week klaarzetten</button></form>"
+            f"{''.join(blokken) or '<p>Nog geen posts. Klik hierboven of wacht op de volgende uurronde.</p>'}</body>")
+
+
+@app.route("/admin/linkedin/beeld/<int:post_id>.png")
+def admin_linkedin_beeld(post_id):
+    mag, _ = _mag_bij_beheer()
+    if not mag:
+        return "", 404
+    import linkedinagent
+    p = linkedinagent._sql("SELECT beeld, dag FROM linkedin_posts WHERE id = %s", (post_id,))
+    if not p:
+        return "", 404
+    png = linkedinagent.beeld_png(p["beeld"], maand=p["dag"].strftime("%B %Y"))
+    return Response(png, mimetype="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
 
 @app.route("/admin/lijstjes")
@@ -3507,6 +3586,18 @@ def _benadering_ronde_werk():
     except Exception as e:
         verslag["mislukt"].append(f"pers: {e}")
         print(f"Persagent mislukt: {e}")
+
+    # De LinkedIn-agent (29 september): een week vooruit de posts klaarzetten.
+    try:
+        import linkedinagent
+        verslag["linkedin"] = linkedinagent.klaarzetten(
+            get_base_url().rstrip("/"),
+            _bewaard(("perland", linkedinagent.LAND), db.categorieen_per_land, linkedinagent.LAND,
+                     MINIMUM_PER_LAND) or [],
+            _ranglijst_bewaard, categorieen.naam_en, sitetaal.landnaam(linkedinagent.LAND, "en"))
+    except Exception as e:
+        verslag["mislukt"].append(f"linkedin: {e}")
+        print(f"LinkedIn-agent mislukt: {e}")
 
     # De lijstjesagent (29 september): schrijvers van artikelen "beste GEO-tools"
     # een keer mailen, hoogstens drie per week, binnen kantooruren.
@@ -6164,6 +6255,14 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             eigen = [{"naam": winkelnaam, "jij": True,
                       "punten": [(r.get("afgerond_op"), r["positie"]) for r in beeld.get("verloop") or []]}]
             gegevens["grafiek_eigen"] = dp.lijngrafiek(eigen, taal=taal)
+            # 29 september: de ranglijst als kaart op het overzicht (zoals Peec):
+            # de top 5, en jijzelf eronder als je daar niet bij zit.
+            try:
+                rijen = (_ranglijst_bewaard(beeld["categorie"], beeld.get("land")) or {}).get("rijen") or []
+            except Exception as e:
+                print(f"Ranglijst voor het overzicht mislukt: {e}")
+                rijen = []
+            gegevens["top"] = dp.topkaart(rijen, webshop_url, beeld.get("telbaar") or 0)
         if pagina == "ranglijst":
             # Twee keer proberen (28 september: de demo liet "All 0 stores" zien
             # terwijl dezelfde ranglijst een regel hoger wel lukte; een tijdelijk
@@ -6193,7 +6292,7 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         paginanaam=paginanaam, links=links, link_van=link_van,
         winkelnaam=_winkelnaam(webshop_url) or webshop_url.replace("https://", ""),
         landnaam=sitetaal.landnaam(beeld.get("land"), taal) if beeld else None,
-        modellen=db.modellen_van_ronde(beeld["ronde"]) if beeld else [],
+        modellen=sorted({dp.assistent_naam(m) for m in db.modellen_van_ronde(beeld["ronde"])}) if beeld else [],
         # Engelse naam op een Engelse pagina (27 september).
         categorienaam=((categorieen.naam_en(beeld["categorie"]) if taal == "en"
                         else categorieen.naam_van(beeld["categorie"])) if beeld else None),
@@ -6208,7 +6307,7 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         prijzen={"watch": _prijs_euro("watch"), "fix": _prijs_euro("fix")},
         werkblok=werkblok,
         basis_url=get_base_url().rstrip("/"),
-        **gegevens,
+        **dict({"top": []}, **gegevens),
     )
 
 
@@ -6435,6 +6534,28 @@ def openbaar_voorbeeld(pad=""):
     # niets (hij eiste een naam en een oude plekkolom). Nu eerst die vraag, en
     # anders de eerste goede winkel uit de bewaarde ranglijsten. En valt een
     # dashboard om, dan de volgende kandidaat in plaats van een foutpagina.
+    # 29 september, Nino: "de productpagina is sloom". Elke keer werd het hele
+    # dashboard van de voorbeeldwinkel opnieuw opgebouwd uit de database. Het is
+    # voor iedereen dezelfde pagina, dus bewaren wij hem tien minuten.
+    sleutel = (pad, request.args.get("taal") or "")
+    bewaard = _demo_bewaard.get(sleutel)
+    if bewaard and time.time() - bewaard[0] < DEMO_SECONDEN and _thuis_onthouden_aan():
+        return bewaard[1]
+    pagina = _maak_demo(pad)
+    if pagina is None:
+        # Nooit meer een doodlopende pagina achter "Product": dan de index,
+        # daar staan dezelfde echte cijfers.
+        return redirect("/index")
+    _demo_bewaard[sleutel] = (time.time(), pagina)
+    return pagina
+
+
+DEMO_SECONDEN = 600
+_demo_bewaard = {}
+
+
+def _maak_demo(pad=""):
+    import dashboardpaginas as dp
     pagina = None
     for keuze in _voorbeeld_kandidaten():
         pagina = _dashboard(keuze["webshop_url"], land=keuze.get("land"), voorbeeld=True,
@@ -6442,10 +6563,10 @@ def openbaar_voorbeeld(pad=""):
                             categorie=keuze.get("categorie"))
         if pagina is not None:
             break
-    if pagina is None:
-        # Nooit meer een doodlopende pagina achter "Product": dan de index,
-        # daar staan dezelfde echte cijfers.
-        return redirect("/index")
+    if isinstance(pagina, tuple):
+        pagina = pagina[0]
+    if pagina is not None and not isinstance(pagina, str):
+        pagina = pagina.get_data(as_text=True) if hasattr(pagina, "get_data") else str(pagina)
     return pagina
 
 

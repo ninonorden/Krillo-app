@@ -43,8 +43,11 @@ def _tel(sql, waarden=None):
 GISTEREN = [
     ("Koude mails verstuurd",
      "SELECT count(*) FROM benadering WHERE gemaild_op > now() - interval '24 hours'"),
-    ("Mensen die hun Krillo-pagina openden",
+    ("Hun Krillo-pagina geopend (ook door mailbeveiliging)",
      "SELECT count(*) FROM benadering WHERE bekeken_op > now() - interval '24 hours'"),
+    # 29 september: waarvan echt een mens (scrolde, tikte of bewoog de muis).
+    ("Waarvan echt een mens",
+     "SELECT count(*) FROM benadering WHERE mens_op > now() - interval '24 hours'"),
     ("Doorgeklikt naar de prijzen",
      "SELECT count(*) FROM benadering WHERE doorgeklikt_op > now() - interval '24 hours'"),
     ("Persoonlijke opvolgingen verstuurd (verkoopagent)",
@@ -150,6 +153,11 @@ def te_doen(basis_url):
                                 f"stelt voor: {r['voorstellen'][0]}", f"{basis_url}/admin/leren"))
     except Exception:
         pass
+    # De LinkedIn-agent: staat er vandaag een post klaar, dan hoort Nino dat.
+    n = _tel("SELECT count(*) FROM linkedin_posts WHERE dag = current_date AND stand = 'klaar'")
+    if n:
+        uit.append(("Vandaag staat er een LinkedIn-post klaar: kopieer, plak op de bedrijfspagina, plaatje erbij",
+                    f"{basis_url}/admin/linkedin"))
     # Stap 165: de wachtlijst per land (welk land eerst).
     n = _tel("SELECT count(*) FROM wachtlijst_land WHERE gemeld_op IS NULL")
     if n:

@@ -5,3 +5,4 @@ gunicorn
 mollie-api-python
 anthropic
 psycopg2-binary
+Pillow

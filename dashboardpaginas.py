@@ -243,3 +243,28 @@ def volgende_stap(beeld, werkblok, taal="en"):
         return (f"You dropped {-v} place{'s' if v != -1 else ''}. See Questions for where you lose."
                 if en else f"Je zakte {-v} plaats(en). Bij Vragen zie je waar je verliest.")
     return ""
+
+
+# 29 september: de kaart "Ranglijst" op het overzicht. De top 5 en, als je daar
+# niet bij zit, een puntjesregel en jouw eigen regel. Zichtbaarheid is in hoeveel
+# van de koopvragen een winkel genoemd werd, in procenten.
+KLEUREN_TOP = ["#E0782B", "#7A8BD9", "#C9A227", "#5FA88E", "#D98BA8"]
+
+
+def topkaart(rijen, eigen_url, telbaar, aantal=5):
+    def regel(r, i):
+        jij = r.get("webshop_url") == eigen_url
+        naam = r.get("naam")
+        if not naam or str(naam).startswith("http"):
+            naam = (r.get("webshop_url") or "").replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
+        return {"positie": r.get("positie"), "naam": naam, "jij": jij,
+                "zicht": int(round(100 * (r.get("genoemd") or 0) / telbaar)) if telbaar else 0,
+                "kleur": KLEUR_JIJ if jij else KLEUREN_TOP[i % len(KLEUREN_TOP)], "gat": False}
+    uit = [regel(r, i) for i, r in enumerate(rijen[:aantal])]
+    if not any(u["jij"] for u in uit):
+        eigen = next((r for r in rijen if r.get("webshop_url") == eigen_url), None)
+        if eigen:
+            e = regel(eigen, 0)
+            e["gat"] = True
+            uit.append(e)
+    return uit

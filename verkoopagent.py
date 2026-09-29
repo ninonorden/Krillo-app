@@ -65,6 +65,12 @@ def warme_winkels(limiet=50, nu=None):
                b.opvolg_aantal, b.opvolg_op, b.opvolg_stand
           FROM benadering b
          WHERE b.bekeken_op IS NOT NULL
+           -- 29 september: alleen wie er als MENS was (scrollen, tikken, muis).
+           -- Mailbeveiliging opent elke link om hem te controleren, en die kreeg
+           -- anders een opvolgmail. Openingen van voor de menstelling
+           -- aanstond tellen zoals vroeger, anders valt iedereen van toen weg.
+           AND (b.mens_op IS NOT NULL
+                OR b.bekeken_op < coalesce((SELECT min(gezien_op) FROM bezoek_mensen), now()))
            AND b.email IS NOT NULL
            AND NOT b.afgemeld
            AND b.bounce_op IS NULL
