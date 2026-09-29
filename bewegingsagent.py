@@ -15,8 +15,9 @@ Een plek erbij of eraf is ruis in een meting; daar mailen we niet over.
 REGELS DIE NOOIT LOSSEN
 - Alleen wie al een koude mail kreeg, minstens 14 dagen geleden.
 - Per meting hoogstens een keer (beweging_ronde), en minstens 30 dagen na de
-  vorige extra mail (seizoen_op wordt gedeeld met de seizoensagent: twee extra
-  mails in een week is er een te veel).
+  vorige extra mail. Die datum staat in de kolom seizoen_op: de naam komt van
+  de seizoensagent, die op 28 september geschrapt is (Nino: "al die
+  feestdagen hoeven niet"). De kolom bleef, de betekenis is: laatste extra mail.
 - Nooit naar afgemeld, bounce, klacht, klant of wie terugmailde.
 - Alleen als de benadering aanstaat, binnen kantooruren, met een dagmaximum.
 """

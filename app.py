@@ -49,6 +49,7 @@ import benchmark
 import markt
 import shopify_app
 import sitetaal
+import markten
 import shopify_werk
 import toepasmodule
 import shopify_billing
@@ -184,7 +185,12 @@ def zet_basis_url_klaar():
     domein wijst vertelt Google dat de echte pagina daar staat, en dan doet de
     hele verhuizing niets. Nu komt het adres overal uit BASE_URL, zodat een
     volgende verhuizing een instelling is en geen zoektocht."""
-    return {"basis_url": get_base_url().rstrip("/")}
+    import markten
+    # En de landen die de index nu meet, uit markten.py: nooit meer "Nederland
+    # en Belgie" in een sjabloon zelf (28 september, we gaan groeien).
+    return {"basis_url": get_base_url().rstrip("/"), "index_landen_en": markten.index_landen_en(), "index_landen_nl": markten.index_landen_nl(),
+            "meting_zin_en": markten.meting_zin_en(),
+            "wachtlijst_landen": {c: n for c, n in markten.WACHTLIJST_LANDEN.items() if not markten.in_index(c)}}
 
 
 # Vanaf hoeveel gescande webshops wij dat aantal op de site zetten.
@@ -711,14 +717,16 @@ def api_opzeggen(klant_token):
         dagen = None
     # Binnen veertien dagen krijgt hij zijn geld terug, dan stopt de toegang nu.
     # Daarna betaalde hij de lopende maand, en die houdt hij (voorwaarden).
+    tot = None
     if dagen is not None and dagen > 14:
         # Een jaarklant houdt toegang tot het eind van zijn betaalde jaar.
         jaar = (abonnement.get("periode") == "jaar") or (klant.get("periode") == "jaar")
-        db.zet_klant_opgezegd(klant["webshop_url"],
-                              tot=_einde_betaalde_maand(klant.get("aangemaakt_op"), maanden=12 if jaar else 1))
+        tot = _einde_betaalde_maand(klant.get("aangemaakt_op"), maanden=12 if jaar else 1)
+        db.zet_klant_opgezegd(klant["webshop_url"], tot=tot)
     else:
         db.zet_klant_opgezegd(klant["webshop_url"])
-    emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"])
+    emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"], tot=tot,
+                                        terug=(dagen is not None and dagen <= 14))
     if dagen is not None and dagen <= 14:
         terug = (f"<p><b>Actie nodig: geld terug.</b> Deze klant is {dagen} dagen klant, dus "
                  f"binnen de veertien dagen. Ga in Mollie naar Betalingen, zoek {klant['email']}, "
@@ -805,6 +813,429 @@ Sitemap: {basis}/sitemap.xml
     return Response(inhoud, mimetype="text/plain")
 
 
+@app.route("/tools")
+@app.route("/tools/<slug>")
+def gratis_tools(slug=None):
+    """Stap 162: gratis losse tools, een pagina per tool."""
+    import gratistools
+    if slug and slug not in gratistools.TOOLS:
+        return redirect("/tools", code=302)
+    return render_template("tools.html", tools=gratistools.TOOLS, slug=slug,
+                           tool=gratistools.TOOLS.get(slug) if slug else None)
+
+
+@app.route("/api/tools/<slug>", methods=["POST"])
+def gratis_tool_api(slug):
+    """De check zelf. Geen AI-geld, alleen de pagina's van de winkel lezen, met
+    een rem per bezoeker zodat niemand ons als gratis robot gebruikt."""
+    import gratistools
+    if slug not in gratistools.TOOLS:
+        return jsonify({"fout": "Unknown tool."}), 404
+    if not gratistools.mag_nu(_bezoeker_kenmerk() or request.remote_addr or "?"):
+        return jsonify({"fout": "That is a lot of checks in a short time. Try again in ten minutes."}), 429
+    url = ((request.get_json(silent=True) or {}).get("url") or "").strip()[:300]
+    if slug == "ai-crawler-check":
+        uit = gratistools.crawler_check(url)
+    elif slug == "product-data-check":
+        uit = gratistools.productdata_check(url)
+    else:
+        uit = gratistools.index_check(url)
+    gratistools.bewaar_gebruik(slug, url, uit.get("oordeel") or ("fout" if uit.get("fout") else "ok"))
+    return jsonify(uit), (400 if uit.get("fout") else 200)
+
+
+@app.route("/compare")
+@app.route("/compare/<slug>")
+def vergelijk(slug=None):
+    """Stap 163: eerlijke vergelijkingen met de andere tools."""
+    import vergelijkingen
+    if slug and slug not in vergelijkingen.TOOLS:
+        return redirect("/compare", code=302)
+    return render_template("vergelijk.html", tools=vergelijkingen.TOOLS, slug=slug,
+                           tool=vergelijkingen.TOOLS.get(slug) if slug else None,
+                           krillo=vergelijkingen.KRILLO, gekeken=vergelijkingen.GEKEKEN)
+
+
+@app.route("/news")
+@app.route("/news/<land>")
+def index_nieuws(land="nl"):
+    """Stap 92: het nieuws van de laatste meting, per land (Engels, openbaar)."""
+    import indexnieuws
+    land = (land or "nl").lower()
+    if land not in sitetaal.LANDEN:
+        return redirect("/news/nl", code=302)
+    ov = _bewaard(("nieuws", land), indexnieuws.overzicht, land)
+    return render_template("nieuws.html", ov=ov, landnaam=sitetaal.landnaam(land, "en"))
+
+
+@app.route("/admin/persbericht")
+def admin_persbericht():
+    """Stap 92: het persbericht in het Nederlands, klaar om te kopieren."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import indexnieuws
+    blokken = ""
+    for land in markten.index_landen():
+        ov = indexnieuws.overzicht(land)
+        tekst = indexnieuws.persbericht_nl(ov, get_base_url().rstrip("/"), embed=embed_code)
+        post = indexnieuws.linkedin_post(ov, get_base_url().rstrip("/"))
+        blokken += (f"<h2>{escape(sitetaal.landnaam(land, 'nl'))}</h2>"
+                    + (f"<textarea readonly rows='22' style='width:100%;font:inherit;font-size:14px;padding:10px' "
+                       f"onclick='this.select()'>{escape(tekst)}</textarea>" if tekst else
+                       "<p>Nog te weinig gemeten categorieen voor een bericht.</p>")
+                    # Stap 131: de post voor de LinkedIn-bedrijfspagina van Krillo.
+                    + (f"<h3>Post voor de LinkedIn-pagina van Krillo (Engels)</h3>"
+                       f"<textarea readonly rows='10' style='width:100%;font:inherit;font-size:14px;padding:10px' "
+                       f"onclick='this.select()'>{escape(post)}</textarea>" if post else ""))
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Persbericht | Krillo</title><body style='font-family:Arial,sans-serif;max-width:820px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Persbericht van deze maand</h1>"
+            f"<p>Klik in het vak, kopieer, en stuur het naar de redacties van Emerce, Twinkle, Ecommercenews.nl, "
+            f"Retailtrends en Marketingfacts (voor Belgie: Gondola, Retaildetail, Bizz). Hun adres voor tips staat "
+            f"op hun eigen site, meestal onder Contact of Redactie. Een persoonlijke regel erboven werkt beter dan "
+            f"alleen het bericht. De openbare versie staat op <a href='/news/nl'>/news/nl</a>.</p>{blokken}</body>")
+
+
+@app.route("/r/<code>")
+def doorverwijslink(code):
+    """Stap 94: de link van een klant of partner. Stuurt door naar de gratis
+    check met de code in de link; GEEN cookie (zie doorverwijzen.py waarom).
+    Een onbekende code stuurt gewoon door: een oude link mag nooit een
+    foutpagina geven."""
+    import doorverwijzen
+    wie = doorverwijzen.bij_code(code)
+    if not wie:
+        return redirect("/#scan", code=302)
+    doorverwijzen.tel_bezoek(wie["code"])
+    return redirect(f"/?ref={wie['code']}&utm_source=doorverwijzing#scan", code=302)
+
+
+@app.route("/partners")
+def partners_pagina():
+    """Stap 94: de pagina voor bureaus, freelancers en Shopify-partners."""
+    import doorverwijzen
+    return render_template("partners.html", procent=doorverwijzen.PROCENT_PARTNER,
+                           maanden=doorverwijzen.MAANDEN_PARTNER, basis_url=get_base_url().rstrip("/"))
+
+
+@app.route("/api/partners", methods=["POST"])
+def partners_aanvraag():
+    """Een aanmelding als partner. Niet meteen actief: Nino keurt goed op
+    /admin/doorverwijzen, want een partner spreekt namens Krillo."""
+    import doorverwijzen
+    data = request.get_json(silent=True) or {}
+    naam = (data.get("naam") or "").strip()[:120]
+    email = (data.get("email") or "").strip()[:200]
+    website = (data.get("website") or "").strip()[:200]
+    bericht = (data.get("bericht") or "").strip()[:2000]
+    if not naam or not email or not _EMAIL_VORM.match(email):
+        return jsonify({"fout": "Enter your name or company and a valid email address."}), 400
+    # Zelfde rem als de gratis tools: niemand vult dit formulier honderd keer.
+    import gratistools
+    if not gratistools.mag_nu("partner:" + (_bezoeker_kenmerk() or request.remote_addr or "?")):
+        return jsonify({"fout": "We already have your request. We reply within one working day."}), 429
+    try:
+        code = doorverwijzen.partner_aanvragen(naam, email, website, bericht)
+    except Exception as e:
+        print(f"Partneraanvraag bewaren mislukt: {e}")
+        return jsonify({"fout": "Something went wrong. Email hello@krilloai.com and we set it up."}), 500
+    _meld_aan_beheer("Nieuwe partneraanvraag",
+                     f"{escape(naam)} ({escape(email)}, {escape(website or 'geen site')}) wil partner worden. "
+                     f"Bericht: {escape(bericht or '-')}. Goedkeuren of afwijzen op /admin/doorverwijzen "
+                     f"(voorgestelde code: {escape(code)}).")
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/doorverwijzen", methods=["GET", "POST"])
+def admin_doorverwijzen():
+    """Stap 94: partneraanvragen goedkeuren, en zien wat er openstaat om uit te
+    betalen. Uitbetalen gebeurt met de hand (zie doorverwijzen.py waarom)."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import doorverwijzen
+    basis = get_base_url().rstrip("/")
+    melding = ""
+    if request.method == "POST":
+        actie = request.form.get("actie")
+        code = request.form.get("code") or ""
+        if actie in ("goedkeuren", "afwijzen"):
+            wie = doorverwijzen.zet_stand(code, "actief" if actie == "goedkeuren" else "afgewezen")
+            if wie and actie == "goedkeuren":
+                verstuurd = False
+                try:
+                    verstuurd = emailing.send_partner_welkom(wie["email"], wie.get("naam"), f"{basis}/r/{wie['code']}",
+                                                             doorverwijzen.PROCENT_PARTNER, doorverwijzen.MAANDEN_PARTNER)
+                except Exception as e:
+                    print(f"Partnermail mislukt: {e}")
+                melding = (f"{wie.get('naam')} is partner. " + ("De mail met de link is verstuurd."
+                           if verstuurd else f"De mail ging NIET weg; stuur zelf de link {basis}/r/{wie['code']}"))
+            elif wie:
+                melding = f"{wie.get('naam')} afgewezen. Er gaat geen mail uit."
+        elif actie == "uitbetaald":
+            try:
+                doorverwijzen.zet_uitbetaald(request.form.get("id"), request.form.get("bedrag"))
+                melding = "Uitbetaald bijgewerkt."
+            except (TypeError, ValueError):
+                melding = "Dat bedrag klopt niet. Gebruik een punt, bijvoorbeeld 29.80."
+    ov = doorverwijzen.overzicht()
+    knop = "padding:6px 12px;border-radius:6px;border:1px solid #ccc;background:#fff;cursor:pointer"
+    aanvragen = "".join(
+        f"<div style='border:1px solid #ddd;border-radius:10px;padding:12px 16px;margin:10px 0'>"
+        f"<strong>{escape(a.get('naam') or '')}</strong> &middot; {escape(a.get('email') or '')} &middot; "
+        f"{escape(a.get('website') or '')}<p style='margin:6px 0;color:#555'>{escape(a.get('bericht') or '')}</p>"
+        f"<form method='post' style='margin:0'><input type='hidden' name='code' value='{escape(a['code'])}'>"
+        f"<button name='actie' value='goedkeuren' style='{knop};background:#1B3FE0;color:#fff;border:0'>"
+        f"Goedkeuren (code {escape(a['code'])})</button> "
+        f"<button name='actie' value='afwijzen' style='{knop}'>Afwijzen</button></form></div>"
+        for a in ov["aanvragen"])
+    rijen = "".join(
+        f"<tr><td>{r['op'].strftime('%d-%m-%Y')}</td><td>{escape(r['webshop_url'])}</td>"
+        f"<td>{escape(r.get('naam') or r.get('door_winkel') or r['code'])}<br><small>{escape(r['soort'])}, "
+        f"{escape(r.get('door_email') or '')}</small></td>"
+        f"<td>{escape(r['verdiend']['uitleg'])}</td><td>&euro; {r['verdiend']['bedrag']:.2f}</td>"
+        f"<td>&euro; {float(r.get('uitbetaald') or 0):.2f}</td><td><strong>&euro; {r['open']:.2f}</strong></td>"
+        f"<td><form method='post' style='margin:0;display:flex;gap:4px'><input type='hidden' name='id' value='{r['id']}'>"
+        f"<input name='bedrag' size='7' value='{r['verdiend']['bedrag']:.2f}'>"
+        f"<button name='actie' value='uitbetaald' style='{knop}'>Betaald</button></form></td></tr>"
+        for r in ov["doorverwijzingen"])
+    wie = "".join(
+        f"<tr><td>{escape(d['code'])}</td><td>{escape(d['soort'])}</td>"
+        f"<td>{escape(d.get('naam') or d.get('webshop_url') or '')}</td><td>{d['bezoeken']}</td><td>{d['klanten']}</td></tr>"
+        for d in ov["doorverwijzers"] if d["soort"] == "partner" or d["bezoeken"] or d["klanten"])
+    tabel = "border-collapse:collapse;font-size:14px;width:100%"
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Doorverwijzen | Krillo</title><body style='font-family:Arial,sans-serif;max-width:1000px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Doorverwijzen</h1>"
+            f"<p style='color:#0B7C5E'>{escape(melding)}</p>"
+            f"<h2>Partneraanvragen ({len(ov['aanvragen'])})</h2>"
+            f"{aanvragen or '<p>Geen open aanvragen. De pagina staat op /partners.</p>'}"
+            f"<h2>Uit te betalen: &euro; {ov['open_totaal']:.2f}</h2>"
+            f"<p>Een partner krijgt {doorverwijzen.PROCENT_PARTNER} procent van wat de klant betaalt (zonder btw), "
+            f"{doorverwijzen.MAANDEN_PARTNER} maanden. Een klant die doorverwijst krijgt een maand van zijn eigen "
+            f"pakket terug, na {doorverwijzen.WACHTDAGEN} dagen. Maak het over (partner: vraag om een factuur; "
+            f"klant: terugbetaling van zijn laatste betaling in Mollie) en vul het totaal dat nu betaald is in.</p>"
+            f"<table cellpadding='6' style='{tabel}'><tr style='text-align:left'><th>Sinds</th><th>Nieuwe klant</th>"
+            f"<th>Via</th><th>Hoe</th><th>Verdiend</th><th>Betaald</th><th>Open</th><th></th></tr>"
+            f"{rijen or '<tr><td colspan=8>Nog geen klanten via een doorverwijzing.</td></tr>'}</table>"
+            f"<h2>Links in gebruik</h2><table cellpadding='6' style='{tabel}'><tr style='text-align:left'>"
+            f"<th>Code</th><th>Soort</th><th>Wie</th><th>Kliks</th><th>Klanten</th></tr>"
+            f"{wie or '<tr><td colspan=5>Nog niemand.</td></tr>'}</table></body>")
+
+
+def _bureau_beelden(site, maximaal=60):
+    """De klantbeelden van de winkels van een bureau (stap 115)."""
+    import bureauvinder
+    beelden = []
+    for url in bureauvinder.winkels_van(site)[:maximaal]:
+        try:
+            beeld = klantbeeld.bouw(url)
+        except Exception:
+            beeld = None
+        if beeld:
+            beeld = dict(beeld, categorienaam=categorieen.naam_en(beeld["categorie"]),
+                         landnaam=sitetaal.landnaam(beeld.get("land"), "en") if beeld.get("land") else "")
+        beelden.append(beeld)
+    return bureauvinder.samenvatting(beelden)
+
+
+def _stuur_bureaumail(bureau, basis, met_de_hand):
+    """Een mail aan een bureau, en de stand bijwerken. Geeft True als hij weg is."""
+    import bureauvinder
+    if not bureau.get("email") or bureau.get("stand") != "nieuw":
+        return False
+    samen = _bureau_beelden(bureau["site"])
+    if samen["winkels"] < bureauvinder.BUREAU_MIN:
+        return False
+    onderwerp, alineas = bureauvinder.mail_tekst(bureau.get("naam"), samen, None)
+    ok = emailing.send_bureau_mail(bureau["email"], onderwerp, alineas, f"{basis}/bureau/{bureau['token']}",
+                                   f"{basis}/bureau/{bureau['token']}/afmelden", partners_url=f"{basis}/partners")
+    if ok:
+        bureauvinder.zet_stand(bureau["site"], "gemaild", met_de_hand=met_de_hand)
+    return bool(ok)
+
+
+@app.route("/bureau/<token>")
+def bureau_pagina(token):
+    """Stap 115: de pagina voor een bureau. Niet in Google (noindex): het gaat
+    over zijn klanten. Een onbekend kenmerk gaat naar de partnerpagina."""
+    import bureauvinder
+    bureau = bureauvinder.bij_token(token)
+    if not bureau or bureau.get("stand") == "afgemeld":
+        return redirect("/partners", code=302)
+    bureauvinder._sql("UPDATE bureaus SET bekeken_op = now() WHERE site = %s", (bureau["site"],))
+    antwoord = app.make_response(render_template(
+        "bureau.html", bureau=bureau, samen=_bureau_beelden(bureau["site"]), token=token,
+        basis_url=get_base_url().rstrip("/")))
+    antwoord.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return antwoord
+
+
+@app.route("/bureau/<token>/afmelden", methods=["GET", "POST"])
+def bureau_afmelden(token):
+    """Afmelden met een klik (ook de knop in de mail-app, via POST). Daarna nooit meer."""
+    import bureauvinder
+    bureau = bureauvinder.bij_token(token)
+    if bureau:
+        bureauvinder.zet_stand(bureau["site"], "afgemeld")
+    if request.method == "POST":
+        return "", 204
+    return render_template("fout.html", titel="You will not hear from us again",
+                           bericht="We removed your address. Sorry for the bother.")
+
+
+@app.route("/admin/bureaus", methods=["GET", "POST"])
+def admin_bureaus():
+    """Stap 115: bureaus uit de voettekst van winkels. De eerste tien mails
+    verstuur je hier met de hand; daarna kan het vanzelf (BUREAUMAIL_AUTO=1)."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import bureauvinder
+    basis = get_base_url().rstrip("/")
+    melding = ""
+    if request.method == "POST":
+        site = request.form.get("site") or ""
+        actie = request.form.get("actie")
+        bureau = bureauvinder._sql("SELECT * FROM bureaus WHERE site = %s", (site,))
+        if bureau and actie == "adres":
+            adres = (request.form.get("email") or "").strip().lower()
+            if _EMAIL_VORM.match(adres):
+                bureauvinder._sql("UPDATE bureaus SET email = %s, email_gezocht_op = now() WHERE site = %s",
+                                  (adres, site))
+                melding = f"Adres van {site} opgeslagen."
+            else:
+                melding = "Dat adres klopt niet."
+        elif bureau and actie == "mailen":
+            melding = (f"Mail aan {site} verstuurd." if _stuur_bureaumail(bureau, basis, True)
+                       else f"Mail aan {site} NIET verstuurd (geen adres, al gemaild, of te weinig gemeten winkels).")
+        elif bureau and actie == "overslaan":
+            bureauvinder.zet_stand(site, "overgeslagen", met_de_hand=True)
+            melding = f"{site} overgeslagen."
+    rijen = ""
+    for b in bureauvinder.groepen():
+        knoppen = ""
+        if b["stand"] == "nieuw":
+            knoppen = (f"<form method='post' style='margin:4px 0;display:flex;gap:4px;flex-wrap:wrap'>"
+                       f"<input type='hidden' name='site' value='{escape(b['site'])}'>"
+                       f"<input name='email' size='22' placeholder='info@...' value='{escape(b.get('email') or '')}'>"
+                       f"<button name='actie' value='adres'>Adres opslaan</button>"
+                       + (f"<button name='actie' value='mailen' style='background:#1B3FE0;color:#fff;border:0;"
+                          f"border-radius:4px;padding:3px 10px'>Mail versturen</button>" if b.get("email") else "")
+                       + "<button name='actie' value='overslaan'>Overslaan</button></form>")
+        rijen += (f"<tr><td><a href='{escape(b['site'])}' target='_blank' rel='noopener'>{escape(b.get('naam') or b['site'])}</a>"
+                  f"<br><small>{escape(b['site'])}</small></td><td>{b['winkels']}</td>"
+                  f"<td>{escape(b['stand'])}{' (bekeken)' if b.get('bekeken_op') else ''}</td>"
+                  f"<td><a href='{basis}/bureau/{escape(b['token'])}' target='_blank'>Zijn pagina</a></td>"
+                  f"<td>{knoppen}</td></tr>")
+    telling = bureauvinder._sql("""SELECT count(*) AS bekeken, count(bureau_site) AS met_bureau,
+                                          count(DISTINCT bureau_site) AS bureaus FROM bureau_winkels""") or {}
+    hand = bureauvinder._sql("SELECT count(*) AS n FROM bureaus WHERE met_de_hand AND stand = 'gemaild'") or {}
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Bureaus | Krillo</title><body style='font-family:Arial,sans-serif;max-width:1000px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Bureaus</h1>"
+            f"<p style='color:#0B7C5E'>{escape(melding)}</p>"
+            f"<p>{telling.get('bekeken', 0)} winkels uit de index bekeken, bij {telling.get('met_bureau', 0)} staat een "
+            f"bureau onderaan ({telling.get('bureaus', 0)} verschillende). Hieronder de bureaus met "
+            f"{bureauvinder.BUREAU_MIN} of meer winkels. Open eerst zijn pagina: klopt het, verstuur dan de mail. "
+            f"Met de hand verstuurd: {hand.get('n', 0)} van de eerste {bureauvinder.HANDMATIG_EERST}; daarna kan "
+            f"BUREAUMAIL_AUTO=1 in Render ({bureauvinder.AUTO_PER_DAG} per dag).</p>"
+            f"<table cellpadding='6' style='border-collapse:collapse;font-size:14px;width:100%'>"
+            f"<tr style='text-align:left'><th>Bureau</th><th>Winkels</th><th>Stand</th><th></th><th></th></tr>"
+            f"{rijen or '<tr><td colspan=5>Nog geen bureau met genoeg winkels. De ronde bekijkt elk uur 15 winkels.</td></tr>'}"
+            f"</table></body>")
+
+
+@app.route("/admin/wachtlijst")
+def admin_wachtlijst():
+    """Stap 165: hoeveel winkels per land wachten. Zo kiezen we welk land eerst."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import wachtlijst
+    rijen = "".join(f"<tr><td>{escape(markten.landnaam_en(t['land']))}</td><td>{t['wachtend']}</td><td>{t['gemeld']}</td></tr>"
+                    for t in wachtlijst.telling())
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Wachtlijst | Krillo</title><body style='font-family:Arial,sans-serif;max-width:700px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Wachtlijst per land</h1>"
+            f"<p>Winkels die de gratis check deden of op /index hun adres achterlieten, uit een land dat we nog niet "
+            f"meten. Staat een land in INDEX_LANDEN in Render, dan krijgen ze vanzelf een keer bericht.</p>"
+            f"<table cellpadding='6'><tr style='text-align:left'><th>Land</th><th>Wachtend</th><th>Bericht gehad</th></tr>"
+            f"{rijen or '<tr><td colspan=3>Nog niemand.</td></tr>'}</table></body>")
+
+
+@app.route("/admin/leren", methods=["GET", "POST"])
+def admin_leren():
+    """Stap 96 en 153: wat de agents onderzochten, wat ze zelf doorvoerden, en
+    wat ze voorstellen. Met een knop om nu een onderzoek te starten."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import leeragent
+    import verkoopagent as va
+    melding = ""
+    if request.method == "POST" and request.form.get("onderwerp") in leeragent.ONDERWERPEN:
+        onderwerp = request.form["onderwerp"]
+        threading.Thread(target=leeragent.onderzoek, args=(onderwerp,), daemon=True).start()
+        melding = f"Onderzoek '{onderwerp}' gestart. Over een minuut of twee staat het hieronder (pagina verversen)."
+    blokken = ""
+    for r in leeragent.laatste():
+        naam = leeragent.ONDERWERPEN.get(r["onderwerp"], {}).get("naam", r["onderwerp"])
+        if r.get("fout"):
+            blokken += (f"<h2>{escape(naam)}</h2><p style='color:#9B1C1C'>{escape(r['op'].strftime('%d-%m-%Y'))}: "
+                        f"mislukt: {escape(r['fout'])}</p>")
+            continue
+        blokken += (f"<h2>{escape(naam)}</h2><p style='color:#666'>{escape(r['op'].strftime('%d-%m-%Y'))}</p><ul>"
+                    + "".join(f"<li>{escape(b.get('tekst', ''))} <a href='{escape(b.get('bron', ''))}' target='_blank' "
+                              f"rel='noopener'>bron</a></li>" for b in (r.get("bevindingen") or []))
+                    + "</ul>" + ("<p><strong>Voorstellen:</strong></p><ul>" + "".join(
+                        f"<li>{escape(v)}</li>" for v in r.get("voorstellen") or []) + "</ul>" if r.get("voorstellen") else "")
+                    + (f"<p><strong>Nieuwe mailtekst:</strong> {escape(r['uitdager'])}<br><em>{escape(r.get('uitdager_stand') or '')}</em></p>"
+                       if r.get("uitdager") else ""))
+    u = va.uitdager()
+    winnaar = db.get_instelling(va.SLEUTEL_WINNAAR) or "nog geen (a en b lopen)"
+    bord = "".join(f"<tr><td>{escape(r['versie'])}</td><td>{r['verstuurd']}</td><td>{r['doorgeklikt']}</td><td>{r['klant']}</td></tr>"
+                   for r in va.scorebord())
+    knoppen = "".join(f"<button name='onderwerp' value='{k}' style='padding:6px 12px;margin:0 6px 6px 0'>{escape(v['naam'])}</button>"
+                      for k, v in leeragent.ONDERWERPEN.items())
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Leren | Krillo</title><body style='font-family:Arial,sans-serif;max-width:860px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Wat de agents leren</h1>"
+            f"<p style='color:#0B7C5E'>{escape(melding)}</p>"
+            f"<p>Elke nacht onderzoekt een onderwerp dat 30 dagen niet aan de beurt was, met hun eigen cijfers erbij. "
+            f"Een betere mailtekst gaat vanzelf als uitdager naast de huidige en wint alleen als hij aantoonbaar beter "
+            f"scoort. Voorstellen die geld kosten of de strategie veranderen komen hier en in het ochtendbericht.</p>"
+            f"<form method='post'>Nu onderzoeken: {knoppen}</form>"
+            f"<h2>Mail van de verkoopagent</h2><p>Winnaar: <strong>{escape(winnaar)}</strong>. Uitdager: "
+            f"{escape(u['versie'] + ': ' + u['tekst']) if u else 'geen'}</p>"
+            f"<table cellpadding='5'><tr style='text-align:left'><th>Versie</th><th>Verstuurd</th><th>Doorgeklikt</th>"
+            f"<th>Klant</th></tr>{bord or '<tr><td colspan=4>Nog niets verstuurd.</td></tr>'}</table>"
+            f"{blokken or '<p>Nog geen onderzoek gedaan. Het eerste komt vannacht.</p>'}</body>")
+
+
+@app.route("/admin/wereld")
+def admin_wereld():
+    """Stap 148: het dorp van de agents. Ververst elke minuut vanzelf."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import agentwereld
+    return render_template("agentwereld.html", w=agentwereld.stand())
+
+
 @app.route("/sitemap.xml")
 def sitemap_xml():
     # Een sitemap zonder lastmod dwingt een zoekmachine om elke pagina steeds
@@ -816,9 +1247,16 @@ def sitemap_xml():
     # winkel met naam en toenaam en horen niet in Google.
     vast = ["/", "/artikelen", "/zo-meten-we", "/faq",
             "/index", "/demo", "/over-ons", "/voorwaarden", "/privacy",
-            "/herroepen"]
+            "/herroepen", "/tools", "/compare", "/partners"]
     regels = [(p, nieuwste) for p in vast]
+    # Het nieuws per gemeten land, uit markten.py (niet meer vast nl en be).
+    regels += [(f"/news/{land}", nieuwste) for land in markten.index_landen()]
     regels += [(f"/artikelen/{a['slug']}", a["datum"]) for a in artikelen.ARTIKELEN]
+    # Stap 162 en 163: de gratis tools en de vergelijkingen.
+    import gratistools
+    import vergelijkingen
+    regels += [(f"/tools/{t}", nieuwste) for t in gratistools.TOOLS]
+    regels += [(f"/compare/{t}", vergelijkingen.GEKEKEN) for t in vergelijkingen.TOOLS]
     # De categoriepagina's van de index, met hun EIGEN meetdatum. Dat is niet
     # cosmetisch: een zoekmachine ziet daaraan dat de pagina van vorige maand
     # veranderd is, en haalt hem opnieuw op. Zonder datum zou hij moeten gokken.
@@ -836,6 +1274,15 @@ def sitemap_xml():
                 datum = (c["afgerond_op"].strftime("%Y-%m-%d")
                          if c.get("afgerond_op") else nieuwste)
                 regels.append((f"/index/{land}/{c['categorie']}", datum))
+                # Stap 90: de winkels die AI noemt, elk een eigen pagina.
+                try:
+                    lijst = _bewaard(("ranglijst", c["categorie"], land), db.ranglijst_per_land,
+                                     c["categorie"], land, 1000) or {}
+                    if len(lijst.get("rijen") or []) >= MINIMUM_PER_LAND:
+                        regels += [(f"/index/{land}/{c['categorie']}/{_winkel_slug(r['webshop_url'])}", datum)
+                                   for r in lijst["rijen"] if (r.get("genoemd") or 0) > 0]
+                except Exception as e:
+                    print(f"Winkelpagina's in sitemap overslaan voor {c['categorie']}: {e}")
     except Exception as e:
         # Een sitemap zonder de index is vervelend; een sitemap die een foutmelding
         # teruggeeft is erger, want dan verdwijnt ook de rest uit Google.
@@ -930,8 +1377,8 @@ outside your own site: what others write about you, reviews, comparison sites an
 awareness. Krillo does not measure that and does not pretend to.
 
 ## Who it is for
-Owners of online stores in the Netherlands and Belgium, without a marketing agency and
-without technical knowledge. They can do it themselves with the written fixes, or have
+Owners of online stores, without a marketing agency and without technical knowledge.
+""" + markten.meting_zin_en() + """ They can do it themselves with the written fixes, or have
 Krillo do it.
 
 ## Pricing
@@ -1095,6 +1542,20 @@ def _schoon_bron(waarde):
     return tekst or None
 
 
+def _onthoud_doorverwijzing(url, data):
+    """Stap 94: kwam de bezoeker via een doorverwijslink (?ref= op de site), dan
+    onthouden wij de code bij het winkeladres dat hij invult. Zo telt een
+    aanmelding dagen later nog, zonder cookie. Mag nooit de check breken."""
+    ref = (data or {}).get("ref")
+    if not ref or not url:
+        return
+    try:
+        import doorverwijzen
+        doorverwijzen.onthoud(scan_engine.normalize_url(url), ref)
+    except Exception as e:
+        print(f"Doorverwijzing onthouden mislukt: {e}")
+
+
 @app.route("/api/scan", methods=["POST"])
 def api_scan():
     data = request.get_json(silent=True) or {}
@@ -1103,6 +1564,7 @@ def api_scan():
         return jsonify({"error": "Enter a website address."}), 400
 
     herkomst = data.get("herkomst") or _herkomst()
+    _onthoud_doorverwijzing(url, data)
     result = run_scan(url)
     if "error" in result:
         db.bewaar_gratis_scan(url, gelukt=False, foutsoort=result["error"][:200], herkomst=herkomst)
@@ -1134,7 +1596,31 @@ def api_scan():
     # eerlijk, in plaats van een plek te verzinnen.
     result = checktaal.naar_het_engels(result)
     result["rang"] = _rang_voor_gratis_check(result.get("url"))
+    # Stap 165: een winkel uit een land dat de index nog niet meet, krijgt de
+    # wachtlijst aangeboden in plaats van "not in the index yet".
+    if not result["rang"]:
+        result["buiten_markt"] = markten.buiten_de_index(result.get("url"))
     return jsonify(result)
+
+
+@app.route("/api/wachtlijst", methods=["POST"])
+def api_wachtlijst():
+    """Stap 165: op de wachtlijst voor een land. Alleen adres, winkel en land."""
+    import wachtlijst
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    land = (data.get("land") or "").strip().lower()
+    url = (data.get("url") or "").strip()[:300] or None
+    if not _EMAIL_VORM.match(email) or len(email) > 190:
+        return jsonify({"fout": "Enter a valid email address."}), 400
+    if land not in markten.WACHTLIJST_LANDEN or markten.in_index(land) and land != "other":
+        return jsonify({"fout": "Choose your country."}), 400
+    import gratistools
+    if not gratistools.mag_nu("wachtlijst:" + (_bezoeker_kenmerk() or request.remote_addr or "?")):
+        return jsonify({"fout": "You are on the list already."}), 429
+    if not wachtlijst.zet_op_lijst(email, url, land):
+        return jsonify({"fout": "Something went wrong. Email hello@krilloai.com."}), 500
+    return jsonify({"ok": True, "land": markten.landnaam_en(land)})
 
 
 def _rang_voor_gratis_check(webshop_url):
@@ -1274,6 +1760,7 @@ def api_zichtbaarheidstest():
 
     url = scan_engine.normalize_url(url)
     herkomst = data.get("herkomst") or _herkomst()
+    _onthoud_doorverwijzing(url, data)
 
     # Is deze winkel kortgeleden al gemeten, dan hergebruiken we die uitslag.
     # Scheelt geld, maar belangrijker: wie zijn uitslag doorstuurt hoort niet
@@ -1507,9 +1994,19 @@ def checkout_monitoring():
     except Exception as e:
         print(f"Shopify-abonnement nakijken bij de kassa mislukt: {e}")
 
+    # Stap 94: kwam hij via een doorverwijslink, dan gaat de code mee naar Mollie.
+    # Een onbekende of afgewezen code valt hier stil weg: nooit een aanmelding
+    # tegenhouden om een link.
+    doorverwijzer = None
+    try:
+        import doorverwijzen
+        doorverwijzer = doorverwijzen.code_bij_kassa(webshop_url, data.get("ref"))
+    except Exception as e:
+        print(f"Doorverwijzer nakijken bij de kassa mislukt: {e}")
     result = payments.create_monitoring_signup(get_base_url(), email, webshop_url,
                                                bedrijfsnaam, bron=bron, pakket=pakket,
-                                               periode=payments.periode_van(data.get("periode")))
+                                               periode=payments.periode_van(data.get("periode")),
+                                               doorverwijzer=doorverwijzer)
     if "payment_id" in result:
         db.leg_toestemming_vast(result["payment_id"], email, webshop_url, "monitoring", voorwaarden, False)
     if "error" in result:
@@ -1668,6 +2165,47 @@ def _levering_mislukt(payment_id, webshop_url, email, soort, reden):
         f"verwerken'. Lukt dat ook niet, doe het dan met de hand of geef het geld terug.")
 
 
+def _is_proefbetaling(payment_id):
+    """Is dit een betaling uit de TESTomgeving van Mollie (de proefbetaling van
+    de nachtcontrole)? Alleen te zien met de testsleutel."""
+    sleutel = (os.environ.get("MOLLIE_TEST_KEY") or "").strip()
+    if not sleutel.startswith("test_"):
+        return False
+    try:
+        with payments.met_sleutel(sleutel):
+            gegevens = payments.betaling_nakijken(payment_id)
+        return bool(gegevens) and gegevens.get("mode") == "test"
+    except Exception:
+        return False
+
+
+def _leg_doorverwijzing_vast(metadata, webshop_url, payment_id):
+    """Stap 94: een nieuwe betalende klant via een doorverwijslink. Vastleggen en
+    Nino een seintje geven. Mag nooit de levering aan de klant breken."""
+    try:
+        import doorverwijzen
+        wie = doorverwijzen.leg_vast(metadata.get("doorverwijzer"), webshop_url, payment_id,
+                                     (metadata.get("pakket") or "").lower() or None,
+                                     payments.periode_van(metadata.get("periode")))
+        if not wie:
+            return None
+        if wie["soort"] == "partner":
+            uitleg = (f"Partner {wie.get('naam') or wie['code']} ({wie.get('email')}) krijgt "
+                      f"{doorverwijzen.PROCENT_PARTNER} procent van wat deze klant betaalt, "
+                      f"{doorverwijzen.MAANDEN_PARTNER} maanden lang.")
+        else:
+            uitleg = (f"Klant {wie.get('webshop_url')} verwees door en krijgt een maand van zijn "
+                      f"eigen pakket terug, na {doorverwijzen.WACHTDAGEN} dagen als deze klant dan "
+                      f"nog betaalt.")
+        _meld_aan_beheer("Nieuwe klant via een doorverwijzing",
+                         f"{webshop_url} werd klant via de link van {wie['code']}. {uitleg} "
+                         f"Wat openstaat zie je op /admin/doorverwijzen; uitbetalen doe je met de hand.")
+        return wie
+    except Exception as e:
+        print(f"Doorverwijzing vastleggen mislukt voor {webshop_url}: {e}")
+        return None
+
+
 def _verwerk_betaling(payment_id, base_url):
     """Doet het echte werk na een geslaagde betaling: scannen, AI-tekst maken,
     rapport opslaan en e-mail versturen. Draait op de achtergrond zodat Mollie
@@ -1677,10 +2215,24 @@ def _verwerk_betaling(payment_id, base_url):
         # niets en claimen we niets, zodat de melding die later WEL "paid"
         # zegt gewoon verwerkt wordt.
         status = payments.get_payment_status(payment_id)
+        # GEVONDEN 28 SEPTEMBER: de proefbetaling van de nachtcontrole bestaat
+        # alleen in de testomgeving van Mollie. Mollie meldt hem toch aan deze
+        # webhook; met de echte sleutel is hij er dan niet. Dat is geen klant
+        # en geen storing: stil overslaan, zonder vier pogingen en zonder mail.
+        if status is None and payments.is_testbetaling(payment_id):
+            print(f"Betaling {payment_id} is een proefbetaling (testsleutel), overgeslagen.")
+            return
         # GEVONDEN 24 SEPTEMBER: lukte het ophalen bij Mollie niet (time-out),
         # dan stopte het hier stil. Mollie had al 200 terug en probeert niet
         # opnieuw: een betaalde klant kreeg dan niets en jij wist van niets.
         # Nu nog drie pogingen, en daarna een mail aan jou.
+        if status is None and _is_proefbetaling(payment_id):
+            # 28 september: de nachtcontrole maakt met MOLLIE_TEST_KEY een
+            # proefbetaling. Mollie meldt die hier, en met de echte sleutel is
+            # hij onvindbaar (hij staat in de testomgeving). Dat gaf de melding
+            # "vier keer ophalen mislukte" voor een betaling die niet bestaat.
+            print(f"Proefbetaling {payment_id} van de nachtcontrole gemeld door Mollie: genegeerd.")
+            return
         for wacht in (5, 20, 60):
             if status is not None:
                 break
@@ -2022,6 +2574,8 @@ def _verwerk_betaling(payment_id, base_url):
                             print(f"Toegangsmail bij Fix mislukt voor {webshop_url}: {e}")
                     if status.get("mode") == "test":
                         db.zet_klant_test(webshop_url)
+                    elif metadata.get("doorverwijzer"):
+                        _leg_doorverwijzing_vast(metadata, webshop_url, payment_id)
                     _meld_nieuwe_klant(
                         ("TEST, geen echt geld: " if status.get("mode") == "test" else "") + "Abonnement",
                         webshop_url, email, "maandpakket",
@@ -2530,22 +3084,8 @@ def _benadering_ronde_werk():
         verslag["mislukt"].append(f"opvolging: {e}")
         print(f"Verkoopagent mislukt: {e}")
 
-    # De seizoensagent (stap 151): vlak voor een koopmoment een mail aan wie
-    # eerder een koude mail kreeg. Alleen als de benadering aanstaat.
-    try:
-        import seizoensagent
-        import verkoopagent as _va
-        verslag["seizoen"] = seizoensagent.ronde(
-            get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url), _va._vraag_voor,
-            categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
-            binnen_kantooruren=benadering.binnen_kantooruren(),
-            aan=benadering.instellingen().get("aan", False))
-    except Exception as e:
-        verslag["mislukt"].append(f"seizoen: {e}")
-        print(f"Seizoensagent mislukt: {e}")
-
     # De bewegingsagent (stap 116): wie gemaild is en na de maandmeting echt
-    # verschoof, hoort het. Deelt de rust met de seizoensagent.
+    # verschoof, hoort het. Hoogstens een extra mail per 30 dagen (extra_op).
     try:
         import bewegingsagent
         verslag["beweging"] = bewegingsagent.ronde(
@@ -2556,6 +3096,58 @@ def _benadering_ronde_werk():
     except Exception as e:
         verslag["mislukt"].append(f"beweging: {e}")
         print(f"Bewegingsagent mislukt: {e}")
+
+    # De badge-agent (stap 89): de top van elke ranglijst krijgt een felicitatie
+    # met een badge voor hun site. Zelfde rust en regels als de andere extra mail.
+    try:
+        import badgeagent
+        verslag["badge"] = badgeagent.ronde(
+            get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
+            categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+            landnaam=lambda b: sitetaal.landnaam(b["land"], "en") if b.get("land") else None,
+            binnen_kantooruren=benadering.binnen_kantooruren(),
+            aan=benadering.instellingen().get("aan", False))
+    except Exception as e:
+        verslag["mislukt"].append(f"badge: {e}")
+        print(f"Badge-agent mislukt: {e}")
+
+    # De bureauvinder (stap 115): elk uur 15 winkels uit de index op een bureau
+    # in de voettekst bekijken. Mailen gaat met de hand tot er tien weg zijn;
+    # daarna alleen met BUREAUMAIL_AUTO=1, hoogstens twee per dag, in kantooruren.
+    try:
+        import bureauvinder
+        verslag["bureaus"] = bureauvinder.ronde()
+        ruimte = bureauvinder.mag_automatisch() if benadering.binnen_kantooruren() else 0
+        for b in [b for b in bureauvinder.groepen() if b["stand"] == "nieuw" and b.get("email")][:ruimte]:
+            _stuur_bureaumail(b, get_base_url().rstrip("/"), False)
+    except Exception as e:
+        verslag["mislukt"].append(f"bureaus: {e}")
+        print(f"Bureauvinder mislukt: {e}")
+
+    # De klantagenten (stap 99, 130, 152): behouden, overstappen, terugwinnen.
+    # Alleen in kantooruren; elke mail langs de controleagent.
+    try:
+        import klantagenten
+        import verkoopagent
+        if benadering.binnen_kantooruren():
+            verslag["klanten"] = klantagenten.ronde(
+                get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
+                categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+                vraag_voor=verkoopagent._vraag_voor)
+    except Exception as e:
+        verslag["mislukt"].append(f"klantagenten: {e}")
+        print(f"Klantagenten mislukt: {e}")
+
+    # De wachtlijst (stap 165): staat een land nu aan, dan krijgt wie erop wacht
+    # een keer bericht. Zij vroegen er zelf om, dus ook buiten kantooruren niet
+    # erg, maar wel netjes binnen: zelfde regel als de andere mail.
+    try:
+        import wachtlijst
+        if benadering.binnen_kantooruren():
+            verslag["wachtlijst"] = wachtlijst.ronde(get_base_url().rstrip("/"))
+    except Exception as e:
+        verslag["mislukt"].append(f"wachtlijst: {e}")
+        print(f"Wachtlijst mislukt: {e}")
 
     # Eerst kijken of de lijst zichzelf moet aanvullen. Zonder dit raakt de
     # benaderlijst gewoon op: bij vijftien mails per dag is tweehonderd winkels
@@ -3182,7 +3774,9 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
             # verdwijnt die winkel uit de index (23 september).
             afmeld_url=None if proef else f"{basis}/afmelden/{token}",
             onderwerp_voor=f"[TEST {variant}] " if proef else "",
-            variant=variant, platform=(db.get_winkelprofiel(webshop_url) or {}).get("platform"))
+            variant=variant, platform=(db.get_winkelprofiel(webshop_url) or {}).get("platform"),
+            concurrent_is_klant=db.categorie_heeft_klant(beeld.get("categorie"), beeld.get("land"),
+                                                         behalve_url=webshop_url))
         # Alleen een echte mail telt mee in de vergelijking van de versies.
         if gelukt and not proef:
             db.zet_mail_variant(webshop_url, variant)
@@ -3224,8 +3818,19 @@ def cron_onderhoud():
     import nachtcontrole
     threading.Thread(target=nachtcontrole.draai, args=(app, _meld_aan_beheer),
                      daemon=True).start()
+    _start_nachtagenten()
     gestart = onderhoud.start_ronde()
     return ("ok" if gestart else "loopt al"), 200
+
+
+def _start_nachtagenten():
+    """De nachtagenten naast de nachtronde, elk op de achtergrond.
+    Stap 97, 100, 143: de index nakijken, de concurrenten (maandag), de kosten.
+    Stap 96 en 153: de leeragent, hoogstens een onderzoek per nacht."""
+    import nachtagenten
+    import leeragent
+    threading.Thread(target=nachtagenten.draai, args=(_meld_aan_beheer,), daemon=True).start()
+    threading.Thread(target=leeragent.draai, daemon=True).start()
 
 
 @app.route("/api/cron/benadering", methods=["GET", "POST"])
@@ -4925,7 +5530,93 @@ def openbare_categorie(land, slug):
         canonical=f"/index/{land}/{slug}",
         basis_url=basis_url,
         basis=get_base_url(),
+        winkel_slug=_winkel_slug,
+        embed=embed_code(land, slug, basis_url),
     )
+
+
+def _winkel_slug(webshop_url):
+    """Het stukje adres voor de winkelpagina: het domein zonder www (stap 90)."""
+    return (webshop_url or "").lower().replace("https://", "").replace("http://", "").replace(
+        "www.", "").split("/")[0]
+
+
+def _winkel_naam(rij):
+    naam = rij.get("naam")
+    return naam if naam and not str(naam).startswith("http") else _winkel_slug(rij.get("webshop_url"))
+
+
+@app.route("/index/<land>/<slug>/<winkel>")
+def openbare_winkel(land, slug, winkel):
+    """Stap 90: een pagina per winkel in de index.
+
+    WAAROM. Een eigenaar die zijn eigen winkelnaam googelt, of ChatGPT vraagt
+    "raadt ChatGPT mijn winkel aan", komt hier uit, en elke pagina eindigt bij
+    de gratis check. Profound haalt zo zijn verkeer binnen, per merk.
+
+    ALLEEN WINKELS DIE AI NOEMT. De categoriepagina noemt de winkels met nul
+    vermeldingen niet bij naam, alleen als aantal. Een eigen pagina met "wordt
+    niet genoemd" zou meer openbaar maken dan de ranglijst zelf, en dat doen we
+    niet. Afgemelde winkels staan al niet in de ranglijst."""
+    land = (land or "").lower()
+    winkel = (winkel or "").lower()
+    if land not in sitetaal.LANDEN:
+        return redirect("/index", code=302)
+    lijst = _bewaard(("ranglijst", slug, land), db.ranglijst_per_land, slug, land, 1000)
+    if not lijst or not lijst.get("ronde") or len(lijst.get("rijen") or []) < MINIMUM_PER_LAND:
+        return redirect("/index", code=302)
+    genoemd = [r for r in lijst["rijen"] if (r.get("genoemd") or 0) > 0]
+    rij = next((r for r in genoemd if _winkel_slug(r["webshop_url"]) == winkel), None)
+    if not rij:
+        return redirect(f"/index/{land}/{slug}", code=302)
+    taal = "en"
+    basis_url = get_base_url().rstrip("/")
+    naam = _winkel_naam(rij)
+    categorie = categorieen.naam_van(slug)
+    landnaam = sitetaal.landnaam(land, taal)
+    buren = [dict(r, weergave=_winkel_naam(r), pad=f"/index/{land}/{slug}/{_winkel_slug(r['webshop_url'])}")
+             for r in genoemd if r is not rij and abs(r["positie"] - rij["positie"]) <= 2][:4]
+    kruimels = [
+        {"@type": "ListItem", "position": 1, "name": "Krillo", "item": f"{basis_url}/index"},
+        {"@type": "ListItem", "position": 2, "name": landnaam, "item": f"{basis_url}/index/{land}"},
+        {"@type": "ListItem", "position": 3, "name": categorie, "item": f"{basis_url}/index/{land}/{slug}"},
+        {"@type": "ListItem", "position": 4, "name": naam, "item": f"{basis_url}/index/{land}/{slug}/{winkel}"},
+    ]
+    return render_template(
+        "index_winkel.html", land=land, slug=slug, winkel=winkel, rij=rij, naam=naam,
+        categorie=categorie, landnaam=landnaam, totaal=len(lijst["rijen"]), telbaar=lijst["telbaar"],
+        buren=buren, kruimels=kruimels, basis_url=basis_url,
+        maand=(rij.get("gemeten_op").strftime("%B %Y") if rij.get("gemeten_op") else None),
+        modellen=_bewaard(("modellen", lijst["ronde"]), db.modellen_van_ronde, lijst["ronde"]))
+
+
+@app.route("/embed/<land>/<slug>")
+def ingesloten_ranglijst(land, slug):
+    """Stap 164: de ranglijst om in te sluiten (iframe) voor vakmedia en blogs.
+    De top 5 van de laatste meting, werkt zichzelf bij, met een link terug.
+    Mag in elk venster staan: alleen /shopify is beperkt (zie hierboven)."""
+    land = (land or "").lower()
+    lijst = (_bewaard(("ranglijst", slug, land), db.ranglijst_per_land, slug, land, 1000)
+             if land in sitetaal.LANDEN else None)
+    rijen = [r for r in (lijst or {}).get("rijen") or [] if (r.get("genoemd") or 0) > 0]
+    if not lijst or not lijst.get("ronde") or len(lijst.get("rijen") or []) < MINIMUM_PER_LAND or not rijen:
+        return Response("", status=404)
+    antwoord = app.make_response(render_template(
+        "embed_ranglijst.html", land=land, slug=slug, rijen=rijen[:5], telbaar=lijst["telbaar"],
+        categorie=categorieen.naam_van(slug), landnaam=sitetaal.landnaam(land, "en"),
+        maand=(rijen[0].get("gemeten_op").strftime("%B %Y") if rijen[0].get("gemeten_op") else ""),
+        winkel_slug=_winkel_slug, winkel_naam=_winkel_naam, basis_url=get_base_url().rstrip("/")))
+    antwoord.headers["Cache-Control"] = "public, max-age=21600"
+    antwoord.headers["X-Robots-Tag"] = "noindex"
+    return antwoord
+
+
+def embed_code(land, slug, basis_url=None):
+    """De code die een redactie plakt (stap 164). Ook in het persbericht."""
+    basis_url = basis_url or get_base_url().rstrip("/")
+    naam = categorieen.naam_van(slug)
+    return (f'<iframe src="{basis_url}/embed/{land}/{slug}" title="Krillo Index: {naam}" '
+            f'width="100%" height="360" style="border:0;max-width:560px" loading="lazy"></iframe>')
 
 
 def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer=None,
@@ -5035,6 +5726,7 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         buiten_markt=_buiten_markt(webshop_url),
         volgende=dp.volgende_stap(beeld, werkblok, taal),
         plan_uitleg=_plan_uitleg(webshop_url, werkblok, taal) if werkblok else None,
+        doorverwijzing=_doorverwijzing_voor(webshop_url, pagina, werkblok, proef),
         werk_deel=("fixes" if pagina == "verbeteringen" else "plan"),
         volgende_meting_na=timedelta(days=30),
         voorbeeld=voorbeeld,
@@ -5044,6 +5736,23 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         basis_url=get_base_url().rstrip("/"),
         **gegevens,
     )
+
+
+def _doorverwijzing_voor(webshop_url, pagina, werkblok, proef):
+    """Stap 94: de eigen link voor de pagina Abonnement. Alleen voor een echte,
+    betalende klant (niet op de demo of een proefpagina). Lukt het niet, dan
+    gewoon geen blok: nooit het dashboard breken om een link."""
+    if pagina != "abonnement" or not werkblok or proef:
+        return None
+    try:
+        klant = db.klant_bij_url(webshop_url) or {}
+        if not klant or klant.get("is_test") or klant.get("opgezegd_op"):
+            return None
+        import doorverwijzen
+        return doorverwijzen.voor_klant(webshop_url)
+    except Exception as e:
+        print(f"Doorverwijslink voor het dashboard mislukt: {e}")
+        return None
 
 
 def _prijs_euro(pakket):
@@ -5112,12 +5821,12 @@ def _plan_uitleg(webshop_url, werkblok, taal="en"):
 
 
 def _buiten_markt(webshop_url):
-    """Verkoopt deze winkel buiten Nederland en Belgie? Dan krijgt hij geen
+    """Verkoopt deze winkel buiten de landen die de index meet? Dan krijgt hij geen
     plek in de index, en mag het dashboard niet beloven dat die komt."""
     try:
+        import markten
         profiel = db.get_winkelprofiel(webshop_url) or {}
-        land = (profiel.get("land") or "").upper()
-        return bool(land) and land not in ("NL", "BE")
+        return not markten.in_index(profiel.get("land"))
     except Exception:
         return False
 
@@ -5273,6 +5982,12 @@ def klant_dashboard(klant_token, pad=""):
     import dashboardpaginas as dp
     if pad and pad not in dp.PAD_NAAR_PAGINA:
         return redirect(f"/mijn/{klant_token}")
+    # Stap 99: de behoudagent wil weten wie zijn pagina nog opent.
+    try:
+        import klantagenten
+        klantagenten.bekeken(klant_token)
+    except Exception as e:
+        print(f"Bekeken bijhouden mislukt: {e}")
     return _dashboard(klant["webshop_url"], klant_token=klant_token,
                       pagina=dp.PAD_NAAR_PAGINA.get(pad, "overzicht"))
 
@@ -6508,7 +7223,7 @@ def admin_merken():
         return redirect("/admin/inloggen")
     if doorsturen:
         return redirect(doorsturen)
-    import seizoensagent as sa
+    import bewegingsagent as sa  # alleen voor de kleine _sql-hulp
     melding = ""
     if request.method == "POST":
         url = (request.form.get("url") or "").strip()
@@ -6532,38 +7247,29 @@ def admin_merken():
             f"<tr style='text-align:left'><th>Site</th><th>Soort</th><th>Categorie</th><th></th></tr>{regels}</table></body>")
 
 
-@app.route("/admin/seizoen")
-def admin_seizoen():
-    """De kalender van de seizoensagent (stap 151): elk moment per land, wanneer
-    de mails lopen, en hoeveel er voor dat moment al uit zijn."""
-    mag, doorsturen = _mag_bij_beheer()
-    if not mag:
-        return redirect("/admin/inloggen")
-    if doorsturen:
-        return redirect(doorsturen)
-    import seizoensagent as sa
-    vandaag = datetime.now(timezone.utc).date()
-    rijen = ""
-    for m in sa.momenten_rond(vandaag, dagen_vooruit=370):
-        if m["datum"] < vandaag:
-            continue
-        n = sa._sql("SELECT count(*) AS n FROM benadering WHERE seizoen_sleutel = %s AND seizoen_op IS NOT NULL",
-                    (m["sleutel"],)) or {}
-        nu = m["open_op"] <= vandaag < m["dicht_op"]
-        cats = "alle categorieen" if m["cats"] == sa.ALLES else f"{len(m['cats'])} categorieen"
-        rijen += (f"<tr style='{'background:#EEF1FD;font-weight:700' if nu else ''}'>"
-                  f"<td>{escape(m['naam'])}</td><td>{m['land'].upper()}</td><td>{m['datum']:%d-%m-%Y}</td>"
-                  f"<td>{m['open_op']:%d-%m} tot {m['dicht_op']:%d-%m}{' (NU)' if nu else ''}</td>"
-                  f"<td>{cats}</td><td style='text-align:right'>{n.get('n', 0)}</td></tr>")
-    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
-            f"<title>Seizoen | Krillo</title><body style='font-family:Arial,sans-serif;max-width:900px;"
-            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Seizoensagent</h1>"
-            f"<p>Vlak voor elk koopmoment een korte mail aan winkels die eerder een koude mail kregen en "
-            f"niets deden. Hoogstens een per 45 dagen per winkel, {sa.PER_DAG} per dag, alleen als de "
-            f"benadering aanstaat. Vandaag verstuurd: {sa.vandaag_verstuurd()}.</p>"
-            f"<table cellpadding='6' style='border-collapse:collapse;width:100%'><tr style='text-align:left'>"
-            f"<th>Moment</th><th>Land</th><th>Datum</th><th>Mails lopen</th><th>Voor</th><th>Verstuurd</th></tr>"
-            f"{rijen}</table></body>")
+@app.route("/badge/<token>.svg")
+def badge_plaatje(token):
+    """De badge (stap 89). Bij elke weergave uit de laatste meting, dus nooit
+    een oude plek. Onbekend kenmerk: de neutrale badge, zodat een geplakte code
+    nooit een kapot plaatje op de site van een winkel laat zien."""
+    import badgeagent
+    gegevens = None
+    try:
+        url = db.winkel_bij_benchmark_token(token)
+        if url:
+            beeld = klantbeeld.bouw(url)
+            gegevens = badgeagent.badge_gegevens(
+                beeld, categorieen.naam_en(beeld["categorie"]) if beeld else None)
+            # Bijhouden dat hij op een site staat (en waar), als bewijs dat het werkt.
+            bron = (request.headers.get("Referer") or "")[:200]
+            if bron and "krilloai.com" not in bron:
+                badgeagent._sql("UPDATE benadering SET badge_gezien_op = now(), badge_gezien_bij = %s "
+                                "WHERE webshop_url = %s", (bron, url))
+    except Exception as e:
+        print(f"Badge opbouwen mislukt: {e}")
+    antwoord = app.response_class(badgeagent.badge_svg(gegevens), mimetype="image/svg+xml")
+    antwoord.headers["Cache-Control"] = "public, max-age=21600"
+    return antwoord
 
 
 @app.route("/admin/ochtendbericht")
@@ -6602,6 +7308,19 @@ def admin_controle():
     kop = ("Nog nooit gedraaid." if not uit else
            f"Laatste controle {escape(uit.get('op', '')[:16])}: {len(uit.get('fout', []))} fout, "
            f"{len(uit.get('goed', []))} goed.")
+    # Stap 97, 100 en 38: de nachtagenten en de tegengehouden mails.
+    try:
+        na = json.loads(db.get_instelling("nachtagenten") or "{}")
+        afgekeurd = json.loads(db.get_instelling("tekstkeuring_afgekeurd") or "[]")
+    except Exception:
+        na, afgekeurd = {}, []
+    rijen += ("<h2>Kwaliteit van de index</h2><ul>" + ("".join(f"<li>{escape(f)}</li>" for f in na.get("kwaliteit") or [])
+              or "<li>Niets gevonden.</li>") + "</ul><h2>Concurrenten (elke maandag)</h2><ul>"
+              + ("".join(f"<li>{escape(f)}</li>" for f in na.get("concurrenten") or []) or "<li>Alle bedragen op /compare kloppen nog.</li>")
+              + "</ul><h2>Tegengehouden door de controleagent</h2><ul>"
+              + ("".join(f"<li>{escape(a.get('op', ''))} {escape(a.get('wat', ''))}: {escape(a.get('onderwerp') or '')} "
+                         f"({escape('; '.join(a.get('fouten') or []))})</li>" for a in reversed(afgekeurd))
+                 or "<li>Niets tegengehouden.</li>") + "</ul>")
     return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
             f"<title>Controle | Krillo</title><body style='font-family:Arial,sans-serif;max-width:760px;"
             f"margin:40px auto;padding:0 16px;line-height:1.6'><h1>Nachtcontrole</h1><p>{kop}</p>"
@@ -7102,10 +7821,11 @@ def _shopify_scherm(winkel, rij):
 
     markt = _markt_van(webshop_url) if webshop_url else None
     landcode = ((markt or {}).get("landcode") or "").upper()
-    # De index meet Nederland en Belgie. Een winkel die op een ander land
+    # De index meet de landen uit markten.py. Een winkel die op een ander land
     # verkoopt krijgt geen positie, en dat moet er eerlijk staan in plaats van
     # dat hij eeuwig "komt eraan" leest.
-    in_markt = (not landcode) or landcode in ("NL", "BE")
+    import markten
+    in_markt = markten.in_index(landcode)
     beeld = None
     categorienaam = None
     if webshop_url and in_markt:
@@ -7178,6 +7898,8 @@ def _shopify_scherm(winkel, rij):
         stand=_stand_in_taal(_shopify_status.get(winkel), markt),
         gratis_totaal=shopify_werk.GRATIS_WIJZIGINGEN,
         plannen=shopify_billing.PLANNEN,
+        # Per jaar betalen in de app pas na de goedkeuring (zie na_goedkeuring).
+        jaar_aan=shopify_billing.na_goedkeuring(),
         beeld=beeld,
         in_markt=in_markt,
         voorbeeld=voorbeeld_app,
@@ -7601,7 +8323,12 @@ def shopify_api_toepassen():
         else:
             mislukt.append({"id": kenmerk, "waar": voorstel.get("waar"),
                             "reden": uit.get("fout")})
+    # Stap 157 (na de goedkeuring): om een review vragen op een moment van
+    # waarde, zijn eerste gelukte wijziging. Een keer per winkel; Shopify
+    # bepaalt zelf of het venster echt verschijnt. Nooit iets beloven of belonen.
+    vraag_review = bool(gedaan) and shopify_billing.na_goedkeuring() and db.review_mag_gevraagd(winkel)
     return jsonify({"gedaan": gedaan, "overgeslagen": overgeslagen, "mislukt": mislukt,
+                    "vraag_review": vraag_review,
                     "geblokkeerd": geblokkeerd, "betaalt": betaalt,
                     "plan": stand_nu.get("plan") if stand_nu.get("actief") else None,
                     "gratis_over": None if betaalt else over,
@@ -7767,6 +8494,7 @@ def shopify_api_abonneren():
     plan = ((request.get_json(silent=True) or {}).get("plan") or "").strip().lower()
     if plan not in shopify_billing.PLANNEN:
         return jsonify({"error": "Choose Watch or Fix."}), 400
+    periode = "jaar" if ((request.get_json(silent=True) or {}).get("periode") == "jaar") else "maand"
 
     # Nooit twee keer betalen voor dezelfde winkel, ook niet via twee wegen.
     # Loopt er al een abonnement via krilloai.com (Mollie), dan hier niet nog
@@ -7804,7 +8532,7 @@ def shopify_api_abonneren():
     if bestaand["actief"]:
         proefdagen = 0
     uit = shopify_billing.start_abonnement(winkel, _shopify_sleutel(rij), terug,
-                                           proefdagen=proefdagen, plan=plan)
+                                           proefdagen=proefdagen, plan=plan, periode=periode)
     if not uit["gelukt"]:
         return jsonify({"error": uit["fout"]}), 502
     # Hier stond dat de proefperiode nu verbruikt was. Dat is te vroeg: op dit

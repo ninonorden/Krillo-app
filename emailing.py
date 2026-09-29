@@ -279,15 +279,31 @@ def send_herroeping_melding(beheerder_email, klant_email, webshop_url, toelichti
     return send_email(beheerder_email, "Herroeping bij Krillo, actie nodig", html)
 
 
-def send_opzegging_bevestiging(to_email, webshop_url):
+def send_opzegging_bevestiging(to_email, webshop_url, tot=None, terug=False):
     """De bevestiging van een opzegging. Kort, en zonder poging om iemand
-    over te halen: wie opzegt en dan een verkoopmail krijgt, komt niet terug."""
+    over te halen: wie opzegt en dan een verkoopmail krijgt, komt niet terug.
+
+    Sinds 28 september met de datum tot wanneer hij toegang houdt (tot), of
+    dat hij zijn geld terugkrijgt (terug, binnen de veertien dagen). Zonder
+    datum wist een klant niet of zijn betaalde maand of jaar nog telde."""
     winkel = _kaal_adres(webshop_url)
+    if terug:
+        einde = _p("Because you cancelled within fourteen days of your first payment, we refund "
+                   "that payment in full. You will see it back within a few working days. You will "
+                   "not get your monthly position email anymore.")
+    elif tot:
+        # Tot die datum loopt alles door, ook de maandmail (klanten_in_ronde
+        # telt opgezegd_op in de toekomst als klant). Dus dat zeggen we ook.
+        einde = _p(f"You keep full access until <strong>{tot.day} {tot.strftime('%B %Y')}</strong>, the "
+                   "end of the period you already paid for, including your monthly position email. "
+                   "After that it simply stops.")
+    else:
+        einde = _p("You will not get your monthly position email anymore.")
     body = (
         _p(f"Your subscription for <strong>{veilig(winkel)}</strong> has been cancelled.")
-        + _p("Nothing more is charged from now on, and you will not get your monthly "
-             "position email anymore. Your dashboard link keeps working, with your last "
-             "measurement on it.")
+        + _p("Nothing more is charged from now on.")
+        + einde
+        + _p("Your dashboard link keeps working, with your last measurement on it.")
         + _p("Want to start again later? You can, at krilloai.com.", zacht=True)
     )
     html = _base_html("Your subscription is cancelled", "Thank you for using Krillo.", body)
@@ -550,7 +566,7 @@ _TAALNAAM = {"nl": "Dutch", "de": "German", "fr": "French", "en": "English",
 
 def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                         categorienaam=None, landnaam=None, afmeld_url=None,
-                        onderwerp_voor="", variant="a", platform=None):
+                        onderwerp_voor="", variant="a", platform=None, concurrent_is_klant=False):
     """De koude mail aan een winkel die in de Krillo index staat.
 
     OMGEBOUWD 23 SEPTEMBER (stap 36). Dit was de laatste mail uit het oude
@@ -674,6 +690,14 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                          'app on the Shopify App Store writes the product texts and puts them in '
                          'your store, and you can undo every change.</p>')
 
+    # Idee Nino, 28 september: zodra een ANDERE winkel in dezelfde categorie
+    # echt klant is, zeggen we dat. Zonder naam: dat is van de klant. Het is
+    # alleen waar als het waar is; de aanroeper kijkt het na in de database.
+    klant_regel = ""
+    if concurrent_is_klant:
+        klant_regel = ('<p style="font-size:15px; color:#12142B; line-height:1.65; margin:10px 0 6px;">'
+                       f'One store in {cat} already works with Krillo to get named more often.</p>')
+
     # De eerste zin verschilt per versie, de rest niet (zie MAILVARIANTEN).
     p = '<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
     if variant == "b":
@@ -723,6 +747,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
             with the real AI answer, and what would move you up. No login, and nothing to
             fill in.</p>
           {shopify_regel}
+          {klant_regel}
 
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
             <tr><td style="background:#1B3FE0; border-radius:8px;">
@@ -1114,6 +1139,8 @@ def send_opvolging(to_email, onderwerp, alinea_s, link_url, afmeld_url=None):
     Bewust een gewone, korte mail zonder grote blokken: dit is een briefje van
     een mens aan iemand die zijn pagina al bekeek, geen tweede reclame. De
     alinea's komen uit verkoopagent.maak_concept en zijn al nagekeken."""
+    if not _gekeurd(onderwerp, alinea_s, "opvolging"):
+        return False
     e = _html.escape
     naam = (os.environ.get("AFZENDER_NAAM") or "").strip()
     g = BEDRIJFSGEGEVENS
@@ -1134,6 +1161,33 @@ def send_opvolging(to_email, onderwerp, alinea_s, link_url, afmeld_url=None):
     koppen = ({"List-Unsubscribe": f"<{afmeld_url}>",
                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"} if afmeld_url else None)
     return send_email(to_email, onderwerp, html, koppen=koppen)
+
+
+def _gekeurd(onderwerp, alineas, wat):
+    """De controleagent (stap 38) als laatste hek voor elke agentmail. Een fout
+    (lege invulling, beloofd resultaat, verzonnen termijn) houdt de mail tegen;
+    de afgekeurde mails staan in het ochtendbericht. Mag nooit zelf de reden
+    zijn dat een goede mail niet weggaat: gaat de keuring stuk, dan door."""
+    try:
+        import tekstkeuring
+        uitkomst = tekstkeuring.keur_mail(onderwerp, alineas)
+    except Exception as e:
+        print(f"Tekstkeuring mislukt, mail gaat door: {e}")
+        return True
+    if uitkomst["ok"]:
+        return True
+    print(f"AFGEKEURD ({wat}): {onderwerp!r}: {'; '.join(uitkomst['fouten'])}")
+    try:
+        import json as _json
+        from datetime import datetime as _dt
+        import db
+        lijst = _json.loads(db.get_instelling("tekstkeuring_afgekeurd") or "[]")[-19:]
+        lijst.append({"op": _dt.now().strftime("%d-%m %H:%M"), "wat": wat, "onderwerp": onderwerp,
+                      "fouten": uitkomst["fouten"]})
+        db.zet_instelling("tekstkeuring_afgekeurd", _json.dumps(lijst))
+    except Exception as e:
+        print(f"Afgekeurde mail bewaren mislukt: {e}")
+    return False
 
 
 def alina_s_veilig(alineas):
@@ -1162,6 +1216,107 @@ def send_antwoord(to_email, onderwerp, tekst):
     <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px;
                 margin:0 auto; padding:24px 16px;">
       {lijf}
+      {handtekening_html()}
+      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+        {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
+    </div>"""
+    return send_email(to_email, onderwerp, html)
+
+
+
+def send_badge(to_email, onderwerp, alinea_s, embedcode, slot, link_url, afmeld_url=None):
+    """De felicitatie met badge (stap 89). Zelfde kale, persoonlijke vorm als de
+    opvolging, met de code om te plakken in een vak dat je makkelijk selecteert."""
+    if not _gekeurd(onderwerp, alinea_s, "badge"):
+        return False
+    g = BEDRIJFSGEGEVENS
+    tekst = "".join(f'<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+                    f'{a}</p>' for a in alina_s_veilig(alinea_s))
+    code = _html.escape(embedcode or "")
+    afmelden = (f'<a href="{afmeld_url}" style="color:#6B6D85;">No more email from us</a>'
+                if afmeld_url else "Reply and we remove you the same day.")
+    html = f"""
+    <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px;
+                margin:0 auto; padding:24px 16px;">
+      {tekst}
+      <div style="background:#F4F5F8; border:1px solid #E4E2DA; border-radius:8px; padding:12px 14px;
+                  font-family:Menlo,Consolas,monospace; font-size:12px; color:#12142B; word-break:break-all;
+                  margin:0 0 16px;">{code}</div>
+      <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">{_html.escape(slot or "")}</p>
+      <p style="font-size:15px; margin:18px 0;"><a href="{link_url}"
+         style="color:#1B3FE0; font-weight:600;">See your full ranking</a></p>
+      {handtekening_html()}
+      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+        {afmelden} &middot; {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
+    </div>"""
+    koppen = ({"List-Unsubscribe": f"<{afmeld_url}>",
+               "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"} if afmeld_url else None)
+    return send_email(to_email, onderwerp, html, koppen=koppen)
+
+
+def send_partner_welkom(to_email, naam, link, procent=20, maanden=12):
+    """Stap 94: een goedgekeurde partner krijgt zijn eigen link en de afspraken.
+    Kort en persoonlijk, zoals de rest van onze mails."""
+    g = BEDRIJFSGEGEVENS
+    stijl = 'style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;"'
+    aanhef = f"Hi {_html.escape(naam.split()[0])}," if naam else "Hi,"
+    html = f"""
+    <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px; margin:0 auto; padding:24px 16px;">
+      <p {stijl}>{aanhef}</p>
+      <p {stijl}>Welcome as a Krillo partner. This is your own link:</p>
+      <div style="background:#F4F5F8; border:1px solid #E4E2DA; border-radius:8px; padding:12px 14px;
+                  font-family:Menlo,Consolas,monospace; font-size:14px; color:#12142B; word-break:break-all;
+                  margin:0 0 16px;">{_html.escape(link)}</div>
+      <p {stijl}>How it works: a store that opens your link and starts a paid plan within 60 days counts as
+         yours. You get {procent} percent of what that store pays us (excluding VAT), for {maanden} months.
+         Once a month we send you an overview; you send us an invoice and we pay within 14 days.</p>
+      <p {stijl}>Tip: the free check on our homepage is the easiest start for your clients. It shows their rank
+         in the Krillo Index and the buying questions where ChatGPT names someone else.</p>
+      <p {stijl}>Questions? Just reply to this email.</p>
+      {handtekening_html()}
+      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+        {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
+    </div>"""
+    return send_email(to_email, "Your Krillo partner link", html)
+
+
+def send_bureau_mail(to_email, onderwerp, alineas, link_url, afmeld_url, partners_url="https://krilloai.com/partners"):
+    """Stap 115: de mail aan een bureau. Zelfde kale, persoonlijke vorm als de
+    opvolging, met een link naar zijn pagina en afmelden met een klik."""
+    if not _gekeurd(onderwerp, alineas, "bureau"):
+        return False
+    g = BEDRIJFSGEGEVENS
+    tekst = "".join(f'<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+                    f'{a}</p>' for a in alina_s_veilig(alineas))
+    html = f"""
+    <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px; margin:0 auto; padding:24px 16px;">
+      {tekst}
+      <p style="font-size:15px; margin:18px 0;"><a href="{link_url}" style="color:#1B3FE0; font-weight:600;">See your clients in the index</a>
+         &middot; <a href="{partners_url}" style="color:#1B3FE0;">The partner program</a></p>
+      <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">Interested? Just reply.</p>
+      {handtekening_html()}
+      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+        <a href="{afmeld_url}" style="color:#6B6D85;">No more email from us</a> &middot;
+        {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
+    </div>"""
+    koppen = {"List-Unsubscribe": f"<{afmeld_url}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
+    return send_email(to_email, onderwerp, html, koppen=koppen)
+
+
+
+def send_klantbericht(to_email, onderwerp, alineas, link_url, knop="Open my Krillo page"):
+    """Een persoonlijk bericht aan een KLANT (stap 99, 130, 152): behoud,
+    overstappen, terugwinnen. Zelfde kale vorm als de opvolging, zonder
+    afmeldregel (het is een klant), wel met de keuring ervoor."""
+    if not _gekeurd(onderwerp, alineas, "klant"):
+        return False
+    g = BEDRIJFSGEGEVENS
+    tekst = "".join(f'<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+                    f'{a}</p>' for a in alina_s_veilig(alineas))
+    html = f"""
+    <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px; margin:0 auto; padding:24px 16px;">
+      {tekst}
+      <p style="font-size:15px; margin:18px 0;"><a href="{link_url}" style="color:#1B3FE0; font-weight:600;">{_html.escape(knop)}</a></p>
       {handtekening_html()}
       <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
         {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>

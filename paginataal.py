@@ -44,7 +44,7 @@ TEKSTEN = {
         "afgelopen_kop": "Je abonnement is afgelopen",
         "afgelopen_tekst": ("Je pagina blijft bereikbaar met je eerdere uitkomsten. Wil je weer "
                             "elke maand je plek en je verbeteringen? Je kunt altijd opnieuw beginnen."),
-        "buiten_markt": ("De Krillo-index meet winkels die in Nederland en Belgie verkopen. Jouw "
+        "buiten_markt": ("De Krillo-index meet nu winkels in {landen}; meer landen volgen. Jouw "
                          "winkel verkoopt in een ander land, dus hij heeft nog geen plek in de "
                          "index. De verbeteringen hieronder werken in elke markt: ze maken je "
                          "winkel beter leesbaar voor AI."),
@@ -339,8 +339,8 @@ TEKSTEN = {
         "afgelopen_kop": "Your plan has ended",
         "afgelopen_tekst": ("Your page stays available with your earlier results. Want your rank "
                             "and your fixes every month again? You can start a new plan any time."),
-        "buiten_markt": ("The Krillo index measures stores that sell in the Netherlands and "
-                         "Belgium. Your store sells in another country, so it has no rank in the "
+        "buiten_markt": ("The Krillo index measures stores in {landen} now; more countries "
+                         "follow. Your store sells in another country, so it has no rank in the "
                          "index yet. The fixes below work in any market: they make your store "
                          "easier for AI to read."),
         "taken_zelf": ("Every fix below is written out and ready to use in your own "

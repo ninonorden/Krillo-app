@@ -288,6 +288,9 @@ def init_db():
                         verwijderd_op TIMESTAMPTZ
                     );
                 """)
+                # 28 september: wanneer wij de winkelier om een review vroegen
+                # (hoogstens een keer, na zijn eerste gelukte wijziging).
+                cur.execute("ALTER TABLE shopify_winkels ADD COLUMN IF NOT EXISTS review_gevraagd_op TIMESTAMPTZ;")
                 # Of deze winkel al eens een gratis proefperiode gehad heeft.
                 # Zonder dit kan iemand opzeggen en meteen opnieuw starten, en
                 # zo eindeloos zeven gratis dagen blijven krijgen.
@@ -557,13 +560,40 @@ def init_db():
                 # info@), en wanneer Nino er een bericht in plakte.
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS formulier_url TEXT;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS formulier_op TIMESTAMPTZ;")
-                # Stap 151: de seizoensagent. Wanneer de laatste seizoensmail
+                # Stap 151 (seizoensagent, geschrapt 28 september): de kolom blijft
+                # als "laatste extra mail" voor de bewegingsagent. Oorspronkelijk: wanneer de laatste seizoensmail
                 # ging (45 dagen rust) en voor welk moment (nooit twee keer).
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_op TIMESTAMPTZ;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_sleutel TEXT;")
                 # Stap 116: over welke meting wij al een bewegingsmail stuurden.
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS beweging_ronde INTEGER;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS beweging_op TIMESTAMPTZ;")
+                # Stap 89: de badge. Over welke meting de felicitatie ging, wanneer,
+                # en wanneer het plaatje voor het laatst op een site bekeken werd.
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS badge_ronde INTEGER;")
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS badge_op TIMESTAMPTZ;")
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS badge_gezien_op TIMESTAMPTZ;")
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS badge_gezien_bij TEXT;")
+                # Stap 162: hoe vaak de gratis tools gebruikt worden (bereik zonder mail).
+                cur.execute("""CREATE TABLE IF NOT EXISTS tool_gebruik (
+                                   id SERIAL PRIMARY KEY, tool TEXT, url TEXT, oordeel TEXT,
+                                   op TIMESTAMPTZ NOT NULL DEFAULT now())""")
+                # Stap 94: doorverwijzers en wie via hen klant werd. De tabellen
+                # staan in doorverwijzen.py, bij de regels die erbij horen.
+                import doorverwijzen
+                doorverwijzen.maak_tabellen(cur)
+                # Stap 115: bureaus uit de voettekst van winkels.
+                import bureauvinder
+                bureauvinder.maak_tabellen(cur)
+                # Stap 165: de wachtlijst per land.
+                import wachtlijst
+                wachtlijst.maak_tabellen(cur)
+                # Stap 99, 130, 152: de klantagenten (kolommen bij klanten).
+                import klantagenten
+                klantagenten.maak_tabellen(cur)
+                # Stap 96 en 153: wat de leeragent onderzocht en besloot.
+                import leeragent
+                leeragent.maak_tabellen(cur)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS antwoorden (
                         id SERIAL PRIMARY KEY,
@@ -7082,6 +7112,56 @@ def markeer_formulier_gedaan(webshop_url):
                 return cur.rowcount > 0
     except Exception as e:
         print(f"Formulier afvinken mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def categorie_heeft_klant(categorie, land=None, behalve_url=None):
+    """Is er in deze categorie (en dit land) een ECHTE betalende klant, anders
+    dan deze winkel? Voor de zin in de koude mail (28 september, idee Nino:
+    "een winkel in jouw categorie werkt er al aan"). Nooit een test, nooit
+    Nino zelf, nooit iemand die opzegde. De naam komt nergens in de mail."""
+    if not categorie:
+        return False
+    beheer = (os.environ.get("BEHEERDER_EMAIL") or os.environ.get("BEHEER_EMAIL") or "").strip().lower()
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 1 FROM klanten k JOIN benadering b ON b.webshop_url = k.webshop_url
+                     WHERE b.categorie = %s
+                       AND (%s IS NULL OR lower(coalesce(b.land, '')) = lower(%s))
+                       AND k.webshop_url <> coalesce(%s, '')
+                       AND NOT k.is_test
+                       AND lower(coalesce(k.email, '')) <> %s
+                       AND (k.opgezegd_op IS NULL OR k.opgezegd_op > now())
+                     LIMIT 1""", (categorie, land, land, behalve_url, beheer or "-"))
+                return cur.fetchone() is not None
+    except Exception as e:
+        print(f"Klant in categorie nakijken mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def review_mag_gevraagd(winkel):
+    """True als deze winkel nog NOOIT om een review gevraagd is; zet het dan
+    meteen vast, zodat het echt maar een keer gebeurt (ook bij twee klikken)."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE shopify_winkels SET review_gevraagd_op = now()
+                                WHERE winkel = %s AND review_gevraagd_op IS NULL""", (winkel,))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Review-vraag bijhouden mislukt voor {winkel}: {e}")
         return False
     finally:
         conn.close()

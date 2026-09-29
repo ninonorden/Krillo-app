@@ -107,12 +107,79 @@ MIN_PER_VERSIE = 30
 SLEUTEL_WINNAAR = "verkoop_winnaar"
 
 
+# ZELFVERBETERING DEEL 2 (stap 96 en 153, 28 september). Zodra er een winnaar
+# is, schrijft de leeragent (leeragent.py) een UITDAGER: een nieuwe versie van
+# dezelfde alinea, na onderzoek, langs de controleagent. Die loopt naast de
+# winnaar. Wint hij op dezelfde regels (genoeg briefjes, duidelijk verschil),
+# dan wordt hij de nieuwe winnaar; verliest hij, dan schrijft de leeragent een
+# nieuwe. Zo wordt de mail maand op maand beter, en gaat er nooit een versie
+# live die aantoonbaar slechter is. Nino ziet elke tekst zolang "zelf
+# versturen" uit staat.
+SLEUTEL_UITDAGER = "verkoop_uitdager"
+SLEUTEL_EXTRA = "verkoop_versies_extra"
+
+
+def _extra():
+    try:
+        return json.loads(db.get_instelling(SLEUTEL_EXTRA) or "{}")
+    except Exception:
+        return {}
+
+
+def uitdager():
+    """{"versie": "u1", "tekst": ...} of None."""
+    try:
+        u = json.loads(db.get_instelling(SLEUTEL_UITDAGER) or "null")
+    except Exception:
+        return None
+    return u if isinstance(u, dict) and u.get("versie") and u.get("tekst") else None
+
+
+def versie_tekst(versie):
+    if versie in VERSIES:
+        return VERSIES[versie]
+    u = uitdager()
+    if u and u["versie"] == versie:
+        return u["tekst"]
+    return _extra().get(versie) or VERSIES["a"]
+
+
 def kies_versie(webshop_url):
-    winnaar = db.get_instelling(SLEUTEL_WINNAAR)
-    if winnaar in VERSIES:
-        return winnaar
     import hashlib
-    return "ab"[int(hashlib.sha256((webshop_url or "").encode()).hexdigest(), 16) % 2]
+    getal = int(hashlib.sha256((webshop_url or "").encode()).hexdigest(), 16)
+    winnaar = db.get_instelling(SLEUTEL_WINNAAR)
+    if winnaar and (winnaar in VERSIES or winnaar in _extra()):
+        u = uitdager()
+        if u:
+            return (winnaar, u["versie"])[getal % 2]
+        return winnaar
+    return "ab"[getal % 2]
+
+
+def beslis_uitdager():
+    """Winnaar tegen uitdager, met dezelfde regels als a tegen b. Geeft
+    "uitdager_wint", "winnaar_blijft" of None (nog niet genoeg bewijs)."""
+    winnaar, u = db.get_instelling(SLEUTEL_WINNAAR), uitdager()
+    if not winnaar or not u:
+        return None
+    bord = {r["versie"]: r for r in scorebord()}
+    w, c = bord.get(winnaar), bord.get(u["versie"])
+    if not w or not c or w["verstuurd"] < MIN_PER_VERSIE or c["verstuurd"] < MIN_PER_VERSIE:
+        return None
+    verschil = c["score"] - w["score"]
+    if verschil >= 0.05 and (c["doorgeklikt"] + c["klant"]) - (w["doorgeklikt"] + w["klant"]) >= 3:
+        extra = _extra()
+        extra[u["versie"]] = u["tekst"]
+        db.zet_instelling(SLEUTEL_EXTRA, json.dumps(extra))
+        db.zet_instelling(SLEUTEL_WINNAAR, u["versie"])
+        db.zet_instelling(SLEUTEL_UITDAGER, "")
+        return "uitdager_wint"
+    if -verschil >= 0.05 or c["verstuurd"] >= 3 * MIN_PER_VERSIE:
+        # Duidelijk slechter, of na drie keer zoveel briefjes nog geen verschil:
+        # plaats maken voor een nieuwe uitdager.
+        db.zet_instelling(SLEUTEL_UITDAGER, "")
+        return "winnaar_blijft"
+    return None
 
 
 def scorebord():
@@ -131,6 +198,10 @@ def scorebord():
 
 def kies_winnaar():
     """Kiest vanzelf de betere versie zodra er genoeg bewijs is. Geeft de winnaar of None."""
+    # Is er al een winnaar, dan beslist beslis_uitdager verder. Anders zou een
+    # latere a-tegen-b-telling een uitdager die al won weer terugzetten.
+    if db.get_instelling(SLEUTEL_WINNAAR):
+        return None
     bord = {r["versie"]: r for r in scorebord()}
     if not all(v in bord and bord[v]["verstuurd"] >= MIN_PER_VERSIE for v in VERSIES):
         return None
@@ -184,7 +255,7 @@ def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam
         alineas.append("Staying #1 is the hard part: we measure again every month, and the stores "
                        "below you are working on it.")
     elif nummer == 1:
-        alineas.append(VERSIES.get(versie, VERSIES["a"]))
+        alineas.append(versie_tekst(versie))
     else:
         alineas.append("If it helps, just reply with a question. I look at every reply myself.")
     if nummer == 1:
@@ -276,6 +347,7 @@ def ronde(basis_url, bouw_beeld, categorienaam=None, binnen_kantooruren=True):
     verslag = {"concepten": 0, "verstuurd": 0, "overgeslagen": 0}
     try:
         verslag["winnaar"] = kies_winnaar()
+        verslag["uitdager"] = beslis_uitdager()
     except Exception as e:
         print(f"Winnaar kiezen mislukt: {e}")
     for w in warme_winkels(limiet=PER_RONDE):

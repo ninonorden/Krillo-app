@@ -203,7 +203,7 @@ def create_uitvoering_payment(base_url, webshop_url, email, bedrijfsnaam=None, b
 
 
 def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, bron=None,
-                             pakket=STANDAARD_PAKKET, periode="maand"):
+                             pakket=STANDAARD_PAKKET, periode="maand", doorverwijzer=None):
     """Stap 1 van het abonnement: klant aanmaken en de eerste betaling starten.
     Zodra deze betaling lukt (zie webhook), maken we het echte, doorlopende
     abonnement aan via create_subscription hieronder."""
@@ -234,7 +234,10 @@ def create_monitoring_signup(base_url, email, webshop_url, bedrijfsnaam=None, br
                          "pakket": (pakket or STANDAARD_PAKKET),
                          # En de periode: de webhook maakt daarmee een jaar-
                          # of maandabonnement, met het juiste bedrag.
-                         "periode": periode},
+                         "periode": periode,
+                         # Stap 94: via wiens link. De webhook legt het vast
+                         # zodra er echt betaald is.
+                         "doorverwijzer": doorverwijzer},
         })
         _zet_terugkeerlink_met_kenmerk(client, first_payment, base_url, "monitoring")
         return {"checkout_url": first_payment.checkout_url, "payment_id": first_payment.id, "customer_id": customer.id}
@@ -550,3 +553,25 @@ def betaling_nakijken(payment_id):
     except Exception as e:
         print(f"Betaling nakijken mislukt: {e}")
         return None
+
+
+def is_testbetaling(payment_id):
+    """Bestaat deze betaling in de TESTomgeving van Mollie? (28 september)
+
+    De nachtcontrole maakt elke nacht een proefbetaling met MOLLIE_TEST_KEY.
+    Mollie meldt daarna zelf de status van die betaling aan onze webhook. De
+    webhook kent alleen de echte sleutel, vindt de betaling dus niet, en mailde
+    Nino na vier pogingen "Betaling niet op te halen, de klant heeft nog niets
+    gekregen". Er was geen klant: het was onze eigen proef."""
+    sleutel = (os.environ.get("MOLLIE_TEST_KEY") or "").strip()
+    if not sleutel.startswith("test_") or not payment_id:
+        return False
+    try:
+        with met_sleutel(sleutel):
+            client = get_mollie_client()
+            if client is None:
+                return False
+            client.payments.get(payment_id)
+            return True
+    except Exception:
+        return False

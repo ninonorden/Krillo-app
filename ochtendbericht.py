@@ -56,10 +56,14 @@ GISTEREN = [
     ("Waarvan afgemeld",
      "SELECT count(*) FROM antwoorden WHERE soort = 'afmelden' "
      "AND ontvangen_op > now() - interval '24 hours'"),
-    ("Seizoensmails verstuurd",
-     "SELECT count(*) FROM benadering WHERE seizoen_op > now() - interval '24 hours'"),
     ("Bewegingsmails verstuurd (plek veranderd)",
      "SELECT count(*) FROM benadering WHERE beweging_op > now() - interval '24 hours'"),
+    ("Felicitaties met badge verstuurd",
+     "SELECT count(*) FROM benadering WHERE badge_op > now() - interval '24 hours'"),
+    ("Badges bekeken op de site van een winkel",
+     "SELECT count(*) FROM benadering WHERE badge_gezien_op > now() - interval '24 hours'"),
+    ("Gratis tools gebruikt (bereik zonder mail)",
+     "SELECT count(*) FROM tool_gebruik WHERE op > now() - interval '24 hours'"),
     ("Gratis checks gedaan",
      "SELECT count(*) FROM zichtbaarheidstests WHERE email <> 'voorproef@krilloai.com' "
      "AND aangevraagd_op > now() - interval '24 hours'"),
@@ -68,6 +72,13 @@ GISTEREN = [
      "OR maandbericht_op > now() - interval '24 hours'"),
     ("Categorieen gemeten",
      "SELECT count(*) FROM categorie_rondes WHERE afgerond_op > now() - interval '24 hours'"),
+    ("Klantagenten: behoud, overstap en terugwin verstuurd",
+     "SELECT count(*) FROM klanten WHERE behoud_op > now() - interval '24 hours' "
+     "OR overstap_op > now() - interval '24 hours' OR terugwin_op > now() - interval '24 hours'"),
+    ("Nieuw op de wachtlijst per land",
+     "SELECT count(*) FROM wachtlijst_land WHERE op > now() - interval '24 hours'"),
+    ("Winkels bekeken op een bureau onderaan",
+     "SELECT count(*) FROM bureau_winkels WHERE gekeken_op > now() - interval '24 hours'"),
     ("Nieuwe echte klanten",
      "SELECT count(*) FROM klanten WHERE NOT is_test AND aangemaakt_op > now() - interval '24 hours'"),
 ]
@@ -93,6 +104,54 @@ def te_doen(basis_url):
     if n:
         uit.append((f"{n} winkel(s) zonder info@ maar met een contactformulier: het bericht staat klaar "
                     f"(hoogstens 5 per dag)", f"{basis_url}/admin/formulieren"))
+    # Stap 94 en 115: partners en bureaus. Een aanvraag wacht op jou, en een
+    # bureau met een adres ook (de eerste tien mails verstuur je zelf).
+    n = _tel("SELECT count(*) FROM doorverwijzers WHERE stand = 'aanvraag'")
+    if n:
+        uit.append((f"{n} partneraanvraag/aanvragen wachten op goedkeuring", f"{basis_url}/admin/doorverwijzen"))
+    n = _tel("""SELECT count(*) FROM bureaus b WHERE b.stand = 'nieuw' AND b.email IS NOT NULL
+                AND (SELECT count(*) FROM bureau_winkels w WHERE w.bureau_site = b.site) >= 3""")
+    if n:
+        uit.append((f"{n} bureau(s) met 3 of meer klanten in de index: open hun pagina en verstuur de mail",
+                    f"{basis_url}/admin/bureaus"))
+    # Stap 97 en 100: wat de nachtagenten vonden.
+    try:
+        na = json.loads(db.get_instelling("nachtagenten") or "{}")
+    except Exception:
+        na = {}
+    if na.get("kwaliteit"):
+        uit.append((f"De kwaliteitsagent vond {len(na['kwaliteit'])} ding(en) in de index: "
+                    + "; ".join(na["kwaliteit"][:3]), f"{basis_url}/admin/controle"))
+    if na.get("concurrenten"):
+        uit.append(("De concurrentieagent: " + "; ".join(na["concurrenten"][:2]), f"{basis_url}/compare"))
+    # Stap 38: mails die de controleagent tegenhield (laatste 24 uur).
+    try:
+        from datetime import datetime as _dt
+        afgekeurd = json.loads(db.get_instelling("tekstkeuring_afgekeurd") or "[]")
+        vandaag = _dt.now().strftime("%d-%m")
+        recent = [a for a in afgekeurd if a.get("op", "").startswith(vandaag)]
+    except Exception:
+        recent = []
+    if recent:
+        uit.append((f"De controleagent hield {len(recent)} mail(s) tegen, bijvoorbeeld '{recent[-1]['onderwerp']}': "
+                    + "; ".join(recent[-1]["fouten"]), f"{basis_url}/admin/controle"))
+    # Stap 96 en 153: wat de leeragent de laatste dag onderzocht en voorstelt.
+    try:
+        import leeragent
+        from datetime import datetime as _d, timedelta as _td, timezone as _tz
+        for r in leeragent.laatste():
+            if r.get("op") and r["op"] > _d.now(_tz.utc) - _td(days=1):
+                if r.get("fout"):
+                    uit.append((f"Leeragent ({r['onderwerp']}) mislukte: {r['fout'][:120]}", f"{basis_url}/admin/leren"))
+                elif r.get("voorstellen"):
+                    uit.append((f"Leeragent ({leeragent.ONDERWERPEN.get(r['onderwerp'], {}).get('naam', r['onderwerp'])}) "
+                                f"stelt voor: {r['voorstellen'][0]}", f"{basis_url}/admin/leren"))
+    except Exception:
+        pass
+    # Stap 165: de wachtlijst per land (welk land eerst).
+    n = _tel("SELECT count(*) FROM wachtlijst_land WHERE gemeld_op IS NULL")
+    if n:
+        uit.append((f"{n} winkel(s) op de wachtlijst voor een land dat we nog niet meten", f"{basis_url}/admin/wachtlijst"))
     try:
         controle = json.loads(db.get_instelling("nachtcontrole") or "{}")
     except Exception:
@@ -112,6 +171,14 @@ def verzamel(basis_url):
         gisteren.append((f"Teruggekaatst, laatste 7 dagen (rem boven {benadering.REM_BOUNCE_PROCENT:g}%)",
                          g["bounces"]))
         gisteren.append(("Spammeldingen, laatste 7 dagen (rem bij 1)", g["klachten"]))
+    except Exception:
+        pass
+    # Stap 143: kosten tegenover opbrengst.
+    try:
+        import nachtagenten
+        k, o = nachtagenten.kosten_week()
+        gisteren.append(("AI-kosten laatste 7 dagen (euro)", f"{k:.2f}"))
+        gisteren.append(("Opbrengst per maand van betalende klanten (euro)", f"{o:.2f}"))
     except Exception:
         pass
     try:

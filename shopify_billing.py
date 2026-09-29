@@ -43,9 +43,20 @@ import shopify_app
 #   fix   : elke wijziging met een klik, en elke week uit onszelf aanvullen
 #           (uit te zetten, alles terug te draaien).
 PLANNEN = {
-    "watch": {"naam": "Krillo Watch", "prijs": "55.00"},
-    "fix": {"naam": "Krillo Fix", "prijs": "165.00"},
+    "watch": {"naam": "Krillo Watch", "prijs": "55.00", "jaarprijs": "550.00"},
+    "fix": {"naam": "Krillo Fix", "prijs": "165.00", "jaarprijs": "1650.00"},
 }
+
+
+def na_goedkeuring():
+    """Staan de wijzigingen van NA de goedkeuring aan? (28 september)
+
+    Nino: "als je veranderingen maakt tijdens hun check periode kan het fout
+    gaan en moet je opnieuw submitten." Daarom zitten de nieuwe dingen in de
+    app (per jaar betalen, om een review vragen) achter deze schakelaar. Zolang
+    SHOPIFY_NA_GOEDKEURING niet op "ja" staat, ziet de beoordelaar precies de
+    app die hij kreeg. Na de goedkeuring: in Render op "ja" zetten, klaar."""
+    return (os.environ.get("SHOPIFY_NA_GOEDKEURING") or "").strip().lower() in ("ja", "1", "true", "aan")
 STANDAARD_PLAN = "fix"
 PLAN_VALUTA = "USD"
 # Dit KAN niet in euro's, hoe graag wij ook zouden willen. Shopify accepteert
@@ -162,7 +173,8 @@ def huidig_abonnement(winkel, sleutel):
 
 OPDRACHT_START = """
 mutation maakAbonnement($naam: String!, $terugUrl: URL!, $test: Boolean!,
-                        $proefdagen: Int!, $bedrag: Decimal!, $valuta: CurrencyCode!) {
+                        $proefdagen: Int!, $bedrag: Decimal!, $valuta: CurrencyCode!,
+                        $interval: AppPricingInterval!) {
   appSubscriptionCreate(
     name: $naam
     returnUrl: $terugUrl
@@ -172,7 +184,7 @@ mutation maakAbonnement($naam: String!, $terugUrl: URL!, $test: Boolean!,
       plan: {
         appRecurringPricingDetails: {
           price: { amount: $bedrag, currencyCode: $valuta }
-          interval: EVERY_30_DAYS
+          interval: $interval
         }
       }
     }]
@@ -185,7 +197,7 @@ mutation maakAbonnement($naam: String!, $terugUrl: URL!, $test: Boolean!,
 """
 
 
-def start_abonnement(winkel, sleutel, terug_url, proefdagen=None, plan=STANDAARD_PLAN):
+def start_abonnement(winkel, sleutel, terug_url, proefdagen=None, plan=STANDAARD_PLAN, periode="maand"):
     """Vraagt Shopify om een abonnement. Geeft de bevestigingslink terug.
 
     De proefperiode kan je op nul zetten. Dat is nodig omdat een winkel die
@@ -205,13 +217,16 @@ def start_abonnement(winkel, sleutel, terug_url, proefdagen=None, plan=STANDAARD
     # de winkelier akkoord geeft (replacementBehavior staat standaard op
     # STANDARD). Er lopen dus nooit twee abonnementen tegelijk.
     test = testmodus() or is_ontwikkelwinkel(winkel, sleutel)
+    # Per jaar (stap 106) alleen na de goedkeuring; tot dan altijd per maand.
+    jaar = periode == "jaar" and na_goedkeuring()
     uit = _graphql(winkel, sleutel, OPDRACHT_START, {
-        "naam": PLANNEN[plan]["naam"],
+        "naam": PLANNEN[plan]["naam"] + (" (yearly)" if jaar else ""),
         "terugUrl": terug_url,
         "test": test,
         "proefdagen": PROEFDAGEN if proefdagen is None else max(0, int(proefdagen)),
-        "bedrag": PLANNEN[plan]["prijs"],
+        "bedrag": PLANNEN[plan]["jaarprijs" if jaar else "prijs"],
         "valuta": PLAN_VALUTA,
+        "interval": "ANNUAL" if jaar else "EVERY_30_DAYS",
     })
     if not uit["gelukt"]:
         return {"gelukt": False, "fout": uit["fout"]}
@@ -226,7 +241,7 @@ def start_abonnement(winkel, sleutel, terug_url, proefdagen=None, plan=STANDAARD
         return {"gelukt": False, "fout": "Shopify gaf geen bevestigingslink terug."}
     return {"gelukt": True, "link": link,
             "abonnement": blok.get("appSubscription") or {},
-            "plan": plan, "test": test}
+            "plan": plan, "test": test, "periode": "jaar" if jaar else "maand"}
 
 
 OPDRACHT_STOP = """
