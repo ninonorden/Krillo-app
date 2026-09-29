@@ -1,0 +1,110 @@
+{# HET DASHBOARD OP PEEC-NIVEAU (29 september, Nino: "de dashboard gaan we echt
+   aanpakken, zoals Peec, heel professioneel"). Ontwerp: artefact "Krillo
+   dashboard en homepage, Peec-niveau".
+
+   Alles staat onder body.v2, en dit bestand wordt ALLEEN door dashboard.html
+   geladen. De Shopify-app gebruikt _dashboard_stijl.html ook, en die blijft
+   tijdens de beoordeling door Shopify precies zoals hij is. #}
+<style>
+  body.v2{background:#F6F7FA;}
+  .v2 .scherm{background:#F6F7FA;}
+  /* Lichte zijkant met een dunne lijn, zoals Peec en Linear. */
+  .v2 .zijkant{background:#fff; color:var(--ink); border-right:1px solid #E6E8EF;
+               padding:20px 14px; gap:18px; width:232px;}
+  .v2 .zijkant .logo{color:var(--ink); font-size:18px; display:flex; align-items:center; gap:10px;
+                     text-decoration:none; padding:0 8px;}
+  .v2 .logo .merkteken{width:28px; height:28px; border-radius:7px; background:#1B3FE0; color:#fff;
+                       font-weight:700; font-size:17px; display:inline-flex; align-items:center;
+                       justify-content:center;}
+  .v2 .winkelkaart{background:#fff; border:1px solid #E6E8EF; border-radius:10px; padding:10px 12px;
+                   display:flex; gap:10px; align-items:center;}
+  .v2 .winkelkaart .stip{width:28px; height:28px; border-radius:50%; background:#EEF1FE; color:#1B3FE0;
+                         font-weight:700; font-size:13px; display:flex; align-items:center;
+                         justify-content:center; flex-shrink:0; text-transform:uppercase;}
+  .v2 .winkelkaart .bij{color:#5B5E73; margin-top:1px;}
+  .v2 .winkelkaart .markten{display:none;}
+  .v2 .zijmenu a{color:#33364A; font-size:14px; padding:9px 10px; border-radius:8px;}
+  .v2 .zijmenu a.aan{color:#1B3FE0; background:#EEF1FE; font-weight:600;}
+  .v2 .zijmenu a:hover{color:#1B3FE0; background:#F4F6FE;}
+  .v2 .zijmenu a.uit{color:#5B5E73; border-top:1px solid #EEF0F5;}
+  .v2 .zijvoet{border:1px solid #E6E8EF; border-radius:10px; padding:12px; color:#5B5E73;}
+  .v2 .zijvoet span{color:var(--ink); font-size:11px;}
+
+  /* De kopbalk: titel links, wat er gemeten is als chips, de hoofdknop rechts. */
+  .v2 .werkblad{padding:0 0 48px; gap:18px;}
+  .v2 .werkkop{background:#fff; border-bottom:1px solid #E6E8EF; padding:14px 28px; min-height:36px;}
+  .v2 .werkkop h1{font-size:22px; letter-spacing:-0.02em;}
+  .v2 .werkkop .regel{display:none;}
+  .v2 .chips{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .v2 .chip{font-size:13px; border:1px solid #E6E8EF; background:#fff; border-radius:8px; padding:7px 11px;
+            color:#33364A; white-space:nowrap;}
+  .v2 .chip.mono{font-family:var(--mono); font-size:11px; letter-spacing:0.04em; color:#5B5E73;}
+  .v2 .kopknop{background:#1B3FE0; color:#fff; font-weight:600; font-size:13.5px; border-radius:8px;
+               padding:9px 14px; text-decoration:none; white-space:nowrap;}
+  .v2 .kopknop:hover{background:#0F2AA8;}
+  .v2 .werkblad > *:not(.werkkop){margin-left:28px; margin-right:28px;}
+
+  .v2 .kaartblok, .v2 .cijfer, .v2 .vragenblok{border-color:#E6E8EF; border-radius:12px;}
+  .v2 .kaartblok{padding:18px 20px;}
+  .v2 .kaartkop{font-family:var(--disp); font-size:15px; letter-spacing:0; color:var(--ink);
+                font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .v2 .kaartkop .uitleg{font-weight:400; font-size:12.5px; color:#5B5E73;}
+  .v2 .kaartkop .rechts{margin-left:auto; font-size:13px; font-weight:600; color:#1B3FE0; text-decoration:none;}
+
+  /* Vier cijfers bovenaan, elk met de beweging sinds de vorige meting. */
+  .v2 .kpis{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px;}
+  @media(max-width:1000px){ .v2 .kpis{grid-template-columns:repeat(2, minmax(0, 1fr));} }
+  .v2 .kpi{background:#fff; border:1px solid #E6E8EF; border-radius:12px; padding:16px 18px;
+           display:flex; flex-direction:column; gap:8px;}
+  .v2 .kpi .label{font-family:var(--mono); font-size:11px; color:#5B5E73; letter-spacing:0.06em;}
+  .v2 .kpi .rij{display:flex; align-items:baseline; gap:8px;}
+  .v2 .kpi .groot{font-family:var(--disp); font-size:32px; font-weight:700; letter-spacing:-0.02em; line-height:1;}
+  .v2 .kpi .naast{font-size:13px; color:#5B5E73;}
+  .v2 .delta{font-size:12px; font-weight:600; border-radius:6px; padding:2px 7px; align-self:flex-start;}
+  .v2 .delta.op{color:#0B7C5E; background:#E5F5EF;}
+  .v2 .delta.af{color:#A32020; background:#FDECEC;}
+  .v2 .delta.nul{color:#5B5E73; background:#F0F1F5;}
+
+  .v2 .twee{grid-template-columns:minmax(0, 1.55fr) minmax(0, 1fr); gap:14px;}
+  @media(max-width:900px){ .v2 .twee{grid-template-columns:1fr;} }
+
+  /* De ranglijst als kaart: bolletje, naam, zichtbaarheid; jouw regel blauw. */
+  .v2 .rangrij{display:grid; grid-template-columns:28px minmax(0, 1fr) 84px; gap:8px; align-items:center;
+               padding:7px 6px; border-bottom:1px solid #F2F3F7; font-size:14px; border-radius:6px;}
+  .v2 .rangrij.kop{font-family:var(--mono); font-size:10px; color:#5B5E73; letter-spacing:0.06em;
+                   border-bottom:1px solid #EEF0F5; padding-top:0;}
+  .v2 .rangrij.jij{background:#EEF1FE; font-weight:700;}
+  .v2 .rangrij .p{font-weight:700;}
+  .v2 .rangrij .naam{display:flex; align-items:center; gap:8px; min-width:0;}
+  .v2 .rangrij .naam span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .v2 .rangrij .bol{width:18px; height:18px; border-radius:50%; flex-shrink:0;}
+  .v2 .rangrij .r{font-family:var(--mono); font-size:13px; text-align:right;}
+  .v2 .rangrij.gat{color:#9AA0B8; font-size:12px; border-bottom:none;}
+
+  .v2 .vraagkort{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 170px); gap:12px;
+                 align-items:center; padding:10px 0; border-top:1px solid #F2F3F7;}
+  .v2 .vraagkort .vraag{font-size:14px;}
+  .v2 .vraagkort .wie{font-size:13px; color:#33364A; text-align:right; overflow:hidden;
+                      text-overflow:ellipsis; white-space:nowrap;}
+
+  .v2 .donker{background:#0B0C14; color:#fff; border-radius:12px; padding:18px 20px; display:flex;
+              flex-direction:column; gap:12px;}
+  .v2 .donker .kaartkop{color:#fff;}
+  .v2 .donker .kaartkop .uitleg{color:#A9ADC4; font-family:var(--mono); font-size:11px; margin-left:auto;}
+  .v2 .stap{display:flex; gap:12px; align-items:flex-start; padding:12px; border-radius:10px; background:#171927;}
+  .v2 .stap .n{width:22px; height:22px; border-radius:50%; background:#1B3FE0; font-size:12px; font-weight:700;
+               display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .v2 .stap .t{font-size:14px; font-weight:600;}
+  .v2 .stap .w{font-size:12.5px; color:#A9ADC4; margin-top:3px;}
+  .v2 .donker .knopwit{margin-top:auto; background:#fff; color:#0B0C14; font-weight:600; font-size:14px;
+                       border-radius:8px; padding:11px 14px; text-align:center; text-decoration:none;}
+
+  .v2 .proefbalk{border-radius:12px;}
+  .v2 .voorbeeldbalk{background:#fff; border-color:#E6E8EF; border-radius:12px;}
+  @media(max-width:760px){
+    .v2 .werkblad > *:not(.werkkop){margin-left:16px; margin-right:16px;}
+    .v2 .werkkop{padding:14px 16px;}
+    .v2 .zijkant{width:auto; border-right:none; border-bottom:1px solid #E6E8EF;}
+    .v2 .kaartkop .uitleg:not(.donker .uitleg){display:none;}
+  }
+</style>
