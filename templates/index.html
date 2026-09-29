@@ -12,7 +12,7 @@
    Meerdere van deze regels naast elkaar is gewoon toegestaan. #}
 <meta name="google-site-verification" content="-rhhZoHmZMYdIbtYgGXCj-Zg4FY0j0lSAQdJOPTtEwQ" />
 <meta name="google-site-verification" content="f9WynjVD3AdJuRowJY7s4cFcZEFKDNJybRKC9zz3XDQ" />
-<meta name="description" content="Krillo asks AI assistants the questions buyers ask and publishes who gets named. Check your store for free, and we fix what holds you back. For Dutch and Belgian stores.">
+<meta name="description" content="Krillo asks AI assistants the questions buyers ask and publishes who gets named. Check your store for free, and we fix what holds you back. For online stores.">
 <link rel="canonical" href="{{ basis_url }}/">
 
 <meta property="og:type" content="website">
@@ -89,7 +89,7 @@
     {
       "@type": "Question",
       "name": "Who is Krillo for?",
-      "acceptedAnswer": {"@type": "Answer", "text": "Owners of Dutch and Belgian online stores who want to handle this themselves, without an agency and without technical knowledge. Everything is explained in plain words."}
+      "acceptedAnswer": {"@type": "Answer", "text": "Owners of online stores who want to handle this themselves, without an agency and without technical knowledge. Everything is explained in plain words."}
     },
     {
       "@type": "Question",
@@ -1217,10 +1217,10 @@
 
     <div class="prijs-voet">
       <div>
-        <strong>Selling in the Netherlands and Belgium?</strong>
-        AI gives different answers there, so those are two rankings. Your plan
-        covers the country of your store; email us if you sell in both and we
-        look at it with you.
+        <strong>Selling in more than one country?</strong>
+        AI gives different answers per country, so each country has its own ranking.
+        Your plan covers the country of your store; email us if you sell in more and
+        we look at it with you. {{ meting_zin_en }}
       </div>
       <div>
         <strong>Not happy with a change we made? We roll it back.</strong>
@@ -1273,13 +1273,17 @@
     <div class="footer-top">
       <div class="footer-brand">
         <div class="logo">KRILLO <span class="tag">INDEX</span></div>
-        <p>We show whether your store is named and recommended by ChatGPT, Gemini and other AI assistants, and we fix what holds you back. Built for Dutch and Belgian stores.</p>
+        <p>We show whether your store is named and recommended by ChatGPT, Gemini and other AI assistants, and we fix what holds you back. Built for online stores.</p>
       </div>
       <div class="footer-col">
         <h4>Product</h4>
         <a href="/#scan">Check my store</a>
         <a href="/index">The index</a>
         <a href="/demo">Example dashboard</a>
+        <a href="/tools">Free tools</a>
+        <a href="/compare">Compare tools</a>
+        <a href="/news/nl">This month in the index</a>
+        <a href="/partners">For agencies</a>
         <a href="/#wat-je-krijgt">What you get</a>
         <a href="/#pricing">Pricing</a>
         <a href="/mijn-link">Lost my link</a>
@@ -1344,6 +1348,20 @@
     } catch (e) { return null; }
   })();
   function bepaalHerkomst(){ return krilloHerkomst; }
+  // Stap 94: de code van een doorverwijslink (/r/<code> stuurt door naar /?ref=).
+  // Net als de herkomst hierboven binnen dit bezoek onthouden (sessionStorage,
+  // geen cookie). Over bezoeken heen onthoudt de server hem bij het winkeladres
+  // dat de bezoeker invult.
+  var krilloRef = (function(){
+    var r = '';
+    try { r = new URLSearchParams(window.location.search).get('ref') || ''; } catch(e){}
+    r = r.toLowerCase().replace(/[^a-z0-9\-]/g, '').slice(0, 40);
+    try {
+      if (r) { window.sessionStorage.setItem('krillo_ref', r); }
+      else { r = window.sessionStorage.getItem('krillo_ref') || ''; }
+    } catch(e){}
+    return r || null;
+  })();
 
 // HET VOORBEELDANTWOORD IS ERUIT.
 // In optie A staat er niets naast het invoerveld: de hero is een vraag en een
@@ -1387,6 +1405,15 @@
       html += '<div style="font-size:32px; font-weight:700; line-height:1.2; margin:4px 0;">#' + r.positie + ' of ' + r.van + '</div>';
       html += '<div style="font-size:14px; color:#4A4A55;">AI named you in ' + r.genoemd + ' of ' + r.telbaar + ' buying questions. <a href="' + r.link + '">See the full ranking &rarr;</a></div>';
       html += '</div>';
+    } else if(data.buiten_markt){
+      // Stap 165: een land dat de index nog niet meet. Eerlijk zeggen, en de
+      // wachtlijst aanbieden: dan weet hij het als wij zijn land meten.
+      var bm = data.buiten_markt;
+      html += '<div class="scan-rang" id="wachtBlok" style="border:1px solid var(--vermiljoen,#1B3FE0); border-radius:12px; padding:14px 18px; margin-bottom:18px; font-size:14px; color:#4A4A55; background:#F4F6FF;">';
+      html += '<b style="color:#0A0A0B;">We do not measure ' + veilig(bm.naam) + ' yet.</b> Leave your email and we tell you when we do, with your rank. One email, nothing else. Below: how well AI can read your store today.';
+      html += '<div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;"><input id="wachtEmail" type="email" placeholder="you@yourstore.com" style="flex:1; min-width:200px; height:42px; border:1.5px solid #D8D8DE; border-radius:8px; padding:0 12px;">';
+      html += '<button type="button" id="wachtKnop" data-land="' + veilig(bm.land) + '" data-url="' + veilig(data.url) + '" style="height:42px; padding:0 16px; border:0; border-radius:8px; background:#1B3FE0; color:#fff; font-weight:600; cursor:pointer;">Tell me</button></div>';
+      html += '<div id="wachtUit" style="margin-top:8px;"></div></div>';
     } else {
       html += '<div class="scan-rang" style="border:1px solid #E8E8EC; border-radius:12px; padding:14px 18px; margin-bottom:18px; font-size:14px; color:#4A4A55;">';
       html += '<b style="color:#0A0A0B;">Not in the index yet.</b> We rank categories once enough stores in them are measured, and we are adding stores every week. Below: how well AI can read your store today, which decides whether it can recommend you at all.';
@@ -1399,6 +1426,7 @@
       html += '<b style="color:#0A0A0B;">We could not read your site itself.</b> It blocks automated visitors, so we cannot score the thirteen technical points from here. Your rank above comes from what AI answered, not from your site. ';
       html += '<a href="#pricing">See how we help you move up &rarr;</a></div>';
       resultBox.innerHTML = html;
+      zetWachtlijstKnop();
       return;
     }
     html += '<div class="scan-result-score">';
@@ -1483,7 +1511,25 @@
     }
 
     resultBox.innerHTML = html;
+    zetWachtlijstKnop();
     startVoorproef(data.url);
+  }
+
+  // Stap 165: de knop van de wachtlijst.
+  function zetWachtlijstKnop(){
+    var knop = document.getElementById('wachtKnop');
+    if(!knop) return;
+    knop.addEventListener('click', function(){
+      var email = (document.getElementById('wachtEmail').value || '').trim();
+      var uit = document.getElementById('wachtUit');
+      if(!email){ uit.textContent = 'Enter your email address.'; return; }
+      knop.disabled = true;
+      fetch('/api/wachtlijst', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({email: email, land: knop.getAttribute('data-land'), url: knop.getAttribute('data-url')})})
+        .then(function(r){ return r.json(); })
+        .then(function(d){ uit.textContent = d.ok ? 'Done. We email you when we measure ' + d.land + '.' : (d.fout || 'Something went wrong.'); if(!d.ok) knop.disabled = false; })
+        .catch(function(){ uit.textContent = 'Something went wrong. Try again.'; knop.disabled = false; });
+    });
   }
 
   // De voorproef: drie koopvragen, meteen, zonder dat we iets vragen.
@@ -1571,7 +1617,7 @@
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         url: ztUrl, email: email.trim(), nieuwsbrief: nieuws,
-        voorwaarden_akkoord: true, herkomst: bepaalHerkomst()
+        voorwaarden_akkoord: true, herkomst: bepaalHerkomst(), ref: krilloRef
       })
     })
     .then(function(res){ return res.json().then(function(d){ return {ok: res.ok, data: d}; }); })
@@ -1765,7 +1811,7 @@
     fetch('/api/scan', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url: url, herkomst: bepaalHerkomst()})
+      body: JSON.stringify({url: url, herkomst: bepaalHerkomst(), ref: krilloRef})
     })
     .then(function(res){ return res.json().then(function(data){ return {ok: res.ok, data: data}; }); })
     .then(function(result){
@@ -1990,7 +2036,7 @@
                 directe_uitvoering_akkoord: vinkDirect.checked,
                 pakket: pakketten[currentType] || 'fix',
                 periode: (currentType === 'watch' || currentType === 'fix') ? periode : 'maand',
-                herkomst: bepaalHerkomst()};
+                herkomst: bepaalHerkomst(), ref: krilloRef};
 
     fetch(endpoint, {
       method: 'POST',

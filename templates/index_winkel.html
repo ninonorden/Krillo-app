@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# Stap 90 (28 september): een pagina per winkel die AI noemt. Alleen wat op de
+   categoriepagina ook al staat. Zie openbare_winkel in app.py voor de regels. #}
+<title>Does ChatGPT recommend {{ naam }}? {{ categorie }}, {{ landnaam }} | Krillo Index</title>
+<meta name="description" content="{{ naam }} is number {{ rij.positie }} of {{ totaal }} stores for {{ categorie }} in {{ landnaam }} in the Krillo Index: named in {{ rij.genoemd }} of {{ telbaar }} buying questions to AI assistants{% if maand %} ({{ maand }}){% endif %}.">
+<link rel="canonical" href="{{ basis_url }}/index/{{ land }}/{{ slug }}/{{ winkel }}">
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+{% include "_stijl.html" %}
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":{{ kruimels | tojson }}}
+</script>
+<style>
+  .cijfers{display:flex; gap:40px; flex-wrap:wrap; margin:26px 0 8px;}
+  .groot{font-family:var(--disp); font-size:48px; font-weight:700; letter-spacing:-0.02em; line-height:1;}
+  .klein{font-size:13px; color:var(--ink-grijs); margin-top:6px;}
+  table.buren{width:100%; border-collapse:collapse; margin:12px 0; font-size:15px;}
+  table.buren td{padding:10px; border-bottom:1px solid var(--lijn-licht);}
+  table.buren tr.jij td{background:#FFF4C2; font-weight:600;}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
+  <div class="links">
+    <a href="/index">The index</a>
+    <a href="/zo-meten-we">How we measure</a>
+    <a class="knop donker" href="/?winkel={{ rij.webshop_url | urlencode }}#scan">Check my store</a>
+  </div>
+</div></nav>
+
+<main><div class="wrap" style="max-width:860px;">
+  <div class="kruimels">
+    <a href="/index">The index</a> &rsaquo; <a href="/index/{{ land }}">{{ landnaam }}</a> &rsaquo;
+    <a href="/index/{{ land }}/{{ slug }}">{{ categorie }}</a> &rsaquo; {{ naam }}
+  </div>
+  <h1>{{ naam }} in the Krillo Index</h1>
+  <p class="inleiding">When shoppers in {{ landnaam }} ask ChatGPT and Gemini where to buy {{ categorie | lower }},
+     is {{ naam }} named? This is the answer from our latest monthly measurement{% if maand %}, {{ maand }}{% endif %}.</p>
+
+  <div class="cijfers">
+    <div><div class="groot">#{{ rij.positie }}</div><div class="klein">of {{ totaal }} stores measured</div></div>
+    <div><div class="groot">{{ rij.genoemd }}/{{ telbaar }}</div><div class="klein">buying questions where AI names it</div></div>
+    {% if rij.aanbevolen %}<div><div class="groot">{{ rij.aanbevolen }}</div><div class="klein">times recommended outright</div></div>{% endif %}
+    {% if rij.vorige_positie %}<div><div class="groot">#{{ rij.vorige_positie }}</div><div class="klein">the month before</div></div>{% endif %}
+  </div>
+  <p class="klein">Measured with {{ modellen | length }} AI assistant(s), the same questions for every store in this
+     category. <a href="/zo-meten-we">How we measure</a>.</p>
+
+  {% if buren %}
+  <h2 style="margin-top:32px;">Around {{ naam }}</h2>
+  <table class="buren">
+    {% for b in (buren + [dict(rij, weergave=naam, pad='')]) | sort(attribute='positie') %}
+    <tr {% if not b.pad %}class="jij"{% endif %}><td style="width:50px;">#{{ b.positie }}</td>
+      <td>{% if b.pad %}<a href="{{ b.pad }}">{{ b.weergave }}</a>{% else %}{{ b.weergave }}{% endif %}</td>
+      <td style="text-align:right;">{{ b.genoemd }}/{{ telbaar }}</td></tr>
+    {% endfor %}
+  </table>
+  <p><a href="/index/{{ land }}/{{ slug }}">See the full ranking for {{ categorie }}</a></p>
+  {% endif %}
+
+  <div class="cta">
+    <h2>Is this your store?</h2>
+    <p>See the buying questions where AI names someone else instead of you, and what to change. Free, no account.</p>
+    <a class="knop vol" href="/?winkel={{ rij.webshop_url | urlencode }}#scan">See the questions I lose</a>
+  </div>
+  <p class="klein" style="margin-top:22px;">Is this your store and do you want it out of the index? Email
+     <a href="mailto:hello@krilloai.com">hello@krilloai.com</a> and we remove it the same day.</p>
+</div></main>
+
+<footer><div class="wrap">Krillo &middot; <a href="/index">The index</a> &middot; <a href="/tools">Free tools</a>
+  &middot; <a href="/partners">Partners</a> &middot; <a href="/privacy">Privacy</a></div></footer>
+</body>
+</html>

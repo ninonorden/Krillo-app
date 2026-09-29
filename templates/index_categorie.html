@@ -116,7 +116,8 @@
            volledig webadres als een fout. De nachtronde vult de naam aan uit
            wat AI zelf zei (categoriemeting.namen_uit_antwoorden). #}
         {% set kaal = r.webshop_url | replace('https://','') | replace('http://','') | replace('www.','') %}
-        <span class="merk">{{ r.naam if (r.naam and not r.naam.startswith('http')) else kaal }}</span><br>
+        {# Stap 90: de naam linkt naar de eigen pagina van de winkel. #}
+        <a class="merk" href="/index/{{ land }}/{{ slug }}/{{ winkel_slug(r.webshop_url) }}" style="color:inherit;">{{ r.naam if (r.naam and not r.naam.startswith('http')) else kaal }}</a><br>
         <span class="adres">{{ r.webshop_url | replace('https://','') | replace('http://','') }}</span>
       </td>
       <td class="getal">{{ r.genoemd }} / {{ telbaar }}</td>
@@ -160,6 +161,15 @@
     <p style="margin-bottom:0;">{{ t.telbaar }} <a href="/zo-meten-we">{{ t.zo_meten_we }}</a>.</p>
   </div>
 
+  {# Stap 164: de ranglijst insluiten. Voor redacties en blogs; elke plaatsing
+     is een link terug. #}
+  {% if embed %}
+  <details style="margin:26px 0 0;">
+    <summary style="cursor:pointer; font-weight:600;">Embed this ranking on your site</summary>
+    <p style="font-size:14px; margin:10px 0 6px;">Paste this code in your article. It shows the top 5 and updates itself every month.</p>
+    <textarea readonly rows="3" onclick="this.select()" style="width:100%; font-family:var(--mono); font-size:12px; padding:10px; border:1px solid #D8D8DE; border-radius:8px;">{{ embed }}</textarea>
+  </details>
+  {% endif %}
   <div class="cta">
     <h2>{{ t.cta_kop }}</h2>
     <p>{{ t.cta_tekst }}</p>

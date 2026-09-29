@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# Stap 163 (28 september): eerlijke vergelijkingen. Hun prijzen van hun eigen
+   prijspagina, met de datum en de link. Per tool ook wanneer die de betere
+   keuze is. Zie vergelijkingen.py voor de regels. #}
+{% if tool %}
+<title>Krillo vs {{ tool.naam }}: an honest comparison for webshops | Krillo</title>
+<meta name="description" content="How Krillo compares with {{ tool.naam }} for webshops: what each does, what it costs, and when {{ tool.naam }} is the better choice.">
+<link rel="canonical" href="{{ basis_url }}/compare/{{ slug }}">
+{% else %}
+<title>Krillo compared with other AI visibility tools | Krillo</title>
+<meta name="description" content="An honest comparison of Krillo with Otterly, Peec AI, Profound, AthenaHQ and the AI visibility apps on Shopify, for webshops.">
+<link rel="canonical" href="{{ basis_url }}/compare">
+{% endif %}
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+{% include "_stijl.html" %}
+<style>
+  .naast{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:18px 0 26px;}
+  @media(max-width:720px){ .naast{grid-template-columns:1fr;} }
+  .naast .blok h3{font-family:var(--disp); font-size:19px; margin-bottom:8px; color:var(--ink);}
+  .naast .blok p{margin-bottom:10px;}
+  .bron{font-family:var(--mono); font-size:12px; color:var(--ink-grijs);}
+  main .wrap > h2{margin-top:30px; font-size:26px;}
+  ul.anders li{margin:0 0 10px 18px; color:var(--ink-zacht);}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
+  <div class="links">
+    <a href="/compare">Compare</a>
+    <a href="/tools">Free tools</a>
+    <a class="knop donker" href="/#scan">Check my store</a>
+  </div>
+</div></nav>
+
+<main><div class="wrap" style="max-width:860px;">
+{% if tool %}
+  <div class="kruimels"><a href="/compare">Compare</a> &rsaquo; {{ tool.naam }}</div>
+  <h1>Krillo vs {{ tool.naam }}</h1>
+  <p class="inleiding">An honest comparison for webshops. Their prices come from their own pricing page, checked on
+     {{ gekeken }}.</p>
+
+  <div class="naast">
+    <div class="blok">
+      <h3>{{ tool.naam }}</h3>
+      <p>{{ tool.wat }}</p>
+      <p><strong>Price.</strong> {{ tool.prijs }}</p>
+      <p><strong>Made for.</strong> {{ tool.voor_wie }}</p>
+      <p class="bron">Source: <a href="{{ tool.bron }}" rel="nofollow noopener" target="_blank">{{ tool.bron }}</a>, checked {{ gekeken }}</p>
+    </div>
+    <div class="blok">
+      <h3>Krillo</h3>
+      <p>{{ krillo.wat }}</p>
+      <p><strong>Price.</strong> {{ krillo.prijs }}</p>
+      <p><strong>Made for.</strong> Online stores. {{ meting_zin_en }}</p>
+    </div>
+  </div>
+
+  <h2>Where Krillo is different</h2>
+  <ul class="anders">{% for r in tool.krillo_anders %}<li>{{ r }}</li>{% endfor %}</ul>
+
+  <h2>When {{ tool.naam }} is the better choice</h2>
+  <p>Choose {{ tool.naam }} if {{ tool.beter_als }}</p>
+
+  <div class="cta">
+    <h2>See where your store ranks</h2>
+    <p>Free, no account. You see your rank and the buying questions where AI names someone else.</p>
+    <a class="knop vol" href="/#scan">Check my store</a>
+  </div>
+{% else %}
+  <h1>Krillo compared</h1>
+  <p class="inleiding">How Krillo compares with the other AI visibility tools, for webshops. Their prices come from
+     their own pricing pages, checked on {{ gekeken }}, and for each we say when it is the better choice.</p>
+  <div class="kaarten">
+    {% for s, t in tools.items() %}
+    <a class="kaart" href="/compare/{{ s }}"><div class="naam">Krillo vs {{ t.naam }}</div><div class="bij">{{ t.voor_wie }}</div></a>
+    {% endfor %}
+  </div>
+{% endif %}
+</div></main>
+
+<footer><div class="wrap">Krillo &middot; <a href="/tools">Free tools</a> &middot; <a href="/compare">Compare</a>
+  &middot; <a href="/index">The index</a> &middot; <a href="/privacy">Privacy</a></div></footer>
+</body>
+</html>

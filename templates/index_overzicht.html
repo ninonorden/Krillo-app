@@ -76,6 +76,37 @@
   <div class="leeg">{{ t.nog_leeg }}</div>
   {% endif %}
 
+  {# Stap 165: winkels uit een land dat we nog niet meten. #}
+  {% if wachtlijst_landen %}
+  <div style="border:1px solid #E8E8EC; border-radius:12px; padding:18px 20px; margin:28px 0;">
+    <h2 style="font-size:22px; margin:0 0 6px;">Your country is not here yet?</h2>
+    <p style="margin:0 0 12px;">{{ meting_zin_en }} Leave your email and we tell you when we measure yours, with your rank. One email, nothing else.</p>
+    <form id="wachtForm" onsubmit="return false;" style="display:flex; gap:8px; flex-wrap:wrap;">
+      <select id="wLand" style="height:44px; border:1.5px solid #D8D8DE; border-radius:8px; padding:0 10px;">
+        {% for code, naam in wachtlijst_landen.items() %}<option value="{{ code }}">{{ naam[:1]|upper }}{{ naam[1:] }}</option>{% endfor %}
+      </select>
+      <input id="wUrl" type="text" placeholder="yourstore.com" style="flex:1; min-width:160px; height:44px; border:1.5px solid #D8D8DE; border-radius:8px; padding:0 12px;">
+      <input id="wEmail" type="email" placeholder="you@yourstore.com" style="flex:1; min-width:180px; height:44px; border:1.5px solid #D8D8DE; border-radius:8px; padding:0 12px;">
+      <button id="wKnop" type="button" class="knop vol" style="height:44px;">Tell me</button>
+    </form>
+    <p id="wUit" style="margin:8px 0 0; font-size:14px;"></p>
+    <script>
+      (function(){
+        var k = document.getElementById('wKnop'), uit = document.getElementById('wUit');
+        k.addEventListener('click', function(){
+          var body = {land: document.getElementById('wLand').value, url: document.getElementById('wUrl').value.trim(),
+                      email: document.getElementById('wEmail').value.trim()};
+          if(!body.email){ uit.textContent = 'Enter your email address.'; return; }
+          k.disabled = true;
+          fetch('/api/wachtlijst', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+            .then(function(r){ return r.json(); })
+            .then(function(d){ uit.textContent = d.ok ? 'Done. We email you when we measure ' + d.land + '.' : (d.fout || 'Something went wrong.'); if(!d.ok) k.disabled = false; })
+            .catch(function(){ uit.textContent = 'Something went wrong. Try again.'; k.disabled = false; });
+        });
+      })();
+    </script>
+  </div>
+  {% endif %}
   <div class="cta">
     <h2>{{ t.cta_kop }}</h2>
     <p>{{ t.cta_tekst }}</p>

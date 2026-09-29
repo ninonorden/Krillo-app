@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+{# Stap 148: de agentwereld. Ververst elke minuut vanzelf. Alles uit echte
+   tellingen, zie agentwereld.py. Geen scripts van buiten. #}
+<meta http-equiv="refresh" content="60">
+<title>Agentwereld | Krillo</title>
+<style>
+  body{margin:0; background:#F3EFE6; font-family:-apple-system,'Segoe UI',Arial,sans-serif; color:#2E2A24;}
+  .kop{max-width:1040px; margin:24px auto 8px; padding:0 16px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+  .kop h1{font-size:24px; margin:0;}
+  .kop .stand{font-size:14px; color:#6B6358;}
+  .wereld{max-width:1040px; margin:0 auto; padding:0 16px;}
+  svg{width:100%; height:auto; border-radius:18px; box-shadow:0 6px 30px rgba(60,50,30,.12);}
+  .arm{transform-box:fill-box; transform-origin:0% 0%; animation:hamer .6s ease-in-out infinite alternate;}
+  @keyframes hamer{from{transform:rotate(-35deg);} to{transform:rotate(25deg);}}
+  .rook{animation:rook 3s ease-in infinite; opacity:.0;}
+  @keyframes rook{0%{transform:translateY(0); opacity:.55;} 100%{transform:translateY(-26px); opacity:0;}}
+  .wolk{animation:drijf 60s linear infinite;}
+  @keyframes drijf{from{transform:translateX(-120px);} to{transform:translateX(1120px);}}
+  .lijst{max-width:1040px; margin:16px auto 40px; padding:0 16px; display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px;}
+  .lijst div{background:#fff; border-radius:10px; padding:10px 12px; font-size:13px;}
+  .aan{color:#3E7B3A; font-weight:700;} .uit{color:#8A8175;}
+  @media (prefers-reduced-motion: reduce){ .arm,.rook,.wolk{animation:none;} }
+</style>
+</head>
+<body>
+<div class="kop">
+  <h1>Het Krillo-dorp</h1>
+  <div class="stand">{{ w.werkend }} van {{ w.agents|length }} agents aan het werk (laatste uur) &middot;
+    {{ w.klanten }} betalende klant{{ '' if w.klanten == 1 else 'en' }} &middot; ververst elke minuut</div>
+</div>
+<div class="wereld">
+<svg viewBox="0 0 1000 640" role="img" aria-label="Het dorp van de Krillo-agents">
+  <defs>
+    <linearGradient id="lucht" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#BFE0F2"/><stop offset="1" stop-color="#F6EEDC"/></linearGradient>
+    <linearGradient id="gras" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9C98A"/><stop offset="1" stop-color="#86AE6C"/></linearGradient>
+  </defs>
+  <rect width="1000" height="640" fill="url(#lucht)"/>
+  <g class="wolk" opacity=".9"><ellipse cx="80" cy="60" rx="46" ry="16" fill="#fff"/><ellipse cx="110" cy="52" rx="30" ry="14" fill="#fff"/></g>
+  <g class="wolk" style="animation-delay:-30s" opacity=".8"><ellipse cx="60" cy="110" rx="36" ry="12" fill="#fff"/></g>
+  <path d="M0 250 Q 200 200 420 240 T 1000 230 L1000 640 L0 640 Z" fill="url(#gras)"/>
+  <path d="M0 430 Q 250 400 520 430 T 1000 420 L1000 640 L0 640 Z" fill="#7FA566" opacity=".55"/>
+  {# het pad #}
+  <path d="M500 250 C 480 330, 540 380, 500 450 S 470 560, 510 640" stroke="#E4D3AE" stroke-width="22" fill="none" stroke-linecap="round"/>
+  {# bomen #}
+  {% for x, y, r in [(30,255,18),(960,250,20),(330,262,14),(690,258,15),(15,450,14)] %}
+  <rect x="{{ x-3 }}" y="{{ y }}" width="6" height="16" fill="#8A6A4A"/><circle cx="{{ x }}" cy="{{ y-6 }}" r="{{ r }}" fill="#5E8C4E"/>
+  {% endfor %}
+
+  {# het stadhuis: een verdieping per betalende klant #}
+  {% set sh = w.stadhuis if w.stadhuis <= 8 else 8 %}
+  {% set sg = 245 %}
+  <g>
+    <rect x="455" y="{{ sg - sh*18 }}" width="90" height="{{ sh*18 }}" fill="#F7F1E4" stroke="#B9A98A"/>
+    {% for f in range(sh) %}<rect x="468" y="{{ sg - (f+1)*18 + 5 }}" width="12" height="9" fill="#9CC3DE"/><rect x="494" y="{{ sg - (f+1)*18 + 5 }}" width="12" height="9" fill="#9CC3DE"/><rect x="520" y="{{ sg - (f+1)*18 + 5 }}" width="12" height="9" fill="#9CC3DE"/>{% endfor %}
+    <polygon points="447,{{ sg - sh*18 }} 500,{{ sg - sh*18 - 34 }} 553,{{ sg - sh*18 }}" fill="#1B3FE0"/>
+    <line x1="500" y1="{{ sg - sh*18 - 34 }}" x2="500" y2="{{ sg - sh*18 - 56 }}" stroke="#6B6358" stroke-width="2"/>
+    <polygon points="500,{{ sg - sh*18 - 56 }} 520,{{ sg - sh*18 - 50 }} 500,{{ sg - sh*18 - 44 }}" fill="#E8836B"/>
+    <text x="500" y="{{ sg + 16 }}" text-anchor="middle" font-size="12" font-weight="700" fill="#2E2A24">Stadhuis</text>
+    <text x="500" y="{{ sg + 30 }}" text-anchor="middle" font-size="11" fill="#4A4438">{{ w.klanten }} klant{{ '' if w.klanten == 1 else 'en' }}</text>
+  </g>
+
+  {% for a in w.agents %}
+  {% set i = loop.index0 %}
+  {% set gx = 40 + (i % 6) * 160 + (20 if i >= 6 else 0) %}
+  {% set gy = 400 if i < 6 else 590 %}
+  {% set h = a.hoog * 20 %}
+  <g>
+    <title>{{ a.naam }}: {{ a.wat }}. Totaal {{ a.totaal if a.totaal is not none else 'onbekend' }}{% if a.recent is not none %}, laatste uur {{ a.recent }}{% endif %}.</title>
+    <rect x="{{ gx }}" y="{{ gy - h }}" width="76" height="{{ h }}" fill="#FBF6EC" stroke="#C4B498"/>
+    {% for f in range(a.hoog) %}<rect x="{{ gx + 12 }}" y="{{ gy - (f+1)*20 + 6 }}" width="12" height="9" fill="{{ '#F9D66B' if a.werkt else '#A8C8DD' }}"/><rect x="{{ gx + 52 }}" y="{{ gy - (f+1)*20 + 6 }}" width="12" height="9" fill="{{ '#F9D66B' if a.werkt else '#A8C8DD' }}"/>{% endfor %}
+    <rect x="{{ gx + 32 }}" y="{{ gy - 16 }}" width="12" height="16" fill="#8A6A4A"/>
+    <polygon points="{{ gx - 8 }},{{ gy - h }} {{ gx + 38 }},{{ gy - h - 30 }} {{ gx + 84 }},{{ gy - h }}" fill="{{ a.kleur }}"/>
+    <rect x="{{ gx + 58 }}" y="{{ gy - h - 22 }}" width="8" height="14" fill="#9A7B5C"/>
+    {% if a.werkt %}<circle class="rook" cx="{{ gx + 62 }}" cy="{{ gy - h - 26 }}" r="5" fill="#fff"/>{% endif %}
+    {% if a.werkt %}
+      {# steigers en een poppetje dat bouwt #}
+      <line x1="{{ gx + 80 }}" y1="{{ gy }}" x2="{{ gx + 80 }}" y2="{{ gy - h - 6 }}" stroke="#B08B5C" stroke-width="2"/>
+      <line x1="{{ gx + 96 }}" y1="{{ gy }}" x2="{{ gx + 96 }}" y2="{{ gy - h - 6 }}" stroke="#B08B5C" stroke-width="2"/>
+      <line x1="{{ gx + 80 }}" y1="{{ gy - h/2 }}" x2="{{ gx + 96 }}" y2="{{ gy - h/2 }}" stroke="#B08B5C" stroke-width="2"/>
+      <circle cx="{{ gx + 110 }}" cy="{{ gy - 30 }}" r="6" fill="#F2C9A0"/>
+      <rect x="{{ gx + 105 }}" y="{{ gy - 24 }}" width="10" height="16" rx="3" fill="{{ a.kleur }}"/>
+      <rect x="{{ gx + 105 }}" y="{{ gy - 8 }}" width="4" height="8" fill="#4A4438"/><rect x="{{ gx + 111 }}" y="{{ gy - 8 }}" width="4" height="8" fill="#4A4438"/>
+      <g class="arm"><line x1="{{ gx + 105 }}" y1="{{ gy - 21 }}" x2="{{ gx + 94 }}" y2="{{ gy - 28 }}" stroke="#F2C9A0" stroke-width="3"/><rect x="{{ gx + 89 }}" y="{{ gy - 33 }}" width="8" height="5" fill="#6B6358"/></g>
+    {% else %}
+      {# een bankje, en het poppetje dat uitrust #}
+      <rect x="{{ gx + 90 }}" y="{{ gy - 10 }}" width="30" height="4" fill="#9A7B5C"/>
+      <rect x="{{ gx + 92 }}" y="{{ gy - 6 }}" width="3" height="6" fill="#9A7B5C"/><rect x="{{ gx + 115 }}" y="{{ gy - 6 }}" width="3" height="6" fill="#9A7B5C"/>
+      <circle cx="{{ gx + 105 }}" cy="{{ gy - 24 }}" r="6" fill="#F2C9A0"/>
+      <rect x="{{ gx + 100 }}" y="{{ gy - 18 }}" width="10" height="9" rx="3" fill="{{ a.kleur }}"/>
+    {% endif %}
+    <text x="{{ gx + 38 }}" y="{{ gy + 16 }}" text-anchor="middle" font-size="12" font-weight="700" fill="#2E2A24">{{ a.naam }}</text>
+    <text x="{{ gx + 38 }}" y="{{ gy + 30 }}" text-anchor="middle" font-size="11" fill="#4A4438">{{ a.totaal if a.totaal is not none else '?' }} gedaan{% if a.recent %} &middot; {{ a.recent }} dit uur{% endif %}</text>
+  </g>
+  {% endfor %}
+</svg>
+</div>
+<div class="lijst">
+  {% for a in w.agents %}
+  <div><strong>{{ a.naam }}</strong> <span class="{{ 'aan' if a.werkt else 'uit' }}">{{ 'bouwt' if a.werkt else 'rust' }}</span><br>
+    {{ a.wat }}<br>Totaal {{ a.totaal if a.totaal is not none else 'onbekend' }}{% if a.recent is not none %}, laatste uur {{ a.recent }}{% endif %}</div>
+  {% endfor %}
+</div>
+</body>
+</html>

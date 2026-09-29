@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# Stap 92 (28 september): het nieuws van de laatste meting, per land. #}
+<title>What changed in the Krillo Index, {{ landnaam }} | Krillo</title>
+<meta name="description" content="Which webshops ChatGPT and Gemini recommend in {{ landnaam }} this month: new number ones, biggest risers and fallers, per category.">
+<link rel="canonical" href="{{ basis_url }}/news/{{ ov.land }}">
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+{% include "_stijl.html" %}
+<style>
+  .nieuws{display:grid; grid-template-columns:repeat(2,1fr); gap:14px;}
+  @media(max-width:760px){ .nieuws{grid-template-columns:1fr;} }
+  .nieuws .blok h3{font-family:var(--disp); font-size:19px; color:var(--ink); margin-bottom:10px;}
+  .nieuws .blok p{margin-bottom:6px; font-size:14.5px;}
+  .label{font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+         color:var(--ink-grijs); margin-right:6px;}
+  .nieuw{color:var(--groen); font-weight:600;}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
+  <div class="links">
+    <a href="/index">The index</a>
+    <a href="/tools">Free tools</a>
+    <a class="knop donker" href="/#scan">Check my store</a>
+  </div>
+</div></nav>
+<main><div class="wrap">
+  <div class="kruimels"><a href="/index">The index</a> &rsaquo; News &rsaquo; {{ landnaam }}</div>
+  <h1>What changed this month</h1>
+  <p class="inleiding">Every month we ask ChatGPT and Gemini the buying questions shoppers in {{ landnaam }} ask, and rank
+    the stores they name. Here is what moved{% if ov.datum %} in the measurement of {{ ov.datum.strftime('%B %Y') }}{% endif %}:
+    {{ ov.categorieen | length }} categories, {{ ov.winkels }} stores.</p>
+  {% if ov.categorieen %}
+  <div class="nieuws">
+    {% for c in ov.categorieen %}
+    <div class="blok">
+      <h3><a href="/index/{{ ov.land }}/{{ c.slug }}">{{ c.naam }}</a></h3>
+      <p><span class="label">#1</span>{{ c.nummer_een }}{% if c.nieuw_bovenaan %} <span class="nieuw">new, was #{{ c.was }}</span>{% endif %}</p>
+      {% if c.stijger %}<p><span class="label">Up</span>{{ c.stijger.naam }}, from #{{ c.stijger.van }} to #{{ c.stijger.naar }}</p>{% endif %}
+      {% if c.daler %}<p><span class="label">Down</span>{{ c.daler.naam }}, from #{{ c.daler.van }} to #{{ c.daler.naar }}</p>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="leeg">Not enough measured categories in {{ landnaam }} yet. See <a href="/index">the index</a>.</div>
+  {% endif %}
+  <div class="cta">
+    <h2>Where does your store rank?</h2>
+    <p>Free, no account. You see your rank and the buying questions where AI names someone else.</p>
+    <a class="knop vol" href="/#scan">Check my store</a>
+  </div>
+</div></main>
+<footer><div class="wrap">Krillo &middot; <a href="/index">The index</a> &middot; <a href="/zo-meten-we">How we measure</a>
+  &middot; <a href="/tools">Free tools</a></div></footer>
+</body>
+</html>

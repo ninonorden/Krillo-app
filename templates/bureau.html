@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# Stap 115 (28 september): de pagina voor een bureau. Zijn klanten in de index,
+   met plek en of AI ze noemt. Alleen wat al openbaar in de index staat, maar
+   de pagina gaat over zijn klanten: dus niet in Google. #}
+<meta name="robots" content="noindex, nofollow">
+<title>Your clients in the Krillo Index | Krillo</title>
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+{% include "_stijl.html" %}
+<style>
+  table.klanten{width:100%; border-collapse:collapse; margin:18px 0 8px; font-size:15px;}
+  table.klanten th{text-align:left; font-family:var(--mono); font-size:12px; color:var(--ink-grijs); font-weight:500;
+                   padding:8px 10px; border-bottom:1px solid var(--lijn-licht);}
+  table.klanten td{padding:11px 10px; border-bottom:1px solid var(--lijn-licht); vertical-align:top;}
+  .nee{color:#B42318; font-weight:600;} .ja{color:var(--groen); font-weight:600;}
+  .klein{font-size:13px; color:var(--ink-grijs);}
+  .groot{font-family:var(--disp); font-size:44px; font-weight:700; letter-spacing:-0.02em; line-height:1;}
+  .cijfers{display:flex; gap:36px; flex-wrap:wrap; margin:22px 0 10px;}
+  @media(max-width:640px){ table.klanten .weg{display:none;} }
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
+  <div class="links">
+    <a href="/index">The index</a>
+    <a class="knop donker" href="/partners">Partner program</a>
+  </div>
+</div></nav>
+
+<main><div class="wrap" style="max-width:860px;">
+  <p class="klein">For {{ bureau.naam or bureau.site }}</p>
+  <h1>Your clients in the Krillo Index</h1>
+  <p class="inleiding">Your name is in the footer of these webshops. Every month we ask ChatGPT and Gemini the
+     buying questions shoppers ask in their category, and rank the stores AI names.</p>
+
+  <div class="cijfers">
+    <div><div class="groot">{{ samen.winkels }}</div><div class="klein">of your clients in the index</div></div>
+    <div><div class="groot" style="color:#B42318;">{{ samen.niet_genoemd }}</div><div class="klein">not named by AI right now</div></div>
+  </div>
+
+  {% if samen.rijen %}
+  <table class="klanten">
+    <tr><th>Store</th><th class="weg">Category</th><th>Rank</th><th>Named by AI</th></tr>
+    {% for b in samen.rijen %}
+    <tr>
+      <td><a href="{{ b.webshop_url }}" rel="nofollow noopener" target="_blank">{{ b.naam }}</a></td>
+      <td class="weg">{{ b.categorienaam }}{% if b.landnaam %}, {{ b.landnaam }}{% endif %}</td>
+      <td>{{ b.positie }} of {{ b.van }}</td>
+      <td>{% if b.genoemd %}<span class="ja">yes</span> <span class="klein">in {{ b.genoemd }} of {{ b.telbaar }} questions</span>
+          {% else %}<span class="nee">no</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="klein">From the latest monthly measurement. The full rankings are public on <a href="/index">the index</a>.</p>
+  {% endif %}
+
+  <div class="cta">
+    <h2>Earn from it</h2>
+    <p>As a partner you get 20 percent of what your clients pay us, for 12 months. They start with a free check,
+       and with Fix we make the changes in their store, so there is no extra work for you.</p>
+    <a class="knop vol" href="/partners#aanmelden">Become a partner</a>
+  </div>
+  <p class="klein" style="margin-top:22px;">Not interested? <a href="/bureau/{{ token }}/afmelden">Remove us from your inbox</a>.</p>
+</div></main>
+
+<footer><div class="wrap">Krillo &middot; <a href="/partners">Partners</a> &middot; <a href="/index">The index</a>
+  &middot; <a href="/privacy">Privacy</a></div></footer>
+</body>
+</html>

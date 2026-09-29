@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# Stap 162 (28 september): gratis losse tools. Een pagina per tool, met
+   uitleg eronder, zodat Google en AI-assistenten hem vinden. De check zelf
+   draait via /api/tools/<slug>; de uitkomst verschijnt op de pagina. #}
+{% if tool %}
+<title>{{ tool.titel }} Free check | Krillo</title>
+<meta name="description" content="{{ tool.kort }} Free, no account needed.">
+<link rel="canonical" href="{{ basis_url }}/tools/{{ slug }}">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":{{ tool.titel | tojson }},
+ "url":{{ (basis_url ~ '/tools/' ~ slug) | tojson }},"applicationCategory":"BusinessApplication",
+ "offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},
+ "description":{{ tool.kort | tojson }},"publisher":{"@type":"Organization","name":"Krillo","url":"{{ basis_url }}"}}
+</script>
+{% else %}
+<title>Free AI visibility tools for webshops | Krillo</title>
+<meta name="description" content="Free checks for webshops: can AI read your store, does your product page give AI the facts, and where do you rank in the Krillo Index. No account needed.">
+<link rel="canonical" href="{{ basis_url }}/tools">
+{% endif %}
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+{% include "_stijl.html" %}
+<style>
+  .toolform{display:flex; gap:10px; max-width:620px; margin:8px 0 12px;}
+  .toolform input{flex:1; height:52px; border-radius:8px; border:1.5px solid #D8D8DE; padding:0 16px;
+                  font-family:var(--mono); font-size:15px;}
+  .toolform input:focus{border-color:var(--vermiljoen); outline:none;}
+  .toolform button{height:52px; padding:0 24px; border-radius:8px; border:0; background:var(--vermiljoen);
+                   color:#fff; font-family:var(--body); font-weight:600; font-size:15px; cursor:pointer;}
+  .toolform button:disabled{opacity:.6; cursor:default;}
+  .uitkomst{margin:22px 0 10px; max-width:720px;}
+  .uitkomst .kop{font-family:var(--disp); font-weight:700; font-size:24px; letter-spacing:-0.02em;
+                 color:var(--ink); margin-bottom:12px;}
+  .regel{display:flex; gap:12px; padding:11px 0; border-bottom:1px solid var(--lijn-licht); font-size:15px;}
+  .regel .teken{font-weight:700; width:20px; flex:none;}
+  .regel .ok{color:var(--groen);} .regel .nee{color:#B42318;}
+  .regel .klein{font-size:13px; color:var(--ink-grijs);}
+  .fout{color:#B42318; margin:10px 0;}
+  .uitleg-blok{max-width:720px; margin-top:44px;}
+  .uitleg-blok h2{font-size:26px; margin-top:28px;}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
+  <div class="links">
+    <a href="/tools">Free tools</a>
+    <a href="/index">The index</a>
+    <a class="knop donker" href="/#scan">Check my store</a>
+  </div>
+</div></nav>
+
+<main><div class="wrap">
+{% if tool %}
+  <div class="kruimels"><a href="/tools">Free tools</a> &rsaquo; {{ tool.titel }}</div>
+  <h1>{{ tool.titel }}</h1>
+  <p class="inleiding">{{ tool.kort }} Free, no account, the result in a few seconds.</p>
+
+  <form class="toolform" id="toolform" onsubmit="return false;">
+    <input id="toolurl" type="text" inputmode="url" autocomplete="url" placeholder="{{ tool.voorbeeld }}"
+           aria-label="{{ tool.invoer }}">
+    <button id="toolknop" type="submit">Check</button>
+  </form>
+  <div class="fout" id="toolfout" role="alert"></div>
+  <div class="uitkomst" id="tooluitkomst" aria-live="polite"></div>
+
+  <div class="uitleg-blok">
+  {% if slug == 'ai-crawler-check' %}
+    <h2>What this checks</h2>
+    <p>Every AI assistant sends its own robot to read websites. Your robots.txt file tells each robot whether it may
+       come in. Many stores block these robots without knowing it: a security plugin, a theme default, or a setting
+       someone switched on years ago. Then ChatGPT or Gemini cannot read your products, and cannot recommend them.</p>
+    <p>We read your robots.txt and your homepage, the same way the robots do, and check the robots that matter for
+       shoppers: ChatGPT's search robot, the one that opens a page when someone asks about it, Gemini, Perplexity,
+       Claude and Apple. We also look for a security wall that stops robots before they reach your pages.</p>
+    <h2>Blocking training is not the same as blocking search</h2>
+    <p>Some robots collect pages to train AI models (like GPTBot). Blocking those is a fair choice and does not stop
+       ChatGPT from recommending you. Blocking the search robots (OAI-SearchBot, ChatGPT-User, PerplexityBot) does.</p>
+  {% elif slug == 'product-data-check' %}
+    <h2>What this checks</h2>
+    <p>When a shopper asks an AI assistant for a product, the answer is built from facts it can read with certainty:
+       the price, whether it is in stock, the brand, the rating. Those facts sit in hidden product details in the
+       code of your page (schema.org Product). Without them, AI has to guess from the text, and it prefers stores
+       where it does not have to guess.</p>
+    <p>Paste the address of one of your product pages. We read it and list which details are there and which are
+       missing, and why each one matters.</p>
+  {% else %}
+    <h2>What the Krillo Index is</h2>
+    <p>Every month we ask ChatGPT and Gemini the buying questions shoppers in {{ index_landen_en }} ask in each
+       category, and we rank the stores they name. The rankings are public on <a href="/index">the index</a>.
+       This check looks up where your store is.</p>
+  {% endif %}
+    <div class="cta">
+      <h2>See where you rank, and why</h2>
+      <p>The free check on our homepage shows your rank and the buying questions where AI names someone else.</p>
+      <a class="knop vol" href="/#scan">Check my store</a>
+    </div>
+  </div>
+{% else %}
+  <h1>Free tools</h1>
+  <p class="inleiding">Small checks for webshops that want to be recommended by ChatGPT, Gemini and other AI
+     assistants. Free, no account needed.</p>
+  <div class="kaarten">
+    {% for s, t in tools.items() %}
+    <a class="kaart" href="/tools/{{ s }}"><div class="naam">{{ t.titel }}</div><div class="bij">{{ t.kort }}</div></a>
+    {% endfor %}
+  </div>
+  <p style="margin-top:28px;">Comparing tools? <a href="/compare">See how Krillo compares</a>.</p>
+{% endif %}
+</div></main>
+
+<footer><div class="wrap">Krillo &middot; <a href="/tools">Free tools</a> &middot; <a href="/compare">Compare</a>
+  &middot; <a href="/index">The index</a> &middot; <a href="/privacy">Privacy</a></div></footer>
+
+{% if tool %}
+<script>
+(function(){
+  var knop = document.getElementById('toolknop'), veld = document.getElementById('toolurl');
+  var fout = document.getElementById('toolfout'), vak = document.getElementById('tooluitkomst');
+  function e(t){ var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
+  function regel(ok, tekst, klein){
+    return '<div class="regel"><span class="teken ' + (ok ? 'ok">&#10003;' : 'nee">&#10005;') + '</span><div>'
+      + e(tekst) + (klein ? '<div class="klein">' + e(klein) + '</div>' : '') + '</div></div>';
+  }
+  function toon(d){
+    var h = '<div class="kop">' + e(d.kop) + '</div>';
+    if (d.robots){
+      d.robots.forEach(function(r){ h += regel(r.mag, r.wie + ' (' + r.bot + '): ' + (r.mag ? 'allowed' : 'blocked'), r.wat); });
+      (d.opmerkingen || []).forEach(function(o){ h += '<p style="margin-top:12px;">' + e(o) + '</p>'; });
+      if (d.oordeel !== 'open'){ h += '<p><strong>How to fix it.</strong> ' + e(d.herstel) + '</p>'; }
+    } else if (d.punten){
+      d.punten.forEach(function(p){ h += regel(p.ok, p.naam, p.waarom); });
+    } else if (d.gevonden){
+      h += '<p>Your store <strong>' + e(d.winkel) + '</strong> is in the ranking for ' + e(d.categorie)
+        + ' (' + e(d.land) + '). <a href="' + e(d.pagina) + '">See the full ranking</a>.</p>';
+    } else if (d.uitleg){
+      h += '<p>' + e(d.uitleg) + '</p>';
+    }
+    h += '<p style="margin-top:18px;"><a class="knop vol" href="/?winkel=' + encodeURIComponent(veld.value.trim())
+      + '#scan">See your rank and the questions you lose</a></p>';
+    vak.innerHTML = h;
+  }
+  function start(){
+    var url = veld.value.trim();
+    fout.textContent = ''; vak.innerHTML = '';
+    if (!url){ fout.textContent = 'Enter an address first.'; return; }
+    knop.disabled = true; knop.textContent = 'Checking...';
+    fetch('/api/tools/{{ slug }}', {method:'POST', headers:{'Content-Type':'application/json'},
+                                    body: JSON.stringify({url: url})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if (d.fout){ fout.textContent = d.fout; } else { toon(d); } })
+      .catch(function(){ fout.textContent = 'Something went wrong. Try again in a moment.'; })
+      .then(function(){ knop.disabled = false; knop.textContent = 'Check'; });
+  }
+  knop.addEventListener('click', start);
+  veld.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') start(); });
+})();
+</script>
+{% endif %}
+</body>
+</html>

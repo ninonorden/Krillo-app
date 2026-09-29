@@ -344,6 +344,18 @@
   <h2>Plans</h2>
   <p class="onder">You can start for free. Watch keeps an eye on your store every month.
     With Fix we also do the work in your store.</p>
+  {% if jaar_aan %}
+  {# Per maand of per jaar (na de goedkeuring, SHOPIFY_NA_GOEDKEURING). #}
+  <div class="periode-keuze" role="group" aria-label="Billing period" style="margin:0 0 16px;">
+    <button type="button" class="aan" data-periode="maand">Monthly</button>
+    <button type="button" data-periode="jaar">Yearly, 2 months free</button>
+  </div>
+  <style>
+    .periode-keuze{display:inline-flex; gap:4px; padding:4px; border:1px solid #E4E2DA; border-radius:999px; background:#fff;}
+    .periode-keuze button{border:0; background:none; font:inherit; font-size:14px; padding:7px 14px; border-radius:999px; cursor:pointer;}
+    .periode-keuze button.aan{background:#0A0A0B; color:#fff;}
+  </style>
+  {% endif %}
   <div class="prijzen">
     <div class="prijs nu" id="planvrij">
       <div class="naam">Free <span class="nulabel" id="vrijlabel">your plan</span></div>
@@ -368,7 +380,7 @@
        hoort hij van ons te horen en niet van zijn eigen factuur. #}
     <div class="prijs" id="planwatch">
       <div class="naam">Watch <span class="nulabel" id="watchlabel" style="display:none;">your plan</span></div>
-      <div class="bedrag">${{ plannen.watch.prijs | int }} <small>/ month</small></div>
+      <div class="bedrag" data-maand="${{ plannen.watch.prijs | int }} <small>/ month</small>" data-jaar="${{ plannen.watch.jaarprijs | int }} <small>/ year</small>">${{ plannen.watch.prijs | int }} <small>/ month</small></div>
       <div style="font-size:12.5px; color:var(--tekst-licht); margin:-8px 0 12px;">
         In US dollars. Shopify converts this to the currency on your Shopify invoice.
       </div>
@@ -388,7 +400,7 @@
     </div>
     <div class="prijs" id="planfix">
       <div class="naam">Fix <span class="nulabel" id="fixlabel" style="display:none;">your plan</span></div>
-      <div class="bedrag">${{ plannen.fix.prijs | int }} <small>/ month</small></div>
+      <div class="bedrag" data-maand="${{ plannen.fix.prijs | int }} <small>/ month</small>" data-jaar="${{ plannen.fix.jaarprijs | int }} <small>/ year</small>">${{ plannen.fix.prijs | int }} <small>/ month</small></div>
       <div style="font-size:12.5px; color:var(--tekst-licht); margin:-8px 0 12px;">
         In US dollars. Shopify converts this to the currency on your Shopify invoice.
       </div>
@@ -822,6 +834,11 @@ and you can switch it off.
             if (vak && vak.closest('.voorstel')) { vak.closest('.voorstel').remove(); }
           });
           var melding = d.gedaan.length + ' change(s) applied.';
+          // Stap 157: een keer om een review vragen, na de eerste gelukte
+          // wijziging. De server zegt wanneer; Shopify toont het venster zelf.
+          if (d.vraag_review && window.shopify && window.shopify.reviews) {
+            try { window.shopify.reviews.request(); } catch (e) {}
+          }
           if (d.overgeslagen.length) { melding += ' ' + d.overgeslagen.length + ' skipped because text was already there.'; }
           if (d.mislukt.length) { melding += ' ' + d.mislukt.length + ' failed.'; }
           if (d.geblokkeerd && d.geblokkeerd.length) {
@@ -943,6 +960,17 @@ and you can switch it off.
   // winkelier kan opzeggen in zijn eigen scherm zonder dat wij iets horen, en
   // dan zouden wij zeggen dat hij betaalt terwijl dat niet zo is.
   var abonneerKnoppen = Array.prototype.slice.call(document.querySelectorAll('.abonneerknop'));
+  // Per maand of per jaar (alleen zichtbaar na de goedkeuring).
+  var appPeriode = 'maand';
+  document.querySelectorAll('.periode-keuze button').forEach(function(k){
+    k.addEventListener('click', function(){
+      appPeriode = k.getAttribute('data-periode') === 'jaar' ? 'jaar' : 'maand';
+      document.querySelectorAll('.periode-keuze button').forEach(function(x){ x.classList.toggle('aan', x === k); });
+      document.querySelectorAll('.bedrag[data-jaar]').forEach(function(el){
+        el.innerHTML = el.getAttribute(appPeriode === 'jaar' ? 'data-jaar' : 'data-maand');
+      });
+    });
+  });
   var opzegKnop = document.getElementById('opzegknop');
   var abonnementUitleg = document.getElementById('abonnementuitleg');
   var vrijLabel = document.getElementById('vrijlabel');
@@ -1018,7 +1046,7 @@ and you can switch it off.
         fetch('/shopify/api/abonneren', {
           method: 'POST',
           headers: {'Authorization': 'Bearer ' + kaartje, 'Content-Type': 'application/json'},
-          body: JSON.stringify({plan: plan})
+          body: JSON.stringify({plan: plan, periode: appPeriode})
         })
         .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); })
         .then(function(res){

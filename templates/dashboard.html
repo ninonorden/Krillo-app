@@ -105,7 +105,7 @@
     <div class="kaartblok">
       <div class="kaartkop">{{ 'JOUW POSITIE' if taal == 'nl' else 'YOUR POSITION' }}</div>
       <p style="margin:0; font-size:15px;">
-        {% if buiten_markt %}{{ werkblok.wt.buiten_markt if werkblok else '' }}
+        {% if buiten_markt %}{{ (werkblok.wt.buiten_markt | replace('{landen}', index_landen_nl if taal == 'nl' else index_landen_en)) if werkblok else '' }}
         {% elif taal == 'nl' %}Je categorie is nog niet gemeten. Zodra hij aan de beurt is
         verschijnt je positie hier, en krijg je bericht.
         {% else %}Your category has not been measured yet. As soon as it comes up, your
@@ -441,6 +441,38 @@
       <ul class="planlijst">{% for punt in plan_uitleg.punten %}<li>{{ punt }}</li>{% endfor %}</ul>
       <p class="klein">{{ plan_uitleg.betaling }}</p>
     </div>
+
+    {# Stap 94: de eigen link. Een winkel die via deze link betalend klant wordt,
+       geeft deze klant een maand van zijn pakket terug (na 30 dagen). #}
+    {% if doorverwijzing and not werkblok.opgezegd %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'EEN MAAND GRATIS' if taal == 'nl' else 'A MONTH FREE' }}</div>
+      <p style="margin:0 0 10px; font-size:15px;">{{ 'Ken je een andere webshop? Deel je eigen link. Neemt die winkel een betaald pakket, dan krijg jij een maand van je eigen pakket terug.' if taal == 'nl'
+           else 'Know another webshop? Share your own link. If that store takes a paid plan, you get a month of your own plan back.' }}</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <input id="eigenLink" readonly value="{{ basis_url }}/r/{{ doorverwijzing.code }}" onclick="this.select()"
+               style="flex:1; min-width:220px; height:42px; border:1.5px solid #D8D8DE; border-radius:8px; padding:0 12px; font-family:var(--mono, monospace); font-size:14px;">
+        <button type="button" class="knop-rand" id="kopieerLink">{{ 'Kopieer' if taal == 'nl' else 'Copy' }}</button>
+      </div>
+      <p class="klein" style="margin-top:10px;">
+        {% if doorverwijzing.klanten %}{{ doorverwijzing.klanten }} {{ 'winkel(s) werden klant via jouw link.' if taal == 'nl' else 'store(s) became a customer through your link.' }}
+        {% else %}{{ 'Wij sturen je link naar niemand; alleen jij deelt hem. De maand krijg je terug zodra de nieuwe winkel 30 dagen klant is.' if taal == 'nl'
+             else 'We never send your link to anyone; only you share it. You get the month back once the new store has been a customer for 30 days.' }}{% endif %}
+      </p>
+      <script>
+        (function(){
+          var k = document.getElementById('kopieerLink'), v = document.getElementById('eigenLink');
+          if (!k || !v) return;
+          k.addEventListener('click', function(){
+            v.select();
+            var klaar = function(){ k.textContent = '{{ "Gekopieerd" if taal == "nl" else "Copied" }}'; };
+            if (navigator.clipboard) { navigator.clipboard.writeText(v.value).then(klaar, function(){ document.execCommand('copy'); klaar(); }); }
+            else { document.execCommand('copy'); klaar(); }
+          });
+        })();
+      </script>
+    </div>
+    {% endif %}
 
     <div class="twee">
       <div class="kaartblok">

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# Stap 94 (28 september): de partnerpagina voor bureaus, freelancers en
+   Shopify-partners. Aanmelden kan hier; Nino keurt goed op
+   /admin/doorverwijzen. Alleen beloven wat doorverwijzen.py ook echt doet. #}
+<title>Partner program for agencies and freelancers | Krillo</title>
+<meta name="description" content="Agencies, freelancers and Shopify partners: earn {{ procent }}% of what your clients pay Krillo, for {{ maanden }} months. Show your clients where ChatGPT recommends them.">
+<link rel="canonical" href="{{ basis_url }}/partners">
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+{% include "_stijl.html" %}
+<style>
+  .drie{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:18px 0 26px;}
+  @media(max-width:760px){ .drie{grid-template-columns:1fr;} }
+  .drie .blok h3{font-family:var(--disp); font-size:19px; margin-bottom:8px; color:var(--ink);}
+  main .wrap > h2{margin-top:34px; font-size:26px;}
+  .formulier{max-width:560px; display:grid; gap:10px; margin-top:12px;}
+  .formulier label{font-size:14px; font-weight:600; color:var(--ink);}
+  .formulier input, .formulier textarea{width:100%; box-sizing:border-box; border-radius:8px; border:1.5px solid #D8D8DE;
+      padding:12px 14px; font-family:var(--body); font-size:15px;}
+  .formulier input:focus, .formulier textarea:focus{border-color:var(--vermiljoen); outline:none;}
+  .formulier button{height:50px; border-radius:8px; border:0; background:var(--vermiljoen); color:#fff;
+      font-family:var(--body); font-weight:600; font-size:15px; cursor:pointer;}
+  .formulier button:disabled{opacity:.6; cursor:default;}
+  .fout{color:#B42318;} .goed{color:var(--groen); font-weight:600;}
+  ul.punten li{margin:0 0 10px 18px; color:var(--ink-zacht);}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
+  <div class="links">
+    <a href="/index">The index</a>
+    <a href="/tools">Free tools</a>
+    <a class="knop donker" href="#aanmelden">Become a partner</a>
+  </div>
+</div></nav>
+
+<main><div class="wrap" style="max-width:860px;">
+  <h1>Partner program</h1>
+  <p class="inleiding">For webshop agencies, freelancers and Shopify partners.
+     Show your clients whether ChatGPT and Gemini recommend them, and earn {{ procent }} percent of what they pay
+     Krillo, for {{ maanden }} months.</p>
+
+  <div class="drie">
+    <div class="blok"><h3>1. You get a link</h3>
+      <p>Apply below. We reply within one working day and send your own partner link.</p></div>
+    <div class="blok"><h3>2. Your client checks</h3>
+      <p>The link opens our free check. Your client sees their rank in the Krillo Index and the buying questions
+         where AI names someone else.</p></div>
+    <div class="blok"><h3>3. You earn</h3>
+      <p>If the store starts a paid plan within 60 days, you get {{ procent }}% of what it pays us (excluding VAT) for
+         {{ maanden }} months. Monthly overview, paid on your invoice.</p></div>
+  </div>
+
+  <h2>Why your clients care</h2>
+  <ul class="punten">
+    <li>More and more shoppers ask ChatGPT or Gemini where to buy. A store that is not named there does not exist
+        for that shopper.</li>
+    <li>The Krillo Index shows per category who AI recommends, every month. Your client sees exactly which
+        competitor is named instead.</li>
+    <li>With Watch (EUR 49 a month) they get their rank and the fixes to do themselves. With Fix (EUR 149 a month)
+        we make the changes in their store.</li>
+  </ul>
+
+  <h2>Many clients?</h2>
+  <p>With the brands and agencies plan you follow up to 25 stores in one account.
+     We set it up together: email <a href="mailto:hello@krilloai.com">hello@krilloai.com</a>.</p>
+
+  <h2 id="aanmelden">Apply</h2>
+  <form class="formulier" id="partnerform" onsubmit="return false;">
+    <label for="p_naam">Name or company</label>
+    <input id="p_naam" type="text" autocomplete="organization" maxlength="120">
+    <label for="p_email">Email address</label>
+    <input id="p_email" type="email" autocomplete="email" maxlength="200">
+    <label for="p_site">Website</label>
+    <input id="p_site" type="text" inputmode="url" maxlength="200" placeholder="youragency.nl">
+    <label for="p_bericht">Which stores do you work for? (optional)</label>
+    <textarea id="p_bericht" rows="4" maxlength="2000"></textarea>
+    <p class="klein" style="margin:0;">We use these details only to review your request and to pay you. See our
+       <a href="/privacy">privacy policy</a>.</p>
+    <button id="p_knop" type="submit">Apply as a partner</button>
+    <div class="fout" id="p_fout" role="alert"></div>
+  </form>
+</div></main>
+
+<footer><div class="wrap">Krillo &middot; <a href="/partners">Partners</a> &middot; <a href="/tools">Free tools</a>
+  &middot; <a href="/compare">Compare</a> &middot; <a href="/index">The index</a> &middot; <a href="/privacy">Privacy</a></div></footer>
+
+<script>
+(function(){
+  var knop = document.getElementById('p_knop'), fout = document.getElementById('p_fout');
+  function waarde(id){ return document.getElementById(id).value.trim(); }
+  knop.addEventListener('click', function(){
+    fout.textContent = '';
+    var body = {naam: waarde('p_naam'), email: waarde('p_email'), website: waarde('p_site'), bericht: waarde('p_bericht')};
+    if (!body.naam || !body.email){ fout.textContent = 'Enter your name or company and your email address.'; return; }
+    knop.disabled = true; knop.textContent = 'Sending...';
+    fetch('/api/partners', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d.ok){
+          document.getElementById('partnerform').innerHTML =
+            '<p class="goed">Thanks. We reply within one working day with your partner link.</p>';
+        } else { fout.textContent = d.fout || 'Something went wrong.'; knop.disabled = false; knop.textContent = 'Apply as a partner'; }
+      })
+      .catch(function(){ fout.textContent = 'Something went wrong. Email hello@krilloai.com.'; knop.disabled = false; knop.textContent = 'Apply as a partner'; });
+  });
+})();
+</script>
+</body>
+</html>
