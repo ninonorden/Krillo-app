@@ -7325,3 +7325,67 @@ def ranglijst_per_land(categorie, land, limiet=200):
 
 def antwoorden_van_ronde(ronde):
     return _onthouden(("antwoorden", ronde), _antwoorden_van_ronde_vers, ronde)
+
+
+
+# ---------------------------------------------------------------------------
+# GEKOZEN VRAGEN (30 september, het idee van Nino's dashboard 8).
+# Een klant klikt bij een koopvraag op "Add to my fixes". Wij bewaren welke
+# vragen hij koos. Twee redenen: hij ziet ze terug bij zijn verbeteringen, en
+# wie in de proefperiode van Watch drie of meer vragen kiest, laat zien dat hij
+# wil dat het beter wordt. Die krijgt een keer de vraag of wij het live zetten
+# (proefperiode.fix_aanbod_ronde).
+# ---------------------------------------------------------------------------
+def _gekozen_tabel(cur):
+    cur.execute("""CREATE TABLE IF NOT EXISTS gekozen_vragen (
+                       webshop_url TEXT NOT NULL,
+                       vraag TEXT NOT NULL,
+                       gekozen_op TIMESTAMPTZ NOT NULL DEFAULT now(),
+                       PRIMARY KEY (webshop_url, vraag))""")
+
+
+def zet_gekozen_vraag(webshop_url, vraag, aan=True):
+    """Zet een vraag aan of uit op de lijst van deze winkel. Geeft het aantal
+    gekozen vragen daarna terug, of None als de database weg is."""
+    vraag = (vraag or "").strip()[:500]
+    if not webshop_url or not vraag:
+        return None
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                _gekozen_tabel(cur)
+                if aan:
+                    cur.execute("""INSERT INTO gekozen_vragen (webshop_url, vraag) VALUES (%s, %s)
+                                   ON CONFLICT DO NOTHING""", (webshop_url, vraag))
+                else:
+                    cur.execute("DELETE FROM gekozen_vragen WHERE webshop_url = %s AND vraag = %s",
+                                (webshop_url, vraag))
+                cur.execute("SELECT count(*) FROM gekozen_vragen WHERE webshop_url = %s", (webshop_url,))
+                return cur.fetchone()[0]
+    except Exception as e:
+        print(f"Gekozen vraag bewaren mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def gekozen_vragen(webshop_url):
+    """De vragen die deze winkel koos, oudste eerst."""
+    conn = _get_connection()
+    if conn is None or not webshop_url:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                _gekozen_tabel(cur)
+                cur.execute("""SELECT vraag FROM gekozen_vragen WHERE webshop_url = %s
+                               ORDER BY gekozen_op, vraag""", (webshop_url,))
+                return [r[0] for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Gekozen vragen ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()

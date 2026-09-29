@@ -50,6 +50,7 @@ import benchmark
 import markt
 import shopify_app
 import sitetaal
+import commandocentrum
 import markten
 import shopify_werk
 import toepasmodule
@@ -651,6 +652,22 @@ def _bereken_thuis():
                 "winkels": len(alle),
                 "niet_genoemd": len(alle) - len(genoemd),
             }
+        # HOMEPAGE VERSIE 9 (30 september). De kaart "The index today" heeft
+        # tabs: de drie grootste categorieen, elk met hun top 7, de beweging
+        # sinds de vorige meting, en per winkel genoemd en aangeraden. Plus het
+        # kwadrant (genoemd tegen aangeraden) en een echte koopvraag voor het
+        # typende kaartje. Alles uit de database: geen voorbeeldnamen op de
+        # echte site. Is er iets niet, dan valt dat stukje weg.
+        tabs = []
+        for rij in sorted(rijen, key=lambda r: -r["winkels"])[:3]:
+            try:
+                l3 = (lijst if top and rij["categorie"] == top["categorie"]
+                      else db.ranglijst_per_land(rij["categorie"], voorbeeldland, limiet=500))
+            except Exception as e:
+                print(f"Tab {rij['categorie']} voor de homepage overslaan: {e}")
+                continue
+            tabs.append(_thuis_tab(rij["categorie"], voorbeeldland, l3))
+        tabs = [t for t in tabs if t and t["rijen"]]
         # De koersbalk bovenaan de homepage. Per categorie de winkel die op
         # dit moment bovenaan staat, met de dag waarop dat gemeten is. Dit is
         # het eerste dat een bezoeker ziet, dus het moet uit de database komen
@@ -670,7 +687,7 @@ def _bereken_thuis():
                 "telbaar": kop.get("telbaar") if eerste else None,
             })
         index = {"cijfers": cijfers, "landen": landen, "top": top,
-                 "ticker": ticker,
+                 "ticker": ticker, "tabs": tabs,
                  "gemeten_op": (top.get("rijen")[0].get("gemeten_op")
                                 if top and top.get("rijen") else None),
                  "binnenkort": [c for c in sitetaal.LANDEN
@@ -681,6 +698,63 @@ def _bereken_thuis():
     return {"gescand": gescand if gescand >= MINIMUM_VOOR_TELLER else None,
             "index": index,
             "eigen_cijfer": _eigen_benchmarkcijfer()}
+
+
+def _kale_naam(r):
+    naam = r.get("naam")
+    if not naam or str(naam).startswith("http"):
+        naam = (r.get("webshop_url") or "").replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
+    return naam
+
+
+def _thuis_tab(categorie, land, lijst):
+    """Een tab van de kaart "The index today" op de homepage (versie 9).
+
+    WAAROM ZO: de top 7 met genoemd, aangeraden en de beweging sinds de vorige
+    meting. De beweging komt uit vorige_positie (dezelfde bron als de
+    indexpagina), dus de pijltjes op de homepage en op /index zeggen hetzelfde.
+    De grootste stijger krijgt het zwevende kaartje "moved up"; is er geen
+    stijger, dan is er ook geen kaartje. Het kwadrant gebruikt de winkels die
+    minstens een keer genoemd zijn (een stip op nul zegt niets)."""
+    alle = (lijst or {}).get("rijen") or []
+    telbaar = (lijst or {}).get("telbaar") or 0
+    genoemd = [r for r in alle if (r.get("genoemd") or 0) > 0]
+    if not genoemd or not telbaar:
+        return None
+
+    def beweging(r):
+        vorige, nu = r.get("vorige_positie"), r.get("positie")
+        if not vorige or not nu:
+            return ""
+        return f"▲{vorige - nu}" if vorige > nu else (f"▼{nu - vorige}" if nu > vorige else "=")
+
+    rijen = [{"positie": r.get("positie"), "naam": _kale_naam(r), "genoemd": r.get("genoemd") or 0,
+              "aanbevolen": r.get("aanbevolen") or 0, "vorige": r.get("vorige_positie"),
+              "beweging": beweging(r), "breedte": int(round(100 * (r.get("genoemd") or 0) / telbaar))}
+             for r in genoemd[:7]]
+    stijgers = [r for r in genoemd if r.get("vorige_positie") and r.get("positie")
+                and r["vorige_positie"] - r["positie"] >= 2]
+    stijger = None
+    if stijgers:
+        s = max(stijgers, key=lambda r: r["vorige_positie"] - r["positie"])
+        stijger = {"naam": _kale_naam(s), "plekken": s["vorige_positie"] - s["positie"],
+                   "positie": s["positie"]}
+    punten = [{"naam": _kale_naam(r), "positie": r.get("positie"),
+               "x": int(round(100 * (r.get("genoemd") or 0) / telbaar)),
+               "y": int(round(100 * (r.get("aanbevolen") or 0) / telbaar)),
+               "genoemd": r.get("genoemd") or 0, "aanbevolen": r.get("aanbevolen") or 0}
+              for r in genoemd[:10]]
+    vraag = None
+    try:
+        vragen = db.categorie_vragen(categorie) or []
+        if vragen:
+            vraag = vragen[0].get("vraag")
+    except Exception as e:
+        print(f"Voorbeeldvraag voor de homepage overslaan: {e}")
+    return {"categorie": categorie, "naam": categorieen.naam_en(categorie), "land": land,
+            "telbaar": telbaar, "winkels": len(alle), "niet_genoemd": len(alle) - len(genoemd),
+            "rijen": rijen, "stijger": stijger,
+            "punten": punten, "vraag": vraag}
 
 
 def _eigen_benchmarkcijfer():
@@ -1124,6 +1198,35 @@ def admin_linkedin_beeld(post_id):
         return "", 404
     png = linkedinagent.beeld_png(p["beeld"], maand=p["dag"].strftime("%B %Y"))
     return Response(png, mimetype="image/png", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@app.route("/admin/agents", methods=["GET", "POST"])
+def admin_agents():
+    """Het commandocentrum (stap 172): alle agents op een plek, met schakelaars."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    if request.method == "POST":
+        commandocentrum.zet(request.form.get("agent", ""), request.form.get("actie") == "aan")
+        return redirect("/admin/agents")
+    import ochtendbericht
+    ov = commandocentrum.overzicht(te_doen=ochtendbericht.te_doen(get_base_url().rstrip("/")))
+    return render_template("admin_agents.html", ov=ov)
+
+
+@app.route("/api/agents")
+def api_agents():
+    """Hetzelfde als /admin/agents, als JSON (voor de Claude-app later, stap 150).
+    Alleen met de beheersleutel of een beheersessie."""
+    mag, _ = _mag_bij_beheer()
+    if not mag:
+        return jsonify({"fout": "niet ingelogd"}), 404
+    import ochtendbericht
+    ov = commandocentrum.overzicht(te_doen=ochtendbericht.te_doen(get_base_url().rstrip("/")))
+    ov["te_doen"] = [{"tekst": t, "link": l} for t, l in ov["te_doen"]]
+    return jsonify(ov)
 
 
 @app.route("/admin/lijstjes")
@@ -3479,16 +3582,17 @@ def _benadering_ronde_werk():
     # De verkoopagent (stap 125): wie zijn pagina bekeek krijgt een persoonlijke
     # opvolging. Draait ook als de koude mail uit staat: dit zijn mensen die al
     # reageerden. Een fout hier mag de rest van de ronde nooit tegenhouden.
-    try:
-        import verkoopagent
-        verslag["opvolging"] = verkoopagent.ronde(
-            get_base_url().rstrip("/"),
-            lambda url: klantbeeld.bouw(url),
-            categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
-            binnen_kantooruren=benadering.binnen_kantooruren())
-    except Exception as e:
-        verslag["mislukt"].append(f"opvolging: {e}")
-        print(f"Verkoopagent mislukt: {e}")
+    if commandocentrum.aan("verkoop"):
+        try:
+            import verkoopagent
+            verslag["opvolging"] = verkoopagent.ronde(
+                get_base_url().rstrip("/"),
+                lambda url: klantbeeld.bouw(url),
+                categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+                binnen_kantooruren=benadering.binnen_kantooruren())
+        except Exception as e:
+            verslag["mislukt"].append(f"opvolging: {e}")
+            print(f"Verkoopagent mislukt: {e}")
 
     # Ontvangstbevestigingen die nog als concept klaarstaan alsnog afhandelen (29 september).
     try:
@@ -3499,126 +3603,140 @@ def _benadering_ronde_werk():
 
     # De bewegingsagent (stap 116): wie gemaild is en na de maandmeting echt
     # verschoof, hoort het. Hoogstens een extra mail per 30 dagen (extra_op).
-    try:
-        import bewegingsagent
-        verslag["beweging"] = bewegingsagent.ronde(
-            get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
-            categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
-            binnen_kantooruren=benadering.binnen_kantooruren(),
-            aan=benadering.instellingen().get("aan", False))
-    except Exception as e:
-        verslag["mislukt"].append(f"beweging: {e}")
-        print(f"Bewegingsagent mislukt: {e}")
+    if commandocentrum.aan("beweging"):
+        try:
+            import bewegingsagent
+            verslag["beweging"] = bewegingsagent.ronde(
+                get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
+                categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+                binnen_kantooruren=benadering.binnen_kantooruren(),
+                aan=benadering.instellingen().get("aan", False))
+        except Exception as e:
+            verslag["mislukt"].append(f"beweging: {e}")
+            print(f"Bewegingsagent mislukt: {e}")
 
     # De badge-agent (stap 89): de top van elke ranglijst krijgt een felicitatie
     # met een badge voor hun site. Zelfde rust en regels als de andere extra mail.
-    try:
-        import badgeagent
-        verslag["badge"] = badgeagent.ronde(
-            get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
-            categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
-            landnaam=lambda b: sitetaal.landnaam(b["land"], "en") if b.get("land") else None,
-            binnen_kantooruren=benadering.binnen_kantooruren(),
-            aan=benadering.instellingen().get("aan", False))
-    except Exception as e:
-        verslag["mislukt"].append(f"badge: {e}")
-        print(f"Badge-agent mislukt: {e}")
+    if commandocentrum.aan("badge"):
+        try:
+            import badgeagent
+            verslag["badge"] = badgeagent.ronde(
+                get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
+                categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+                landnaam=lambda b: sitetaal.landnaam(b["land"], "en") if b.get("land") else None,
+                binnen_kantooruren=benadering.binnen_kantooruren(),
+                aan=benadering.instellingen().get("aan", False))
+        except Exception as e:
+            verslag["mislukt"].append(f"badge: {e}")
+            print(f"Badge-agent mislukt: {e}")
 
     # De bureauvinder (stap 115): elk uur 15 winkels uit de index op een bureau
     # in de voettekst bekijken. Mailen gaat met de hand tot er tien weg zijn;
     # daarna alleen met BUREAUMAIL_AUTO=1, hoogstens twee per dag, in kantooruren.
-    try:
-        import bureauvinder
-        verslag["bureaus"] = bureauvinder.ronde()
-        ruimte = bureauvinder.mag_automatisch() if benadering.binnen_kantooruren() else 0
-        for b in [b for b in bureauvinder.groepen() if b["stand"] == "nieuw" and b.get("email")][:ruimte]:
-            _stuur_bureaumail(b, get_base_url().rstrip("/"), False)
-    except Exception as e:
-        verslag["mislukt"].append(f"bureaus: {e}")
-        print(f"Bureauvinder mislukt: {e}")
+    if commandocentrum.aan("bureau"):
+        try:
+            import bureauvinder
+            verslag["bureaus"] = bureauvinder.ronde()
+            ruimte = bureauvinder.mag_automatisch() if benadering.binnen_kantooruren() else 0
+            for b in [b for b in bureauvinder.groepen() if b["stand"] == "nieuw" and b.get("email")][:ruimte]:
+                _stuur_bureaumail(b, get_base_url().rstrip("/"), False)
+        except Exception as e:
+            verslag["mislukt"].append(f"bureaus: {e}")
+            print(f"Bureauvinder mislukt: {e}")
 
     # De klantagenten (stap 99, 130, 152): behouden, overstappen, terugwinnen.
     # Alleen in kantooruren; elke mail langs de controleagent.
-    try:
-        import klantagenten
-        import verkoopagent
-        if benadering.binnen_kantooruren():
-            verslag["klanten"] = klantagenten.ronde(
-                get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
-                categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
-                vraag_voor=verkoopagent._vraag_voor)
-    except Exception as e:
-        verslag["mislukt"].append(f"klantagenten: {e}")
-        print(f"Klantagenten mislukt: {e}")
+    if commandocentrum.aan("klant"):
+        try:
+            import klantagenten
+            import verkoopagent
+            if benadering.binnen_kantooruren():
+                verslag["klanten"] = klantagenten.ronde(
+                    get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
+                    categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+                    vraag_voor=verkoopagent._vraag_voor)
+        except Exception as e:
+            verslag["mislukt"].append(f"klantagenten: {e}")
+            print(f"Klantagenten mislukt: {e}")
 
     # Stap 167: drie dagen voor het einde van de gratis proef een herinnering.
-    try:
-        import proefperiode
-        if benadering.binnen_kantooruren():
-            verslag["proef"] = proefperiode.ronde(get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
-                                                  prijs=_prijs_euro("watch") or 49)
-    except Exception as e:
-        verslag["mislukt"].append(f"proef: {e}")
-        print(f"Proefherinnering mislukt: {e}")
+    if commandocentrum.aan("proef"):
+        try:
+            import proefperiode
+            if benadering.binnen_kantooruren():
+                verslag["proef"] = proefperiode.ronde(get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
+                                                      prijs=_prijs_euro("watch") or 49)
+                # 30 september: wie in de proef 3 of meer vragen op zijn lijst zette,
+                # krijgt een keer de vraag of wij het live zetten (Fix).
+                verslag["fix_aanbod"] = proefperiode.fix_aanbod_ronde(get_base_url().rstrip("/"),
+                                                                      fix_prijs=_prijs_euro("fix") or 149)
+        except Exception as e:
+            verslag["mislukt"].append(f"proef: {e}")
+            print(f"Proefherinnering mislukt: {e}")
 
     # Stap 166: plekmeldingen, wie zijn plek claimde hoort het als die verandert.
-    try:
-        import plekmelding
-        if benadering.binnen_kantooruren():
-            verslag["plekmelding"] = plekmelding.ronde(
-                get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
-                categorienaam=lambda b: categorieen.naam_en(b["categorie"]))
-    except Exception as e:
-        verslag["mislukt"].append(f"plekmelding: {e}")
-        print(f"Plekmelding mislukt: {e}")
+    if commandocentrum.aan("plekmelding"):
+        try:
+            import plekmelding
+            if benadering.binnen_kantooruren():
+                verslag["plekmelding"] = plekmelding.ronde(
+                    get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
+                    categorienaam=lambda b: categorieen.naam_en(b["categorie"]))
+        except Exception as e:
+            verslag["mislukt"].append(f"plekmelding: {e}")
+            print(f"Plekmelding mislukt: {e}")
 
     # De persagent (29 september): het persbericht een keer per maand vanzelf
     # naar de vakmedia, alleen als er nieuws is. Binnen kantooruren.
-    try:
-        import persagent
-        import indexnieuws
-        if benadering.binnen_kantooruren():
-            verslag["pers"] = persagent.ronde(
-                lambda land: _bewaard(("nieuws", land),
-                                      lambda l: indexnieuws.overzicht(l, ranglijst=_ranglijst_bewaard), land),
-                lambda ov: indexnieuws.persbericht_nl(ov, get_base_url().rstrip("/"), embed=embed_code),
-                melden=_meld_aan_beheer)
-    except Exception as e:
-        verslag["mislukt"].append(f"pers: {e}")
-        print(f"Persagent mislukt: {e}")
+    if commandocentrum.aan("pers"):
+        try:
+            import persagent
+            import indexnieuws
+            if benadering.binnen_kantooruren():
+                verslag["pers"] = persagent.ronde(
+                    lambda land: _bewaard(("nieuws", land),
+                                          lambda l: indexnieuws.overzicht(l, ranglijst=_ranglijst_bewaard), land),
+                    lambda ov: indexnieuws.persbericht_nl(ov, get_base_url().rstrip("/"), embed=embed_code),
+                    melden=_meld_aan_beheer)
+        except Exception as e:
+            verslag["mislukt"].append(f"pers: {e}")
+            print(f"Persagent mislukt: {e}")
 
     # De LinkedIn-agent (29 september): een week vooruit de posts klaarzetten.
-    try:
-        import linkedinagent
-        verslag["linkedin"] = linkedinagent.klaarzetten(
-            get_base_url().rstrip("/"),
-            _bewaard(("perland", linkedinagent.LAND), db.categorieen_per_land, linkedinagent.LAND,
-                     MINIMUM_PER_LAND) or [],
-            _ranglijst_bewaard, categorieen.naam_en, sitetaal.landnaam(linkedinagent.LAND, "en"))
-    except Exception as e:
-        verslag["mislukt"].append(f"linkedin: {e}")
-        print(f"LinkedIn-agent mislukt: {e}")
+    if commandocentrum.aan("linkedin"):
+        try:
+            import linkedinagent
+            verslag["linkedin"] = linkedinagent.klaarzetten(
+                get_base_url().rstrip("/"),
+                _bewaard(("perland", linkedinagent.LAND), db.categorieen_per_land, linkedinagent.LAND,
+                         MINIMUM_PER_LAND) or [],
+                _ranglijst_bewaard, categorieen.naam_en, sitetaal.landnaam(linkedinagent.LAND, "en"))
+        except Exception as e:
+            verslag["mislukt"].append(f"linkedin: {e}")
+            print(f"LinkedIn-agent mislukt: {e}")
 
     # De lijstjesagent (29 september): schrijvers van artikelen "beste GEO-tools"
     # een keer mailen, hoogstens drie per week, binnen kantooruren.
-    try:
-        import lijstjesagent
-        if benadering.binnen_kantooruren():
-            verslag["lijstjes"] = lijstjesagent.ronde(get_base_url().rstrip("/"))
-    except Exception as e:
-        verslag["mislukt"].append(f"lijstjes: {e}")
-        print(f"Lijstjesagent mislukt: {e}")
+    if commandocentrum.aan("lijstjes"):
+        try:
+            import lijstjesagent
+            if benadering.binnen_kantooruren():
+                verslag["lijstjes"] = lijstjesagent.ronde(get_base_url().rstrip("/"))
+        except Exception as e:
+            verslag["mislukt"].append(f"lijstjes: {e}")
+            print(f"Lijstjesagent mislukt: {e}")
 
     # De wachtlijst (stap 165): staat een land nu aan, dan krijgt wie erop wacht
     # een keer bericht. Zij vroegen er zelf om, dus ook buiten kantooruren niet
     # erg, maar wel netjes binnen: zelfde regel als de andere mail.
-    try:
-        import wachtlijst
-        if benadering.binnen_kantooruren():
-            verslag["wachtlijst"] = wachtlijst.ronde(get_base_url().rstrip("/"))
-    except Exception as e:
-        verslag["mislukt"].append(f"wachtlijst: {e}")
-        print(f"Wachtlijst mislukt: {e}")
+    if commandocentrum.aan("wachtlijst"):
+        try:
+            import wachtlijst
+            if benadering.binnen_kantooruren():
+                verslag["wachtlijst"] = wachtlijst.ronde(get_base_url().rstrip("/"))
+        except Exception as e:
+            verslag["mislukt"].append(f"wachtlijst: {e}")
+            print(f"Wachtlijst mislukt: {e}")
 
     # Eerst kijken of de lijst zichzelf moet aanvullen. Zonder dit raakt de
     # benaderlijst gewoon op: bij vijftien mails per dag is tweehonderd winkels
@@ -6262,7 +6380,26 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             except Exception as e:
                 print(f"Ranglijst voor het overzicht mislukt: {e}")
                 rijen = []
-            gegevens["top"] = dp.topkaart(rijen, webshop_url, beeld.get("telbaar") or 0)
+            gegevens["top"] = dp.topkaart(rijen, webshop_url, beeld.get("telbaar") or 0, aantal=7)
+            # Versie 8 (30 september): de beweging per winkel naast de ranglijst,
+            # de grafiek als gegevens voor de browser en de lijntjes in de tegels.
+            try:
+                gegevens["reeksen"] = dp.grafiek_reeksen(beeld)
+            except Exception as e:
+                print(f"Grafiekgegevens voor het overzicht mislukt: {e}")
+                gegevens["reeksen"] = []
+            gegevens["vonkjes"] = {s: dp.vonkje(beeld.get("verloop"), s) for s in ("positie", "zicht", "aanbevolen")}
+            # Versie 2: het verloop van jou EN de winkels boven je, zoals Peec
+            # de concurrenten in een grafiek zet.
+            try:
+                buren = dp.buren_verloop(beeld)
+                gegevens["grafiek_buren"] = dp.lijngrafiek(buren, breedte=760, hoogte=240, taal=taal)
+                anderen = [b for b in buren if not b.get("jij")]
+                gegevens["buren"] = ([{"naam": winkelnaam, "kleur": dp.KLEUR_JIJ}]
+                                     + [{"naam": b["naam"], "kleur": dp.KLEUREN_ANDEREN[i % 3]}
+                                        for i, b in enumerate(anderen)])
+            except Exception as e:
+                print(f"Verloop met buren voor het overzicht mislukt: {e}")
         if pagina == "ranglijst":
             # Twee keer proberen (28 september: de demo liet "All 0 stores" zien
             # terwijl dezelfde ranglijst een regel hoger wel lukte; een tijdelijk
@@ -6286,6 +6423,9 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             gegevens["buren"] = ([{"naam": b["naam"], "kleur": dp.KLEUREN_ANDEREN[i % 3]}
                                   for i, b in enumerate(anderen)]
                                  + [{"naam": winkelnaam, "kleur": dp.KLEUR_JIJ}])
+    # "Add to my fixes" (30 september): de lijst van de klant, op het overzicht
+    # voor de knoppen en op Verbeteringen bovenaan.
+    gegevens["gekozen"] = db.gekozen_vragen(webshop_url) if klant_token else []
     return render_template(
         "dashboard.html",
         t=sitetaal.teksten(taal), taal=taal, beeld=beeld, pagina=pagina,
@@ -6631,6 +6771,38 @@ def klant_dashboard(klant_token, pad=""):
                       pagina=dp.PAD_NAAR_PAGINA.get(pad, "overzicht"))
 
 
+@app.route("/mijn/<klant_token>/kies", methods=["POST"])
+def klant_kies_vraag(klant_token):
+    """"Add to my fixes" in het dashboard (30 september, het idee bij dashboard 8).
+
+    De klant zet een koopvraag op zijn lijst of haalt hem eraf. Alleen met een
+    geldige klantlink; op het voorbeeld (/demo) en de voorproef is er geen
+    knop maar een link naar de proef. Alleen vragen die echt in zijn laatste
+    meting stonden worden bewaard, zodat dit geen vrij tekstveld in onze
+    database is."""
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return jsonify({"ok": False}), 404
+    gegevens = request.get_json(silent=True) or {}
+    vraag = (gegevens.get("vraag") or "").strip()
+    aan = bool(gegevens.get("aan", True))
+    beeld = klantbeeld.bouw(klant["webshop_url"])
+    if not beeld or not vraag:
+        return jsonify({"ok": False}), 400
+    import dashboardpaginas as dp
+    try:
+        bekend = {v["vraag"] for v in dp.vragen_overzicht(beeld["ronde"], klant["webshop_url"],
+                                                         beeld.get("naam"))["vragen"]}
+    except Exception as e:
+        print(f"Vragen voor het kiezen ophalen mislukt: {e}")
+        bekend = set()
+    if vraag not in bekend:
+        return jsonify({"ok": False}), 400
+    aantal = db.zet_gekozen_vraag(klant["webshop_url"], vraag, aan)
+    return jsonify({"ok": aantal is not None, "aantal": aantal or 0, "aan": aan})
+
+
+@app.route("/login", methods=["GET", "POST"])
 @app.route("/mijn-link", methods=["GET", "POST"])
 def link_opnieuw():
     """De link opnieuw laten mailen.
@@ -6656,7 +6828,13 @@ def link_opnieuw():
                     kop="Your dashboard link")
         except Exception as e:
             print(f"Link opnieuw sturen mislukt: {e}")
-        return redirect("/mijn-link?m=verstuurd")
+        return redirect(("/login" if request.path == "/login" else "/mijn-link") + "?m=verstuurd")
+    # 29 september: Peec heeft een nette inlogpagina met een link per mail en
+    # geen wachtwoord. Dat hadden wij al (de geheime link), alleen heette het
+    # "Lost your link?" en stond het nergens in het menu. Nu is het /login,
+    # met "Log in" rechtsboven op de site. Zelfde werking, zelfde regels.
+    if request.path == "/login":
+        return render_template("login.html", verstuurd=verstuurd)
     return render_template("mijn_link.html", verstuurd=verstuurd)
 
 

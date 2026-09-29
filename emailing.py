@@ -543,7 +543,10 @@ def _kaal_adres(webshop_url):
 # eerste zin: verander je alles tegelijk, dan weet je niet wat werkte.
 #   a: de positie voorop    "shop.nl: #6 of 54 in the Krillo index"
 #   b: de vraag voorop      "Who AI recommends for Toys in the Netherlands"
-MAILVARIANTEN = ("a", "b")
+# Versie c (30 september, Nino's idee): de vraag die de homepage ook stelt,
+# "Is jouw winkel een van de drie die AI noemt?". Een vraag in plaats van een
+# cijfer; de telling per versie laat zien of dat vaker geopend wordt.
+MAILVARIANTEN = ("a", "b", "c")
 
 
 def kies_variant(webshop_url):
@@ -552,7 +555,7 @@ def kies_variant(webshop_url):
     vervuilt. Welke versies meedoen staat in MAIL_VARIANTEN (Render),
     standaard allebei."""
     import hashlib
-    actief = [v.strip() for v in (os.environ.get("MAIL_VARIANTEN") or "a,b").split(",")
+    actief = [v.strip() for v in (os.environ.get("MAIL_VARIANTEN") or "a,b,c").split(",")
               if v.strip() in MAILVARIANTEN] or ["a"]
     getal = int(hashlib.sha256((webshop_url or "").encode()).hexdigest(), 16)
     return actief[getal % len(actief)]
@@ -781,6 +784,8 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
         # de ranglijst), dus als naam achter een dubbele punt, niet in een zin.
         onderwerp = f"{onderwerp_voor}Who AI recommends: {categorienaam or beeld.get('categorie') or 'your category'}" \
                     + (f" in {landnaam}" if landnaam else "")
+    elif variant == "c":
+        onderwerp = f"{onderwerp_voor}Is {_kaal_adres(webshop_url)} one of the three stores AI names?"
     else:
         onderwerp = f"{onderwerp_voor}{_kaal_adres(webshop_url)}: #{positie} of {van} in the Krillo index"
     return send_email(to_email, onderwerp, html, koppen=koppen)

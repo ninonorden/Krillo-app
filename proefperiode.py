@@ -43,6 +43,7 @@ def _sql(opdracht, waarden=None, alles=False):
 def maak_tabellen(cur):
     cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS gratis_tot DATE;")
     cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS proef_herinnerd_op TIMESTAMPTZ;")
+    cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS fix_aanbod_op TIMESTAMPTZ;")
 
 
 def eerste_incasso(vandaag=None):
@@ -127,4 +128,66 @@ def ronde(basis_url, bouw_beeld, verstuur=None, vandaag=None, prijs=49):
         if verstuur(k["email"], mail["onderwerp"], mail["alineas"], f"{basis_url}/mijn/{k['klant_token']}",
                     knop="Open my dashboard"):
             uit["herinnerd"] += 1
+    return uit
+
+
+# ---------------------------------------------------------------------------
+# HET FIX-AANBOD IN DE PROEF (30 september, het nieuwe idee bij dashboard 8).
+#
+# WAAROM. Wie in zijn proef van Watch drie of meer koopvragen op zijn lijst zet
+# ("Add to my fixes"), laat zien dat hij wil dat het beter wordt. Dat is het
+# moment om te vragen of wij het werk doen. Een keer per klant, alleen tijdens
+# de proef, en alleen als hij nog niet opzegde. Geen korting en geen druk: de
+# vragen die hij zelf koos, en wat Fix daarmee doet.
+# ---------------------------------------------------------------------------
+FIX_AANBOD_VANAF = 3
+
+
+def fix_aanbod_kandidaten(vandaag=None):
+    vandaag = vandaag or date.today()
+    return _sql("""SELECT k.*, (SELECT count(*) FROM gekozen_vragen g WHERE g.webshop_url = k.webshop_url) AS gekozen
+                     FROM klanten k
+                    WHERE k.gratis_tot IS NOT NULL AND k.gratis_tot >= %s
+                      AND k.fix_aanbod_op IS NULL AND k.opgezegd_op IS NULL AND NOT k.is_test
+                      AND lower(coalesce(k.pakket, '')) = 'watch'
+                      AND (SELECT count(*) FROM gekozen_vragen g WHERE g.webshop_url = k.webshop_url) >= %s""",
+                (vandaag, FIX_AANBOD_VANAF), alles=True) or []
+
+
+def fix_aanbod_mail(winkel, vragen, fix_prijs):
+    # Elke vraag een eigen regel: de mail laat alleen <strong> door (zie
+    # emailing.alina_s_veilig), dus geen <br> of opsommingstekens in HTML.
+    alineas = ([f"You put {len(vragen)} buying questions on your list for <strong>{winkel}</strong>:"]
+               + [f"\u201c{v}\u201d" for v in vragen[:5]] + [
+               "With Watch you get the fix for each one written out, to do yourself. With Fix we put them "
+               "live in your store for you: on Shopify through our app, elsewhere by our team with your access. "
+               "The old text is kept, so every change can be undone, and at the next monthly measurement you "
+               "see the difference.",
+               f"Fix is EUR {fix_prijs} a month and you can cancel any month. Want us to do it? Reply to this "
+               f"email and we switch your plan. Rather do it yourself? Then nothing changes."])
+    return {"onderwerp": "Shall we put these fixes live for you?", "alineas": alineas}
+
+
+def fix_aanbod_ronde(basis_url, verstuur=None, vandaag=None, fix_prijs=149, gekozen=None):
+    """Een keer per proef: het aanbod voor Fix aan wie 3 of meer vragen koos."""
+    if verstuur is None:
+        import emailing
+        verstuur = emailing.send_klantbericht
+    if gekozen is None:
+        gekozen = db.gekozen_vragen
+    uit = {"fix_aanbod": 0}
+    try:
+        kandidaten = fix_aanbod_kandidaten(vandaag)
+    except Exception as e:
+        # De tabel met gekozen vragen bestaat pas na de eerste keuze.
+        print(f"Fix-aanbod kandidaten ophalen mislukt: {e}")
+        return uit
+    for k in kandidaten:
+        # Eerst afvinken: nooit twee keer.
+        _sql("UPDATE klanten SET fix_aanbod_op = now() WHERE klant_token = %s", (k["klant_token"],))
+        winkel = k["webshop_url"].replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
+        mail = fix_aanbod_mail(winkel, gekozen(k["webshop_url"]), fix_prijs)
+        if verstuur(k["email"], mail["onderwerp"], mail["alineas"], f"{basis_url}/mijn/{k['klant_token']}/fixes",
+                    knop="See my fixes"):
+            uit["fix_aanbod"] += 1
     return uit

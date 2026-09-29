@@ -257,7 +257,11 @@ def topkaart(rijen, eigen_url, telbaar, aantal=5):
         naam = r.get("naam")
         if not naam or str(naam).startswith("http"):
             naam = (r.get("webshop_url") or "").replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
-        return {"positie": r.get("positie"), "naam": naam, "jij": jij,
+        vorige, nu = r.get("vorige_positie"), r.get("positie")
+        # Versie 8: de beweging sinds de vorige meting, net als op /index.
+        beweging = ("" if not vorige or not nu else
+                    (f"▲{vorige - nu}" if vorige > nu else (f"▼{nu - vorige}" if nu > vorige else "=")))
+        return {"positie": r.get("positie"), "naam": naam, "jij": jij, "beweging": beweging,
                 "zicht": int(round(100 * (r.get("genoemd") or 0) / telbaar)) if telbaar else 0,
                 "kleur": KLEUR_JIJ if jij else KLEUREN_TOP[i % len(KLEUREN_TOP)], "gat": False}
     uit = [regel(r, i) for i, r in enumerate(rijen[:aantal])]
@@ -268,3 +272,66 @@ def topkaart(rijen, eigen_url, telbaar, aantal=5):
             e["gat"] = True
             uit.append(e)
     return uit
+
+
+# ---------------------------------------------------------------------------
+# DASHBOARD VERSIE 8 (30 september). De grafiek op het overzicht wordt in de
+# browser getekend, zodat je met de tegels kan wisselen tussen plek,
+# zichtbaarheid en aangeraden, en op een meting kan klikken. Daarvoor gaan de
+# echte meetpunten als gegevens mee in plaats van als kant-en-klaar plaatje.
+# ---------------------------------------------------------------------------
+GRAFIEK_KLEUREN = ("#0A0A0B", "#6E7079", "#A9AAB2")
+
+
+def _punt(r):
+    telbaar = r.get("telbaar") or 0
+    d = r.get("afgerond_op")
+    return {"d": d.strftime("%d %b").upper() if d else "",
+            "positie": r.get("positie"),
+            "zicht": int(round(100 * (r.get("genoemd") or 0) / telbaar)) if telbaar else 0,
+            "aanbevolen": r.get("aanbevolen") or 0}
+
+
+def grafiek_reeksen(beeld, maximaal=3):
+    """Jij en de winkels vlak boven je, met per meting plek, zichtbaarheid en
+    aangeraden. De x-as is die van de winkel zelf: een buur die in een ronde
+    ontbrak krijgt daar een gat (None) in plaats van een verzonnen punt.
+
+    Geeft [] terug bij minder dan twee metingen: een lijn van een punt zegt
+    niets, en het scherm zegt dan eerlijk dat de lijn na de volgende meting komt."""
+    if not beeld:
+        return []
+    eigen = beeld.get("verloop") or []
+    if len(eigen) < 2:
+        return []
+    datums = [r.get("afgerond_op") for r in eigen]
+    reeksen = [{"naam": beeld.get("naam") or beeld["webshop_url"].replace("https://", ""),
+                "kleur": KLEUR_JIJ, "jij": True, "punten": [_punt(r) for r in eigen]}]
+    for i, b in enumerate((beeld.get("boven_mij") or [])[-maximaal:]):
+        try:
+            verloop = db.positieverloop(b["webshop_url"], beeld["categorie"], beeld.get("land"))
+        except Exception:
+            verloop = []
+        per_datum = {r.get("afgerond_op"): r for r in verloop}
+        reeksen.append({"naam": b.get("naam") or b["webshop_url"].replace("https://", ""),
+                        "kleur": GRAFIEK_KLEUREN[i % len(GRAFIEK_KLEUREN)], "jij": False,
+                        "punten": [(_punt(per_datum[d]) if d in per_datum else None) for d in datums]})
+    return reeksen
+
+
+def vonkje(verloop, sleutel, breedte=200, hoogte=26):
+    """De punten van een klein lijntje in een tegel (sparkline). Bij de plek
+    staat nummer 1 bovenaan, bij de rest is hoger beter."""
+    waarden = [_punt(r)[sleutel] for r in (verloop or [])]
+    waarden = [w for w in waarden if w is not None]
+    if len(waarden) < 2:
+        return ""
+    laag, hoog = min(waarden), max(waarden)
+    bereik = (hoog - laag) or 1
+    uit = []
+    for i, w in enumerate(waarden):
+        x = round(i * breedte / (len(waarden) - 1), 1)
+        deel = (w - laag) / bereik
+        y = round(3 + (deel if sleutel == "positie" else 1 - deel) * (hoogte - 6), 1)
+        uit.append(f"{x},{y}")
+    return " ".join(uit)

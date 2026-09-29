@@ -121,7 +121,10 @@ def kies_categorie(categorieen, ranglijst, land=LAND):
 def post_ranglijst(slug, rijen, naam_en, landnaam, basis_url):
     top = [r for r in rijen if (r.get("genoemd") or 0) > 0][:5]
     telbaar = max((r.get("telbaar") or 0) for r in top) or None
-    regels = [f"Which webshops do ChatGPT and Gemini recommend for {naam_en.lower()} in {landnaam}?", ""]
+    # 30 september (Nino's idee): de vraag van de homepage als eerste regel. Een
+    # lezer die een webshop heeft, leest hem als een vraag aan zichzelf.
+    regels = [f"Is your store one of the three AI names for {naam_en.lower()} in {landnaam}?", "",
+              "Which webshops ChatGPT and Gemini recommend right now:", ""]
     for r in top:
         regels.append(f"#{r['positie']} {_naam(r)}")
     regels += [
