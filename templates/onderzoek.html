@@ -81,12 +81,10 @@
              letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
   .logo-dot{display:none;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <a href="/#scan" style="font-size:14px;">Gratis scan</a>
-</div></nav>
+{% include "_kop.html" %}
 
 <main><div class="wrap">
   <div class="eyebrow">Onderzoek · Krillo</div>
@@ -178,10 +176,6 @@
   </div>
 </div></main>
 
-<footer><div class="wrap">
-  Krillo, Amsterdam · <a href="/">krilloai.com</a> ·
-  <a href="/zo-meten-we">Zo meten we</a> ·
-  Vragen over dit onderzoek? <a href="mailto:hello@krilloai.com">hello@krilloai.com</a>
-</div></footer>
+{% include "_voet.html" %}
 </body>
 </html>

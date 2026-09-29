@@ -73,15 +73,11 @@
              letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
   .logo-dot{display:none;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
 
-<nav>
-  <div class="wrap">
-    <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-    <a class="back-link" href="/">&larr; Back to the website</a>
-  </div>
-</nav>
+{% include "_kop.html" %}
 
 <main>
   <h1>Terms and conditions</h1>
@@ -171,16 +167,7 @@
 
   <h2>14. Applicable law</h2>
   <p>Dutch law applies to these terms.</p>
-</main><footer>
-  <div class="wrap">
-    <div>© 2026 Krillo. Built in the Netherlands.</div>
-    <div class="flinks">
-      <a href="/privacy">Privacy policy</a>
-      <a href="/voorwaarden">Terms and conditions</a>
-      <a href="/herroepen">Withdraw a purchase</a>
-    </div>
-  </div>
-</footer>
+</main>{% include "_voet.html" %}
 
 </body>
 </html>

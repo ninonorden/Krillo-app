@@ -1,0 +1,76 @@
+{# DE NIEUWE LAAG VAN DE HUISSTIJL (30 september, homepage versie 9 en dashboard
+   versie 8, goedgekeurd door Nino: "Ja!! dat is het").
+
+   WAAROM EEN APART BESTAND. De kop en de voet van de site stonden in twintig
+   sjablonen elk net anders. Nu staan ze in _kop.html en _voet.html, en de stijl
+   daarvan hier. Alles heeft een eigen klassenaam die met k- begint, zodat de
+   oude stijl van een pagina (die vaak "nav" of "footer" kaal aanspreekt) er
+   niet doorheen loopt.
+
+   Kleuren: alleen de huisstijl. Inkt, grijzen, EEN blauw (voor jou en voor
+   knoppen) en groen alleen voor een stijging. Schaduwen zacht en in lagen. #}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--k-inkt:#0A0A0B; --k-zacht:#4A4A55; --k-grijs:#6E7079; --k-grijs2:#A9AAB2;
+        --k-zand:#F7F7F9; --k-lijn:#E8E8EC; --k-lijn2:#F1F1F4; --k-blauw:#1B3FE0;
+        --k-blauw-d:#142FA8; --k-blauw-l:#E7EBFF; --k-blauw-z:#7F8CFF;
+        --k-groen:#0B7C5E; --k-groen-l:#DFF3EC; --k-groen-z:#35D6A4;
+        --k-schaduw:0 1px 2px rgba(10,10,11,.04), 0 12px 28px -12px rgba(10,10,11,.12), 0 40px 80px -32px rgba(10,10,11,.22);
+        --k-schaduw-klein:0 1px 2px rgba(10,10,11,.04), 0 12px 28px -16px rgba(10,10,11,.22);
+        --k-disp:'Space Grotesk', system-ui, sans-serif; --k-mono:'IBM Plex Mono', monospace;}
+  .k-mono{font-family:var(--k-mono);}
+
+  /* DE KOP. Woordmerk links, vijf links, rechts Log in en de proef. */
+  header.k-kop{position:relative; z-index:20; background:#fff; border-bottom:1px solid var(--k-lijn);
+               font-family:var(--k-disp);}
+  .k-kop .k-binnen{max-width:var(--k-breed, 1248px); margin:0 auto; padding:0 24px; height:64px; display:flex;
+                   align-items:center; gap:36px;}
+  .k-merk{display:flex; align-items:baseline; gap:8px; text-decoration:none; color:var(--k-inkt);}
+  .k-merk b{font-weight:700; font-size:20px; letter-spacing:-0.04em;}
+  .k-merk i{font-style:normal; font-family:var(--k-mono); font-size:10.5px; color:var(--k-grijs); letter-spacing:.1em;}
+  .k-kop nav.k-links{display:flex; gap:26px; font-size:14.5px; border:0; background:none; margin:0; padding:0;}
+  .k-kop nav.k-links a{color:var(--k-zacht); text-decoration:none;}
+  .k-kop nav.k-links a:hover, .k-kop nav.k-links a.aan{color:var(--k-inkt);}
+  .k-kop .k-rechts{margin-left:auto; display:flex; gap:8px; align-items:center;}
+  .k-knop{display:inline-flex; align-items:center; justify-content:center; gap:6px; text-decoration:none;
+          border-radius:8px; padding:8px 14px; font-size:14px; font-weight:500; font-family:var(--k-disp);
+          border:1px solid transparent; cursor:pointer; line-height:1.3; white-space:nowrap;
+          transition:background .15s, box-shadow .2s, border-color .2s;}
+  .k-knop.blauw{background:var(--k-blauw); color:#fff;
+                box-shadow:0 1px 2px rgba(27,63,224,.25), 0 8px 20px -10px rgba(27,63,224,.55);}
+  .k-knop.blauw:hover{background:var(--k-blauw-d); color:#fff;}
+  .k-knop.wit{background:#fff; color:var(--k-inkt); border-color:var(--k-lijn);}
+  .k-knop.wit:hover{background:var(--k-zand); color:var(--k-inkt);}
+  .k-knop.zwart{background:var(--k-inkt); color:#fff;}
+  .k-knop.zwart:hover{background:#26262B; color:#fff;}
+  .k-knop.groot{padding:13px 20px; font-size:15px; border-radius:10px;}
+  @media(max-width:900px){ .k-kop nav.k-links{display:none;} .k-kop .k-binnen{gap:16px;} }
+  @media(max-width:480px){ .k-kop .k-inlog{display:none;} }
+
+  /* DE VOET. Zwart, zoals de huisstijl voorschrijft: vier kolommen links. */
+  footer.k-voet{margin:0; background:var(--k-inkt); color:#fff; border:0; padding:56px 0 36px;
+                font-family:var(--k-disp); font-size:14px; line-height:1.5;}
+  .k-voet .k-binnen{max-width:var(--k-breed, 1248px); margin:0 auto; padding:0 24px;}
+  .k-voet .k-kolommen{display:grid; grid-template-columns:minmax(0,1.4fr) repeat(4, minmax(0,1fr)); gap:24px;}
+  @media(max-width:860px){ .k-voet .k-kolommen{grid-template-columns:repeat(2, minmax(0,1fr));} }
+  .k-voet .k-merk b, .k-voet .k-merk{color:#fff;}
+  .k-voet .k-merk i{color:var(--k-grijs2);}
+  .k-voet p{color:var(--k-grijs2); margin:10px 0 0; font-size:14px;}
+  .k-voet .k-kol{display:flex; flex-direction:column; gap:9px;}
+  .k-voet .k-kol span{font-family:var(--k-mono); font-size:11px; color:var(--k-grijs); letter-spacing:.06em;}
+  .k-voet a{color:#fff; text-decoration:none;}
+  .k-voet a:hover{color:var(--k-blauw-z);}
+  .k-voet .k-onder{margin-top:40px; padding-top:20px; border-top:1px solid #26262B; display:flex;
+                   gap:20px; flex-wrap:wrap; font-family:var(--k-mono); font-size:11.5px; color:var(--k-grijs);}
+  .k-voet .k-onder a{color:var(--k-grijs2);}
+  .k-voet .k-onder .rechts{margin-left:auto; display:flex; gap:20px;}
+
+  /* Oude pagina's: kaarten en tabellen krijgen dezelfde rustige laag. */
+  .kaart, .blok, .leeg{border-radius:10px;}
+  .kaart{transition:box-shadow .25s, border-color .25s;}
+  .kaart:hover{border-color:#D6D6DC; box-shadow:var(--k-schaduw-klein);}
+  table{border-radius:10px;}
+  @media (prefers-reduced-motion: reduce){ .k-zweef, .k-typ{animation:none !important;} }
+</style>

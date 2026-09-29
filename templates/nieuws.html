@@ -18,16 +18,10 @@
          color:var(--ink-grijs); margin-right:6px;}
   .nieuw{color:var(--groen); font-weight:600;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <div class="links">
-    <a href="/index">The index</a>
-    <a href="/tools">Free tools</a>
-    <a class="knop donker" href="/#scan">Check my store</a>
-  </div>
-</div></nav>
+{% include "_kop.html" %}
 <main><div class="wrap">
   <div class="kruimels"><a href="/index">The index</a> &rsaquo; News &rsaquo; {{ landnaam }}</div>
   <h1>What changed this month</h1>
@@ -54,7 +48,6 @@
     <a class="knop vol" href="/#scan">Check my store</a>
   </div>
 </div></main>
-<footer><div class="wrap">Krillo &middot; <a href="/index">The index</a> &middot; <a href="/zo-meten-we">How we measure</a>
-  &middot; <a href="/tools">Free tools</a></div></footer>
+{% include "_voet.html" %}
 </body>
 </html>

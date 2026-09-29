@@ -158,15 +158,11 @@
              letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
   .logo-dot{display:none;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
 
-<nav>
-  <div class="wrap">
-    <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-    <a class="nav-cta" href="/#scan">Check my store</a>
-  </div>
-</nav>
+{% include "_kop.html" %}
 
 <main>
   <h1>Everything you want to know about Krillo</h1>
@@ -206,7 +202,7 @@
   <p>Email <a href="mailto:hello@krilloai.com">hello@krilloai.com</a>. You get a personal answer, not a support department.</p>
 </main>
 
-<footer>&copy; 2026 Krillo &middot; <a href="/">Back to the website</a></footer>
+{% include "_voet.html" %}
 
 </body>
 </html>

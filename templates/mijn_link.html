@@ -7,12 +7,10 @@
 <meta name="robots" content="noindex">
 <link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
 {% include "_stijl.html" %}
+{% include "_k_stijl.html" %}
 </head>
 <body>
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <div class="links"><a href="/index">The index</a></div>
-</div></nav>
+{% include "_kop.html" %}
 
 <main><div class="wrap" style="max-width:560px;">
   <h1>Lost your link?</h1>
@@ -44,8 +42,6 @@
   </p>
 </div></main>
 
-<footer><div class="wrap">
-  Krillo &middot; <a href="/index">The index</a> &middot; <a href="/over-ons">About us</a>
-</div></footer>
+{% include "_voet.html" %}
 </body>
 </html>

@@ -21,15 +21,10 @@
   .cijfers{display:flex; gap:36px; flex-wrap:wrap; margin:22px 0 10px;}
   @media(max-width:640px){ table.klanten .weg{display:none;} }
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <div class="links">
-    <a href="/index">The index</a>
-    <a class="knop donker" href="/partners">Partner program</a>
-  </div>
-</div></nav>
+{% include "_kop.html" %}
 
 <main><div class="wrap" style="max-width:860px;">
   <p class="klein">For {{ bureau.naam or bureau.site }}</p>
@@ -67,7 +62,6 @@
   <p class="klein" style="margin-top:22px;">Not interested? <a href="/bureau/{{ token }}/afmelden">Remove us from your inbox</a>.</p>
 </div></main>
 
-<footer><div class="wrap">Krillo &middot; <a href="/partners">Partners</a> &middot; <a href="/index">The index</a>
-  &middot; <a href="/privacy">Privacy</a></div></footer>
+{% include "_voet.html" %}
 </body>
 </html>

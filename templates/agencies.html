@@ -40,17 +40,10 @@
   ul.punten li{margin:0 0 10px 18px; color:var(--ink-zacht);}
   .rood{color:#B42318; font-weight:600;} .groen{color:var(--groen); font-weight:600;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <div class="links">
-    <a href="/index">The index</a>
-    <a href="/demo">Product</a>
-    <a href="/partners">Partner program</a>
-    <a class="knop donker" href="#aanvragen">Get started</a>
-  </div>
-</div></nav>
+{% include "_kop.html" %}
 
 <main><div class="wrap" style="max-width:900px;">
   <h1>{% if soort == 'brand' %}See where AI recommends your brand's stores{% else %}Show every client where ChatGPT recommends them{% endif %}</h1>
@@ -127,8 +120,7 @@
   </form>
 </div></main>
 
-<footer><div class="wrap">Krillo &middot; <a href="/partners">Partners</a> &middot; <a href="/tools">Free tools</a>
-  &middot; <a href="/compare">Compare</a> &middot; <a href="/index">The index</a> &middot; <a href="/privacy">Privacy</a></div></footer>
+{% include "_voet.html" %}
 
 <script>
 (function(){

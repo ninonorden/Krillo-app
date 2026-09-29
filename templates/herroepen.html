@@ -75,10 +75,11 @@
              letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
   .logo-dot{display:none;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
 
-<nav><div class="wrap"><a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a></div></nav>
+{% include "_kop.html" %}
 
 <main>
   <h1>Withdraw your purchase</h1>
@@ -106,7 +107,7 @@
   <div class="melding" id="hMelding"></div>
 </main>
 
-<footer>© 2026 Krillo &middot; <a href="mailto:hello@krilloai.com">hello@krilloai.com</a> &middot; <a href="/voorwaarden">Terms and conditions</a></footer>
+{% include "_voet.html" %}
 
 <script>
 (function(){

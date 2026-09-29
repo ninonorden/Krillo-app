@@ -14,12 +14,13 @@
 {% include "_stijl.html" %}
 {% include "_dashboard_stijl.html" %}
 {% include "_dashboard_v2.html" %}
+{% include "_dashboard_v8.html" %}
 </head>
-<body class="v2">
+<body class="v2 v8">
 <div class="scherm">
 
   <div class="zijkant">
-    <a class="logo" href="/"><span class="merkteken">K</span>KRILLO <span class="tag">INDEX</span></a>
+    <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
 
     <div class="winkelkaart">
       <div class="stip">{{ ((beeld.naam if beeld else winkelnaam) or '?')[:1] }}</div>
@@ -47,15 +48,29 @@
 
     <div style="flex-grow:1;"></div>
     <div class="zijvoet">
-      {{ 'ELKE MAAND GEMETEN' if taal == 'nl' else 'MEASURED EVERY MONTH' }}<br>
-      {% if beeld and beeld.gemeten_op %}<span>{{ t.gemeten_op | upper }}
-        {{ beeld.gemeten_op.strftime('%d %b %Y') | upper }}</span>{% endif %}
+      {% if beeld and beeld.gemeten_op %}<span class="d8-mono">{{ 'VOLGENDE METING' if taal == 'nl' else 'NEXT MEASUREMENT' }}</span>
+      <span class="d8-live"></span>{{ (beeld.gemeten_op + volgende_meting_na).strftime('%-d %b') }}
+      <span style="display:block; color:var(--grijs1); margin-top:2px;">{{ 'Laatst gemeten' if taal == 'nl' else 'Last measured' }} {{ beeld.gemeten_op.strftime('%-d %b') }}</span>
+      {% else %}{{ 'Elke maand gemeten' if taal == 'nl' else 'Measured every month' }}{% endif %}
     </div>
+    {# Het zwarte kaartje onderaan: op het voorbeeld en de voorproef de proef,
+       voor een Watch-klant wat Fix erbij doet. Voor Fix-klanten niets. #}
+    {% if proef %}
+    <a class="d8-zijkaart" href="/uitkomst/{{ proef }}/verder?plan=watch"><span class="d8-mono">WATCH &middot; 14 {{ 'DAGEN GRATIS' if taal == 'nl' else 'DAYS FREE' }}</span>
+      <span>{{ 'Elke maand deze pagina, alle antwoorden en wat je moet veranderen.' if taal == 'nl' else 'This page every month, every answer and what to change.' }}</span><b>{{ 'Start gratis proef' if taal == 'nl' else 'Start free trial' }} &rarr;</b></a>
+    {% elif voorbeeld %}
+    <a class="d8-zijkaart" href="/?plan=watch#pricing"><span class="d8-mono">WATCH &middot; 14 {{ 'DAGEN GRATIS' if taal == 'nl' else 'DAYS FREE' }}</span>
+      <span>{{ 'Dit scherm voor je eigen winkel, elke maand.' if taal == 'nl' else 'This screen for your own store, every month.' }}</span><b>{{ 'Start gratis proef' if taal == 'nl' else 'Start free trial' }} &rarr;</b></a>
+    {% elif werkblok and not werkblok.doet_werk and not werkblok.opgezegd %}
+    <a class="d8-zijkaart" href="{{ link_van.abonnement }}"><span class="d8-mono">FIX</span>
+      <span>{{ 'Liever niet zelf? Met Fix zetten wij de verbeteringen live.' if taal == 'nl' else 'Rather not do it yourself? With Fix we put the fixes live.' }}</span><b>{{ 'Bekijk Fix' if taal == 'nl' else 'See Fix' }} &rarr;</b></a>
+    {% endif %}
   </div>
 
   <div class="werkblad" id="overzicht">
     <div class="werkkop">
-      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:center; gap:0; flex-wrap:wrap;">
+        <span class="pad">{{ beeld.naam if beeld else winkelnaam }}</span><span class="schuin">/</span>
         <h1>{{ paginanaam }}</h1>
         {% if beeld %}
         <div class="regel">
@@ -65,12 +80,12 @@
           {% if modellen %} &middot; {{ modellen | length }} {{ 'ASSISTENTEN' if taal == 'nl' else 'ASSISTANTS' }}{% endif %}
           &middot; {{ landnaam | upper }}
         </div>
-        {% if beeld.gemeten_op %}<span class="chip mono">{{ t.gemeten_op | upper }} {{ beeld.gemeten_op.strftime('%d %b %Y') | upper }}</span>{% endif %}
+        {% if beeld.gemeten_op %}<span class="chip stil" style="margin-left:12px;">{{ 'Gemeten op' if taal == 'nl' else 'Measured' }} {{ beeld.gemeten_op.strftime('%-d %b %Y') }}</span>{% endif %}
         {% endif %}
       </div>
       <div class="chips">
         {% if beeld %}
-        <span class="chip">{{ beeld.telbaar }} {{ 'koopvragen' if taal == 'nl' else 'buying questions' }}</span>
+        <span class="chip verberg-mobiel">{{ beeld.telbaar }} {{ 'koopvragen' if taal == 'nl' else 'buying questions' }}</span>
         {% if modellen %}<span class="chip">{{ modellen | join(', ') }}</span>{% endif %}
         <span class="chip">{{ landnaam }}</span>
         {% endif %}
@@ -134,115 +149,329 @@
     {% endif %}
 
     {# ================================================================ OVERZICHT #}
-    {# 29 september: de opbouw van Peec. Vier cijfers met hun beweging, dan het
-       verloop naast de ranglijst, dan de vragen die je verliest naast wat er
-       aan te doen is. Alleen echte meetcijfers; wat er (nog) niet is, staat
-       er niet. #}
+    {# Versie 2 (29 september, 16:00): de opbouw van Peec en Stripe. Een strook
+       met vier cijfers, het verloop van jou en je buren naast de ranglijst,
+       en de vragen die je verliest naast wat je eraan doet. Alleen echte
+       meetcijfers; wat er (nog) niet is, staat er niet. #}
     {% if pagina == 'overzicht' and beeld %}
+    {# ================================================================
+       OVERZICHT, VERSIE 8 (30 september). Goedgekeurd ontwerp: bord
+       Dashboard8. Vier tegels (drie zijn knoppen die de grafiek wisselen), de
+       grafiek van jou en de winkels boven je naast de ranglijst, en alle
+       koopvragen met rechts een lade: het echte antwoord per assistent, wie er
+       in het antwoord staat, en "Add to my fixes".
+       Alleen echte meetcijfers. Wat er niet is, staat er niet: bij een eerste
+       meting geen lijn maar een zin, en geen bronnen per antwoord (die meten
+       we niet per antwoord).
+       ================================================================ #}
     {% if volgende %}
     <div class="volgende"><span class="pijl">&rarr;</span> {{ volgende }}</div>
     {% endif %}
 
     {% set zicht = ((beeld.genoemd / beeld.telbaar * 100) | round | int) if beeld.telbaar else 0 %}
-    <div class="kpis">
-      <div class="kpi">
-        <div class="label">{{ 'JOUW PLEK' if taal == 'nl' else 'YOUR RANK' }}</div>
-        <div class="rij"><span class="groot">#{{ beeld.positie }}</span>
-          <span class="naast">{{ t.van_de_gemeten.replace('{n}', beeld.van | string) }}</span></div>
-        {% if beeld.verschil and beeld.verschil > 0 %}<span class="delta op">&#9650; {{ beeld.verschil }} {{ 'plekken' if taal == 'nl' else ('place' if beeld.verschil == 1 else 'places') }}</span>
-        {% elif beeld.verschil and beeld.verschil < 0 %}<span class="delta af">&#9660; {{ -beeld.verschil }} {{ 'plekken' if taal == 'nl' else ('place' if beeld.verschil == -1 else 'places') }}</span>
-        {% elif beeld.vorige_positie %}<span class="delta nul">{{ 'Gelijk' if taal == 'nl' else 'No change' }}</span>
-        {% else %}<span class="delta nul">{{ 'Eerste meting' if taal == 'nl' else 'First measurement' }}</span>{% endif %}
-      </div>
-      <div class="kpi">
-        <div class="label">{{ 'ZICHTBAARHEID' if taal == 'nl' else 'VISIBILITY' }}</div>
-        <div class="rij"><span class="groot">{{ zicht }}%</span>
-          <span class="naast">{{ 'van de koopvragen' if taal == 'nl' else 'of buying questions' }}</span></div>
-        <span class="delta nul">{{ beeld.genoemd }} / {{ beeld.telbaar }} {{ 'genoemd' if taal == 'nl' else 'named' }}</span>
-      </div>
-      <div class="kpi">
-        <div class="label">{{ t.aanbevolen | upper }}</div>
-        <div class="rij"><span class="groot">{{ beeld.aanbevolen }}</span>
-          <span class="naast">{{ t.van_de }} {{ beeld.telbaar }}</span></div>
-        {% if beeld.aanbevolen == 0 %}<span class="delta af">{{ 'Hier gaan kopers verloren' if taal == 'nl' else 'Where buyers are lost' }}</span>
-        {% else %}<span class="delta op">{{ 'Als eerste advies' if taal == 'nl' else 'Advised first' }}</span>{% endif %}
-      </div>
-      <div class="kpi">
-        <div class="label">{{ 'VRAGEN VERLOREN' if taal == 'nl' else 'QUESTIONS LOST' }}</div>
-        <div class="rij"><span class="groot">{{ beeld.telbaar - beeld.genoemd }}</span>
-          <span class="naast">{{ t.van_de }} {{ beeld.telbaar }}</span></div>
-        <span class="delta nul">{{ 'Andere winkels genoemd' if taal == 'nl' else 'Other stores named' }}</span>
-      </div>
-    </div>
+    {% set vr = vragen if vragen is defined and vragen else {"vragen": [], "gewonnen": 0, "verloren": 0, "totaal": 0} %}
+    {% set nl = taal == 'nl' %}
+    <div class="d8-overzicht">
+      <div class="d8-links">
+        <div class="kpis d8-tegels">
+          <button type="button" class="kpi d8-tegel{{ ' aan' if reeksen }}" data-maat="positie"{% if not reeksen %} disabled{% endif %}>
+            <span class="label">{{ 'Plek in' if nl else 'Rank in' }} {{ categorienaam }}</span>
+            <span class="rij"><span class="groot">#{{ beeld.positie }}</span>
+              {% if beeld.verschil and beeld.verschil > 0 %}<span class="delta op">&#9650;{{ beeld.verschil }}</span>
+              {% elif beeld.verschil and beeld.verschil < 0 %}<span class="delta af">&#9660;{{ -beeld.verschil }}</span>{% endif %}</span>
+            <span class="onder">{{ t.van_de_gemeten.replace('{n}', beeld.van | string) }}{% if not beeld.vorige_positie %} &middot; {{ 'eerste meting' if nl else 'first measurement' }}{% endif %}</span>
+            {% if vonkjes and vonkjes.positie %}<svg class="d8-vonk" viewBox="0 0 200 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ vonkjes.positie }}"/></svg>{% endif %}
+          </button>
+          <button type="button" class="kpi d8-tegel" data-maat="zicht"{% if not reeksen %} disabled{% endif %}>
+            <span class="label">{{ 'Zichtbaarheid' if nl else 'Visibility' }}</span>
+            <span class="rij"><span class="groot">{{ zicht }}%</span></span>
+            <span class="onder">{{ ('genoemd in ' ~ beeld.genoemd ~ ' van ' ~ beeld.telbaar ~ ' antwoorden') if nl else ('named in ' ~ beeld.genoemd ~ ' of ' ~ beeld.telbaar ~ ' answers') }}</span>
+            {% if vonkjes and vonkjes.zicht %}<svg class="d8-vonk" viewBox="0 0 200 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ vonkjes.zicht }}"/></svg>{% endif %}
+          </button>
+          <button type="button" class="kpi d8-tegel" data-maat="aanbevolen"{% if not reeksen %} disabled{% endif %}>
+            <span class="label">{{ 'Als eerste aangeraden' if nl else 'Recommended first' }}</span>
+            <span class="rij"><span class="groot">{{ beeld.aanbevolen }}</span></span>
+            <span class="onder">{{ 'keer dat AI jou adviseert' if nl else 'times AI advises your store' }}</span>
+            {% if vonkjes and vonkjes.aanbevolen %}<svg class="d8-vonk" viewBox="0 0 200 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ vonkjes.aanbevolen }}"/></svg>{% endif %}
+          </button>
+          <div class="kpi d8-tegel stil">
+            <span class="label">{{ 'Vragen gewonnen' if nl else 'Questions won' }}</span>
+            <span class="rij"><span class="groot">{{ vr.gewonnen }}<small> / {{ vr.totaal }}</small></span></span>
+            <span class="onder">{{ 'minstens een assistent noemt je' if nl else 'at least one assistant names you' }}</span>
+          </div>
+        </div>
 
-    <div class="twee">
-      <div class="kaartblok" id="verloop">
-        <div class="kaartkop">{{ 'Jouw plek per meting' if taal == 'nl' else 'Your rank over time' }}
-          <span class="uitleg">{{ 'nummer 1 bovenaan' if taal == 'nl' else 'number 1 at the top' }}</span></div>
-        {% if grafiek_eigen %}
-        {{ grafiek_eigen }}
-        {% else %}
-        <p class="klein" style="margin:0;">{{ 'Dit is je eerste meting. Na de volgende meting zie je hier de lijn van je plek.' if taal == 'nl'
-             else 'This is your first measurement. After the next one, the line of your place appears here.' }}</p>
-        {% endif %}
-        <div style="margin-top:16px;">
-          <div class="kaartkop" style="font-size:13px;">{{ 'Genoemd per assistent' if taal == 'nl' else 'Named per assistant' }}</div>
-          {{ balken }}
+        <div class="d8-kaart d8-twee">
+          <div class="d8-grafiek" id="verloop">
+            <div class="d8-kop"><b data-grafiektitel>{{ 'Plek per meting' if nl else 'Rank over time' }}</b>
+              <span class="d8-mono d8-hoofd">{{ 'jij en de winkels boven je, nummer 1 bovenaan' if nl else 'you and the stores above you, number 1 at the top' }}</span>
+              {% if reeksen %}<span class="d8-mono rechts">{{ 'KLIK EEN METING' if nl else 'CLICK A MEASUREMENT' }}</span>{% endif %}</div>
+            {% if reeksen %}
+            <div class="d8-vlak" data-grafiek>
+              <svg viewBox="0 0 520 230" role="img" aria-label="{{ 'Verloop van jou en de winkels boven je' if nl else 'You and the stores above you over time' }}"></svg>
+              <div class="d8-tip" hidden></div>
+            </div>
+            <div class="legenda">{% for r in reeksen %}<span><i style="background:{{ r.kleur }}"></i>{{ r.naam }}</span>{% endfor %}</div>
+            <script type="application/json" id="d8Reeksen">{{ reeksen | tojson }}</script>
+            {% else %}
+            <p class="d8-leeg">{{ 'Dit is je eerste meting. Na de volgende zie je hier de lijn van jou en de winkels boven je.' if nl
+                 else 'This is your first measurement. After the next one, the lines of you and the stores above you appear here.' }}</p>
+            {% endif %}
+          </div>
+          <div class="d8-rang">
+            <div class="d8-kop"><b>{{ 'Ranglijst' if nl else 'Ranking' }} &middot; {{ categorienaam }}</b>
+              <a class="rechts" href="{{ link_van.ranglijst }}">{{ ('Alle ' ~ beeld.van) if nl else ('All ' ~ beeld.van) }} &rarr;</a></div>
+            {% for r in top %}
+            {% if r.gat %}<div class="d8-rangrij gat"><span></span><span>&middot;&middot;&middot;</span><span></span><span></span></div>{% endif %}
+            <div class="d8-rangrij{{ ' jij' if r.jij }}">
+              <span class="d8-mono">{{ r.positie }}</span>
+              <span class="naam">{{ r.naam }}{% if r.jij %} <em>{{ 'jij' if nl else 'you' }}</em>{% endif %}</span>
+              <span class="d8-balk"><i style="width:{{ r.zicht }}%"></i></span><span class="d8-mono">{{ r.zicht }}%</span>
+              <span class="d8-mono beweging{{ ' op' if r.beweging and r.beweging.startswith('▲') }}">{{ r.beweging }}</span>
+            </div>
+            {% endfor %}
+          </div>
         </div>
-      </div>
-      <div class="kaartblok">
-        <div class="kaartkop">{{ 'Ranglijst' if taal == 'nl' else 'Ranking' }} &middot; {{ categorienaam }}
-          <a class="rechts" href="{{ link_van.ranglijst }}">{{ 'Hele lijst' if taal == 'nl' else 'Full ranking' }}</a></div>
-        <div class="rangrij kop"><span>#</span><span>{{ 'WINKEL' if taal == 'nl' else 'STORE' }}</span><span class="r">{{ 'ZICHTBAAR' if taal == 'nl' else 'VISIBILITY' }}</span></div>
-        {% for r in top %}
-        {% if r.gat %}<div class="rangrij gat"><span></span><span>&middot;&middot;&middot;</span><span></span></div>{% endif %}
-        <div class="rangrij {{ 'jij' if r.jij }}">
-          <span class="p">{{ r.positie }}</span>
-          <span class="naam"><i class="bol" style="background:{{ r.kleur }}"></i><span>{{ r.naam }}</span></span>
-          <span class="r">{{ r.zicht }}%</span>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
 
-    <div class="twee">
-      <div class="kaartblok">
-        <div class="kaartkop">{{ 'Vragen die je verliest' if taal == 'nl' else 'Questions you lose' }}
-          <span class="uitleg">{{ 'de echte vraag van een koper, en wie AI dan noemt' if taal == 'nl' else 'the real question a shopper asks, and who AI names instead' }}</span>
-          <a class="rechts" href="{{ link_van.vragen }}">{{ 'Alle vragen' if taal == 'nl' else 'All questions' }}</a></div>
-        {% for v in beeld.gemiste_vragen[:5] %}
-        <div class="vraagkort">
-          <span class="vraag">{{ v.vraag }}</span>
-          <span class="wie">{% if v.concurrenten %}{{ v.concurrenten[:2] | join(', ') }}{% else %}{{ 'geen enkele winkel' if taal == 'nl' else 'no store at all' }}{% endif %}</span>
+        <div class="d8-kaart d8-vragen" id="vragenlijst">
+          <div class="d8-kop"><b>{{ 'Koopvragen' if nl else 'Buying questions' }}</b>
+            <span class="d8-mono d8-hoofd">{{ 'de vragen die je verliest eerst' if nl else 'questions you lose first' }} &middot; {{ 'klik een vraag' if nl else 'click one' }}</span>
+            <span class="d8-filters rechts" role="group">
+              <button type="button" class="aan" data-filter="alle">{{ 'Alle' if nl else 'All' }}</button>
+              <button type="button" data-filter="verloren">{{ 'Verloren' if nl else 'Lost' }} ({{ vr.verloren }})</button>
+              <button type="button" data-filter="gewonnen">{{ 'Gewonnen' if nl else 'Won' }} ({{ vr.gewonnen }})</button>
+            </span></div>
+          <div class="d8-vraagkop d8-mono"><span>{{ 'VRAAG' if nl else 'QUESTION' }}</span><span>{{ 'JIJ' if nl else 'YOU' }}</span><span>{{ 'WEL GENOEMD' if nl else 'NAMED INSTEAD' }}</span></div>
+          {% for v in vr.vragen %}
+          {% set anderen = [] %}{% for m in v.per_model %}{% for n in m.anderen %}{% if n not in anderen %}{% set _ = anderen.append(n) %}{% endif %}{% endfor %}{% endfor %}
+          <button type="button" class="d8-vraag{{ ' aan' if loop.first }}" data-vraag="{{ loop.index0 }}" data-stand="{{ 'gewonnen' if v.gewonnen else 'verloren' }}">
+            <span class="t">{{ v.vraag }}</span>
+            <span class="d8-mono jij {{ 'op' if v.gewonnen else 'nee' }}">{% if v.aanbevolen %}{{ 'AANGERADEN' if nl else 'ADVISED' }}{% elif v.gewonnen %}{{ 'GENOEMD' if nl else 'NAMED' }}{% else %}&mdash;{% endif %}</span>
+            <span class="w">{% if v.slot %}<em>{{ 'zichtbaar met Watch' if nl else 'visible with Watch' }}</em>{% elif anderen %}{{ anderen[:2] | join(', ') }}{% else %}<em>{{ 'geen winkel' if nl else 'no store' }}</em>{% endif %}</span>
+          </button>
+          {% else %}
+          <p class="d8-leeg">{{ 'Er zijn nog geen vragen gemeten.' if nl else 'No questions measured yet.' }}</p>
+          {% endfor %}
+          <div class="d8-vraagvoet"><span>{{ vr.totaal }} {{ 'vragen' if nl else 'questions' }}</span>
+            <a href="{{ link_van.vragen }}">{{ 'Alle vragen en antwoorden' if nl else 'All questions and answers' }} &rarr;</a></div>
         </div>
-        {% else %}
-        <p class="klein" style="margin:0;">{{ 'In elke gemeten vraag werd je genoemd.' if taal == 'nl' else 'You were named in every question we measured.' }}</p>
-        {% endfor %}
       </div>
-      <div class="donker">
-        <div class="kaartkop">{{ 'Wat je hoger zet' if taal == 'nl' else 'What moves you up' }}
-          <span class="uitleg">{{ 'GROOTSTE WINST EERST' if taal == 'nl' else 'BIGGEST WIN FIRST' }}</span></div>
-        {% set verloren = beeld.telbaar - beeld.genoemd %}
-        <div class="stap"><span class="n">1</span><div>
-          <div class="t">{{ ('Win de ' ~ verloren ~ ' vragen waar je niet genoemd wordt') if taal == 'nl' else ('Win the ' ~ verloren ~ ' questions you are not named in') }}</div>
-          <div class="w">{{ 'Per vraag schrijven wij de tekst die AI nodig heeft om jou te noemen.' if taal == 'nl' else 'Per question we write the text AI needs to name you.' }}</div></div></div>
-        {% if beeld.boven_mij %}
-        <div class="stap"><span class="n">2</span><div>
-          <div class="t">{{ ('Haal ' ~ (beeld.boven_mij[-1].naam or beeld.boven_mij[-1].webshop_url | replace('https://','')) ~ ' in') if taal == 'nl' else ('Pass ' ~ (beeld.boven_mij[-1].naam or beeld.boven_mij[-1].webshop_url | replace('https://',''))) }}</div>
-          <div class="w">{{ 'De winkel vlak boven je: we laten zien waarom AI hem wel noemt.' if taal == 'nl' else 'The store just above you: we show why AI names it and not you.' }}</div></div></div>
-        {% endif %}
-        <div class="stap"><span class="n">{{ 3 if beeld.boven_mij else 2 }}</span><div>
-          <div class="t">{{ 'Meet het effect, elke maand' if taal == 'nl' else 'Measure the effect, every month' }}</div>
-          <div class="w">{{ 'Dezelfde vragen, dezelfde assistenten: je ziet of het werkt.' if taal == 'nl' else 'Same questions, same assistants: you see if it works.' }}</div></div></div>
-        {% if proef %}
-        <a class="knopwit" href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Start gratis proef &middot; 14 dagen'|safe if taal == 'nl' else 'Start free trial &middot; 14 days'|safe }}</a>
-        {% elif voorbeeld %}
-        <a class="knopwit" href="/?plan=watch#pricing">{{ 'Probeer het voor je winkel' if taal == 'nl' else 'Try it for your store' }}</a>
-        {% else %}
-        <a class="knopwit" href="{{ link_van.verbeteringen }}">{{ 'Naar je verbeteringen' if taal == 'nl' else 'Go to your fixes' }}</a>
-        {% endif %}
-      </div>
+
+      {# DE LADE. Het antwoord bij de gekozen vraag. Het eerste staat er al in de
+         HTML (werkt ook zonder JavaScript); het script vult de rest in. #}
+      <aside class="d8-lade" aria-live="polite">
+        {% set v0 = vr.vragen | first if vr.vragen else None %}
+        <div class="d8-ladekop">
+          <span class="d8-mono">{{ 'VRAAG' if nl else 'QUESTION' }} <span data-l="nr">1</span> {{ 'VAN' if nl else 'OF' }} {{ vr.totaal }}</span>
+          <b data-l="vraag">{{ v0.vraag if v0 else '' }}</b>
+          <div class="d8-seg" data-l="modellen">{% if v0 %}{% for m in v0.per_model %}<button type="button" class="{{ 'aan' if loop.first }}" data-model="{{ loop.index0 }}">{{ m.assistent }}</button>{% endfor %}{% endif %}</div>
+        </div>
+        <div class="d8-antwoord">
+          <span class="d8-mono" data-l="wie">{% if v0 and v0.per_model %}{{ (v0.per_model | first).assistent | upper }} {{ 'ANTWOORDDE' if nl else 'ANSWERED' }}{% endif %}{% if beeld.gemeten_op %} &middot; {{ beeld.gemeten_op.strftime('%-d %b') | upper }}{% endif %}</span>
+          <div class="d8-fragment" data-l="fragment">{% if v0 and v0.per_model and (v0.per_model | first).fragment %}{{ (v0.per_model | first).fragment }}{% endif %}</div>
+          <div class="d8-sleutel"><span><i class="jij"></i>{{ 'Jij' if nl else 'You' }}</span><span><i></i>{{ 'Andere winkels' if nl else 'Other stores' }}</span></div>
+        </div>
+        <div class="d8-ladedeel">
+          <span class="d8-mono">{{ 'WINKELS IN DIT ANTWOORD' if nl else 'STORES IN THIS ANSWER' }}</span>
+          <div data-l="winkels"></div>
+        </div>
+        <div class="d8-winnen">
+          <span class="d8-mono">{{ 'ZO WIN JE DEZE VRAAG' if nl else 'HOW TO WIN THIS QUESTION' }}</span>
+          <span data-l="advies"></span>
+          {% if werkblok and werkblok.klant_token and not werkblok.opgezegd %}
+          <button type="button" class="d8-kies" data-kies-url="/mijn/{{ werkblok.klant_token }}/kies">{{ 'Zet op mijn lijst' if nl else 'Add to my fixes' }}</button>
+          {% elif proef %}
+          <a class="d8-kies" href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Start gratis proef om dit te bewaren' if nl else 'Start free trial to save this' }}</a>
+          {% elif voorbeeld %}
+          <a class="d8-kies" href="/?plan=watch#pricing">{{ 'Probeer het voor je eigen winkel' if nl else 'Try it for your own store' }}</a>
+          {% endif %}
+        </div>
+      </aside>
     </div>
+    <script type="application/json" id="d8Vragen">{{ vr.vragen | tojson }}</script>
+    <script type="application/json" id="d8Tekst">{{ {
+      "nl": nl, "winkel": beeld.naam, "gekozen": gekozen or [],
+      "gemeten": (beeld.gemeten_op.strftime('%-d %b') | upper) if beeld.gemeten_op else '',
+      "proef": proef or '',
+      "slot": ('Het echte antwoord en wie er in jouw plaats genoemd werd, zie je met Watch of Fix.' if nl else 'The real answer, and who was named instead of you, is part of Watch and Fix.'),
+      "geen": ('Geen tekst bewaard bij dit antwoord.' if nl else 'No text kept for this answer.'),
+      "antwoordde": ('ANTWOORDDE' if nl else 'ANSWERED'),
+      "aangeraden": ('AANGERADEN' if nl else 'RECOMMENDED'), "genoemd": ('GENOEMD' if nl else 'NAMED'),
+      "gewonnen": ('Je wordt hier genoemd. Houd de pagina die AI citeert actueel, en kijk of je ook als eerste aangeraden kan worden.' if nl else 'You are named here. Keep the page AI quotes up to date, and aim to be the store it advises first.'),
+      "verloren": ('Nu genoemd: {w}. Wat zij wel hebben en jij niet, staat bij je verbeteringen. Zet deze vraag op je lijst, dan pakken we hem als eerste op.' if nl else 'Named now: {w}. What they have and you do not is in your fixes. Add this question to your list and it goes first.'),
+      "leeg": ('Nog geen enkele winkel genoemd: de plek is vrij. Een duidelijke pagina over dit onderwerp maakt de kans groot dat jij de eerste bent.' if nl else 'No store is named yet: the spot is open. A clear page on this topic gives you a good chance to be the first.'),
+      "toevoegen": ('Zet op mijn lijst' if nl else 'Add to my fixes'),
+      "toegevoegd": ('Op je lijst &#10003;' if nl else 'Added to your fixes &#10003;'),
+      "klaar": ('Gewonnen, niets te doen' if nl else 'Won, nothing to do')
+    } | tojson }}</script>
+    <script>
+    /* Dashboard versie 8: de tegels, de grafiek en de lade (30 september).
+       Gewoon JavaScript. Alle cijfers komen uit de twee gegevensblokken
+       hierboven, die de server uit de meting vult. */
+    (function(){
+      // Geen vaste getallen tussen blokhaken in dit sjabloon (een test zoekt naar
+      // verzonnen plaatshouders: een getal tussen blokhaken); daarom deze twee namen.
+      var EERSTE = 0, TWEEDE = 1;
+      function lees(id){ var e = document.getElementById(id); try { return e ? JSON.parse(e.textContent) : null; } catch (x) { return null; } }
+      function alle(sel, ouder){ return Array.prototype.slice.call((ouder || document).querySelectorAll(sel)); }
+      function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+      var T = lees('d8Tekst') || {}, vragen = lees('d8Vragen') || [], reeksen = lees('d8Reeksen') || [];
+
+      // ---- DE GRAFIEK ----
+      var vlak = document.querySelector('[data-grafiek]');
+      var stand = {maat: 'positie', meting: -1};
+      var titels = T.nl ? {positie: 'Plek per meting', zicht: 'Zichtbaarheid per meting', aanbevolen: 'Aangeraden per meting'}
+                        : {positie: 'Rank over time', zicht: 'Visibility over time', aanbevolen: 'Recommended over time'};
+      function teken(nieuw){
+        if (!vlak || !reeksen.length) return;
+        var svg = vlak.querySelector('svg'), tip = vlak.querySelector('.d8-tip');
+        var NS = 'http://www.w3.org/2000/svg', n = reeksen[EERSTE].punten.length;
+        if (stand.meting < 0 || stand.meting >= n) stand.meting = n - 1;
+        function el(t, a){ var e = document.createElementNS(NS, t); for (var k in a) e.setAttribute(k, a[k]); return e; }
+        var waarden = [];
+        reeksen.forEach(function(r){ r.punten.forEach(function(p){ if (p && p[stand.maat] != null) waarden.push(p[stand.maat]); }); });
+        var laag = Math.min.apply(null, waarden), hoog = Math.max.apply(null, waarden);
+        var omgekeerd = stand.maat === 'positie';
+        if (omgekeerd) { laag = Math.max(1, laag - 1); hoog = hoog + 1; } else { laag = 0; hoog = Math.max(hoog, 1); }
+        var L = 40, R = 506, B = 16, O = 196;
+        function x(i){ return n > 1 ? L + (R - L) * i / (n - 1) : L; }
+        function y(v){ var d = (v - laag) / ((hoog - laag) || 1); return omgekeerd ? B + d * (O - B) : O - d * (O - B); }
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        // Rasterlijnen op hele getallen, zonder dubbele labels (bij een plek
+        // van 1 tot 3 stond er anders #1 #2 #2 #3 #3).
+        var stappen = [], stap = Math.max(1, Math.ceil((hoog - laag) / 4));
+        for (var sv = Math.ceil(laag); sv <= hoog; sv += stap) stappen.push(sv);
+        stappen.forEach(function(v){
+          var yy = y(v);
+          svg.appendChild(el('line', {x1: L, x2: R, y1: yy, y2: yy, stroke: '#F1F1F4'}));
+          var tl = el('text', {x: 0, y: yy + 3, 'font-family': 'IBM Plex Mono', 'font-size': 9.5, fill: '#A9AAB2'});
+          tl.textContent = (omgekeerd ? '#' : '') + Math.round(v) + (stand.maat === 'zicht' ? '%' : ''); svg.appendChild(tl);
+        });
+        var hx = x(stand.meting);
+        svg.appendChild(el('line', {x1: hx, x2: hx, y1: 10, y2: O, stroke: '#D6D6DC', 'stroke-dasharray': '3 3'}));
+        reeksen.slice().reverse().forEach(function(r){
+          var stukken = [], huidig = [];
+          r.punten.forEach(function(p, i){
+            if (p && p[stand.maat] != null) { huidig.push(x(i).toFixed(1) + ',' + y(p[stand.maat]).toFixed(1)); }
+            else if (huidig.length) { stukken.push(huidig); huidig = []; }
+          });
+          if (huidig.length) stukken.push(huidig);
+          stukken.forEach(function(s){
+            if (s.length === 1) { var xy = s[EERSTE].split(','); svg.appendChild(el('circle', {cx: xy[EERSTE], cy: xy[TWEEDE], r: 2.5, fill: r.kleur})); return; }
+            svg.appendChild(el('polyline', {points: s.join(' '), fill: 'none', stroke: r.kleur, 'stroke-width': r.jij ? 2.4 : 1.5,
+              'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'class': nieuw ? 'd8-lijn' : ''}));
+          });
+        });
+        var eigen = reeksen[EERSTE].punten[stand.meting];
+        if (eigen) svg.appendChild(el('circle', {cx: hx, cy: y(eigen[stand.maat]), r: 4.5, fill: '#fff', stroke: '#1B3FE0', 'stroke-width': 2.4}));
+        reeksen[EERSTE].punten.forEach(function(p, i){
+          var lb = el('text', {x: x(i), y: 222, 'text-anchor': 'middle', 'font-family': 'IBM Plex Mono', 'font-size': 10, fill: i === stand.meting ? '#0A0A0B' : '#A9AAB2'});
+          lb.textContent = p ? p.d : ''; svg.appendChild(lb);
+          var breed = n > 1 ? (R - L) / (n - 1) : 80;
+          var v = el('rect', {x: x(i) - breed / 2, y: 0, width: breed, height: 230, fill: 'transparent', style: 'cursor:pointer'});
+          v.addEventListener('click', function(){ stand.meting = i; teken(false); });
+          svg.appendChild(v);
+        });
+        var eenheid = stand.maat === 'zicht' ? '%' : '', voor = stand.maat === 'positie' ? '#' : '';
+        tip.innerHTML = '<span class="d8-mono">' + esc(eigen ? eigen.d : '') + '</span>' + reeksen.map(function(r){
+          var p = r.punten[stand.meting];
+          return '<div><i style="background:' + r.kleur + '"></i><span>' + esc(r.naam) + '</span><em>' + (p ? voor + p[stand.maat] + eenheid : '&middot;') + '</em></div>';
+        }).join('');
+        var schaal = (svg.getBoundingClientRect().width || 520) / 520;
+        tip.style.left = (stand.meting > (n - 1) / 2 ? hx * schaal - 210 : hx * schaal + 16) + 'px';
+        tip.hidden = false; tip.classList.remove('op'); void tip.offsetWidth; tip.classList.add('op');
+        var titel = document.querySelector('[data-grafiektitel]'); if (titel) titel.textContent = titels[stand.maat];
+      }
+      var tegels = alle('.d8-tegel[data-maat]');
+      tegels.forEach(function(k){
+        k.addEventListener('click', function(){
+          if (!reeksen.length) return;
+          tegels.forEach(function(x){ x.classList.toggle('aan', x === k); });
+          stand.maat = k.getAttribute('data-maat'); teken(true);
+        });
+      });
+      teken(true);
+      window.addEventListener('resize', function(){ teken(false); });
+
+      // ---- DE VRAGEN EN DE LADE ----
+      var gekozen = T.gekozen || [];
+      var knoppen = alle('.d8-vraag');
+      var lade = document.querySelector('.d8-lade');
+      var huidig = 0, model = 0;
+      function markeer(tekst, eigen, anderen){
+        var namen = [];
+        if (eigen) namen.push({n: eigen, jij: true});
+        (anderen || []).forEach(function(a){ namen.push({n: a, jij: false}); });
+        var html = esc(tekst);
+        namen.sort(function(a, b){ return b.n.length - a.n.length; });
+        namen.forEach(function(nm){
+          if (!nm.n || nm.n.length < 3) return;
+          var patroon = new RegExp(esc(nm.n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+          html = html.replace(patroon, function(m){ return '<mark class="' + (nm.jij ? 'jij' : '') + '">' + m + '</mark>'; });
+        });
+        return html;
+      }
+      function vulLade(){
+        var v = vragen[huidig]; if (!v || !lade) return;
+        var m = (v.per_model || [])[model] || (v.per_model || [])[EERSTE] || {};
+        lade.querySelector('[data-l="nr"]').textContent = huidig + 1;
+        lade.querySelector('[data-l="vraag"]').textContent = v.vraag;
+        var seg = lade.querySelector('[data-l="modellen"]');
+        seg.innerHTML = (v.per_model || []).map(function(pm, i){ return '<button type="button" class="' + (i === model ? 'aan' : '') + '" data-model="' + i + '">' + esc(pm.assistent) + '</button>'; }).join('');
+        alle('button', seg).forEach(function(b){ b.addEventListener('click', function(){ model = +b.getAttribute('data-model'); vulLade(); }); });
+        lade.querySelector('[data-l="wie"]').textContent = (m.assistent || '').toUpperCase() + ' ' + T.antwoordde + (T.gemeten ? ' · ' + T.gemeten : '');
+        var fr = lade.querySelector('[data-l="fragment"]');
+        if (v.slot) { fr.innerHTML = '<em>' + esc(T.slot) + '</em>'; }
+        else { fr.innerHTML = m.fragment ? markeer(m.fragment, m.genoemd ? T.winkel : null, m.anderen) : '<em>' + esc(T.geen) + '</em>'; }
+        var w = [];
+        if (m.genoemd) w.push({n: T.winkel, jij: true, tag: m.aanbevolen ? T.aangeraden : T.genoemd});
+        (m.anderen || []).forEach(function(a){ w.push({n: a, jij: false, tag: T.genoemd}); });
+        lade.querySelector('[data-l="winkels"]').innerHTML = v.slot ? '' : w.map(function(x, i){
+          return '<div class="d8-winkel' + (x.jij ? ' jij' : '') + '"><span class="d8-mono">#' + (i + 1) + '</span><span>' + esc(x.n) + '</span><span class="d8-mono tag">' + x.tag + '</span></div>';
+        }).join('');
+        var anderen = []; (v.per_model || []).forEach(function(pm){ (pm.anderen || []).forEach(function(a){ if (anderen.indexOf(a) < 0) anderen.push(a); }); });
+        lade.querySelector('[data-l="advies"]').textContent = v.gewonnen ? T.gewonnen
+          : (anderen.length ? T.verloren.replace('{w}', anderen.slice(0, 3).join(', ')) : T.leeg);
+        var kies = lade.querySelector('button.d8-kies');
+        if (kies) {
+          var aan = gekozen.indexOf(v.vraag) >= 0;
+          kies.disabled = !!v.gewonnen;
+          kies.classList.toggle('klaar', aan || !!v.gewonnen);
+          kies.innerHTML = v.gewonnen ? T.klaar : (aan ? T.toegevoegd : T.toevoegen);
+        }
+        lade.classList.remove('d8-in'); void lade.offsetWidth; lade.classList.add('d8-in');
+      }
+      knoppen.forEach(function(b){
+        b.addEventListener('click', function(){
+          knoppen.forEach(function(x){ x.classList.toggle('aan', x === b); });
+          huidig = +b.getAttribute('data-vraag'); model = 0; vulLade();
+        });
+      });
+      alle('.d8-filters button').forEach(function(f){
+        f.addEventListener('click', function(){
+          alle('.d8-filters button').forEach(function(x){ x.classList.toggle('aan', x === f); });
+          var soort = f.getAttribute('data-filter');
+          knoppen.forEach(function(r){ r.style.display = (soort === 'alle' || r.getAttribute('data-stand') === soort) ? '' : 'none'; });
+        });
+      });
+      var kies = lade && lade.querySelector('button.d8-kies');
+      if (kies) {
+        kies.addEventListener('click', function(){
+          var v = vragen[huidig]; if (!v || v.gewonnen) return;
+          var aan = gekozen.indexOf(v.vraag) < 0;
+          kies.disabled = true;
+          fetch(kies.getAttribute('data-kies-url'), {method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({vraag: v.vraag, aan: aan})})
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+              if (d && d.ok) { if (aan) gekozen.push(v.vraag); else gekozen = gekozen.filter(function(q){ return q !== v.vraag; }); }
+              kies.disabled = false; vulLade();
+            }).catch(function(){ kies.disabled = false; });
+        });
+      }
+      vulLade();
+    })();
+    </script>
     {% endif %}
 
     {# ================================================================ RANGLIJST #}
@@ -410,6 +639,23 @@
 
     {# Verbeteringen: drie tegels bovenaan, ANDERS per pakket (28 september).
        Watch: wat klaarstaat om zelf te doen. Fix: wat wij deden en wat nog komt. #}
+    {% if pagina == 'verbeteringen' and gekozen %}
+    {# De vragen die de klant zelf op zijn lijst zette (30 september). #}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'Jouw lijst' if taal == 'nl' else 'Your list' }}
+        <span class="uitleg">{{ 'vragen die je zelf koos op het overzicht' if taal == 'nl' else 'questions you added on the overview' }}</span>
+        <a class="rechts" href="{{ link_van.overzicht }}#vragenlijst">{{ 'Meer kiezen' if taal == 'nl' else 'Add more' }}</a></div>
+      <table class="tabel"><tbody>
+        {% for g in gekozen %}<tr><td class="nr">{{ loop.index }}</td><td class="kort">{{ g }}</td></tr>{% endfor %}
+      </tbody></table>
+      {% if werkblok and werkblok.doet_werk %}
+      <div class="binnen klein" style="margin:0;">{{ 'Deze pakken we als eerste op.' if taal == 'nl' else 'We work on these first.' }}</div>
+      {% else %}
+      <div class="binnen klein" style="margin:0;">{{ 'Liever niet zelf? Met Fix zetten wij de verbeteringen voor deze vragen live.' if taal == 'nl' else 'Rather not do it yourself? With Fix we put the fixes for these questions live.' }}
+        <a href="{{ link_van.abonnement }}">{{ 'Bekijk Fix' if taal == 'nl' else 'See Fix' }} &rarr;</a></div>
+      {% endif %}
+    </div>
+    {% endif %}
     {% if pagina == 'verbeteringen' and werkblok and not werkblok.afgelopen %}
     {% set acties = (werkblok.actieplan.acties if werkblok.actieplan else []) %}
     <div class="paneel">

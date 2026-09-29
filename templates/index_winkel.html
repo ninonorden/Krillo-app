@@ -21,16 +21,10 @@
   table.buren td{padding:10px; border-bottom:1px solid var(--lijn-licht);}
   table.buren tr.jij td{background:#FFF4C2; font-weight:600;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <div class="links">
-    <a href="/index">The index</a>
-    <a href="/zo-meten-we">How we measure</a>
-    <a class="knop donker" href="/?winkel={{ rij.webshop_url | urlencode }}#scan">Check my store</a>
-  </div>
-</div></nav>
+{% include "_kop.html" %}
 
 <main><div class="wrap" style="max-width:860px;">
   <div class="kruimels">
@@ -101,7 +95,6 @@
      <a href="mailto:hello@krilloai.com">hello@krilloai.com</a> and we remove it the same day.</p>
 </div></main>
 
-<footer><div class="wrap">Krillo &middot; <a href="/index">The index</a> &middot; <a href="/tools">Free tools</a>
-  &middot; <a href="/partners">Partners</a> &middot; <a href="/privacy">Privacy</a></div></footer>
+{% include "_voet.html" %}
 </body>
 </html>

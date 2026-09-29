@@ -81,15 +81,11 @@
              letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
   .logo-dot{display:none;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
 
-<nav>
-  <div class="wrap">
-    <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-    <a class="nav-cta" href="/#scan">Get my rank</a>
-  </div>
-</nav>
+{% include "_kop.html" %}
 
 <main>
   <h1>Getting AI to find your store</h1>
@@ -105,7 +101,7 @@
   {% endfor %}
 </main>
 
-<footer>© 2026 Krillo &middot; <a href="/">Back to the website</a></footer>
+{% include "_voet.html" %}
 
 </body>
 </html>

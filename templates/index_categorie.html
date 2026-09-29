@@ -34,16 +34,10 @@
   "itemListElement": {{ kruimels | tojson }}
 }
 </script>
+{% include "_k_stijl.html" %}
 </head>
 <body>
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <div class="links">
-    <a href="/index">{{ t.terug_index }}</a>
-    <a href="/zo-meten-we">{{ t.zo_meten_we }}</a>
-    <a class="knop donker" href="/#scan">{{ t.cta_knop }}</a>
-  </div>
-</div></nav>
+{% include "_kop.html" %}
 
 <main><div class="wrap">
   <div class="kruimels">
@@ -184,10 +178,6 @@
   </div>
 </div></main>
 
-<footer><div class="wrap">
-  Krillo &middot; <a href="/index">{{ t.terug_index }}</a> &middot;
-  <a href="/zo-meten-we">{{ t.zo_meten_we }}</a> &middot;
-  <a href="/over-ons">{{ t.over_ons }}</a>
-</div></footer>
+{% include "_voet.html" %}
 </body>
 </html>

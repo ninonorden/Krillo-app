@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# Elke twee minuten verversen: dit is de pagina die open blijft staan. #}
+<meta http-equiv="refresh" content="120">
+<title>Commandocentrum | Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+{# Stap 172 (29 september): alle agents op een plek. Zelfde rustige opmaak als
+   het dashboard versie 2. Zie commandocentrum.py. #}
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0; background:#FBFBFA; color:#18181B; font-family:'Geist', system-ui, sans-serif; font-size:13.5px;}
+  .wrap{max-width:1180px; margin:0 auto; padding:24px 24px 64px;}
+  .kop{display:flex; align-items:center; gap:10px; margin-bottom:18px;}
+  .kop h1{font-size:18px; font-weight:600; margin:0;}
+  .kop .grijs{color:#71717A;}
+  .kop a{margin-left:auto; color:#71717A; text-decoration:none; font-size:13px;}
+  .kaart{background:#fff; border:1px solid #EBEBE8; border-radius:10px; margin-bottom:16px; overflow:hidden;}
+  .kaartkop{padding:11px 16px; border-bottom:1px solid #F3F3F1; font-weight:600; font-size:13px; display:flex; gap:8px;}
+  .kaartkop span{font-weight:400; color:#A1A1AA; font-size:12px;}
+  table{width:100%; border-collapse:collapse;}
+  th{font-weight:400; font-size:11.5px; color:#A1A1AA; text-align:left; padding:8px 16px; border-bottom:1px solid #F3F3F1;}
+  td{padding:10px 16px; border-bottom:1px solid #F7F7F5; vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .r{text-align:right; font-family:'Geist Mono', monospace; font-size:12px;}
+  .naam{font-weight:500;}
+  .wat{color:#71717A; font-size:12.5px;}
+  .stip{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px; vertical-align:middle;}
+  .aan .stip{background:#16A34A;} .uit .stip{background:#D4D4D8;}
+  .uit td{color:#A1A1AA;}
+  .fout{color:#B91C1C; font-size:12px;}
+  .klein{color:#71717A; font-size:12px;}
+  button{font:inherit; font-size:12px; border:1px solid #E4E4E7; background:#fff; border-radius:6px; padding:4px 10px; cursor:pointer;}
+  button.uitzetten:hover{border-color:#B91C1C; color:#B91C1C;}
+  button.aanzetten{background:#18181B; color:#fff; border-color:#18181B;}
+  a{color:#18181B;}
+  .taak{display:flex; gap:10px; padding:10px 16px; border-bottom:1px solid #F7F7F5;}
+  .taak:last-child{border-bottom:none;}
+  .taak a{margin-left:auto; color:#1B3FE0; text-decoration:none; white-space:nowrap;}
+  .leeg{padding:12px 16px; color:#71717A;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kop">
+    <h1>Commandocentrum</h1>
+    <span class="grijs">{{ ov.agents | selectattr('aan') | list | length }} van {{ ov.agents | length }} agents aan
+      &middot; {{ ov.klanten or 0 }} betalende klant{{ '' if ov.klanten == 1 else 'en' }}</span>
+    <a href="/admin/wereld">Agentwereld</a>
+    <a href="/admin/ochtendbericht" style="margin-left:14px;">Ochtendbericht</a>
+    <a href="/admin" style="margin-left:14px;">Beheer</a>
+  </div>
+
+  <div class="kaart">
+    <div class="kaartkop">Wacht op jou <span>dezelfde lijst als in het ochtendbericht</span></div>
+    {% for tekst, link in ov.te_doen %}
+    <div class="taak"><span>{{ tekst }}</span><a href="{{ link }}">Openen</a></div>
+    {% else %}
+    <div class="leeg">Niets. Alle agents kunnen verder zonder jou.</div>
+    {% endfor %}
+  </div>
+
+  <div class="kaart">
+    <div class="kaartkop">Agents <span>de schakelaar werkt meteen, vanaf de volgende uurronde</span></div>
+    <table>
+      <thead><tr><th>Agent</th><th class="r">24 uur</th><th class="r">Totaal</th><th>Laatste ronde</th><th></th></tr></thead>
+      <tbody>
+      {% for a in ov.agents %}
+      <tr class="{{ 'aan' if a.aan else 'uit' }}">
+        <td><span class="stip"></span><a class="naam" href="{{ a.pagina }}">{{ a.naam }}</a>
+          <div class="wat" style="margin-left:14px;">{{ a.wat }}</div></td>
+        <td class="r">{{ a.vandaag if a.vandaag is not none else '' }}</td>
+        <td class="r">{{ a.totaal if a.totaal is not none else '' }}</td>
+        <td>{% if a.fout %}<span class="fout">{{ a.fout }}</span>{% elif a.laatste %}<span class="klein">{{ a.laatste }}</span>{% endif %}
+          {% if a.env_uit %}<div class="klein">Uitgezet in Render met {{ a.env }}=uit</div>{% endif %}</td>
+        <td style="text-align:right;">
+          {% if not a.env_uit %}
+          <form method="post" style="margin:0;"><input type="hidden" name="agent" value="{{ a.sleutel }}">
+            {% if a.aan %}<button class="uitzetten" name="actie" value="uit">Uitzetten</button>
+            {% else %}<button class="aanzetten" name="actie" value="aan">Aanzetten</button>{% endif %}</form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="kaart">
+    <div class="kaartkop">Laatste rondes <span>elk uur een, nieuwste eerst</span></div>
+    <table>
+      <thead><tr><th>Moment</th><th class="r">Koude mails</th><th>Wat misging</th></tr></thead>
+      <tbody>
+      {% for r in ov.rondes %}
+      <tr><td class="klein">{{ (r.moment or '')[:16] | replace('T', ' ') }}</td><td class="r">{{ r.gemaild or 0 }}</td>
+        <td>{% if r.mislukt %}<span class="fout">{{ r.mislukt | join('; ') }}</span>{% else %}<span class="klein">niets</span>{% endif %}</td></tr>
+      {% else %}
+      <tr><td colspan="3" class="leeg">Nog geen rondes bewaard.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="klein">De koude mail zelf (aan, uit, aantal per dag) staat op <a href="/admin/benadering">/admin/benadering</a>. Dezelfde gegevens als JSON: /api/agents.</p>
+</div>
+</body>
+</html>

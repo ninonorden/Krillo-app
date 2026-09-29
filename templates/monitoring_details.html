@@ -195,13 +195,11 @@
              letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
   .logo-dot{display:none;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
 
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <span class="nav-note">{{ t.d_nav_actief }}</span>
-</div></nav>
+{% include "_kop.html" %}
 
 <main>
   <div class="wrap">
@@ -570,7 +568,7 @@
 </script>
 {% endif %}
 
-<footer>© 2026 Krillo &middot; <a href="mailto:hello@krilloai.com">hello@krilloai.com</a></footer>
+{% include "_voet.html" %}
 
 </body>
 </html>

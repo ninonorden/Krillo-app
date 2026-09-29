@@ -73,12 +73,10 @@
              letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
   .logo-dot{display:none;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <a href="/onderzoek" style="font-size:14px;">Het hele onderzoek</a>
-</div></nav>
+{% include "_kop.html" %}
 
 <main><div class="wrap">
   {# Eerlijk zijn over waarom iemand deze link heeft. Dat is niet alleen netjes,
@@ -175,9 +173,6 @@
   </div>
 </div></main>
 
-<footer><div class="wrap">
-  Krillo, Amsterdam · <a href="/privacy">Privacy</a> ·
-  <a href="mailto:hello@krilloai.com">hello@krilloai.com</a>
-</div></footer>
+{% include "_voet.html" %}
 </body>
 </html>

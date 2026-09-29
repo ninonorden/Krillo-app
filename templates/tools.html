@@ -42,16 +42,10 @@
   .uitleg-blok{max-width:720px; margin-top:44px;}
   .uitleg-blok h2{font-size:26px; margin-top:28px;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <div class="links">
-    <a href="/tools">Free tools</a>
-    <a href="/index">The index</a>
-    <a class="knop donker" href="/#scan">Check my store</a>
-  </div>
-</div></nav>
+{% include "_kop.html" %}
 
 <main><div class="wrap">
 {% if tool %}
@@ -112,8 +106,7 @@
 {% endif %}
 </div></main>
 
-<footer><div class="wrap">Krillo &middot; <a href="/tools">Free tools</a> &middot; <a href="/compare">Compare</a>
-  &middot; <a href="/index">The index</a> &middot; <a href="/privacy">Privacy</a></div></footer>
+{% include "_voet.html" %}
 
 {% if tool %}
 <script>

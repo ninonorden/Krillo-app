@@ -726,6 +726,9 @@
   .nav-cta{font-size:14.5px; font-weight:600; background:var(--coral); color:#fff;
            padding:10px 20px; border-radius:6px; text-decoration:none;}
   .nav-cta:hover{background:var(--coral-tekst);}
+  .nav-login{font-size:14.5px; font-weight:500; color:#3A3A42; text-decoration:none; margin-right:14px;}
+  .nav-login:hover{color:var(--ink);}
+  @media(max-width:640px){ .nav-login{display:none;} }
 
   /* De hero: links de belofte, rechts de index van vandaag in een omlijnd
      kaartje. Twee kolommen, want het bewijs hoort naast de belofte te staan en
@@ -918,31 +921,380 @@
     .idx-rij .g{width:70px;} .idx-rij .a{width:60px;}
   }
 </style>
+{% include "_k_stijl.html" %}
+<style>
+  /* ================================================================
+     HOMEPAGE VERSIE 9 (30 september). Staat NA de oude stijl, zodat de oude
+     regels voor de scan, de uitslag en het bestelvenster blijven werken en de
+     nieuwe opmaak eroverheen ligt. Alles van de nieuwe opmaak begint met k9-.
+     ================================================================ */
+  body{background:#fff;}
+  .ticker .wrap{max-width:1248px; padding:0 24px;}
+  .ticker .merk{color:#fff; display:flex; align-items:center; gap:8px;}
+  .ticker .wit{color:#fff;}
+  .k9-live{width:6px; height:6px; border-radius:50%; background:var(--k-groen-z); display:inline-block;
+           animation:k9puls 2s infinite;}
+  @keyframes k9puls{0%{box-shadow:0 0 0 0 rgba(53,214,164,.5)}70%{box-shadow:0 0 0 6px rgba(53,214,164,0)}100%{box-shadow:0 0 0 0 rgba(53,214,164,0)}}
+  .k-kop nav.k-links{position:static; backdrop-filter:none; height:auto;}
+
+  .k9{font-family:var(--k-disp); color:var(--k-inkt);}
+  .k9-binnen{max-width:1248px; margin:0 auto; padding:0 24px;}
+  .k9-mono{font-family:var(--k-mono);}
+  .k9-grijs{color:var(--k-grijs);}
+  .k9-label{font-family:var(--k-mono); font-size:12px; color:var(--k-blauw); letter-spacing:.06em; display:block; margin-bottom:14px;}
+  .k9-h1{font-family:var(--k-disp); font-size:60px; line-height:1.0; letter-spacing:-0.045em; font-weight:700; margin:0 0 22px;}
+  .k9-h2{font-family:var(--k-disp); font-size:42px; line-height:1.05; letter-spacing:-0.04em; font-weight:700; margin:0; color:var(--k-inkt);}
+  .k9-intro{font-size:18px; line-height:1.6; color:var(--k-zacht); max-width:520px; margin:0 0 26px;}
+  .k9-p{font-size:16px; line-height:1.6; color:var(--k-zacht); margin:18px 0 0;}
+  .k9-klein{font-size:12.5px; color:var(--k-grijs);}
+  .k9-op{color:var(--k-groen) !important;}
+  .k9-kaart{background:#fff; border:1px solid var(--k-lijn); border-radius:12px;}
+  .k9-laag{box-shadow:var(--k-schaduw);}
+  .op{animation:k9op .22s ease-out both;}
+  @keyframes k9op{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+  .k9 button{font-family:inherit;}
+
+  /* HERO */
+  .k9-hero{padding:80px 0 88px; border-bottom:1px solid var(--k-lijn);
+    background-image:linear-gradient(var(--k-lijn2) 1px, transparent 1px), linear-gradient(90deg, var(--k-lijn2) 1px, transparent 1px);
+    background-size:48px 48px; background-position:-1px -1px;}
+  .k9-hero-grid{display:grid; grid-template-columns:minmax(0,1fr) 560px; gap:80px; align-items:center;}
+  .k9 .scan-form{max-width:500px;}
+  .k9 .scan-form input{background:#fff; border:1px solid var(--k-lijn); border-radius:10px; box-shadow:0 1px 2px rgba(10,10,11,.04);}
+  .k9 .scan-form input:focus{border-color:var(--k-inkt);}
+  .k9 .scan-form button{background:var(--k-blauw); color:#fff; border-radius:10px; font-weight:500;
+    box-shadow:0 1px 2px rgba(27,63,224,.25), 0 8px 20px -8px rgba(27,63,224,.5);}
+  .k9 .scan-form button:hover{background:var(--k-blauw-d); transform:none;}
+  .k9 .hero-note{color:var(--k-grijs);}
+  .k9-proefregel{margin-top:20px; font-size:14.5px; color:var(--k-zacht);}
+  .k9-proefregel a{color:var(--k-blauw-d); font-weight:500;}
+  .k9-hero-rechts{position:relative; padding:104px 0 104px;}
+  .indexkaart.k9-kaart{position:relative; z-index:1; overflow:hidden;}
+  .k9-kaartkop{display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--k-lijn);}
+  .k9-kaartkop b{font-size:15px;}
+  .k9-kaartkop .k9-mono{font-size:11px;}
+  .k9-tabs{margin-left:auto; display:flex; gap:2px; background:var(--k-zand); border-radius:7px; padding:2px;}
+  .k9-tabs button{border:0; background:transparent; color:var(--k-grijs); font-size:12.5px; padding:4px 10px; border-radius:5px; cursor:pointer;}
+  .k9-tabs button.aan{background:#fff; color:var(--k-inkt); box-shadow:0 1px 2px rgba(10,10,11,.1);}
+  .k9-rij{display:grid; grid-template-columns:32px minmax(0,1fr) 130px 48px; gap:10px; align-items:center;
+          width:100%; text-align:left; border:0; border-bottom:1px solid var(--k-lijn2); background:#fff;
+          padding:9px 18px; font-size:14.5px; color:var(--k-inkt); cursor:pointer; transition:background .15s;}
+  .k9-rij:hover{background:var(--k-zand);}
+  .k9-rij.aan{background:var(--k-zand); box-shadow:inset 2px 0 0 var(--k-blauw);}
+  .k9-rijkop{cursor:default; background:var(--k-zand); font-size:10.5px; color:var(--k-grijs); padding:7px 18px;}
+  .k9-rijkop:hover{background:var(--k-zand);}
+  .k9-rij .r{text-align:right; font-size:12px; color:var(--k-grijs);}
+  .k9-pos{font-weight:700; font-size:15px;}
+  .k9-naam{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .k9-balk{display:flex; align-items:center; gap:8px;}
+  .k9-balk i{display:block; height:4px; border-radius:2px; background:var(--k-inkt); max-width:60px; flex-shrink:0;}
+  .k9-balk{position:relative;}
+  .k9-balk em{font-style:normal; font-size:12px; margin-left:auto;}
+  .k9-waarom{margin:12px 18px; border:1px solid var(--k-lijn); border-radius:10px; padding:11px 14px; display:flex; flex-direction:column; gap:3px; font-size:13.5px; color:var(--k-zacht);}
+  .k9-waarom .k9-mono{font-size:10.5px;}
+  .k9-kaartvoet{display:flex; gap:12px; align-items:center; padding:0 18px 12px; font-size:12.5px; color:var(--k-grijs);}
+  .k9-kaartvoet a{margin-left:auto; white-space:nowrap; color:var(--k-blauw-d); text-decoration:none; font-weight:500;}
+  .k9-cijfers{display:flex; flex-wrap:wrap; gap:6px 16px; padding:11px 18px; border-top:1px solid var(--k-lijn); background:var(--k-zand); font-size:11px; color:var(--k-grijs);}
+  .k9-cijfers b{color:var(--k-inkt); font-weight:500;}
+  .k9-cijfers .k9-gewoon{font-family:var(--k-disp); font-size:12px;}
+  .k9-zwevend{position:absolute; z-index:2; background:#fff; border:1px solid var(--k-lijn); border-radius:10px;
+              box-shadow:0 1px 2px rgba(10,10,11,.05), 0 20px 44px -16px rgba(10,10,11,.3);}
+  .k9-stijger{right:-24px; top:0; width:280px; padding:12px 14px; display:flex; gap:10px; align-items:flex-start; font-size:13px;}
+  .k9-stijger b{display:block; font-weight:600;}
+  .k9-stijger i{font-style:normal; color:var(--k-grijs); font-size:12px;}
+  .k9-pijl{flex-shrink:0; font-family:var(--k-mono); font-size:11.5px; color:var(--k-groen); background:var(--k-groen-l); border-radius:7px; padding:6px 7px;}
+  .k9-vraagkaart{left:-56px; bottom:0; width:410px; padding:12px 14px; display:flex; flex-direction:column; gap:9px;}
+  .k9-vraagkaart .k9-mono{font-size:10px; letter-spacing:.06em;}
+  .k9-typ-vak{font-size:14px; min-height:21px; display:block;}
+  .k9-typ{display:inline-block; max-width:100%; overflow:hidden; white-space:nowrap; vertical-align:bottom;
+          border-right:2px solid var(--k-blauw); animation:k9typ 2.8s steps(48) .6s both, k9knip 1s step-end infinite;}
+  @keyframes k9typ{from{max-width:0}to{max-width:100%}}
+  @keyframes k9knip{50%{border-color:transparent}}
+  .k9-chips{display:flex; gap:6px; flex-wrap:wrap;}
+  .k9-chips span{border:1px solid var(--k-lijn); border-radius:4px; padding:2px 6px; font-size:10.5px; color:var(--k-zacht);}
+  .k9-chips span.blauw{background:var(--k-blauw-l); color:var(--k-blauw-d); border-color:var(--k-blauw-l);}
+  .k9-zweef{animation:k9zweef 8s ease-in-out infinite;}
+  .k9-zweef2{animation:k9zweef 9s ease-in-out 1.5s infinite;}
+  @keyframes k9zweef{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+  /* SECTIES */
+  .k9-sectie{padding:112px 0 0;}
+  .k9-sectie.k9-smal{padding-top:72px;}
+  .k9-sectiekop{display:grid; grid-template-columns:minmax(0,1fr) 440px; gap:48px; align-items:end; margin-bottom:40px;}
+  .k9-sectiekop p{font-size:16px; line-height:1.6; color:var(--k-zacht); margin:0 0 14px;}
+  .k9-twee{display:grid; grid-template-columns:400px minmax(0,1fr); gap:64px;}
+
+  /* DASHBOARDPLAAT */
+  .k9-dashlijst{background:var(--k-zand); border:1px solid var(--k-lijn); border-radius:16px; padding:28px 28px 0; box-shadow:inset 0 1px 0 #fff;}
+  .k9-dash{background:#fff; border:1px solid var(--k-lijn); border-bottom:0; border-radius:10px 10px 0 0; display:flex; min-height:520px; overflow:hidden; font-size:12.5px;}
+  .k9-dash-zij{width:190px; flex-shrink:0; background:var(--k-zand); border-right:1px solid var(--k-lijn); padding:14px 10px; display:flex; flex-direction:column; gap:2px;}
+  .k9-dash-zij span{padding:6px 9px; border-radius:6px; color:var(--k-zacht);}
+  .k9-dash-zij span.aan{background:#fff; color:var(--k-inkt); font-weight:600; box-shadow:0 1px 2px rgba(10,10,11,.06);}
+  .k9-dash-winkel{border:1px solid var(--k-lijn); background:#fff; font-weight:600; color:var(--k-inkt) !important; margin-bottom:10px; display:flex; flex-direction:column;}
+  .k9-dash-winkel i{font-style:normal; font-weight:400; font-size:11.5px; color:var(--k-grijs);}
+  .k9-dash-hoofd{flex-grow:1; min-width:0; display:flex; flex-direction:column;}
+  .k9-dash-kop{display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--k-lijn);}
+  .k9-dash-kop b{font-size:14px;} .k9-dash-kop .k9-mono{font-size:10.5px;}
+  .k9-seg{margin-left:auto; display:flex; gap:2px; background:var(--k-zand); border-radius:7px; padding:2px;}
+  .k9-seg button{border:0; background:transparent; color:var(--k-grijs); font-size:11.5px; padding:3px 9px; border-radius:5px; cursor:pointer;}
+  .k9-seg button.aan{background:#fff; color:var(--k-inkt); box-shadow:0 1px 2px rgba(10,10,11,.1);}
+  .k9-kpis{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-bottom:1px solid var(--k-lijn);}
+  .k9-kpis div{padding:12px 16px; display:flex; flex-direction:column; gap:3px; border-left:1px solid var(--k-lijn);}
+  .k9-kpis div:first-child{border-left:0;}
+  .k9-kpis .k9-mono{font-size:10px; color:var(--k-grijs);}
+  .k9-kpis b{font-size:24px; font-weight:700; letter-spacing:-0.03em;}
+  .k9-kpis em{font-style:normal; font-family:var(--k-mono); font-size:11px; color:var(--k-groen);}
+  .k9-dash-twee{display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); flex-grow:1;}
+  .k9-grafiek{position:relative; padding:14px 16px; border-right:1px solid var(--k-lijn);}
+  .k9-grafiektabs{display:flex; gap:14px; align-items:center; margin-bottom:6px;}
+  .k9-grafiektabs button{border:0; background:none; padding:2px 0; font-size:12.5px; color:var(--k-grijs); border-bottom:1.5px solid transparent; cursor:pointer;}
+  .k9-grafiektabs button.aan{color:var(--k-inkt); border-bottom-color:var(--k-inkt);}
+  .k9-grafiektabs .k9-mono{margin-left:auto; font-size:10px;}
+  .k9-grafiek svg{width:100%; height:auto; display:block;}
+  .k9-grafiek svg rect{cursor:pointer;}
+  .k9-lijn{stroke-dasharray:1400; animation:k9teken 1.6s cubic-bezier(.2,.8,.2,1) both;}
+  @keyframes k9teken{from{stroke-dashoffset:1400}to{stroke-dashoffset:0}}
+  .k9-tip{position:absolute; top:60px; width:180px; background:var(--k-inkt); color:#fff; border-radius:8px; padding:9px 11px;
+          box-shadow:0 12px 28px -8px rgba(10,10,11,.45); display:flex; flex-direction:column; gap:4px; pointer-events:none; font-size:11.5px;}
+  .k9-tip .k9-mono{font-size:10px; color:var(--k-grijs2);}
+  .k9-tip div{display:flex; align-items:center; gap:6px;}
+  .k9-tip i{width:8px; height:2px; display:inline-block;}
+  .k9-tip em{font-style:normal; margin-left:auto; font-family:var(--k-mono);}
+  .k9-verloren{padding:14px 16px; display:flex; flex-direction:column;}
+  .k9-verloren b{font-size:13px; margin-bottom:8px;}
+  .k9-verloren div{padding:9px 0; border-bottom:1px solid var(--k-lijn2); display:flex; flex-direction:column; gap:3px; font-size:13px;}
+  .k9-verloren i{font-style:normal; font-size:10.5px; color:var(--k-grijs);}
+
+  /* WAT WE TELLEN */
+  .k9-tellen{display:grid; grid-template-columns:360px minmax(0,1fr); border:1px solid var(--k-lijn); border-radius:12px; overflow:hidden;}
+  .k9-tellen-links{border-right:1px solid var(--k-lijn); display:flex; flex-direction:column;}
+  .k9-tellen-links button{display:grid; grid-template-columns:40px minmax(0,1fr); gap:8px; text-align:left; border:0; border-bottom:1px solid var(--k-lijn);
+      background:var(--k-zand); padding:24px 28px; cursor:pointer; color:var(--k-inkt);}
+  .k9-tellen-links button .k9-mono{font-size:12px; color:var(--k-grijs); padding-top:3px;}
+  .k9-tellen-links button b{display:block; font-size:18px; font-weight:600; margin-bottom:6px;}
+  .k9-tellen-links button i{font-style:normal; font-size:14.5px; line-height:1.55; color:var(--k-grijs);}
+  .k9-tellen-links button.aan{background:#fff; box-shadow:inset 2px 0 0 var(--k-blauw);}
+  .k9-tellen-links button.aan .k9-mono{color:var(--k-blauw);}
+  .k9-tellen-links button.aan i{color:var(--k-zacht);}
+  .k9-tellen-voet{margin-top:auto; padding:20px 28px; font-size:14px; color:var(--k-zacht); display:flex; flex-direction:column; gap:4px;}
+  .k9-tellen-voet .k9-mono{font-size:10.5px;}
+  .k9-tellen-rechts{position:relative; min-height:440px; background:var(--k-zand); padding:40px 48px; display:flex; flex-direction:column; gap:16px;
+    background-image:linear-gradient(var(--k-lijn2) 1px, transparent 1px), linear-gradient(90deg, var(--k-lijn2) 1px, transparent 1px); background-size:48px 48px;}
+  .k9-bubbel{align-self:flex-end; max-width:420px; background:var(--k-inkt); color:#fff; border-radius:12px 12px 3px 12px; padding:9px 14px; font-size:14px;
+             box-shadow:0 10px 24px -10px rgba(10,10,11,.45);}
+  .k9-antwoord{width:440px; max-width:100%; background:#fff; border:1px solid var(--k-lijn); border-radius:12px; padding:18px 20px; font-size:14px; line-height:1.6; color:var(--k-zacht); display:flex; flex-direction:column; gap:12px;}
+  .k9-antwoord > .k9-mono{font-size:10px; letter-spacing:.06em;}
+  .k9-antwoordrij{display:grid; grid-template-columns:24px minmax(0,1fr); align-items:center;}
+  .k9-winkelknop{justify-self:start; border:1px solid transparent; background:var(--k-lijn2); color:var(--k-inkt); font-weight:600; font-size:14px; border-radius:5px; padding:1px 7px; cursor:pointer;}
+  .k9-winkelknop.aan{background:var(--k-inkt); color:#fff;}
+  .k9-uitkomst{position:absolute; right:36px; top:170px; width:250px; background:var(--k-inkt); color:#fff; border-radius:10px; padding:14px 16px;
+               box-shadow:0 20px 44px -14px rgba(10,10,11,.55); display:flex; flex-direction:column; gap:6px;}
+  .k9-uitkomst .k9-mono{font-size:10px; color:var(--k-blauw-z); letter-spacing:.06em;}
+  .k9-uitkomst b{font-size:28px; letter-spacing:-0.03em;}
+  .k9-uitkomst span:last-child{font-size:12.5px; color:#D6D6DC; line-height:1.5;}
+
+  /* DE ZES */
+  .k9-zes{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border:1px solid var(--k-lijn); border-radius:12px; overflow:hidden;}
+  .k9-zes .zeskaart{padding:28px; min-height:420px; display:flex; flex-direction:column; gap:10px; border-right:1px solid var(--k-lijn); border-bottom:1px solid var(--k-lijn); position:relative; background:#fff;}
+  .k9-zes .zeskaart:nth-child(3n){border-right:0;}
+  .k9-zes .zeskaart:nth-child(n+4){border-bottom:0;}
+  .k9-zes .zeskaart > b{font-size:21px; font-weight:600; letter-spacing:-0.02em;}
+  .k9-zes .zeskaart > p{font-size:14.5px; line-height:1.55; color:var(--k-zacht); margin:0;}
+  .k9-nr{font-family:var(--k-mono); font-size:12px; color:var(--k-blauw);}
+  .k9-zes .zeskaart.donker{background:var(--k-inkt); color:#fff;}
+  .k9-zes .zeskaart.donker .k9-nr{color:var(--k-blauw-z);}
+  .k9-zes .zeskaart.donker > p{color:var(--k-grijs2);}
+  .k9-stapel{position:relative; margin-top:auto; height:150px;}
+  .k9-stapel div{position:absolute; background:#fff; border:1px solid var(--k-lijn); border-radius:10px;}
+  .k9-stapel-a{left:24px; right:24px; top:0; height:100px;}
+  .k9-stapel-b{left:12px; right:12px; top:14px; height:110px; box-shadow:0 8px 20px -14px rgba(10,10,11,.2);}
+  .k9-stapel-c{left:0; right:0; top:30px; padding:14px; display:flex; flex-direction:column; gap:4px;}
+  .k9-stapel-c .k9-mono{font-size:10px;}
+  .k9-stapel-c b, .k9-voorna b{font-size:30px; font-weight:700; letter-spacing:-0.03em;}
+  .k9-stapel-c em, .k9-voorna em{font-style:normal; font-family:var(--k-mono); font-size:12px; color:var(--k-groen); background:var(--k-groen-l); border-radius:4px; padding:1px 6px; vertical-align:middle;}
+  .k9-lijstje{margin-top:auto; display:flex; flex-direction:column; gap:6px;}
+  .k9-lijstje button{text-align:left; border:1px solid var(--k-lijn); background:#fff; border-radius:9px; padding:10px 12px; cursor:pointer; display:flex; flex-direction:column; gap:4px; color:var(--k-inkt); font-size:13.5px; transition:box-shadow .2s;}
+  .k9-lijstje button i{display:none; font-style:normal; font-size:10px; color:var(--k-grijs);}
+  .k9-lijstje button.aan{box-shadow:var(--k-schaduw-klein); border-color:#D6D6DC;}
+  .k9-lijstje button.aan i{display:block;}
+  .k9-lijstje.zwart button{background:transparent; border-color:#26262B; color:#fff;}
+  .k9-lijstje.zwart button.aan{background:#16161A; border-color:var(--k-blauw-z); box-shadow:none;}
+  .k9-lijstje.zwart button i{color:var(--k-groen-z);}
+  .k9-nee{font-style:normal; color:var(--k-grijs); margin-right:4px;}
+  .k9-ja{font-style:normal; color:var(--k-groen); margin-right:4px;}
+  .k9-voorna, .k9-mail{margin-top:auto; background:#fff; border:1px solid var(--k-lijn); border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:6px;}
+  .k9-voorna .k9-seg{margin-left:0; align-self:flex-start;}
+  .k9-voorna > div:not(.k9-seg){display:flex; flex-direction:column; gap:2px;}
+  .k9-voorna .k9-mono, .k9-mail .k9-mono{font-size:10px;}
+  .k9-mail b{font-size:15px;}
+
+  /* KWADRANT */
+  .k9-kwadrant{display:grid; grid-template-columns:minmax(0,1.7fr) minmax(0,1fr); border:1px solid var(--k-lijn); border-radius:12px; overflow:hidden; background:#fff;}
+  .k9-veld{position:relative; height:460px; border-right:1px solid var(--k-lijn);}
+  .k9-assen{position:absolute; left:64px; right:28px; top:28px; bottom:56px; border-left:1px solid #D6D6DC; border-bottom:1px solid #D6D6DC;
+    background-image:linear-gradient(var(--k-lijn2) 1px, transparent 1px), linear-gradient(90deg, var(--k-lijn2) 1px, transparent 1px); background-size:48px 48px;}
+  .k9-assen::before{content:""; position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--k-lijn);}
+  .k9-assen::after{content:""; position:absolute; top:50%; left:0; right:0; height:1px; background:var(--k-lijn);}
+  .k9-assen > .k9-mono{position:absolute; font-size:10.5px; color:var(--k-grijs); transform:translateX(-50%);}
+  .k9-q1{left:25%; top:10px;} .k9-q2{left:75%; top:10px;} .k9-q3{left:25%;} .k9-q4{left:75%;}
+  .k9-stip{position:absolute; z-index:2; width:26px; height:26px; margin:0 0 -13px -13px; border-radius:6px; border:2px solid #fff; background:var(--k-grijs2);
+           color:#fff; font-family:var(--k-mono); font-size:11px; cursor:pointer; box-shadow:0 4px 10px -4px rgba(10,10,11,.3); padding:0;}
+  .k9-stip.aan{background:var(--k-inkt); box-shadow:0 0 0 2px var(--k-inkt), 0 8px 18px -6px rgba(10,10,11,.4);}
+  .k9-stiptip{position:absolute; z-index:3; width:230px; background:var(--k-inkt); color:#fff; border-radius:8px; padding:10px 12px;
+              box-shadow:0 16px 36px -12px rgba(10,10,11,.55); display:flex; flex-direction:column; gap:4px; pointer-events:none;}
+  .k9-stiptip b{font-size:13px;} .k9-stiptip span{font-size:10.5px; color:#D6D6DC;}
+  .k9-as-x{position:absolute; left:50%; bottom:20px; transform:translateX(-50%); font-size:10.5px; color:var(--k-grijs);}
+  .k9-as-y{position:absolute; left:22px; top:62%; transform:rotate(-90deg); transform-origin:left top; font-size:10.5px; color:var(--k-grijs);}
+  .k9-kwadrant-uitleg{padding:32px; display:flex; flex-direction:column; gap:24px;}
+  .k9-kwadrant-uitleg div{border-left:2px solid var(--k-lijn); padding-left:16px; display:flex; flex-direction:column; gap:5px;}
+  .k9-kwadrant-uitleg div.blauw{border-left-color:var(--k-blauw);}
+  .k9-kwadrant-uitleg b{font-size:16px;} .k9-kwadrant-uitleg span{font-size:14.5px; color:var(--k-zacht); line-height:1.55;}
+  .k9-kwadrant-uitleg .k-knop{align-self:flex-start; margin-top:auto;}
+
+  /* METHODE EN VRAGEN */
+  .k9-accordeon{border:1px solid var(--k-lijn); border-radius:12px; overflow:hidden; align-self:start;}
+  .k9-accordeon button, .k9-faq button{width:100%; text-align:left; border:0; border-bottom:1px solid var(--k-lijn); background:#fff; cursor:pointer;
+       display:grid; gap:12px; color:var(--k-inkt); font-size:15px;}
+  .k9-accordeon button{grid-template-columns:48px minmax(0,1fr) 20px; padding:20px 24px;}
+  .k9-accordeon button:last-child{border-bottom:0;}
+  .k9-accordeon button .k9-mono{font-size:12px; color:var(--k-grijs); padding-top:3px;}
+  .k9-accordeon button.aan{background:var(--k-zand);}
+  .k9-accordeon b, .k9-faq b{display:block; font-size:17px; font-weight:600;}
+  .k9-faq b{font-weight:500;}
+  .k9-accordeon i, .k9-faq i{display:none; font-style:normal; font-size:14.5px; line-height:1.6; color:var(--k-zacht); margin-top:8px; max-width:680px;}
+  .k9-accordeon button.aan i, .k9-faq button.aan i{display:block; animation:k9op .22s ease-out both;}
+  .k9-accordeon em, .k9-faq em{font-style:normal; color:var(--k-grijs); font-size:18px;}
+  .k9-faq{border-top:1px solid var(--k-lijn);}
+  .k9-faq button{grid-template-columns:minmax(0,1fr) 20px; padding:20px 0; background:none;}
+  .k9-gratis{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px;}
+  .k9-gratis a{padding:20px; display:flex; flex-direction:column; gap:8px; text-decoration:none; color:var(--k-inkt); transition:box-shadow .25s, border-color .25s;}
+  .k9-gratis a:hover{border-color:#D6D6DC; box-shadow:var(--k-schaduw-klein); color:var(--k-inkt);}
+  .k9-gratis .k9-mono{font-size:10.5px;} .k9-gratis b{font-size:16px;} .k9-gratis span:last-child{font-size:14px; color:var(--k-zacht); line-height:1.5;}
+  .k9-slot{margin-bottom:112px; border:1px solid var(--k-lijn); border-radius:12px; padding:56px; display:grid; grid-template-columns:minmax(0,1fr) 460px; gap:48px; align-items:center;
+    background-image:linear-gradient(var(--k-lijn2) 1px, transparent 1px), linear-gradient(90deg, var(--k-lijn2) 1px, transparent 1px); background-size:48px 48px;}
+  .k9-slot .k9-h2{font-size:46px;}
+  .k9-slotveld{background:#fff; border:1px solid var(--k-lijn); border-radius:12px; padding:6px 6px 6px 16px; display:flex; gap:10px; align-items:center;}
+  .k9-slotveld input{flex:1; border:0; outline:0; font-family:var(--k-mono); font-size:14px; background:transparent; min-width:0;}
+
+  /* PRIJZEN (de klassen van de oude opmaak, want de scripts kennen ze) */
+  .k9-prijzen{font-family:var(--k-disp); background:#fff; padding-bottom:0;}
+  .k9-prijskop{display:flex; align-items:flex-end; gap:24px; margin-bottom:32px; flex-wrap:wrap;}
+  .k9-prijskop .k9-h2{max-width:720px;}
+  .k9-prijzen .periode-keuze{margin:0 0 0 auto; display:flex; gap:2px; background:var(--k-zand); border:1px solid var(--k-lijn); border-radius:9px; padding:3px;}
+  .k9-prijzen .periode-keuze button{border:0; border-radius:6px; padding:6px 12px; background:transparent; color:var(--k-grijs); font-family:var(--k-disp); font-size:13px; cursor:pointer;}
+  .k9-prijzen .periode-keuze button.aan{background:#fff; color:var(--k-inkt); box-shadow:0 1px 2px rgba(10,10,11,.1);}
+  .k9-prijzen .periode-keuze .gratis{font-family:var(--k-mono); font-size:10.5px; color:var(--k-groen); margin-left:4px;}
+  .k9-prijzen .price-grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px;}
+  .k9-prijzen .price-card{position:relative; background:#fff; border:1px solid var(--k-lijn); border-radius:12px; padding:28px; display:flex; flex-direction:column; gap:14px; box-shadow:none; transition:box-shadow .25s, border-color .25s; transform:none;}
+  .k9-prijzen .price-card:hover{border-color:#D6D6DC; box-shadow:var(--k-schaduw-klein); transform:none;}
+  .k9-prijzen .price-card.featured{border:1.5px solid var(--k-blauw); box-shadow:0 1px 2px rgba(27,63,224,.08), 0 24px 50px -24px rgba(27,63,224,.35); background:#fff; color:var(--k-inkt);}
+  .k9-prijzen .price-top{display:flex; align-items:center; gap:10px;}
+  .k9-prijzen .price-name{font-size:18px; font-weight:600; color:var(--k-inkt); margin:0; font-family:var(--k-disp);}
+  .k9-prijzen .price-tag{margin-left:auto; font-size:10.5px; color:var(--k-zacht); background:var(--k-zand); border-radius:5px; padding:2px 7px;}
+  .k9-prijzen .price-tag.blauw{background:var(--k-blauw-l); color:var(--k-blauw-d);}
+  .k9-prijzen .price-amount{font-family:var(--k-disp); font-size:44px; font-weight:700; letter-spacing:-0.04em; color:var(--k-inkt); margin:0; line-height:1.1;}
+  .k9-prijzen .price-amount span{font-size:14px; font-weight:400; color:var(--k-grijs); letter-spacing:0;}
+  .k9-prijzen .price-amount.proef-noot{font-size:13.5px; font-weight:500; letter-spacing:0; color:var(--k-blauw-d); line-height:1.4; min-height:19px;}
+  .k9-prijzen .price-card:not(.featured) .proef-noot{color:var(--k-grijs); font-weight:400;}
+  .k9-prijzen .price-feats{list-style:none; margin:0; padding:12px 0 0; border-top:1px solid var(--k-lijn2); display:flex; flex-direction:column; gap:9px;}
+  .k9-prijzen .price-feats li{position:relative; padding-left:22px; font-size:14px; line-height:1.5; color:var(--k-zacht); border:0; margin:0;}
+  .k9-prijzen .price-feats li::before{content:"\2713"; position:absolute; left:0; top:0; color:var(--k-blauw);}
+  .k9-prijzen .price-feats li strong{color:var(--k-inkt); font-weight:600;}
+  .k9-prijzen .price-btn{margin-top:auto; display:block; text-align:center; border-radius:9px; padding:12px; font-size:14.5px; font-weight:500; text-decoration:none; font-family:var(--k-disp); transition:background .15s;}
+  .k9-prijzen .price-btn.solid{background:var(--k-blauw); color:#fff; border:0;}
+  .k9-prijzen .price-btn.solid:hover{background:var(--k-blauw-d);}
+  .k9-prijzen .price-btn.ghost{background:#fff; color:var(--k-inkt); border:1px solid var(--k-lijn);}
+  .k9-prijzen .price-btn.ghost:hover{background:var(--k-zand);}
+  .k9-prijzen .price-badge{display:none;}
+  .k9-prijzen .prijs-voet{display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:28px; font-size:14px; line-height:1.6; color:var(--k-zacht);}
+  .k9-prijzen .prijs-voet strong{display:block; color:var(--k-inkt); margin-bottom:4px;}
+
+  @media(max-width:1100px){
+    .k9-hero-grid{grid-template-columns:minmax(0,1fr); gap:48px;}
+    .k9-hero-grid > *{min-width:0;}
+    .k9-kaartkop{flex-wrap:wrap;}
+    .k9-hero-rechts{max-width:560px;}
+    .k9-sectiekop, .k9-twee, .k9-slot{grid-template-columns:minmax(0,1fr); gap:20px;}
+    .k9-tellen, .k9-kwadrant{grid-template-columns:minmax(0,1fr);}
+    .k9-veld{border-right:0; border-bottom:1px solid var(--k-lijn);}
+    .k9-uitkomst{position:static; width:auto;}
+    .k9-zes{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .k9-zes .zeskaart{border-right:1px solid var(--k-lijn) !important; border-bottom:1px solid var(--k-lijn) !important;}
+    .k9-gratis{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .k9-prijzen .price-grid{grid-template-columns:minmax(0,1fr);}
+  }
+  @media(max-width:760px){
+    .k9-h1{font-size:40px;} .k9-h2, .k9-slot .k9-h2{font-size:30px;}
+    .k9-hero{padding:48px 0 56px;} .k9-sectie{padding-top:72px;}
+    .k9-hero-rechts{padding:0;}
+    .k9-zwevend{display:none;}
+    .k9-rij{grid-template-columns:28px minmax(0,1fr) 70px 40px; padding:9px 12px;}
+    .k9 .scan-form{flex-wrap:wrap;} .k9 .scan-form input{min-width:0; flex:1 1 180px;}
+    .k9-tabs{margin-left:0;}
+    .k9-balk i{display:none;}
+    .k9-dashlijst{padding:12px 12px 0;}
+    .k9-dash-zij, .k9-verloren, .k9-seg{display:none;}
+    .k9-kpis, .k9-dash-twee{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .k9-dash-twee{grid-template-columns:minmax(0,1fr);}
+    .k9-grafiek{border-right:0;}
+    .k9-tip{display:none !important;}
+    .k9-zes, .k9-gratis{grid-template-columns:minmax(0,1fr);}
+    .k9-zes .zeskaart{border-right:0 !important; min-height:0;}
+    .k9-tellen-rechts{padding:24px 16px;}
+    .k9-tellen-links button{padding:18px 16px;}
+    .k9-slot{padding:28px 20px; margin-bottom:72px;}
+    .k9-prijzen .prijs-voet{grid-template-columns:1fr;}
+    .k9-veld{height:360px;}
+    .k9-assen > .k9-mono{display:none;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .k9-zweef, .k9-zweef2, .k9-typ, .k9-lijn, .k9-live{animation:none !important;}
+    .k9-typ{max-width:100%;}
+  }
+  /* De oude klassenamen staan er nog (tests en ankers hangen eraan); hun oude
+     randen en ruimtes zetten we hier uit. */
+  .k9-sectie.dash-blok{border:0; border-radius:0; padding:112px 0 0; display:block; background:none;}
+  .k9-binnen.methode-blok{border:0; border-radius:0; padding:0 24px;}
+  .indexkaart.k9-kaart{padding:0; border:1px solid var(--k-lijn); border-radius:12px;}
+  .k9-prijzen .price-grid{max-width:none; margin:0;}
+  .k9-prijzen .price-card.featured .price-name{color:var(--k-inkt);}
+  .k9-prijzen .price-tag{white-space:nowrap;}
+  .k9-q3, .k9-q4{top:calc(50% + 10px); bottom:auto !important;}
+</style>
+
 </head>
 <body>
 
-{# DE KOERSBALK. Het eerste dat iemand ziet: wat er vandaag gemeten is, met de
-   winkel die bovenaan staat. Alles uit de database. Is er nog niets gemeten,
-   dan valt de balk weg in plaats van dat er verzonnen regels staan. #}
+{# ======================================================================
+   HOMEPAGE VERSIE 9 (30 september 2026). Goedgekeurd door Nino ("Ja!! dat is
+   het"): de rust en de kleuren van versie 8, de laagjes en het klikken van
+   versie 4 en 6. Ontwerp: artefact "Krillo dashboard en homepage", bord
+   Homepage9.
+
+   WAT ER ECHT STAAT EN WAT EEN VOORBEELD IS. De koersbalk, de kaart "The index
+   today", het kwadrant en de vraag in het typende kaartje komen uit de
+   database. De dashboardplaat en de zes kleine schermpjes zijn voorbeelden van
+   hoe het scherm eruitziet; daar staan bewust nep-namen (yourstore.nl,
+   store-a.nl) in en het label EXAMPLE, zodat niemand denkt dat het een echte
+   winkel is. Alles wat er beloofd wordt, doet Krillo nu ook echt (zie de
+   controle van 30 september in het project).
+
+   De vaste id's (scanUrlInput, scanButton, scanResult, watchCheckoutBtn,
+   fixCheckoutBtn, de periodeknoppen) horen bij de scripts onderaan. Niet
+   hernoemen: tests/test_index_per_land.py bewaakt ze.
+   ====================================================================== #}
+
 {% if index and index.ticker %}
 <div class="ticker">
   <div class="wrap">
-    <span class="merk">KRILLO INDEX</span>
-    {# De loopduur groeit mee met het aantal berichten: vijf seconden per
-       bericht. Zonder dat zou de balk bij 31 categorieen een waas worden en bij
-       drie tergend langzaam. Nu is de snelheid altijd dezelfde, hoeveel er ook
-       gemeten is. #}
+    <span class="merk"><span class="k9-live"></span>KRILLO INDEX</span>
     <div class="baan">
       <div class="spoor" style="--loopduur:{{ index.ticker | length * 5 }}s">
-        {# De berichten staan er TWEE keer in. Zie de uitleg bij .spoor in de
-           stijl hierboven: dat is wat het loopje naadloos maakt. De tweede
-           kopie is verborgen voor een schermlezer, anders wordt alles dubbel
-           voorgelezen. #}
         {% for kopie in [1, 2] %}
         <span class="helft"{% if kopie == 2 %} aria-hidden="true"{% endif %}>
           {% for r in index.ticker %}
           <span class="post">{{ r.categorie | upper }} {{ r.land | upper }}
-            {% if r.leider %}<span class="goed">{{ r.leider | upper }} {{ r.genoemd }}/{{ r.telbaar }}</span>
+            {% if r.leider %}<span class="wit">#1 {{ r.leider | upper }}</span> <span class="goed">{{ r.genoemd }}/{{ r.telbaar }}</span>
             {% else %}<span class="bezig">MEASURING</span>{% endif %}</span>
           {% endfor %}
         </span>
@@ -956,265 +1308,343 @@
 </div>
 {% endif %}
 
-<nav>
-  <div class="wrap">
-    <div class="logo">KRILLO <span class="tag">INDEX</span></div>
-    <div class="navlinks">
-      <a href="/index">Index</a>
-      <a href="/demo">Product</a>
-      {# 29 september: de gratis tools stonden alleen in de voettekst. Een
-         bezoeker die nog niet wil kopen, moet iets gratis kunnen doen. #}
-      <a href="/tools">Free tools</a>
-      <a href="#pricing">Pricing</a>
-      {# 29 september, Nino: "For agencies" klonk als het pakket voor bureaus,
-         maar de pagina is het partnerprogramma. Het pakket staat bij Pricing. #}
-      <a href="/partners">Become a partner</a>
-    </div>
-    <a class="nav-cta" href="#scan">Check my store</a>
-  </div>
-</nav>
+{% include "_kop.html" %}
 
-{# DE HERO. Links de belofte en het invoerveld, rechts de index van vandaag in
-   een omlijnd kaartje. Het bewijs staat naast de belofte en niet eronder. #}
-<header class="hero" id="scan">
-  <div class="wrap hero-grid">
-    <div>
-      <div class="eyebrow">AI visibility for online stores</div>
-      <h1>Rank in the answer, not on page one.</h1>
-      <p class="hero-sub">We measure which stores AI assistants recommend, category by category, every month. Then we fix what keeps you out.</p>
+<div class="k9">
+
+{# DE HERO. Links de belofte en het invoerveld (de scan is nog steeds de
+   hoofdingang), rechts de index van vandaag met zwevende kaartjes. #}
+<section class="k9-hero" id="scan">
+  <div class="k9-binnen k9-hero-grid">
+    <div class="k9-hero-tekst">
+      <span class="k9-label">AI SEARCH ANALYTICS FOR WEBSHOPS</span>
+      <h1 class="k9-h1">Know where ChatGPT ranks your store. Then move up.</h1>
+      <p class="k9-intro">Every month Krillo asks ChatGPT and Gemini the questions your buyers ask, ranks every store in your category, and tells you what to change.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
         <button type="button" id="scanButton">Get my rank</button>
       </div>
       <div class="hero-note" id="scanNote">FREE &middot; NO ACCOUNT{% if gescand %} &middot; USED {{ gescand }} TIMES{% endif %}</div>
       <div id="scanResult" class="scan-result"></div>
+      <div class="k9-proefregel">Or <a href="/?plan=watch#pricing" id="heroProef">start a free trial of Watch</a>: 14 days free, then &euro;49 a month, cancel any time.</div>
     </div>
 
-    <div class="indexkaart">
-      <div class="kop">THE INDEX TODAY</div>
-      {% if index and index.cijfers %}
-      {% if index.cijfers.categorieen %}<div class="rij"><span class="naam">Categories</span><span class="getal">{{ index.cijfers.categorieen }}</span></div>{% endif %}
-      {% if index.cijfers.winkels %}<div class="rij"><span class="naam">Stores ranked</span><span class="getal">{{ index.cijfers.winkels }}</span></div>{% endif %}
-      {% if index.cijfers.antwoorden %}<div class="rij"><span class="naam">Answers on record</span><span class="getal">{{ index.cijfers.antwoorden }}</span></div>{% endif %}
+    <div class="k9-hero-rechts">
+      {% set tabs = index.tabs if index and index.tabs else [] %}
+      {% if tabs and tabs[0].stijger %}
+      <div class="k9-zwevend k9-zweef k9-stijger" data-tab-stijger>
+        <span class="k9-pijl">&#9650;{{ tabs[0].stijger.plekken }}</span>
+        <span><b>{{ tabs[0].stijger.naam }} moved up {{ tabs[0].stijger.plekken }} places</b>
+          <i>{{ tabs[0].naam }} &middot; now #{{ tabs[0].stijger.positie }}</i></span>
+      </div>
       {% endif %}
-      {# ONS EIGEN CIJFER. Het sterkste getal dat wij hebben is van onszelf en
-         niet geleend uit een Amerikaans onderzoek. Staat er nog te weinig
-         gemeten, dan staat er iets dat altijd waar is. #}
-      {% if eigen_cijfer %}
-      <div class="rij"><span class="naam">Never named<br><span style="color:var(--ink-grijs); font-size:12.5px;">of {{ eigen_cijfer.gemeten }} stores in the index</span></span><span class="getal">{{ eigen_cijfer.deel }}%</span></div>
-      {% else %}
-      <div class="rij"><span class="naam">Buying questions per store</span><span class="getal">30</span></div>
+
+      <div class="indexkaart k9-kaart k9-laag">
+        <div class="k9-kaartkop">
+          <b>The index today</b>
+          <span class="k9-mono k9-grijs">{{ (index.landen[0].land if index and index.landen else 'nl') | upper }}</span>
+          {% if tabs | length > 1 %}
+          <div class="k9-tabs" role="tablist">
+            {% for t in tabs %}<button type="button" role="tab" class="{{ 'aan' if loop.first }}" data-tab="{{ loop.index0 }}">{{ t.naam }}</button>{% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% if tabs %}
+        {% for t in tabs %}
+        <div class="k9-tab" data-paneel="{{ loop.index0 }}"{% if not loop.first %} hidden{% endif %}>
+          <div class="k9-rij k9-rijkop k9-mono"><span>#</span><span>STORE</span><span>NAMED BY AI</span><span class="r">MOVE</span></div>
+          {% for r in t.rijen %}
+          <button type="button" class="k9-rij{{ ' aan' if loop.first }}" data-kies
+                  data-naam="{{ r.naam }}" data-genoemd="{{ r.genoemd }}/{{ t.telbaar }}"
+                  data-aanbevolen="{{ r.aanbevolen }}" data-vorige="{{ ('#' ~ r.vorige) if r.vorige else 'not measured' }}">
+            <span class="k9-pos">{{ r.positie }}</span>
+            <span class="k9-naam">{{ r.naam }}</span>
+            <span class="k9-balk"><i style="width:{{ r.breedte }}%"></i><em class="k9-mono">{{ r.genoemd }}/{{ t.telbaar }}</em></span>
+            <span class="r k9-mono {{ 'k9-op' if r.beweging.startswith('▲') }}">{{ r.beweging or '&middot;'|safe }}</span>
+          </button>
+          {% endfor %}
+          <div class="k9-waarom op">
+            <span class="k9-mono k9-grijs" data-uit="kop">{{ t.rijen[0].naam | upper }}</span>
+            <span data-uit="tekst">Named in {{ t.rijen[0].genoemd }}/{{ t.telbaar }} answers &middot; recommended {{ t.rijen[0].aanbevolen }} times &middot; last month {{ ('#' ~ t.rijen[0].vorige) if t.rijen[0].vorige else 'not measured' }}</span>
+          </div>
+          <div class="k9-kaartvoet">
+            <span>Top 7 of {{ t.winkels }} stores we measure in {{ t.naam }}{% if t.niet_genoemd %} &middot; {{ t.niet_genoemd }} other stores were named in none of these answers{% endif %}</span>
+            <a href="/index/{{ t.land }}/{{ t.categorie }}">Open this ranking &rarr;</a>
+          </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+        <div class="k9-cijfers k9-mono">
+          {% if index and index.cijfers %}
+          {% if index.cijfers.categorieen %}<span><b>{{ index.cijfers.categorieen }}</b> CATEGORIES</span>{% endif %}
+          {% if index.cijfers.winkels %}<span><b>{{ index.cijfers.winkels }}</b> STORES RANKED</span>{% endif %}
+          {% if index.cijfers.antwoorden %}<span><b>{{ index.cijfers.antwoorden }}</b> ANSWERS KEPT</span>{% endif %}
+          {% endif %}
+          {# Ons eigen cijfer als het er is, anders iets dat altijd waar is. #}
+          {% if eigen_cijfer %}<span class="k9-gewoon"><b>{{ eigen_cijfer.deel }}%</b> never named, of {{ eigen_cijfer.gemeten }} stores in the index</span>
+          {% else %}<span class="k9-gewoon"><b>30</b> Buying questions per store</span>{% endif %}
+          <span>{% if index and index.landen %}LIVE <b>{% for l in index.landen %}{{ l.land | upper }}{% if not loop.last %} {% endif %}{% endfor %}</b>{% endif %}</span>
+        </div>
+      </div>
+
+      {% if tabs and tabs[0].vraag %}
+      <div class="k9-zwevend k9-zweef2 k9-vraagkaart" aria-hidden="true">
+        <span class="k9-mono k9-grijs">A BUYER ASKS CHATGPT</span>
+        <span class="k9-typ-vak"><span class="k9-typ">{{ tabs[0].vraag }}</span></span>
+        <span class="k9-chips k9-mono"><span>{{ tabs[0].land | upper }}</span><span class="blauw">{{ tabs[0].naam | upper }}</span><span>1 OF {{ tabs[0].telbaar }} QUESTIONS</span></span>
+      </div>
       {% endif %}
-      <div class="landen">
-        {% if index and index.landen %}LIVE <strong>{% for l in index.landen %}{{ l.land | upper }}{% if not loop.last %} {% endif %}{% endfor %}</strong><br>{% endif %}
-        {% if index and index.binnenkort %}NEXT {% for c in index.binnenkort %}{{ c | upper }}{% if not loop.last %} {% endif %}{% endfor %}{% endif %}
+    </div>
+  </div>
+</section>
+
+{# HET DASHBOARD. Een plaat van het scherm dat een klant elke maand krijgt.
+   Bewust een VOORBEELD met nep-namen, met een knop naar het echte voorbeeld
+   (/demo) met echte cijfers. #}
+<section class="k9-sectie dash-blok" id="dashboard">
+  <div class="k9-binnen">
+    <div class="k9-sectiekop">
+      <div><span class="k9-label">THE DASHBOARD</span>
+        <h2 class="k9-h2">The screen your store gets every month</h2></div>
+      <div><p>Your rank, the stores around you, every buying question with the real answer, and what to change. Click around: this is an example with made-up names.</p>
+        <a class="k-knop wit" href="/demo">Open a live example: real store, real data &rarr;</a></div>
+    </div>
+    <div class="k9-dashlijst">
+      <div class="k9-dash k9-laag">
+        <div class="k9-dash-zij">
+          <span class="k9-dash-winkel">yourstore.nl<i>Toys &middot; NL</i></span>
+          <span class="aan">Overview</span><span>Ranking</span><span>Questions</span><span>Fixes</span><span>Plan</span>
+        </div>
+        <div class="k9-dash-hoofd">
+          <div class="k9-dash-kop"><b>Overview</b><span class="k9-mono k9-grijs">EXAMPLE &middot; MEASURED 1 OCT</span>
+            <div class="k9-seg">{% for a in ['Both', 'ChatGPT', 'Gemini'] %}<button type="button" class="{{ 'aan' if loop.first }}" data-seg>{{ a }}</button>{% endfor %}</div></div>
+          <div class="k9-kpis">
+            <div><span class="k9-mono">RANK IN TOYS</span><b>#6</b><em>&#9650;3</em></div>
+            <div><span class="k9-mono">VISIBILITY</span><b>27%</b><em>+9 PTS</em></div>
+            <div><span class="k9-mono">RECOMMENDED</span><b>3</b><em>+2</em></div>
+            <div><span class="k9-mono">QUESTIONS WON</span><b>8/30</b><em>+3</em></div>
+          </div>
+          <div class="k9-dash-twee">
+            <div class="k9-grafiek" data-grafiek>
+              <div class="k9-grafiektabs">
+                <button type="button" class="aan" data-reeks="0">Visibility</button><button type="button" data-reeks="1">Rank</button><button type="button" data-reeks="2">Recommended</button>
+                <span class="k9-mono k9-grijs">CLICK A MONTH</span>
+              </div>
+              <svg viewBox="0 0 600 270" role="img" aria-label="Example chart of six months for your store and four others"></svg>
+              <div class="k9-tip op" hidden></div>
+            </div>
+            <div class="k9-verloren">
+              <b>Questions you lose</b>
+              <div><span>best wooden toys for a 2 year old</span><i class="k9-mono">NAMED: STORE-A.NL, STORE-C.NL</i></div>
+              <div><span>educational toys with fast delivery</span><i class="k9-mono">NAMED: STORE-D.NL</i></div>
+              <div><span>montessori toys webshop with reviews</span><i class="k9-mono">NAMED: STORE-E.NL, STORE-C.NL</i></div>
+              <div><span>toy shop with free shipping</span><i class="k9-mono">NAMED: STORE-B.NL</i></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-</header>
+</section>
 
-{# DE INDEX ALS BEWIJS. Alles uit de database. Is er nog niets gemeten, dan valt
-   het hele blok weg in plaats van dat er nullen staan. #}
-{% if index and index.top and index.top.rijen %}
-<section id="index" class="vlak">
-  <div class="wrap">
-    <div class="sectiekop">
-      <div>
-        <h2>Open to everyone</h2>
-        <p>Every ranking is free to read. No account, no email.</p>
-      </div>
-      <a class="meer" href="/index">{% if index.cijfers %}All {{ index.cijfers.categorieen }} categories{% else %}All categories{% endif %} &rarr;</a>
+{# WAT AI ZEGT. De drie getallen die we tellen, met de echte top 3 van de
+   eerste categorie. Klik een getal en een winkel: het zwarte vak laat het
+   echte cijfer zien. Er staat geen verzonnen AI-tekst bij. #}
+{% if tabs and tabs[0].rijen | length >= 3 %}
+{% set t0 = tabs[0] %}
+<section class="k9-sectie" id="wat-ai-zegt">
+  <div class="k9-binnen">
+    <div class="k9-sectiekop">
+      <div><span class="k9-label">WHAT WE COUNT</span>
+        <h2 class="k9-h2">Three numbers decide if a shopper hears your name</h2></div>
+      <div><p>Pick a number, then click a store. These are the real numbers of the top 3 in {{ t0.naam }}, from our latest measurement.</p></div>
     </div>
-
-    <div class="idx-kaart">
-      <div class="idx-kop">
-        <strong>{{ index.top.naam }} &middot; {{ index.top.landnaam }}</strong>
-        <span>{{ index.top.telbaar }} BUYING QUESTIONS &middot; ACTUALLY MEASURED</span>
+    <div class="k9-tellen" data-tellen>
+      <div class="k9-tellen-links">
+        <button type="button" class="aan" data-maat="0"><span class="k9-mono">01</span><span><b>Named</b><i>How often AI mentions a store in its answer.</i></span></button>
+        <button type="button" data-maat="1"><span class="k9-mono">02</span><span><b>Recommended</b><i>How often AI advises buying there. This counts first.</i></span></button>
+        <button type="button" data-maat="2"><span class="k9-mono">03</span><span><b>Rank</b><i>The place among every store we measure in the category.</i></span></button>
+        <div class="k9-tellen-voet"><span class="k9-mono k9-grijs">IN YOUR DASHBOARD</span>For all {{ t0.telbaar }} questions, both assistants, every month.</div>
       </div>
-      <div class="idx-rij idx-hoofd">
-        <span class="p">#</span><span class="w">STORE</span>
-        <span class="c">CATEGORY</span>
-        <span class="g">NAMED</span><span class="a">RECOMMENDED</span>
-      </div>
-      {% for r in index.top.rijen %}
-      <div class="idx-rij">
-        <span class="p">{{ r.positie }}</span>
-        <span class="w">{{ r.naam or r.webshop_url | replace('https://','') }}</span>
-        <span class="c">{{ index.top.naam }} {{ index.top.land | upper }}</span>
-        <span class="g">{{ r.genoemd }} / {{ index.top.telbaar }}</span>
-        <span class="a">{{ r.aanbevolen }}</span>
-      </div>
-      {% endfor %}
-      <div class="idx-voet">
-        <span>{% if index.top.niet_genoemd %}{{ index.top.niet_genoemd }} other stores were named in none of these answers.{% else %}Named means you were in the answer. Recommended means the assistant advised you.{% endif %}</span>
-        <a href="/index/{{ index.top.land }}/{{ index.top.categorie }}">Open this ranking &rarr;</a>
+      <div class="k9-tellen-rechts">
+        {% if t0.vraag %}<span class="k9-bubbel">{{ t0.vraag }}</span>{% endif %}
+        <div class="k9-antwoord k9-laag">
+          <span class="k9-mono k9-grijs">THE INDEX &middot; {{ t0.naam | upper }} &middot; {{ t0.land | upper }}</span>
+          <span>Named most often in the answers to {{ t0.telbaar }} buying questions like this one:</span>
+          {% for r in t0.rijen[:3] %}
+          <div class="k9-antwoordrij"><span class="k9-mono k9-grijs">{{ loop.index }}.</span>
+            <button type="button" class="k9-winkelknop{{ ' aan' if loop.index0 == 1 }}" data-winkel="{{ loop.index0 }}"
+                    data-w0="{{ r.genoemd }}/{{ t0.telbaar }}" data-w1="{{ r.aanbevolen }}" data-w2="#{{ r.positie }}">{{ r.naam }}</button></div>
+          {% endfor %}
+        </div>
+        <div class="k9-uitkomst op" data-uitkomst>
+          <span class="k9-mono" data-u="kop"></span><b data-u="getal"></b><span data-u="tekst"></span>
+        </div>
       </div>
     </div>
   </div>
 </section>
 {% endif %}
 
-{# WAT JE KRIJGT. Zes genummerde vakken in één raster. De hele markt verkoopt
-   rapporten; het enige dat Krillo anders doet is het uitvoeren, dus dat vak is
-   zwart. #}
-<section id="wat-je-krijgt" class="vlak">
-  <div class="wrap">
-    <div class="sectiekop">
-      <div>
-        <h2>Everyone else reports. We fix.</h2>
-        <p>Six things every month. You give us access once, we do the rest.</p>
-      </div>
+{# DE ZES DINGEN. Precies wat Krillo elke maand doet, genummerd, met 04 in het
+   zwart: het werk doen is wat ons anders maakt. De schermpjes zijn
+   voorbeelden. #}
+<section class="k9-sectie" id="wat-je-krijgt">
+  <div class="k9-binnen">
+    <div class="k9-sectiekop">
+      <div><span class="k9-label">EVERY MONTH</span>
+        <h2 class="k9-h2">Everyone else reports. We fix.</h2></div>
+      <div><p>Six things every month. You give us access once, we do the rest. The small screens are examples.</p></div>
     </div>
-    <div class="zes">
+    <div class="k9-zes">
       <div class="zeskaart">
-        <div class="nr">01</div>
-        <h3>Your rank</h3>
-        <p>Where you stand in your category, and who moved past you.</p>
+        <span class="k9-nr">01</span><b>Your rank</b>
+        <p>Where you stand in your category and your country, and who moved past you.</p>
+        <div class="k9-stapel">
+          <div class="k9-stapel-a"></div><div class="k9-stapel-b"></div>
+          <div class="k9-stapel-c k9-laag"><span class="k9-mono k9-grijs">RANK IN TOYS &middot; EXAMPLE</span><b>#6 <em>&#9650;3</em></b>
+            <span class="k9-klein">of 24 stores we measure &middot; store-a.nl is #1</span></div>
+        </div>
       </div>
       <div class="zeskaart">
-        <div class="nr">02</div>
-        <h3>The questions you lose</h3>
-        <p>The real answer, and the competitor named instead of you.</p>
+        <span class="k9-nr">02</span><b>The questions you lose</b>
+        <p>The real answer, and the store named instead of you. Click one.</p>
+        <div class="k9-lijstje" data-open-lijst>
+          <button type="button" class="aan"><span>best wooden toys for a 2 year old</span><i class="k9-mono">NAMED INSTEAD: STORE-A.NL, STORE-C.NL</i></button>
+          <button type="button"><span>toy shop with fast delivery</span><i class="k9-mono">NAMED INSTEAD: STORE-B.NL</i></button>
+          <button type="button"><span>montessori toys with reviews</span><i class="k9-mono">NAMED INSTEAD: STORE-D.NL</i></button>
+        </div>
       </div>
       <div class="zeskaart">
-        <div class="nr">03</div>
-        <h3>The blockers</h3>
-        <p>Thirteen checks on your store. Most shops miss several without knowing.</p>
+        <span class="k9-nr">03</span><b>The blockers</b>
+        <p>Thirteen checks on your store. We say what is a fact and what is only likely.</p>
+        <div class="k9-lijstje" data-open-lijst>
+          <button type="button" class="aan"><span><em class="k9-nee">&#10005;</em> AI robots blocked in robots.txt</span><i class="k9-mono">FACT: CHATGPT CANNOT READ YOUR PAGES</i></button>
+          <button type="button"><span><em class="k9-ja">&#10003;</em> Price and stock in the product code</span><i class="k9-mono">FACT: AI CAN READ YOUR PRICES</i></button>
+          <button type="button"><span><em class="k9-nee">&#10005;</em> No questions page</span><i class="k9-mono">LIKELY: HARDER FOR AI TO QUOTE YOU</i></button>
+        </div>
       </div>
       <div class="zeskaart donker">
-        <div class="nr">04</div>
-        <h3>The fix, installed</h3>
-        <p>We write it and put it live. The old text is kept, so every change can be undone.</p>
+        <span class="k9-nr">04</span><b>The fix, installed</b>
+        <p>We write it and put it live. On Shopify through our app, elsewhere by our team. The old text is kept, so every change can be undone.</p>
+        <div class="k9-lijstje zwart" data-open-lijst>
+          <button type="button" class="aan"><span>Age and safety text on /wooden-toys</span><i class="k9-mono">LIVE &middot; OLD TEXT KEPT</i></button>
+          <button type="button"><span>Answers to buyer questions on a FAQ page</span><i class="k9-mono">READY &middot; GOES LIVE THIS WEEK</i></button>
+          <button type="button"><span>Delivery time in the product data</span><i class="k9-mono">READY &middot; GOES LIVE THIS WEEK</i></button>
+        </div>
       </div>
       <div class="zeskaart">
-        <div class="nr">05</div>
-        <h3>Proof it worked</h3>
+        <span class="k9-nr">05</span><b>Proof it worked</b>
         <p>At the next monthly measurement we ask the same questions again and show the difference.</p>
+        <div class="k9-voorna k9-laag" data-voorna>
+          <div class="k9-seg"><button type="button" class="aan" data-vn="0">Before</button><button type="button" data-vn="1">After</button></div>
+          <div data-vn-paneel="0"><span class="k9-mono k9-grijs">SEPTEMBER &middot; EXAMPLE</span><b>#9</b><span class="k9-klein">named in 3 of 30 answers</span></div>
+          <div data-vn-paneel="1" hidden><span class="k9-mono k9-grijs">OCTOBER &middot; EXAMPLE</span><b>#6 <em>&#9650;3</em></b><span class="k9-klein">named in 8 of 30 answers</span></div>
+        </div>
       </div>
       <div class="zeskaart">
-        <div class="nr">06</div>
-        <h3>A warning when you drop</h3>
-        <p>From us, not from your sales figures, with who moved past you.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-{# HET DASHBOARD. Met een knop naar een ECHT dashboard van een echte winkel.
-   Een schermafbeelding is over twee maanden verouderd en niemand gelooft hem. #}
-<section id="dashboard" class="vlak">
-  <div class="wrap">
-    <div class="dash-blok">
-      <div class="dash-tekst">
-        <h2>One screen. One button.</h2>
-        <p>Your rank, the questions you lose, and the fixes we write for you. No password to forget: your link arrives by email.</p>
-        <a class="knop-donker" href="/demo">Open a live example</a>
-        <div class="dash-note">A REAL STORE, REAL DATA, NO SIGNUP</div>
-      </div>
-      {% if index and index.top and index.top.rijen %}
-      <div class="dash-kaart">
-        <div class="dash-label">YOUR POSITION &middot; {{ index.top.naam | upper }}</div>
-        <div class="dash-groot">
-          <span class="nr">{{ index.top.rijen[0].positie }}</span>
-          {# Stond hier kaal als "of 24". Zie de uitleg bij van_de_gemeten in
-             sitetaal.py: een noemer zonder label leest als de hele markt. #}
-          <span class="van">of {{ index.top.winkels }} we measure</span>
-        </div>
-        <div class="dash-regel">Named in {{ index.top.rijen[0].genoemd }} of {{ index.top.telbaar }} buying questions</div>
-        <div class="dash-regel">Recommended in {{ index.top.rijen[0].aanbevolen }}</div>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-</section>
-
-{# HOE JE ONS KAN CONTROLEREN. Wij hebben geen keurmerk en geen bekende klanten,
-   dus de methode IS het vertrouwen. #}
-<section id="methode" class="vlak">
-  <div class="wrap">
-    <div class="methode-blok">
-      <h2>How to check us</h2>
-      <div class="methode-grid">
-        <div>
-          <h3>Every question is published</h3>
-          <p>The exact buying questions behind each ranking sit on the page. Ask them yourself.</p>
-        </div>
-        <div>
-          <h3>No paid positions</h3>
-          <p>Nobody can buy a place. The order follows from the answers, nothing else.</p>
-        </div>
-        <div>
-          <h3>Dated, never eternal</h3>
-          <p>AI answers change. Every ranking carries the day it was measured.</p>
-        </div>
-        <div>
-          <h3>Every answer kept in full</h3>
-          <p>{% if index and index.cijfers and index.cijfers.antwoorden %}{{ index.cijfers.antwoorden }} complete answers are on record. That is how we show movement.{% else %}Every answer is kept in full, with the date it was given.{% endif %}</p>
+        <span class="k9-nr">06</span><b>A warning when you drop</b>
+        <p>With Fix: a message when you drop three places or more, with who moved past you.</p>
+        <div class="k9-mail k9-laag">
+          <span class="k9-mono k9-grijs">EMAIL FROM KRILLO &middot; EXAMPLE</span>
+          <b>You dropped 3 places in Toys</b>
+          <span class="k9-klein">store-d.nl and store-e.nl moved past you. This is what they changed, and what we do next.</span>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-{# GRATIS TOOLS EN BUREAUS (29 september). Otterly en Peec zetten hun gratis
-   tools en hun partnerprogramma zichtbaar op de site; bij ons stonden ze alleen
-   in de voettekst. Wie nog niet koopt, kan hier iets gratis doen, en een bureau
-   ziet meteen dat het aan ons kan verdienen. #}
-<section id="gratis" class="vlak">
-  <div class="wrap">
-    <div class="methode-blok">
-      <h2>Free, no account</h2>
-      <div class="methode-grid">
-        <div>
-          <h3><a href="/tools/ai-crawler-check" style="color:inherit;">Can AI read your store?</a></h3>
-          <p>We check whether ChatGPT, Gemini and Perplexity are allowed in by your robots.txt.</p>
+{# HET KWADRANT. Genoemd tegen aangeraden, van de echte winkels in de eerste
+   categorie. Klik een stip. #}
+{% if tabs and tabs[0].punten | length >= 4 %}
+{% set t0 = tabs[0] %}
+<section class="k9-sectie" id="index">
+  <div class="k9-binnen">
+    <div class="k9-sectiekop">
+      <div><span class="k9-label">{{ t0.naam | upper }} &middot; {{ t0.land | upper }}</span>
+        <h2 class="k9-h2">Who AI names, and who it recommends</h2></div>
+      <div><p>Being named is not the same as being advised. These are the top stores in {{ t0.naam }} from our latest measurement. Click a store.</p></div>
+    </div>
+    <div class="idx-kaart k9-kwadrant k9-laag" data-kwadrant>
+      <div class="k9-veld">
+        <div class="k9-assen">
+          <span class="k9-mono k9-q1">ADVISED, RARELY NAMED</span><span class="k9-mono k9-q2">LEADERS</span>
+          <span class="k9-mono k9-q3">RARELY IN THE ANSWER</span><span class="k9-mono k9-q4">NAMED, NOT ADVISED</span>
+          {% set maxx = (t0.punten | map(attribute='x') | max) or 1 %}
+          {% set maxy = (t0.punten | map(attribute='y') | max) or 1 %}
+          {% for p in t0.punten %}
+          <button type="button" class="k9-stip{{ ' aan' if loop.first }}" aria-label="{{ p.naam }}"
+                  style="left:{{ (6 + 88 * p.x / maxx) | round(1) }}%; bottom:{{ (6 + 88 * p.y / maxy) | round(1) }}%;"
+                  data-naam="{{ p.naam }}" data-tekst="#{{ p.positie }} &middot; named {{ p.genoemd }}/{{ t0.telbaar }} &middot; recommended {{ p.aanbevolen }}">{{ p.positie }}</button>
+          {% endfor %}
+          <div class="k9-stiptip op" data-stiptip><b></b><span class="k9-mono"></span></div>
         </div>
-        <div>
-          <h3><a href="/tools/product-data-check" style="color:inherit;">Does your product page give AI the facts?</a></h3>
-          <p>Price, stock, brand and reviews in the code, the details AI answers are built from.</p>
-        </div>
-        <div>
-          <h3><a href="/index" style="color:inherit;">Where do you rank?</a></h3>
-          <p>The public rankings per category and country, with every question we asked.</p>
-        </div>
-        <div>
-          <h3><a href="/partners" style="color:inherit;">Agency or freelancer?</a></h3>
-          <p>Show your clients where AI recommends them, and earn 20 percent of what they pay, for as long as they pay, up to 12 months.</p>
-        </div>
+        <span class="k9-mono k9-as-x">NAMED IN ANSWERS &rarr;</span>
+        <span class="k9-mono k9-as-y">RECOMMENDED &rarr;</span>
+      </div>
+      <div class="k9-kwadrant-uitleg">
+        <div class="blauw"><b>Leaders</b><span>Named often and advised often. This is where the sales are.</span></div>
+        <div><b>Named, not advised</b><span>AI knows the store but sends buyers elsewhere. Usually a matter of reviews and clear product facts.</span></div>
+        <div><b>Advised, rarely named</b><span>Strong on a few questions. More text per category brings more of them.</span></div>
+        <a class="k-knop wit" href="/index/{{ t0.land }}/{{ t0.categorie }}">Open the full ranking &rarr;</a>
       </div>
     </div>
   </div>
 </section>
+{% endif %}
 
-<section id="pricing" class="vlak">
+{# HOE JE ONS KAN CONTROLEREN. Geen keurmerk en geen bekende klanten: de
+   methode is het vertrouwen. #}
+<section class="k9-sectie" id="methode">
+  <div class="k9-binnen methode-blok k9-twee">
+    <div>
+      <span class="k9-label">HOW TO CHECK US</span>
+      <h2 class="k9-h2">A method you can verify</h2>
+      <p class="k9-p">Every ranking is public. The questions, the assistants and the counting are the same for every store. Nobody can pay to rank higher.</p>
+    </div>
+    <div class="k9-accordeon" data-accordeon>
+      <button type="button" class="aan"><span class="k9-mono">01</span><span><b>Every question is published</b><i>The exact buying questions behind each ranking sit on the page, in the language of the market. Ask them yourself.</i></span><em>&minus;</em></button>
+      <button type="button"><span class="k9-mono">02</span><span><b>No paid positions</b><i>Nobody can buy a place. The order follows from the answers, nothing else. Customers do not rank higher because they pay.</i></span><em>+</em></button>
+      <button type="button"><span class="k9-mono">03</span><span><b>Dated, never eternal</b><i>AI answers change. Every ranking carries the day it was measured, and we measure again every month.</i></span><em>+</em></button>
+      <button type="button"><span class="k9-mono">04</span><span><b>Every answer kept in full</b><i>{% if index and index.cijfers and index.cijfers.antwoorden %}{{ index.cijfers.antwoorden }} complete answers are on record, each with the date it was given. That is how we show movement.{% else %}Every answer is kept in full, with the date it was given.{% endif %}</i></span><em>+</em></button>
+    </div>
+  </div>
+</section>
+
+{# GRATIS, ZONDER ACCOUNT. Wie nog niet koopt, kan hier iets gratis doen. #}
+<section class="k9-sectie k9-smal" id="gratis">
+  <div class="k9-binnen">
+    <div class="k9-gratis">
+      <a class="k9-kaart" href="/tools/ai-crawler-check"><span class="k9-mono k9-grijs">FREE TOOL</span><b>Can AI read your store?</b><span>We check whether ChatGPT, Gemini and Perplexity are allowed in by your robots.txt.</span></a>
+      <a class="k9-kaart" href="/tools/product-data-check"><span class="k9-mono k9-grijs">FREE TOOL</span><b>Does your product page give AI the facts?</b><span>Price, stock, brand and reviews in the code, the details AI answers are built from.</span></a>
+      <a class="k9-kaart" href="/index"><span class="k9-mono k9-grijs">FREE</span><b>Where do you rank?</b><span>The public rankings per category and country, with every question we asked.</span></a>
+      <a class="k9-kaart" href="/partners"><span class="k9-mono k9-grijs">PARTNERS</span><b>Agency or freelancer?</b><span>Show your clients where AI recommends them, and earn 20 percent of what they pay, for as long as they pay, up to 12 months.</span></a>
+    </div>
+  </div>
+</section>
+</div>
+
+<section id="pricing" class="k9-sectie k9-prijzen">
   {# Het oude anker, zodat links met #prijzen uit verstuurde mails blijven werken. #}
   <span id="prijzen" style="position:absolute;"></span>
-  <div class="wrap">
-    <div class="sectiekop">
-      <div>
-        <h2>Pricing</h2>
-        <p>The others hand you a dashboard. We do the work.</p>
+  <div class="k9-binnen">
+    <div class="k9-prijskop">
+      <div><span class="k9-label">PRICING</span><h2 class="k9-h2">The others hand you a dashboard. We do the work.</h2></div>
+      {# LET OP BIJ WIJZIGEN: de bedragen moeten gelijk zijn aan
+         payments.PAKKETTEN, ook de jaarbedragen (test_jaarabonnement). Merken
+         heeft GEEN jaarprijs; dat richten we samen in. #}
+      <div class="periode-keuze" role="group" aria-label="Billing period">
+        <button type="button" class="aan" data-periode="maand">Monthly</button>
+        <button type="button" data-periode="jaar">Yearly <span class="gratis">2 months free</span></button>
       </div>
-    </div>
-
-    {# LET OP BIJ WIJZIGEN: de bedragen hieronder moeten gelijk zijn aan
-       payments.PAKKETTEN. Een prijs op de site die niet klopt met wat er
-       afgeschreven wordt is een onjuiste mededeling over een
-       betalingsverplichting. Een test bewaakt dat ze gelijk blijven. #}
-    {# Stap 106 (28 september): per maand of per jaar, met twee maanden gratis.
-       De jaarbedragen moeten gelijk zijn aan payments.PAKKETTEN[...]["jaarprijs"];
-       test_jaarabonnement bewaakt dat. #}
-    <div class="periode-keuze" role="group" aria-label="Billing period">
-      <button type="button" class="aan" data-periode="maand">Monthly</button>
-      <button type="button" data-periode="jaar">Yearly <span class="gratis">2 months free</span></button>
     </div>
 
     <div class="price-grid">
-      <div class="price-card">
-        <div class="price-name">Watch</div>
+      <div class="price-card featured">
+        <div class="price-top"><span class="price-name">Watch</span><span class="price-tag blauw k9-mono">14 DAYS FREE</span></div>
         <div class="price-amount" data-maand="&euro;49 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;490 &lt;span&gt;/year&lt;/span&gt;">&euro;49 <span>/mo</span></div>
-        {# Stap 167: Watch per maand begint met 14 gratis dagen. #}
-        <div class="price-amount proef-noot" data-maand="&lt;span style=&quot;font-size:14px;font-weight:600;color:#1B3FE0;&quot;&gt;First 14 days free. Cancel before then and you pay nothing.&lt;/span&gt;" data-jaar="" style="font-size:14px; margin-top:-6px;"><span style="font-size:14px;font-weight:600;color:#1B3FE0;">First 14 days free. Cancel before then and you pay nothing.</span></div>
+        <div class="price-amount proef-noot" data-maand="First 14 days free. Cancel before then and you pay nothing." data-jaar="Paid yearly. The free trial is for the monthly plan.">First 14 days free. Cancel before then and you pay nothing.</div>
         <ul class="price-feats">
           <li><strong>Your rank every month</strong>, in your category and your country</li>
           <li>The buying questions you do not appear in, with the real answer</li>
@@ -1222,13 +1652,13 @@
           <li>The thirteen checks on your store</li>
           <li>The fixes written out, to do yourself</li>
         </ul>
-        <a class="price-btn ghost" href="#scan" id="watchCheckoutBtn" data-maand="Try 14 days free" data-jaar="Start">Try 14 days free</a>
+        <a class="price-btn solid" href="#scan" id="watchCheckoutBtn" data-maand="Try 14 days free" data-jaar="Start">Try 14 days free</a>
       </div>
 
-      <div class="price-card featured">
-        <div class="price-badge">Recommended</div>
-        <div class="price-name">Fix</div>
+      <div class="price-card">
+        <div class="price-top"><span class="price-name">Fix</span><span class="price-tag k9-mono">WE DO THE WORK</span></div>
         <div class="price-amount" data-maand="&euro;149 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;1,490 &lt;span&gt;/year&lt;/span&gt;">&euro;149 <span>/mo</span></div>
+        <div class="price-amount proef-noot" data-maand="For stores that want the changes made for them." data-jaar="Two months free compared to monthly.">For stores that want the changes made for them.</div>
         <ul class="price-feats">
           <li><strong>Everything in Watch</strong></li>
           <li><strong>We make the fixes in your store</strong>: on Shopify through our app, elsewhere by our team with your access</li>
@@ -1236,12 +1666,13 @@
           <li>At the next monthly measurement we show the difference</li>
           <li>A message when you drop three places or more</li>
         </ul>
-        <a class="price-btn solid" href="#scan" id="fixCheckoutBtn">Start</a>
+        <a class="price-btn ghost" href="#scan" id="fixCheckoutBtn">Start with Fix</a>
       </div>
 
       <div class="price-card">
-        <div class="price-name">Brands and agencies</div>
+        <div class="price-top"><span class="price-name">Brands and agencies</span><span class="price-tag k9-mono">UP TO 25 STORES</span></div>
         <div class="price-amount">&euro;490 <span>/mo</span></div>
+        <div class="price-amount proef-noot">Monthly only. We set it up together.</div>
         <ul class="price-feats">
           <li><strong>Up to 25 stores</strong>, each with its own dashboard</li>
           <li>Every category they appear in</li>
@@ -1266,6 +1697,34 @@
     </div>
   </div>
 </section>
+
+<div class="k9">
+<section class="k9-sectie" id="vragen">
+  <div class="k9-binnen k9-twee">
+    <div><span class="k9-label">QUESTIONS</span><h2 class="k9-h2">Before you start</h2>
+      <p class="k9-p">Something else? Email <a href="mailto:hello@krilloai.com">hello@krilloai.com</a>, we answer within one working day. More in the <a href="/faq">full list</a>.</p></div>
+    <div class="k9-faq" data-accordeon>
+      <button type="button" class="aan"><span><b>How does Krillo measure my store?</b><i>Every month we ask ChatGPT and Gemini the same buying questions for every store in your category and country, and count who is named and who is recommended.</i></span><em>&minus;</em></button>
+      <button type="button"><span><b>Is my store already in the index?</b><i>If you sell in a category we measure in the Netherlands or Belgium, probably yes. Type your store at the top of this page: you see your rank for free, without an account.</i></span><em>+</em></button>
+      <button type="button"><span><b>What is the difference between Watch and Fix?</b><i>Watch shows your rank, the answers and the fixes to do yourself. With Fix we put the changes live in your store, and the old text is kept so every change can be undone.</i></span><em>+</em></button>
+      <button type="button"><span><b>Can I cancel any time?</b><i>Yes, every month, from the Plan page in your dashboard. The first 14 days of Watch are free, and if you cancel within fourteen days of your first payment you get that month back.</i></span><em>+</em></button>
+      <button type="button"><span><b>Do you work with agencies?</b><i>Yes. Check up to ten client stores for free on the agencies page, and follow up to 25 stores in one plan.</i></span><em>+</em></button>
+    </div>
+  </div>
+</section>
+
+<section class="k9-sectie">
+  <div class="k9-binnen">
+    <div class="k9-slot">
+      <h2 class="k9-h2">Is your store one of the three AI names?</h2>
+      <form class="k9-slotveld k9-laag" id="slotForm">
+        <input type="text" id="slotUrl" placeholder="yourstore.com" aria-label="Your store address">
+        <button type="submit" class="k-knop blauw">Find my rank</button>
+      </form>
+    </div>
+  </div>
+</section>
+</div>
 
 <div class="checkout-overlay" id="checkoutOverlay">
   <div class="checkout-modal">
@@ -1305,50 +1764,7 @@
   </div>
 </div>
 
-<footer>
-  <div class="wrap">
-    <div class="footer-top">
-      <div class="footer-brand">
-        <div class="logo">KRILLO <span class="tag">INDEX</span></div>
-        <p>We show whether your store is named and recommended by ChatGPT, Gemini and other AI assistants, and we fix what holds you back. Built for online stores.</p>
-      </div>
-      <div class="footer-col">
-        <h4>Product</h4>
-        <a href="/#scan">Check my store</a>
-        <a href="/index">The index</a>
-        <a href="/demo">Example dashboard</a>
-        <a href="/tools">Free tools</a>
-        <a href="/compare">Compare tools</a>
-        <a href="/news/nl">This month in the index</a>
-        <a href="/partners">Become a partner</a>
-        <a href="/#wat-je-krijgt">What you get</a>
-        <a href="/#pricing">Pricing</a>
-        <a href="/mijn-link">Lost my link</a>
-      </div>
-      <div class="footer-col">
-        <h4>Company</h4>
-        <a href="/index">The index</a>
-        <a href="/zo-meten-we">How we measure</a>
-        <a href="/artikelen">Articles</a>
-        <a href="/over-ons">About Krillo</a>
-        <a href="/faq">Questions</a>
-      </div>
-      <div class="footer-col">
-        <h4>Contact</h4>
-        <a href="mailto:hello@krilloai.com">hello@krilloai.com</a>
-        <a href="/over-ons">Address and company details</a>
-      </div>
-    </div>
-    <div class="footer-bottom">
-      <div>&copy; 2026 Krillo. Built in the Netherlands.</div>
-      <div class="flinks">
-        <a href="/privacy">Privacy policy</a>
-        <a href="/voorwaarden">Terms</a>
-        <a href="/herroepen">Withdraw a purchase</a>
-      </div>
-    </div>
-  </div>
-</footer>
+{% include "_voet.html" %}
 
 <script>
   // Waar deze bezoeker vandaan kwam. Wordt bij het laden bepaald en
@@ -2220,5 +2636,170 @@
   }
 })();
 </script>
+<script>
+/* HOMEPAGE VERSIE 9: het klikken (30 september).
+   Gewoon JavaScript, geen bibliotheek. Elke knop werkt via een data-kenmerk in
+   de opmaak, zodat de opmaak zegt wat er klikbaar is. Valt dit script om (een
+   heel oude browser), dan staat alles er nog: de eerste tab, het eerste
+   antwoord en de eerste vraag zijn open in de HTML zelf. */
+(function(){
+  function alle(sel, ouder){ return Array.prototype.slice.call((ouder || document).querySelectorAll(sel)); }
+  function zetAan(knoppen, knop){ knoppen.forEach(function(k){ k.classList.toggle('aan', k === knop); }); }
+
+  // Tabs van "The index today".
+  var tabknoppen = alle('.k9-tabs [data-tab]');
+  tabknoppen.forEach(function(k){
+    k.addEventListener('click', function(){
+      zetAan(tabknoppen, k);
+      alle('.k9-tab').forEach(function(p){ p.hidden = p.getAttribute('data-paneel') !== k.getAttribute('data-tab'); });
+      var st = document.querySelector('[data-tab-stijger]');
+      if (st) { st.style.display = k.getAttribute('data-tab') === '0' ? '' : 'none'; }
+    });
+  });
+  // Een winkel in de kaart kiezen: het vak eronder zegt de echte cijfers.
+  alle('.k9-tab').forEach(function(paneel){
+    var rijen = alle('[data-kies]', paneel);
+    rijen.forEach(function(r){
+      r.addEventListener('click', function(){
+        zetAan(rijen, r);
+        var vak = paneel.querySelector('.k9-waarom');
+        vak.querySelector('[data-uit="kop"]').textContent = r.getAttribute('data-naam').toUpperCase();
+        vak.querySelector('[data-uit="tekst"]').textContent = 'Named in ' + r.getAttribute('data-genoemd') +
+          ' answers · recommended ' + r.getAttribute('data-aanbevolen') + ' times · last month ' + r.getAttribute('data-vorige');
+        vak.classList.remove('op'); void vak.offsetWidth; vak.classList.add('op');
+      });
+    });
+  });
+
+  // Losse schakelaars (voorbeeld): alleen de knop aanzetten.
+  alle('.k9-dash-kop .k9-seg').forEach(function(seg){
+    var k = alle('button', seg);
+    k.forEach(function(b){ b.addEventListener('click', function(){ zetAan(k, b); }); });
+  });
+
+  // De grafiek in de dashboardplaat. VOORBEELDCIJFERS, net als de namen.
+  var g = document.querySelector('[data-grafiek]');
+  if (g) {
+    var reeksen = [['yourstore.nl', '#1B3FE0', 2.4], ['store-a.nl', '#0A0A0B', 1.5], ['store-c.nl', '#6E7079', 1.5], ['store-d.nl', '#A9AAB2', 1.5], ['store-b.nl', '#D6D6DC', 1.5]];
+    var data = [
+      [[9,11,14,21,25,27],[62,60,61,58,57,55],[44,45,42,40,38,37],[30,31,29,33,34,36],[25,24,26,23,22,21]],
+      [[12,11,10,7,6,6],[1,1,1,1,1,1],[2,2,3,3,3,3],[4,4,4,4,4,4],[6,6,5,6,7,7]],
+      [[0,0,1,2,2,3],[9,9,10,9,8,8],[6,6,5,5,5,4],[3,4,4,4,5,5],[2,2,2,1,1,1]]];
+    var maxen = [70, 14, 12], maanden = ['MAY','JUN','JUL','AUG','SEP','OCT'], xs = [40,144,248,352,456,560];
+    var stand = {reeks: 0, maand: 5};
+    var svg = g.querySelector('svg'), tip = g.querySelector('.k9-tip');
+    var NS = 'http://www.w3.org/2000/svg';
+    function el(n, a){ var e = document.createElementNS(NS, n); for (var k in a) e.setAttribute(k, a[k]); return e; }
+    function y(v){ var m = maxen[stand.reeks]; return stand.reeks === 1 ? 30 + (v - 1) / (m - 1) * 200 : 240 - v / m * 200; }
+    function teken(nieuw){
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      [30, 100, 170, 240].forEach(function(h){ svg.appendChild(el('line', {x1: 0, x2: 600, y1: h, y2: h, stroke: '#F1F1F4'})); });
+      maanden.forEach(function(m, i){ var t = el('text', {x: xs[i], y: 262, 'text-anchor': 'middle', 'font-family': 'IBM Plex Mono', 'font-size': 10, fill: i === stand.maand ? '#0A0A0B' : '#A9AAB2'}); t.textContent = m; svg.appendChild(t); });
+      reeksen.forEach(function(r, i){
+        var p = data[stand.reeks][i].map(function(v, j){ return xs[j] + ',' + Math.round(y(v)); }).join(' ');
+        svg.appendChild(el('polyline', {points: p, fill: 'none', stroke: r[1], 'stroke-width': r[2], 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'class': nieuw ? 'k9-lijn' : ''}));
+      });
+      var hx = xs[stand.maand];
+      svg.appendChild(el('line', {x1: hx, x2: hx, y1: 20, y2: 240, stroke: '#0A0A0B', 'stroke-opacity': .15}));
+      svg.appendChild(el('circle', {cx: hx, cy: Math.round(y(data[stand.reeks][0][stand.maand])), r: 4.5, fill: '#fff', stroke: '#1B3FE0', 'stroke-width': 2.4}));
+      xs.forEach(function(x, i){
+        var vlak = el('rect', {x: x - 50, y: 10, width: 100, height: 240, fill: 'transparent'});
+        vlak.addEventListener('click', function(){ stand.maand = i; teken(false); });
+        svg.appendChild(vlak);
+      });
+      var eenheid = stand.reeks === 0 ? '%' : '', voor = stand.reeks === 1 ? '#' : '';
+      tip.innerHTML = '<span class="k9-mono">' + ['MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER'][stand.maand] + ' · EXAMPLE</span>' +
+        reeksen.map(function(r, i){ return '<div><i style="background:' + r[1] + '"></i>' + r[0] + '<em>' + voor + data[stand.reeks][i][stand.maand] + eenheid + '</em></div>'; }).join('');
+      var breed = svg.getBoundingClientRect().width || 600, schaal = breed / 600;
+      var links = hx * schaal + (stand.maand > 2 ? -196 : 24);
+      tip.style.left = Math.max(8, links + 16) + 'px';
+      tip.hidden = false; tip.classList.remove('op'); void tip.offsetWidth; tip.classList.add('op');
+    }
+    var gk = alle('[data-reeks]', g);
+    gk.forEach(function(b){ b.addEventListener('click', function(){ zetAan(gk, b); stand.reeks = +b.getAttribute('data-reeks'); teken(true); }); });
+    teken(true);
+    window.addEventListener('resize', function(){ teken(false); });
+  }
+
+  // Wat we tellen: getal kiezen, winkel kiezen, zwart vak met het echte cijfer.
+  var tel = document.querySelector('[data-tellen]');
+  if (tel) {
+    var maat = 0, winkel = 1;
+    var namen = ['NAMED', 'RECOMMENDED', 'RANK'];
+    var uitleg = ['Answers that mention this store, out of every buying question we asked.',
+                  'Answers in which the assistant advised buying there.',
+                  'Place among every store we measure in this category.'];
+    var mk = alle('[data-maat]', tel), wk = alle('[data-winkel]', tel);
+    var uit = tel.querySelector('[data-uitkomst]');
+    function toon(){
+      var w = wk[winkel]; if (!w) return;
+      uit.querySelector('[data-u="kop"]').textContent = namen[maat] + ' · ' + w.textContent.toUpperCase();
+      uit.querySelector('[data-u="getal"]').textContent = w.getAttribute('data-w' + maat);
+      uit.querySelector('[data-u="tekst"]').textContent = uitleg[maat];
+      uit.style.top = (150 + winkel * 52) + 'px';
+      uit.classList.remove('op'); void uit.offsetWidth; uit.classList.add('op');
+    }
+    mk.forEach(function(b){ b.addEventListener('click', function(){ zetAan(mk, b); maat = +b.getAttribute('data-maat'); toon(); }); });
+    wk.forEach(function(b){ b.addEventListener('click', function(){ zetAan(wk, b); winkel = +b.getAttribute('data-winkel'); toon(); }); });
+    toon();
+  }
+
+  // Lijstjes in de zes vakken, de methode en de vragen: een tegelijk open.
+  alle('[data-open-lijst], [data-accordeon]').forEach(function(lijst){
+    var k = alle(':scope > button', lijst);
+    k.forEach(function(b){
+      b.addEventListener('click', function(){
+        var was = b.classList.contains('aan');
+        k.forEach(function(x){ x.classList.remove('aan'); var t = x.querySelector('em:last-child'); if (lijst.hasAttribute('data-accordeon') && t) t.textContent = '+'; });
+        if (!was || lijst.hasAttribute('data-open-lijst')) {
+          b.classList.add('aan');
+          var t = b.querySelector('em:last-child'); if (lijst.hasAttribute('data-accordeon') && t) t.textContent = '−';
+        }
+      });
+    });
+  });
+
+  // Voor en na.
+  alle('[data-voorna]').forEach(function(v){
+    var k = alle('[data-vn]', v);
+    k.forEach(function(b){ b.addEventListener('click', function(){
+      zetAan(k, b);
+      alle('[data-vn-paneel]', v).forEach(function(p){ p.hidden = p.getAttribute('data-vn-paneel') !== b.getAttribute('data-vn'); });
+    }); });
+  });
+
+  // Het kwadrant: klik een stip.
+  var kw = document.querySelector('[data-kwadrant]');
+  if (kw) {
+    var stippen = alle('.k9-stip', kw), tipk = kw.querySelector('[data-stiptip]');
+    function kies(s){
+      zetAan(stippen, s);
+      tipk.querySelector('b').textContent = s.getAttribute('data-naam');
+      tipk.querySelector('span').innerHTML = s.getAttribute('data-tekst');
+      var links = parseFloat(s.style.left), onder = parseFloat(s.style.bottom);
+      tipk.style.left = links > 60 ? 'calc(' + links + '% - 250px)' : 'calc(' + links + '% + 22px)';
+      tipk.style.bottom = 'calc(' + onder + '% - 20px)';
+      tipk.classList.remove('op'); void tipk.offsetWidth; tipk.classList.add('op');
+    }
+    stippen.forEach(function(s){ s.addEventListener('click', function(){ kies(s); }); });
+    if (stippen[0]) kies(stippen[0]);
+  }
+
+  // Het slotveld onderaan doet hetzelfde als de scan bovenaan.
+  var slot = document.getElementById('slotForm');
+  if (slot) {
+    slot.addEventListener('submit', function(e){
+      e.preventDefault();
+      var adres = (document.getElementById('slotUrl').value || '').trim();
+      var veld = document.getElementById('scanUrlInput'), knop = document.getElementById('scanButton');
+      if (!veld || !knop) return;
+      veld.value = adres;
+      document.getElementById('scan').scrollIntoView({behavior: 'smooth'});
+      if (adres) { knop.click(); } else { veld.focus(); }
+    });
+  }
+})();
+</script>
+
 </body>
 </html>

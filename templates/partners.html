@@ -27,16 +27,10 @@
   .fout{color:#B42318;} .goed{color:var(--groen); font-weight:600;}
   ul.punten li{margin:0 0 10px 18px; color:var(--ink-zacht);}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
-<nav><div class="wrap">
-  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-  <div class="links">
-    <a href="/index">The index</a>
-    <a href="/tools">Free tools</a>
-    <a class="knop donker" href="#aanmelden">Become a partner</a>
-  </div>
-</div></nav>
+{% include "_kop.html" %}
 
 <main><div class="wrap" style="max-width:860px;">
   <h1>Partner program</h1>
@@ -89,8 +83,7 @@
   </form>
 </div></main>
 
-<footer><div class="wrap">Krillo &middot; <a href="/partners">Partners</a> &middot; <a href="/tools">Free tools</a>
-  &middot; <a href="/compare">Compare</a> &middot; <a href="/index">The index</a> &middot; <a href="/privacy">Privacy</a></div></footer>
+{% include "_voet.html" %}
 
 <script>
 (function(){

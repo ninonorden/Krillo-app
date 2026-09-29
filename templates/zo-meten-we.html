@@ -111,15 +111,11 @@
              letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
   .logo-dot{display:none;}
 </style>
+{% include "_k_stijl.html" %}
 </head>
 <body>
 
-<nav>
-  <div class="wrap">
-    <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
-    <a class="nav-cta" href="/#scan">Check my store</a>
-  </div>
-</nav>
+{% include "_kop.html" %}
 
 <main>
   <h1>How we measure</h1>
@@ -239,7 +235,7 @@
   </div>
 </main>
 
-<footer>&copy; 2026 Krillo &middot; <a href="/">Back to the website</a> &middot; <a href="/faq">Questions</a></footer>
+{% include "_voet.html" %}
 
 </body>
 </html>
