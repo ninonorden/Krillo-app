@@ -65,7 +65,7 @@
         </div>
       </div>
       <div class="proefknoppen">
-        <a class="knop-licht" href="/uitkomst/{{ proef }}/verder?plan=watch">Watch &middot; &euro;{{ prijzen.watch }}/{{ 'mnd' if taal == 'nl' else 'mo' }}</a>
+        <a class="knop-licht" href="/uitkomst/{{ proef }}/verder?plan=watch">Watch &middot; {{ '14 dagen gratis' if taal == 'nl' else '14 days free' }}</a>
         <a class="knop-vol" href="/uitkomst/{{ proef }}/verder?plan=fix">Fix &middot; &euro;{{ prijzen.fix }}/{{ 'mnd' if taal == 'nl' else 'mo' }}</a>
       </div>
     </div>
@@ -365,7 +365,7 @@
           <li>{{ 'Alle vragen die je verliest, met het echte antwoord' if taal == 'nl' else 'Every question you lose, with the real answer' }}</li>
           <li>{{ 'Elke verbetering uitgeschreven, om zelf over te nemen' if taal == 'nl' else 'Every fix written out, to copy in yourself' }}</li>
         </ul>
-        <a class="knop-rand" href="{{ '/uitkomst/' ~ proef ~ '/verder?plan=watch' if proef else '/?plan=watch#pricing' }}">{{ 'Start Watch' }}</a>
+        <a class="knop-rand" href="{{ '/uitkomst/' ~ proef ~ '/verder?plan=watch' if proef else '/?plan=watch#pricing' }}">{{ 'Probeer Watch 14 dagen gratis' if taal == 'nl' else 'Try Watch free for 14 days' }}</a>
       </div>
       <div class="kaartblok plankaart aangeraden">
         <div class="kaartkop">FIX &middot; {{ 'AANGERADEN' if taal == 'nl' else 'RECOMMENDED' }}</div>

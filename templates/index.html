@@ -966,7 +966,9 @@
          bezoeker die nog niet wil kopen, moet iets gratis kunnen doen. #}
       <a href="/tools">Free tools</a>
       <a href="#pricing">Pricing</a>
-      <a href="/partners">For agencies</a>
+      {# 29 september, Nino: "For agencies" klonk als het pakket voor bureaus,
+         maar de pagina is het partnerprogramma. Het pakket staat bij Pricing. #}
+      <a href="/partners">Become a partner</a>
     </div>
     <a class="nav-cta" href="#scan">Check my store</a>
   </div>
@@ -1211,6 +1213,8 @@
       <div class="price-card">
         <div class="price-name">Watch</div>
         <div class="price-amount" data-maand="&euro;49 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;490 &lt;span&gt;/year&lt;/span&gt;">&euro;49 <span>/mo</span></div>
+        {# Stap 167: Watch per maand begint met 14 gratis dagen. #}
+        <div class="price-amount proef-noot" data-maand="&lt;span style=&quot;font-size:14px;font-weight:600;color:#1B3FE0;&quot;&gt;First 14 days free. Cancel before then and you pay nothing.&lt;/span&gt;" data-jaar="" style="font-size:14px; margin-top:-6px;"><span style="font-size:14px;font-weight:600;color:#1B3FE0;">First 14 days free. Cancel before then and you pay nothing.</span></div>
         <ul class="price-feats">
           <li><strong>Your rank every month</strong>, in your category and your country</li>
           <li>The buying questions you do not appear in, with the real answer</li>
@@ -1218,7 +1222,7 @@
           <li>The thirteen checks on your store</li>
           <li>The fixes written out, to do yourself</li>
         </ul>
-        <a class="price-btn ghost" href="#scan" id="watchCheckoutBtn">Start</a>
+        <a class="price-btn ghost" href="#scan" id="watchCheckoutBtn" data-maand="Try 14 days free" data-jaar="Start">Try 14 days free</a>
       </div>
 
       <div class="price-card featured">
@@ -1316,7 +1320,7 @@
         <a href="/tools">Free tools</a>
         <a href="/compare">Compare tools</a>
         <a href="/news/nl">This month in the index</a>
-        <a href="/partners">For agencies</a>
+        <a href="/partners">Become a partner</a>
         <a href="/#wat-je-krijgt">What you get</a>
         <a href="/#pricing">Pricing</a>
         <a href="/mijn-link">Lost my link</a>
@@ -1894,6 +1898,8 @@
   var currentType = 'fix';
 
   var periode = 'maand';
+  // Stap 167: staat op true als de server zegt dat deze winkel de proef al had.
+  var geenProef = false;
   var includesContent = {
     audit: {
       items: [
@@ -1923,7 +1929,7 @@
         'Which competitor was named instead of you',
         'The thirteen checks on your store',
         'The fixes written out, to do yourself',
-        'Cancel any time, no minimum term'
+        'First 14 days free, then cancel any time, no minimum term'
       ],
       delivery: 'Delivery: your rank is there as soon as your category is measured, and every month after that. You get a link to your own screen, with no password.',
       garantie: 'Cancel within fourteen days of your first payment and you get that month back in full.'
@@ -2008,7 +2014,10 @@
       title.textContent = 'Which store should we work on?';
       emailField.style.display = 'block';
     } else if(type === 'watch'){
-      eyebrow.textContent = periode === 'jaar' ? 'Watch \u00b7 \u20ac490 /year, 2 months free' : 'Watch \u00b7 \u20ac49 /mo';
+      eyebrow.textContent = periode === 'jaar' ? 'Watch \u00b7 \u20ac490 /year, 2 months free' : 'Watch \u00b7 14 days free, then \u20ac49 /mo';
+      if(periode !== 'jaar' && garantieVeld && !geenProef){
+        garantieVeld.textContent = 'Free for 14 days. We ask 1 cent now to confirm your bank account; the first EUR 49 is collected on day 15. Cancel before then on your dashboard and you pay nothing. We remind you three days before.';
+      }
       title.textContent = 'Which store should we watch?';
       emailField.style.display = 'block';
     } else {
@@ -2016,7 +2025,7 @@
       title.textContent = 'Which store should we fix?';
       emailField.style.display = 'block';
     }
-    submitBtn.textContent = 'Continue to payment';
+    submitBtn.textContent = (type === 'watch' && periode !== 'jaar' && !geenProef) ? 'Start my free trial' : 'Continue to payment';
     submitBtn.disabled = false;
     overlay.classList.add('open');
     urlInput.focus();
@@ -2069,7 +2078,8 @@
                 directe_uitvoering_akkoord: vinkDirect.checked,
                 pakket: pakketten[currentType] || 'fix',
                 periode: (currentType === 'watch' || currentType === 'fix') ? periode : 'maand',
-                herkomst: bepaalHerkomst(), ref: krilloRef};
+                herkomst: bepaalHerkomst(), ref: krilloRef,
+                proef: currentType === 'watch' && periode !== 'jaar' && !geenProef};
 
     fetch(endpoint, {
       method: 'POST',
@@ -2080,6 +2090,13 @@
     .then(function(result){
       if(!result.ok || !result.data.checkout_url){
         showError(result.data.error || 'Could not start the payment yet.');
+        // Stap 167: de proef is al gebruikt. Dan eerlijk verder zonder proef.
+        if(result.data.zonder_proef){
+          geenProef = true;
+          var gv = document.getElementById('checkoutGarantie');
+          if(gv){ gv.textContent = includesContent.watch.garantie; }
+          eyebrow.textContent = 'Watch \u00b7 \u20ac49 /mo';
+        }
         submitBtn.disabled = false;
         submitBtn.textContent = 'Continue to payment';
         return;
@@ -2104,6 +2121,8 @@
       document.querySelectorAll('.price-amount[data-jaar]').forEach(function(el){
         el.innerHTML = el.getAttribute(periode === 'jaar' ? 'data-jaar' : 'data-maand');
       });
+      var wb = document.getElementById('watchCheckoutBtn');
+      if(wb){ wb.textContent = wb.getAttribute(periode === 'jaar' ? 'data-jaar' : 'data-maand'); }
     });
   });
 
