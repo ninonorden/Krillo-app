@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# 29 september: de pagina voor merken en bureaus. Vervangt de knop "Talk to us"
+   die meteen een lege mail opende. Eerst het beeld (waar staan je winkels in
+   de index), dan pas een kort formulier. Zie merkenbureaus.py waarom. #}
+<title>Krillo for brands and agencies | AI visibility for up to 25 stores</title>
+<meta name="description" content="See where ChatGPT and Gemini recommend your stores or your clients' stores. Check up to 10 stores free, then follow up to 25 stores for EUR 490 a month.">
+<link rel="canonical" href="{{ basis_url }}/agencies">
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+{% include "_stijl.html" %}
+<style>
+  .drie{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:18px 0 26px;}
+  @media(max-width:760px){ .drie{grid-template-columns:1fr;} }
+  .drie .blok h3{font-family:var(--disp); font-size:19px; margin-bottom:8px; color:var(--ink);}
+  main .wrap > h2{margin-top:38px; font-size:26px;}
+  .formulier{max-width:600px; display:grid; gap:10px; margin-top:12px;}
+  .formulier label{font-size:14px; font-weight:600; color:var(--ink);}
+  .formulier input, .formulier textarea, .formulier select{width:100%; box-sizing:border-box; border-radius:8px;
+      border:1.5px solid #D8D8DE; padding:12px 14px; font-family:var(--body); font-size:15px; background:#fff;}
+  .formulier input:focus, .formulier textarea:focus{border-color:var(--vermiljoen); outline:none;}
+  .knop-groot{height:50px; border-radius:8px; border:0; background:var(--vermiljoen); color:#fff; padding:0 22px;
+      font-family:var(--body); font-weight:600; font-size:15px; cursor:pointer;}
+  .knop-groot:disabled{opacity:.6; cursor:default;}
+  .fout{color:#B42318;} .goed{color:var(--groen); font-weight:600;}
+  .twee{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  @media(max-width:600px){ .twee{grid-template-columns:1fr;} }
+  .check{background:var(--paper-raised, #fff); border:1px solid var(--line, #E4E2DA); border-radius:12px; padding:18px;}
+  .check textarea{width:100%; box-sizing:border-box; border-radius:8px; border:1.5px solid #D8D8DE; padding:12px;
+      font-family:var(--mono, monospace); font-size:14px; min-height:110px;}
+  table.uitkomst{width:100%; border-collapse:collapse; margin-top:14px; font-size:14px;}
+  table.uitkomst th{text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-zacht);
+      border-bottom:1px solid var(--line, #E4E2DA); padding:8px 6px;}
+  table.uitkomst td{border-bottom:1px solid var(--line, #E4E2DA); padding:10px 6px; vertical-align:top;}
+  .plan{border:2px solid var(--ink); border-radius:14px; padding:22px; margin-top:14px;}
+  .plan .prijs{font-family:var(--disp); font-size:34px; color:var(--ink);}
+  .plan .prijs span{font-size:16px; color:var(--ink-zacht);}
+  ul.punten li{margin:0 0 10px 18px; color:var(--ink-zacht);}
+  .rood{color:#B42318; font-weight:600;} .groen{color:var(--groen); font-weight:600;}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="/">KRILLO <span class="tag">INDEX</span></a>
+  <div class="links">
+    <a href="/index">The index</a>
+    <a href="/demo">Product</a>
+    <a href="/partners">Partner program</a>
+    <a class="knop donker" href="#aanvragen">Get started</a>
+  </div>
+</div></nav>
+
+<main><div class="wrap" style="max-width:900px;">
+  <h1>{% if soort == 'brand' %}See where AI recommends your brand's stores{% else %}Show every client where ChatGPT recommends them{% endif %}</h1>
+  <p class="inleiding">For brands with several webshops and for agencies with many clients. Krillo asks ChatGPT and
+     Gemini the questions shoppers ask, every month, and shows per store who gets recommended instead.
+     Start by checking your stores below: free, no account.</p>
+
+  <h2>Check up to 10 stores now</h2>
+  <div class="check">
+    <label for="m_winkels" style="font-weight:600;">Store addresses, one per line</label>
+    <textarea id="m_winkels" placeholder="store-one.com&#10;store-two.nl&#10;client-store.be"></textarea>
+    <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <button class="knop-groot" id="m_check" type="button">Check these stores</button>
+      <span class="klein">Straight from the Krillo Index. Nothing is stored.</span>
+    </div>
+    <div class="fout" id="m_checkfout" role="alert"></div>
+    <div id="m_uitkomst"></div>
+  </div>
+
+  <h2>What you get</h2>
+  <div class="drie">
+    <div class="blok"><h3>One view, all stores</h3>
+      <p>Every store with its own dashboard: its rank per category, the buying questions it loses, and which
+         competitor AI names instead.</p></div>
+    <div class="blok"><h3>The fixes, per store</h3>
+      <p>Per lost question the concrete change to make: texts, product information and structured data,
+         ready to paste in.</p></div>
+    <div class="blok"><h3>Month by month</h3>
+      <p>A new measurement every month. Each dashboard shows the trend: who moved up, who dropped, and which
+         questions changed hands.</p></div>
+  </div>
+
+  <div class="plan">
+    <div style="font-weight:600; color:var(--ink-zacht);">Brands and agencies</div>
+    <div class="prijs">&euro;490 <span>/month, up to 25 stores</span></div>
+    <ul class="punten" style="margin-top:12px;">
+      <li>Every store in every category it appears in, measured monthly in ChatGPT and Gemini</li>
+      <li>A dashboard per store, and a link you can share with each client</li>
+      <li>We set it up together with you, by hand, in the first week</li>
+      <li>Cancel any month</li>
+    </ul>
+    <a class="knop-groot" href="#aanvragen" style="display:inline-flex; align-items:center; text-decoration:none;">Get started</a>
+  </div>
+
+  <h2>Only a few clients?</h2>
+  <p>Then the <a href="/partners">partner program</a> may fit better: send your clients to Krillo with your own
+     link, they pick their own plan, and you earn a share of what they pay.</p>
+
+  <h2 id="aanvragen">Get started</h2>
+  <p>Leave your details. You get a personal reply from Nino, the founder, within one working day. No sales team,
+     no demo call required.</p>
+  <form class="formulier" id="m_form" onsubmit="return false;">
+    <div class="twee">
+      <div><label for="m_naam">Your name</label><input id="m_naam" type="text" autocomplete="name" maxlength="120"></div>
+      <div><label for="m_bedrijf">Company</label><input id="m_bedrijf" type="text" autocomplete="organization" maxlength="160"></div>
+    </div>
+    <div class="twee">
+      <div><label for="m_email">Work email</label><input id="m_email" type="email" autocomplete="email" maxlength="200"></div>
+      <div><label for="m_site">Website</label><input id="m_site" type="text" inputmode="url" maxlength="200" placeholder="company.com"></div>
+    </div>
+    <div class="twee">
+      <div><label for="m_soort">You are</label>
+        <select id="m_soort"><option value="agency"{% if soort != 'brand' %} selected{% endif %}>An agency or freelancer</option>
+          <option value="brand"{% if soort == 'brand' %} selected{% endif %}>A brand with several stores</option></select></div>
+      <div><label for="m_aantal">Number of stores</label>
+        <select id="m_aantal"><option>2-5</option><option selected>6-25</option><option>More than 25</option></select></div>
+    </div>
+    <label for="m_bericht">Anything we should know? (optional)</label>
+    <textarea id="m_bericht" rows="3" maxlength="2000"></textarea>
+    <p class="klein" style="margin:0;">We use these details only to reply to you. See our
+       <a href="/privacy">privacy policy</a>.</p>
+    <button class="knop-groot" id="m_knop" type="submit">Send</button>
+    <div class="fout" id="m_fout" role="alert"></div>
+  </form>
+</div></main>
+
+<footer><div class="wrap">Krillo &middot; <a href="/partners">Partners</a> &middot; <a href="/tools">Free tools</a>
+  &middot; <a href="/compare">Compare</a> &middot; <a href="/index">The index</a> &middot; <a href="/privacy">Privacy</a></div></footer>
+
+<script>
+(function(){
+  function el(id){ return document.getElementById(id); }
+  function tekst(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  var laatste = '';
+  el('m_check').addEventListener('click', function(){
+    var knop = el('m_check'); el('m_checkfout').textContent = '';
+    laatste = el('m_winkels').value;
+    knop.disabled = true; knop.textContent = 'Checking...';
+    fetch('/api/agencies/check', {method:'POST', headers:{'Content-Type':'application/json'},
+                                  body: JSON.stringify({winkels: laatste})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        knop.disabled = false; knop.textContent = 'Check these stores';
+        if(!d.ok){ el('m_checkfout').textContent = d.fout || 'Something went wrong.'; return; }
+        var rijen = d.uitkomst.map(function(u){
+          var b = u.beste;
+          if(!b){
+            return '<tr><td><strong>' + tekst(u.winkel) + '</strong></td><td colspan="2">Not in the index yet. '
+                 + '<a href="/?winkel=' + encodeURIComponent(u.winkel) + '#scan">Run the free check</a></td></tr>';
+          }
+          var plek = b.genoemd > 0
+            ? '<span class="groen">#' + tekst(b.positie) + '</span> of ' + tekst(b.van)
+            : '<span class="rood">Not named</span> (' + tekst(b.van) + ' stores measured)';
+          var wie = b.eerste && b.eerste !== u.winkel ? 'AI names ' + tekst(b.eerste) + ' first' : (b.genoemd > 0 ? 'Named first' : '');
+          return '<tr><td><strong>' + tekst(u.winkel) + '</strong><br><span class="klein">' + tekst(u.categorieen)
+               + ' categor' + (u.categorieen === 1 ? 'y' : 'ies') + '</span></td>'
+               + '<td>' + plek + '<br><a class="klein" href="' + tekst(b.pad) + '">' + tekst(b.categorienaam) + ', ' + tekst(b.land.toUpperCase()) + '</a></td>'
+               + '<td>' + wie + '</td></tr>';
+        }).join('');
+        el('m_uitkomst').innerHTML = '<table class="uitkomst"><tr><th>Store</th><th>Best rank</th><th>Who wins</th></tr>'
+          + rijen + '</table><p class="klein" style="margin-top:10px;">Want this every month, per store, with the fixes? '
+          + '<a href="#aanvragen">Get started</a>.</p>';
+      })
+      .catch(function(){ knop.disabled = false; knop.textContent = 'Check these stores';
+                         el('m_checkfout').textContent = 'Something went wrong. Try again in a moment.'; });
+  });
+  el('m_knop').addEventListener('click', function(){
+    var knop = el('m_knop'), fout = el('m_fout'); fout.textContent = '';
+    function w(id){ return el(id).value.trim(); }
+    var body = {naam: w('m_naam'), bedrijf: w('m_bedrijf'), email: w('m_email'), website: w('m_site'),
+                soort: el('m_soort').value, aantal: el('m_aantal').value, bericht: w('m_bericht'), winkels: laatste};
+    if(!body.naam || !body.email){ fout.textContent = 'Enter your name and your work email.'; return; }
+    knop.disabled = true; knop.textContent = 'Sending...';
+    fetch('/api/agencies', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.ok){ el('m_form').innerHTML = '<p class="goed">Thanks. Check your inbox for a confirmation; Nino replies within one working day.</p>'; }
+        else { fout.textContent = d.fout || 'Something went wrong.'; knop.disabled = false; knop.textContent = 'Send'; }
+      })
+      .catch(function(){ fout.textContent = 'Something went wrong. Email hello@krilloai.com.'; knop.disabled = false; knop.textContent = 'Send'; });
+  });
+})();
+</script>
+</body>
+</html>

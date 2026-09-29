@@ -119,6 +119,15 @@
       </div>
       <div class="stap-num">{{ totaal.bezoekers }}</div>
     </div>
+    {% if totaal.mensen_sinds %}
+    <div class="stap">
+      <div class="stap-naam">Echt een mens (scrolde of klikte)</div>
+      <div class="stap-balk">
+        <div class="stap-vul" style="width:{{ ((totaal.mensen or 0) / breedste * 100) | round(0,'common') | int }}%"></div>
+      </div>
+      <div class="stap-num">{{ totaal.mensen }}{% if totaal.bezoekers_sinds_mensen %} &middot; van {{ totaal.bezoekers_sinds_mensen }} sinds {{ totaal.mensen_sinds.strftime('%d-%m') }}{% endif %}</div>
+    </div>
+    {% endif %}
     <div class="stap">
       <div class="stap-naam">Gratis scan gedaan</div>
       <div class="stap-balk">
@@ -138,6 +147,12 @@
     </div>
   </div>
   <div class="duiding">
+    <strong>Over "Op de site geweest".</strong> Niet iedereen daarin is een mens. Mailbeveiliging
+    bij bedrijven (Outlook, Mimecast en dergelijke) opent elke link in een koude mail om hem te
+    controleren, en doet zich daarbij voor als een gewone browser. Daarom staat er sinds 29 september
+    een tweede regel: bezoekers die ook echt scrolden, klikten of typten. Dat getal is de eerlijke
+    basis voor "1 op zoveel".
+    <br><br>
     Hier zie je welke stap klemt. Weinig bezoek en een goede doorloop is een ander probleem
     dan veel bezoek dat niets doet. Het eerste los je op met meer mensen naar de site brengen,
     het tweede met een betere pagina.

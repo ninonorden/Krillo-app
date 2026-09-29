@@ -334,6 +334,10 @@
   </div>
 
   <h2>De lijst</h2>
+  {% if regels_totaal and regels|length < regels_totaal %}
+  <p class="klein">De {{ regels|length }} winkels met de meest recente activiteit, van {{ regels_totaal }}.
+     <a href="?alles=1">Toon de hele lijst</a> (duurt langer).</p>
+  {% endif %}
   {% if regels %}
     <table>
       <tr><th>Winkel</th><th>Land</th><th>Stand</th><th>Adres</th><th>Gemaild</th><th>Opmerking</th><th></th></tr>

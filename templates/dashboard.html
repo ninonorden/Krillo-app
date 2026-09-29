@@ -65,8 +65,9 @@
         </div>
       </div>
       <div class="proefknoppen">
-        <a class="knop-licht" href="/uitkomst/{{ proef }}/verder?plan=watch">Watch &middot; {{ '14 dagen gratis' if taal == 'nl' else '14 days free' }}</a>
-        <a class="knop-vol" href="/uitkomst/{{ proef }}/verder?plan=fix">Fix &middot; &euro;{{ prijzen.fix }}/{{ 'mnd' if taal == 'nl' else 'mo' }}</a>
+        {# Stap 168: de gratis proef is de hoofdknop, Fix de tweede keus. #}
+        <a class="knop-vol" href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Start gratis proef &middot; 14 dagen'|safe if taal == 'nl' else 'Start free trial &middot; 14 days'|safe }}</a>
+        <a class="knop-licht" href="/uitkomst/{{ proef }}/verder?plan=fix">Fix &middot; &euro;{{ prijzen.fix }}/{{ 'mnd' if taal == 'nl' else 'mo' }}</a>
       </div>
     </div>
     {% endif %}

@@ -1248,7 +1248,7 @@
           <li>Every buying question, and who beats you</li>
           <li>We set it up together with you, by hand</li>
         </ul>
-        <a class="price-btn ghost" href="mailto:hello@krilloai.com?subject=Krillo%20for%20brands%20and%20agencies">Talk to us</a>
+        <a class="price-btn ghost" href="/agencies">Check your stores free</a>
       </div>
     </div>
 
@@ -1898,8 +1898,30 @@
   var currentType = 'fix';
 
   var periode = 'maand';
-  // Stap 167: staat op true als de server zegt dat deze winkel de proef al had.
+  // Stap 167: staat op true als de server zegt dat deze winkel of dit adres de
+  // proef al had. 29 september: dat gold daarna voor ALLES wat je nog invulde.
+  // Nino vulde een ander adres in en kreeg zonder melding 49 euro bij Mollie.
+  // Nu hoort het "nee" bij precies die winkel plus dat adres; verander je een
+  // van de twee, dan staat de proef weer aan en vraagt de server het opnieuw.
   var geenProef = false;
+  var geenProefVoor = '';
+  function proefSleutel(){
+    return (urlInput.value || '').trim().toLowerCase() + '|' + (emailInput.value || '').trim().toLowerCase();
+  }
+  function proefWeerAan(){
+    if(!geenProef || proefSleutel() === geenProefVoor){ return; }
+    geenProef = false;
+    geenProefVoor = '';
+    if(currentType === 'watch' && periode !== 'jaar'){
+      var gv = document.getElementById('checkoutGarantie');
+      if(gv){ gv.textContent = 'Free for 14 days. We ask 1 cent now to confirm your bank account; the first EUR 49 is collected on day 15. Cancel before then on your dashboard and you pay nothing. We remind you three days before.'; }
+      eyebrow.textContent = 'Watch \u00b7 14 days free, then \u20ac49 /mo';
+      submitBtn.textContent = 'Start my free trial';
+      clearError();
+    }
+  }
+  urlInput.addEventListener('input', proefWeerAan);
+  emailInput.addEventListener('input', proefWeerAan);
   var includesContent = {
     audit: {
       items: [
@@ -2091,13 +2113,17 @@
       if(!result.ok || !result.data.checkout_url){
         showError(result.data.error || 'Could not start the payment yet.');
         // Stap 167: de proef is al gebruikt. Dan eerlijk verder zonder proef.
+        submitBtn.disabled = false;
         if(result.data.zonder_proef){
           geenProef = true;
+          geenProefVoor = proefSleutel();
           var gv = document.getElementById('checkoutGarantie');
           if(gv){ gv.textContent = includesContent.watch.garantie; }
           eyebrow.textContent = 'Watch \u00b7 \u20ac49 /mo';
+          // Uitdrukkelijk, nooit stil: op de knop staat het bedrag.
+          submitBtn.textContent = 'Continue at \u20ac49/mo';
+          return;
         }
-        submitBtn.disabled = false;
         submitBtn.textContent = 'Continue to payment';
         return;
       }
@@ -2168,6 +2194,17 @@
     if (plan === 'watch' || plan === 'fix') {
       var knop = document.getElementById(plan === 'watch' ? 'watchCheckoutBtn' : 'fixCheckoutBtn');
       if (knop) { setTimeout(function(){ knop.click(); }, 300); }
+    }
+    // Stap 168: kwam hij via de knop in onze mail (t=), dan ook zijn mailadres
+    // invullen. Alleen als het veld nog leeg is.
+    var kenmerk = new URLSearchParams(window.location.search).get('t');
+    if (kenmerk && window.fetch) {
+      fetch('/api/voorvullen/' + encodeURIComponent(kenmerk))
+        .then(function(r){ return r.ok ? r.json() : {}; })
+        .then(function(d){
+          var veld = document.getElementById('checkoutEmail');
+          if (d && d.email && veld && !veld.value) { veld.value = d.email; }
+        }).catch(function(){});
     }
     var winkel = new URLSearchParams(window.location.search).get('winkel');
     if (!winkel) { return; }

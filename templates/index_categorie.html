@@ -81,9 +81,16 @@
         {{ jij.positie - 1 }} {% if jij.positie == 2 %}store ranks{% else %}stores rank{% endif %} above you.
       {% endif %}
     </div>
-    <a class="knop" href="{{ jij.verder }}" style="white-space:nowrap; background:var(--vermiljoen);
-       color:#fff; padding:11px 18px; border-radius:8px; text-decoration:none; font-weight:600;">
-      {% if jij.positie == 1 %}How to keep it{% else %}How to move up{% endif %} &rarr;</a>
+    {# Stap 168 (29 september): de gratis proef is de grote knop, met winkel en
+       mailadres al ingevuld. Daarnaast de vragen die hij verliest, want dat is
+       wat iemand eerst wil zien voordat hij iets probeert. #}
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      {% if jij.vragen %}<a href="{{ jij.vragen }}" style="white-space:nowrap; font-weight:600; font-size:14px;">
+        {% if jij.positie == 1 %}See your questions{% else %}See the questions you lose{% endif %} &rarr;</a>{% endif %}
+      <a class="knop" href="{{ jij.proef or jij.verder }}" style="white-space:nowrap; background:var(--vermiljoen);
+         color:#fff; padding:11px 18px; border-radius:8px; text-decoration:none; font-weight:600;">
+        Start free trial &middot; 14 days</a>
+    </div>
   </div>
   {% endif %}
 
