@@ -83,9 +83,26 @@ def verdiepingen(totaal):
     return max(1, min(5, int(math.log10(totaal)) + 1))
 
 
+_BEWAARD = {"op": 0.0, "waarde": None}
+BEWAAR_SECONDEN = 300
+
+
 def stand(uur="1 hour", tel=None):
-    """Alles voor het plaatje: per agent zijn huis, en het stadhuis."""
-    tel = tel or _tel
+    """Alles voor het plaatje: per agent zijn huis, en het stadhuis.
+
+    Vijf minuten bewaard (29 september): 24 tellingen op grote tabellen elke
+    minuut, zolang de pagina open stond, maakte de rest van de site trager."""
+    import time
+    if tel is None:
+        if _BEWAARD["waarde"] and time.time() - _BEWAARD["op"] < BEWAAR_SECONDEN:
+            return _BEWAARD["waarde"]
+        uit = _stand(uur, _tel)
+        _BEWAARD.update(op=time.time(), waarde=uit)
+        return uit
+    return _stand(uur, tel)
+
+
+def _stand(uur, tel):
     agents = []
     for i, (sleutel, naam, wat, sql_totaal, sql_uur) in enumerate(AGENTS):
         totaal = tel(sql_totaal)

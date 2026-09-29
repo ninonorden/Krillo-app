@@ -1268,7 +1268,7 @@ def send_partner_welkom(to_email, naam, link, procent=20, maanden=12):
                   font-family:Menlo,Consolas,monospace; font-size:14px; color:#12142B; word-break:break-all;
                   margin:0 0 16px;">{_html.escape(link)}</div>
       <p {stijl}>How it works: a store that opens your link and starts a paid plan within 60 days counts as
-         yours. You get {procent} percent of what that store pays us (excluding VAT), for {maanden} months.
+         yours. You get {procent} percent of what that store pays us (excluding VAT), for as long as it pays, up to {maanden} months.
          Once a month we send you an overview; you send us an invoice and we pay within 14 days.</p>
       <p {stijl}>Tip: the free check on our homepage is the easiest start for your clients. It shows their rank
          in the Krillo Index and the buying questions where ChatGPT names someone else.</p>
@@ -1321,4 +1321,13 @@ def send_klantbericht(to_email, onderwerp, alineas, link_url, knop="Open my Kril
       <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
         {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
     </div>"""
+    return send_email(to_email, onderwerp, html)
+
+
+def send_persbericht(to_email, onderwerp, tekst):
+    """Het maandelijkse persbericht (persagent.py). Platte tekst in een kale
+    mail: redacties kopieren eruit, en opmaak zit dan in de weg."""
+    html = ('<div style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif; max-width:640px; '
+            'margin:0 auto; padding:24px 16px; font-size:15px; color:#12142B; line-height:1.6; '
+            'white-space:pre-wrap;">' + _html.escape(tekst) + "</div>")
     return send_email(to_email, onderwerp, html)

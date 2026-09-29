@@ -120,6 +120,11 @@ def herken(html, webshop_url):
     if not html:
         return None
     from bs4 import BeautifulSoup
+    # Alleen het laatste stuk van de pagina (29 september): de voettekst staat
+    # onderaan, en een hele winkelpagina van een megabyte ontleden kostte de
+    # server seconden rekentijd per winkel, ten koste van de bezoekers.
+    if len(html) > 80000:
+        html = html[-80000:]
     soup = BeautifulSoup(html, "html.parser")
     eigen = _domein(webshop_url)
     # Eerst de voettekst; heeft de site geen <footer>, dan het laatste stuk.
@@ -271,7 +276,7 @@ def mail_tekst(naam, samen, link):
         (f"{m} of them are not named by AI at all right now. " if m else
          "All of them are named, which is rare. ")
         + "Per store you can see the rank and who AI names instead on the page below.",
-        "We pay agencies 20 percent of what their clients pay us, for 12 months. Your clients get a free check "
+        "We pay agencies 20 percent of what their clients pay us, for as long as they pay, up to 12 months. Your clients get a free check "
         "first, and with Fix we make the changes in their store, so there is no extra work for you.",
     ]
     return onderwerp, alineas

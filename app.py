@@ -12,6 +12,7 @@ Starten:
 Ga daarna naar http://127.0.0.1:5000 in je browser.
 """
 
+import collections
 import copy
 import hashlib
 import hmac
@@ -274,6 +275,83 @@ def _apparaat():
     if "mobi" in ua or "android" in ua or "iphone" in ua:
         return "telefoon"
     return "computer"
+
+
+# ---------------------------------------------------------------------------
+# TRAGE PAGINA'S METEN (29 september). Nino: "alle pagina's laden lang". Wij
+# zagen de logboeken van Render niet, dus we wisten niet WELKE pagina traag was.
+# Nu houdt de app zelf bij welke verzoeken langer dan TRAAG_SECONDEN duurden:
+# in het geheugen (de laatste 200), op /admin/traag en in het ochtendbericht.
+# ---------------------------------------------------------------------------
+TRAAG_SECONDEN = float(os.environ.get("TRAAG_SECONDEN", "2"))
+_traag = collections.deque(maxlen=200)
+_verzoeken = {"totaal": 0, "traag": 0}
+
+
+@app.before_request
+def _start_klok():
+    from flask import g
+    g._krillo_start = time.time()
+    _warm_op_na_start()
+
+
+@app.after_request
+def _meet_duur(antwoord):
+    try:
+        from flask import g
+        duur = time.time() - getattr(g, "_krillo_start", time.time())
+        if not request.path.startswith("/static"):
+            _verzoeken["totaal"] += 1
+            if duur >= TRAAG_SECONDEN:
+                _verzoeken["traag"] += 1
+                _traag.append({"pad": request.path, "sec": round(duur, 1),
+                               "op": datetime.now().strftime("%d-%m %H:%M")})
+                print(f"TRAAG: {request.path} duurde {duur:.1f} s")
+    except Exception:
+        pass
+    return antwoord
+
+
+def traag_overzicht():
+    """Per pad: hoe vaak traag en de langste duur. Voor /admin/traag en het ochtendbericht."""
+    per = {}
+    for t in list(_traag):
+        p = per.setdefault(t["pad"], {"pad": t["pad"], "keer": 0, "max": 0.0, "laatst": t["op"]})
+        p["keer"] += 1
+        p["max"] = max(p["max"], t["sec"])
+        p["laatst"] = t["op"]
+    return {"totaal": _verzoeken["totaal"], "traag": _verzoeken["traag"],
+            "paden": sorted(per.values(), key=lambda p: -p["max"])}
+
+
+# Na een deploy zijn alle bewaarde ranglijsten leeg, en betaalde de eerste
+# bezoeker van /news, /sitemap.xml of een winkelpagina de hele rekening
+# (tientallen zware vragen aan de database). Nu warmt een achtergrondtaak ze
+# een keer op, direct na het eerste verzoek.
+_opgewarmd = {"gestart": False}
+
+
+def _warm_op_na_start():
+    if _opgewarmd["gestart"] or app.testing or not _thuis_onthouden_aan():
+        return
+    _opgewarmd["gestart"] = True
+
+    def _warm():
+        try:
+            time.sleep(5)
+            for rij in db.landen_in_index():
+                land = rij["land"]
+                for c in db.categorieen_per_land(land):
+                    _ranglijst_bewaard(c["categorie"], land)
+            sitemap_inhoud()
+        except Exception as e:
+            print(f"Opwarmen mislukt: {e}")
+    threading.Thread(target=_warm, daemon=True).start()
+
+
+def _ranglijst_bewaard(slug, land, limiet=1000):
+    """De ranglijst uit het geheugen (10 minuten), zoals de categoriepagina hem ook leest."""
+    return _bewaard(("ranglijst", slug, land), db.ranglijst_per_land, slug, land, 1000)
 
 
 @app.after_request
@@ -864,7 +942,7 @@ def index_nieuws(land="nl"):
     land = (land or "nl").lower()
     if land not in sitetaal.LANDEN:
         return redirect("/news/nl", code=302)
-    ov = _bewaard(("nieuws", land), indexnieuws.overzicht, land)
+    ov = _bewaard(("nieuws", land), lambda l: indexnieuws.overzicht(l, ranglijst=_ranglijst_bewaard), land)
     return render_template("nieuws.html", ov=ov, landnaam=sitetaal.landnaam(land, "en"))
 
 
@@ -879,7 +957,9 @@ def admin_persbericht():
     import indexnieuws
     blokken = ""
     for land in markten.index_landen():
-        ov = indexnieuws.overzicht(land)
+        # Via de bewaarde ranglijsten: zonder dat vroeg deze pagina tientallen
+        # zware ranglijsten tegelijk op en bleef hij laden (29 september).
+        ov = _bewaard(("nieuws", land), lambda l: indexnieuws.overzicht(l, ranglijst=_ranglijst_bewaard), land)
         tekst = indexnieuws.persbericht_nl(ov, get_base_url().rstrip("/"), embed=embed_code)
         post = indexnieuws.linkedin_post(ov, get_base_url().rstrip("/"))
         blokken += (f"<h2>{escape(sitetaal.landnaam(land, 'nl'))}</h2>"
@@ -893,10 +973,19 @@ def admin_persbericht():
     return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
             f"<title>Persbericht | Krillo</title><body style='font-family:Arial,sans-serif;max-width:820px;"
             f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Persbericht van deze maand</h1>"
-            f"<p>Klik in het vak, kopieer, en stuur het naar de redacties van Emerce, Twinkle, Ecommercenews.nl, "
-            f"Retailtrends en Marketingfacts (voor Belgie: Gondola, Retaildetail, Bizz). Hun adres voor tips staat "
-            f"op hun eigen site, meestal onder Contact of Redactie. Een persoonlijke regel erboven werkt beter dan "
-            f"alleen het bericht. De openbare versie staat op <a href='/news/nl'>/news/nl</a>.</p>{blokken}</body>")
+            f"<p>Dit gaat VANZELF (sinds 29 september): een keer per maand, binnen kantooruren, alleen als er "
+            f"nieuws is, naar de redacties hieronder. Je krijgt een melding als het weg is. Hier zie je de tekst.</p>"
+            f"{_pers_stand()}{blokken}</body>")
+
+
+def _pers_stand():
+    import persagent
+    rijen = persagent._sql("SELECT land, maand, adres, op FROM pers_verstuurd ORDER BY op DESC LIMIT 20",
+                           alles=True) or []
+    naar = "".join(f"<li>{escape(n)} ({escape(a)}, {escape(l.upper())})</li>"
+                   for l, lijst in persagent.REDACTIES.items() for n, a, _ in lijst)
+    gedaan = "".join(f"<li>{escape(r['maand'])} {escape(r['land'].upper())}: {escape(r['adres'])}</li>" for r in rijen)
+    return (f"<h2>Naar wie</h2><ul>{naar}</ul><h2>Al verstuurd</h2><ul>{gedaan or '<li>Nog niets.</li>'}</ul>")
 
 
 @app.route("/r/<code>")
@@ -1236,8 +1325,38 @@ def admin_wereld():
     return render_template("agentwereld.html", w=agentwereld.stand())
 
 
+@app.route("/admin/traag")
+def admin_traag():
+    """Welke pagina's traag waren sinds de laatste start (29 september)."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    t = traag_overzicht()
+    rijen = "".join(f"<tr><td>{escape(p['pad'])}</td><td>{p['keer']}</td><td>{p['max']} s</td><td>{escape(p['laatst'])}</td></tr>"
+                    for p in t["paden"])
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Traag | Krillo</title><body style='font-family:Arial,sans-serif;max-width:800px;"
+            f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Trage pagina's</h1>"
+            f"<p>Sinds de laatste start: {t['totaal']} verzoeken, waarvan {t['traag']} van {TRAAG_SECONDEN:g} "
+            f"seconden of langer. Na een deploy begint de telling opnieuw.</p>"
+            f"<table cellpadding='6'><tr style='text-align:left'><th>Pagina</th><th>Keer traag</th><th>Langste</th>"
+            f"<th>Laatst</th></tr>{rijen or '<tr><td colspan=4>Niets traags gezien.</td></tr>'}</table></body>")
+
+
 @app.route("/sitemap.xml")
 def sitemap_xml():
+    # Uit het geheugen (29 september): het opbouwen vraagt elke ranglijst op,
+    # en een zoekmachine die de sitemap ophaalde liet de hele site wachten.
+    return Response(sitemap_inhoud(), mimetype="application/xml")
+
+
+def sitemap_inhoud():
+    return _bewaard(("sitemap",), _bouw_sitemap)
+
+
+def _bouw_sitemap():
     # Een sitemap zonder lastmod dwingt een zoekmachine om elke pagina steeds
     # opnieuw op te halen om te zien of er iets veranderd is. Met een datum
     # erbij weet hij meteen wat nieuw is, en dat is precies wat je wil op het
@@ -1276,8 +1395,7 @@ def sitemap_xml():
                 regels.append((f"/index/{land}/{c['categorie']}", datum))
                 # Stap 90: de winkels die AI noemt, elk een eigen pagina.
                 try:
-                    lijst = _bewaard(("ranglijst", c["categorie"], land), db.ranglijst_per_land,
-                                     c["categorie"], land, 1000) or {}
+                    lijst = _ranglijst_bewaard(c["categorie"], land) or {}
                     if len(lijst.get("rijen") or []) >= MINIMUM_PER_LAND:
                         regels += [(f"/index/{land}/{c['categorie']}/{_winkel_slug(r['webshop_url'])}", datum)
                                    for r in lijst["rijen"] if (r.get("genoemd") or 0) > 0]
@@ -1298,7 +1416,7 @@ def sitemap_xml():
         for p, datum in regels
     )
     inhoud = f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
-    return Response(inhoud, mimetype="application/xml")
+    return inhoud
 
 
 @app.route("/llms.txt")
@@ -2192,7 +2310,7 @@ def _leg_doorverwijzing_vast(metadata, webshop_url, payment_id):
         if wie["soort"] == "partner":
             uitleg = (f"Partner {wie.get('naam') or wie['code']} ({wie.get('email')}) krijgt "
                       f"{doorverwijzen.PROCENT_PARTNER} procent van wat deze klant betaalt, "
-                      f"{doorverwijzen.MAANDEN_PARTNER} maanden lang.")
+                      f"zolang de klant betaalt, hoogstens {doorverwijzen.MAANDEN_PARTNER} maanden.")
         else:
             uitleg = (f"Klant {wie.get('webshop_url')} verwees door en krijgt een maand van zijn "
                       f"eigen pakket terug, na {doorverwijzen.WACHTDAGEN} dagen als deze klant dan "
@@ -3084,6 +3202,13 @@ def _benadering_ronde_werk():
         verslag["mislukt"].append(f"opvolging: {e}")
         print(f"Verkoopagent mislukt: {e}")
 
+    # Ontvangstbevestigingen die nog als concept klaarstaan alsnog afhandelen (29 september).
+    try:
+        import antwoordagent
+        verslag["automatisch_opgeruimd"] = antwoordagent.ruim_automatische_op()
+    except Exception as e:
+        print(f"Automatische antwoorden opruimen mislukt: {e}")
+
     # De bewegingsagent (stap 116): wie gemaild is en na de maandmeting echt
     # verschoof, hoort het. Hoogstens een extra mail per 30 dagen (extra_op).
     try:
@@ -3137,6 +3262,32 @@ def _benadering_ronde_werk():
     except Exception as e:
         verslag["mislukt"].append(f"klantagenten: {e}")
         print(f"Klantagenten mislukt: {e}")
+
+    # Stap 166: plekmeldingen, wie zijn plek claimde hoort het als die verandert.
+    try:
+        import plekmelding
+        if benadering.binnen_kantooruren():
+            verslag["plekmelding"] = plekmelding.ronde(
+                get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url),
+                categorienaam=lambda b: categorieen.naam_en(b["categorie"]))
+    except Exception as e:
+        verslag["mislukt"].append(f"plekmelding: {e}")
+        print(f"Plekmelding mislukt: {e}")
+
+    # De persagent (29 september): het persbericht een keer per maand vanzelf
+    # naar de vakmedia, alleen als er nieuws is. Binnen kantooruren.
+    try:
+        import persagent
+        import indexnieuws
+        if benadering.binnen_kantooruren():
+            verslag["pers"] = persagent.ronde(
+                lambda land: _bewaard(("nieuws", land),
+                                      lambda l: indexnieuws.overzicht(l, ranglijst=_ranglijst_bewaard), land),
+                lambda ov: indexnieuws.persbericht_nl(ov, get_base_url().rstrip("/"), embed=embed_code),
+                melden=_meld_aan_beheer)
+    except Exception as e:
+        verslag["mislukt"].append(f"pers: {e}")
+        print(f"Persagent mislukt: {e}")
 
     # De wachtlijst (stap 165): staat een land nu aan, dan krijgt wie erop wacht
     # een keer bericht. Zij vroegen er zelf om, dus ook buiten kantooruren niet
@@ -3572,6 +3723,13 @@ def _dagbericht_sturen():
         # Sinds stap 132 (28 september) is het dagbericht het ochtendbericht:
         # eerst wat jij moet doen, dan wat elke agent deed, dan deze diagnose.
         import ochtendbericht
+        # Trage pagina's sinds de laatste start (29 september).
+        t = traag_overzicht()
+        if t["traag"]:
+            ergste = t["paden"][0]
+            regels = list(regels) + [f"Trage pagina's sinds de laatste start: {t['traag']} van {t['totaal']} "
+                                     f"verzoeken duurden {TRAAG_SECONDEN:g} seconden of langer. Traagste: "
+                                     f"{ergste['pad']} ({ergste['max']} s). Alles op /admin/traag."]
         onderwerp, body = ochtendbericht.tekst(
             ochtendbericht.verzamel(get_base_url().rstrip("/")), extra_regels=regels)
         if emailing.send_email(ontvanger, onderwerp, body):
@@ -5588,6 +5746,62 @@ def openbare_winkel(land, slug, winkel):
         buren=buren, kruimels=kruimels, basis_url=basis_url,
         maand=(rij.get("gemeten_op").strftime("%B %Y") if rij.get("gemeten_op") else None),
         modellen=_bewaard(("modellen", lijst["ronde"]), db.modellen_van_ronde, lijst["ronde"]))
+
+
+@app.route("/api/plekmelding", methods=["POST"])
+def api_plekmelding():
+    """Stap 166: een melding als de plek van deze winkel verandert. Eerst een
+    bevestigingsmail; pas na de klik komen er meldingen."""
+    import plekmelding
+    import gratistools
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    land, slug, winkel = (data.get("land") or "").lower(), data.get("slug") or "", (data.get("winkel") or "").lower()
+    if not _EMAIL_VORM.match(email) or len(email) > 190:
+        return jsonify({"fout": "Enter a valid email address."}), 400
+    if not gratistools.mag_nu("plek:" + (_bezoeker_kenmerk() or request.remote_addr or "?")):
+        return jsonify({"fout": "Check your inbox: we already sent a confirmation."}), 429
+    lijst = _ranglijst_bewaard(slug, land) if land in sitetaal.LANDEN else None
+    rij = next((r for r in (lijst or {}).get("rijen") or [] if _winkel_slug(r["webshop_url"]) == winkel), None)
+    if not rij:
+        return jsonify({"fout": "We could not find this store in the ranking."}), 404
+    uit = plekmelding.aanmelden(email, rij["webshop_url"], land, slug, rij["positie"], lijst.get("ronde"))
+    if not uit:
+        return jsonify({"fout": "Something went wrong. Try again in a moment."}), 500
+    if uit.get("bevestigd_op"):
+        return jsonify({"ok": True, "al": True})
+    basis = get_base_url().rstrip("/")
+    onderwerp, alineas = plekmelding.bevestigmail(winkel, None)
+    emailing.send_klantbericht(email, onderwerp, alineas, f"{basis}/plekmelding/{uit['token']}/bevestig",
+                               knop="Confirm rank updates")
+    return jsonify({"ok": True})
+
+
+@app.route("/plekmelding/<token>/bevestig")
+def plekmelding_bevestig(token):
+    import plekmelding
+    rij = plekmelding.bevestig(token)
+    if not rij:
+        return render_template("fout.html", titel="This link no longer works",
+                               bericht="Sign up again on your store's page in the index."), 404
+    if rij.get("nieuw"):
+        # De warmste lead die er is: hij zocht zijn eigen winkel op en wil het volgen.
+        _meld_aan_beheer("Iemand claimde zijn plek",
+                         f"{escape(rij['email'])} volgt nu de plek van {escape(rij['webshop_url'])} "
+                         f"({escape(rij.get('categorie') or '')}, #{rij.get('positie')}). Warme lead: "
+                         f"hij zocht zijn eigen winkel op.")
+    return render_template("fout.html", titel="Confirmed",
+                           bericht="We email you when the rank of your store changes. Every email has a link to stop.")
+
+
+@app.route("/plekmelding/<token>/stop", methods=["GET", "POST"])
+def plekmelding_stop(token):
+    import plekmelding
+    plekmelding.afmelden(token)
+    if request.method == "POST":
+        return "", 204
+    return render_template("fout.html", titel="You will not hear from us again",
+                           bericht="We stopped the rank updates for this store.")
 
 
 @app.route("/embed/<land>/<slug>")

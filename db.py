@@ -594,6 +594,12 @@ def init_db():
                 # Stap 96 en 153: wat de leeragent onderzocht en besloot.
                 import leeragent
                 leeragent.maak_tabellen(cur)
+                # 29 september: het persbericht gaat vanzelf, een keer per maand.
+                import persagent
+                persagent.maak_tabellen(cur)
+                # Stap 166: plekmelding, claim je plek.
+                import plekmelding
+                plekmelding.maak_tabellen(cur)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS antwoorden (
                         id SERIAL PRIMARY KEY,

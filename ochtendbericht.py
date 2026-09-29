@@ -79,6 +79,8 @@ GISTEREN = [
      "SELECT count(*) FROM wachtlijst_land WHERE op > now() - interval '24 hours'"),
     ("Winkels bekeken op een bureau onderaan",
      "SELECT count(*) FROM bureau_winkels WHERE gekeken_op > now() - interval '24 hours'"),
+    ("Plek geclaimd op een winkelpagina (bevestigd, warme lead)",
+     "SELECT count(*) FROM plekmeldingen WHERE bevestigd_op > now() - interval '24 hours'"),
     ("Nieuwe echte klanten",
      "SELECT count(*) FROM klanten WHERE NOT is_test AND aangemaakt_op > now() - interval '24 hours'"),
 ]

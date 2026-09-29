@@ -54,6 +54,37 @@ AUTOMATISCH = re.compile(
     r"delivery status notification|undeliverable|mail delivery failed|niet afgeleverd",
     re.I)
 
+# Een ontvangstbevestiging van een klantenservice (29 september: Nino kreeg
+# alleen die binnen en moest ze allemaal zelf wegklikken). Bewust ALLEEN zinnen
+# die een mens niet zo schrijft: "bedankt voor je bericht" alleen is niet
+# genoeg, want zo begint ook een echt antwoord, en een echt antwoord missen is
+# een gemiste klant.
+ONTVANGSTBEVESTIGING = re.compile(
+    r"(we|wij) hebben (je|jouw|uw) (e-?mail|bericht|vraag|aanvraag)( in goede orde| goed)? ontvangen|"
+    r"(je|jouw|uw) (e-?mail|bericht|vraag|aanvraag) is (in goede orde |goed )?ontvangen|"
+    r"we have received your (e-?mail|message|request|enquiry|inquiry)|"
+    r"your (e-?mail|message|request) has been received|"
+    r"ticket ?(nummer|number|nr|id|#)|case (number|id)|referentienummer|"
+    r"this is an automated|dit is een automatisch|automatisch gegenereerd|"
+    r"do not reply to this|niet (op )?(deze|dit) (e-?mail|bericht) (be)?antwoorden|"
+    r"wir haben ihre (nachricht|anfrage|e-?mail) erhalten",
+    re.I)
+AFZENDER_AUTOMATISCH = re.compile(r"^(no-?reply|do-?not-?reply|noreply|mailer-daemon|postmaster|"
+                                  r"notifications?|autoresponder|auto)@", re.I)
+
+
+def _kop_automatisch(it):
+    """De kopregels van de mail zelf zeggen het soms al (RFC 3834)."""
+    koppen = it.get("Headers") or it.get("headers") or {}
+    if not isinstance(koppen, dict):
+        return False
+    k = {str(a).lower(): str(b).lower() for a, b in koppen.items()}
+    if k.get("auto-submitted", "no") not in ("", "no"):
+        return True
+    if "x-autoreply" in k or "x-autorespond" in k:
+        return True
+    return k.get("precedence", "") in ("auto_reply", "bulk", "junk")
+
 # Afmelden. Liever een keer te vaak afmelden dan een keer te weinig: wie "not
 # interested" schrijft, wil ook geen tweede opvolging.
 AFMELDEN = re.compile(
@@ -118,7 +149,7 @@ def lees_brevo(data):
                       or f"{adres}|{it.get('Subject')}|{it.get('SentAtDate')}")
         uit.append({"bericht_id": str(bericht_id)[:300], "van": adres.strip().lower(),
                     "naam": (naam or "").strip()[:200], "onderwerp": (it.get("Subject") or "").strip()[:300],
-                    "tekst": _zonder_citaat(tekst)[:6000]})
+                    "tekst": _zonder_citaat(tekst)[:6000], "automatisch_kop": _kop_automatisch(it)})
     return uit
 
 
@@ -164,7 +195,7 @@ def zoek_winkel(adres):
     return None
 
 
-def soort_van(onderwerp, tekst, model=None):
+def soort_van(onderwerp, tekst, model=None, van=None, kop_automatisch=False):
     """Wat voor mail het is. Automatisch en afmelden op vaste woorden; de rest
     mag een model inschatten, en zonder model is het een vraag."""
     if onderwerp and TEST_ONDERWERP.lower() in onderwerp.lower():
@@ -175,6 +206,11 @@ def soort_van(onderwerp, tekst, model=None):
     if kaal in ("stop", "nee", "no", "nein", "remove", "unsubscribe") or AFMELDEN.search(tekst or "") \
             or AFMELDEN.search(onderwerp or ""):
         return "afmelden"
+    # Na afmelden: wie in een bevestiging toch "geen interesse" schrijft, is
+    # een mens, en afmelden moet altijd werken.
+    if kop_automatisch or AFZENDER_AUTOMATISCH.search(van or "") \
+            or ONTVANGSTBEVESTIGING.search(onderwerp or "") or ONTVANGSTBEVESTIGING.search((tekst or "")[:600]):
+        return "automatisch"
     if model is not None:
         try:
             s = model(onderwerp, tekst)
@@ -337,7 +373,8 @@ def verwerk(data, basis_url, melden, client=None):
     for b in lees_brevo(data):
         if not b["van"]:
             continue
-        soort = soort_van(b["onderwerp"], b["tekst"], _model_indeler(client) if client else None)
+        soort = soort_van(b["onderwerp"], b["tekst"], _model_indeler(client) if client else None,
+                          van=b.get("van"), kop_automatisch=b.get("automatisch_kop", False))
         if soort != "test" and _eigen_adres(b["van"], b["onderwerp"]):
             # Nino die op een melding antwoordt, of een lus: niet verwerken.
             verslag.append({"van": b["van"], "soort": "eigen"})
@@ -445,3 +482,17 @@ def koppel_brevo(basis_url, sleutel, domein_naam=None, post=None):
     db.zet_instelling(SLEUTEL_DOMEIN, domein_naam)
     db.zet_instelling("antwoord_gekoppeld", json.dumps({"domein": domein_naam, "op": time.time()}))
     return True, f"Gekoppeld: mail aan elk adres op {domein_naam} komt nu bij de antwoordagent."
+
+
+def ruim_automatische_op():
+    """Concepten die achteraf een ontvangstbevestiging blijken (de herkenning
+    werd 29 september beter), alsnog afhandelen. Zo hoeft Nino ze niet weg te
+    klikken. Geeft het aantal."""
+    rijen = _sql("SELECT id, van, onderwerp, tekst FROM antwoorden WHERE stand = 'concept'", alles=True) or []
+    n = 0
+    for r in rijen:
+        if soort_van(r.get("onderwerp"), r.get("tekst"), van=r.get("van")) == "automatisch":
+            _sql("UPDATE antwoorden SET soort = 'automatisch', stand = 'klaar', afgehandeld_op = now() "
+                 "WHERE id = %s", (r["id"],))
+            n += 1
+    return n

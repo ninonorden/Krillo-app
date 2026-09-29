@@ -61,7 +61,7 @@ ONDERWERPEN = {
     "groei": {
         "naam": "Groei: klanten vinden",
         "rol": ("You find customers for Krillo (online stores, Europe, now measuring the Netherlands and Belgium). "
-                "Krillo has a free check, free tools, a partner program for agencies (20 percent for 12 months) "
+                "Krillo has a free check, free tools, a partner program for agencies (20 percent while the client pays, up to 12 months) "
                 "and a Shopify app in review."),
         "zoek": ("Research concrete, low-cost channels where small online store owners and webshop agencies in "
                  "Europe look for tools right now: communities, newsletters, directories, events, partner programs "

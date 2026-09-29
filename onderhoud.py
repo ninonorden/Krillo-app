@@ -240,7 +240,31 @@ def stap_landen_vullen():
                 doel=VULLEN_DOEL, max_zoekopdrachten=VULLEN_PER_NACHT)
         except Exception as e:
             verslag[land] = {"fout": str(e)[:160]}
+    # 29 SEPTEMBER: NIEUWE CATEGORIEEN. Nino zag "gemeten categorieen" op 29
+    # blijven staan. Dat klopte: van de 65 categorieen hadden er 29 genoeg
+    # winkels (10) voor een ranglijst, en niets vulde de andere aan. De
+    # winkelvinder zocht alleen als de totale voorraad laag was, en dan
+    # willekeurig. Nu zoekt hij elke nacht gericht voor de dunste categorieen
+    # die nog geen ranglijst hebben. Elke nieuwe categorie is een nieuwe
+    # ranglijst, nieuwe winkelpagina's en nieuwe winkels om te mailen.
+    try:
+        verslag["nieuwe_categorieen"] = winkelvinder.vul_land(
+            "nl", nog_te_vullen(set(db.gemeten_categorieen())), db.winkels_per_categorie_in_land("nl"),
+            doel=categorieen.MINIMUM_VOOR_INDEX + 2, max_zoekopdrachten=NIEUWE_CATEGORIEEN_PER_NACHT)
+    except Exception as e:
+        verslag["nieuwe_categorieen"] = {"fout": str(e)[:160]}
     return verslag
+
+
+NIEUWE_CATEGORIEEN_PER_NACHT = int(os.environ.get("ONDERHOUD_NIEUWE_CATEGORIEEN", "6"))
+
+
+def nog_te_vullen(gemeten):
+    """Categorieen zonder ranglijst die zelf gemeten kunnen worden: geen
+    bovencategorie die in kleinere stukken gemeten wordt."""
+    ouders = {ouder for _, _, ouder in categorieen.CATEGORIEEN if ouder}
+    return [(slug, naam) for slug, naam, _ in categorieen.CATEGORIEEN
+            if slug not in gemeten and slug not in ouders]
 
 
 def stap_herberekenen():

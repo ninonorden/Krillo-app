@@ -13,7 +13,8 @@ TWEE SOORTEN
 - partner: een bureau, freelancer of Shopify-partner meldt zich aan op
   /partners. Nino keurt goed (geen automatische goedkeuring: een partner
   spreekt namens ons). Daarna 20 procent van wat de klant betaalt, zonder btw,
-  12 maanden lang.
+  zolang de klant betaalt, hoogstens 12 maanden. Stopt de klant na 3 maanden,
+  dan krijgt de partner 3 maanden (verdiend() rekent tot de opzegdatum).
 
 UITBETALEN GEBEURT MET DE HAND. Bewust: in het begin zijn het er een paar, en
 een fout in een automatische terugbetaling kost echt geld. /admin/doorverwijzen
