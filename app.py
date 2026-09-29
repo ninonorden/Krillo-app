@@ -226,7 +226,9 @@ MINIMUM_VOOR_TELLER = int(os.environ.get("MINIMUM_VOOR_TELLER", "50"))
 # meteen 16 van de 27 "bezoeken" op, allemaal van dezelfde niet bestaande
 # bezoeker. Een teller die voor de helft uit je eigen machines bestaat is erger
 # dan geen teller, want je gaat conclusies trekken uit ruis.
-BEZOEK_NEGEREN = ("/static", "/admin", "/api", "/cron", "/wakker", "/shopify",
+# /embed: de ranglijst in het venster op de site van een ander. Dat is geen
+# bezoek aan onze site, en daar hoort ook geen script in.
+BEZOEK_NEGEREN = ("/static", "/admin", "/api", "/cron", "/wakker", "/shopify", "/embed",
                   "/webhook", "/favicon", "/robots.txt", "/sitemap", "/healthz",
                   "/.well-known")
 
@@ -343,6 +345,11 @@ def _warm_op_na_start():
                 land = rij["land"]
                 for c in db.categorieen_per_land(land):
                     _ranglijst_bewaard(c["categorie"], land)
+                    # Rustig aan (29 september). Zonder pauze legde het opwarmen
+                    # beslag op de verbindingen met de database precies op het
+                    # moment dat de eerste echte bezoekers binnenkwamen, en die
+                    # wachtten dan 14 seconden op de homepage.
+                    time.sleep(0.3)
             sitemap_inhoud()
         except Exception as e:
             print(f"Opwarmen mislukt: {e}")
@@ -395,9 +402,39 @@ def _tel_bezoek(antwoord):
             _schrijf()
         else:
             threading.Thread(target=_schrijf, daemon=True).start()
+
+        # 29 september: een klein stukje script dat pas iets meldt als de
+        # bezoeker scrolt, tikt, typt of de muis beweegt. Mailbeveiliging die
+        # de links in onze mails controleert doet dat niet, een mens wel. Zo
+        # zie je op /admin/bezoek hoeveel van de "bezoekers" echt mensen zijn.
+        if not antwoord.direct_passthrough and not antwoord.is_streamed:
+            html = antwoord.get_data(as_text=True)
+            plek = html.rfind("</body>")
+            if plek != -1:
+                antwoord.set_data(html[:plek] + MENS_SCRIPT + html[plek:])
     except Exception as e:
         print(f"Bezoek tellen mislukt: {e}")
     return antwoord
+
+
+MENS_SCRIPT = ("<script>(function(){var s=0;function m(){if(s)return;s=1;try{"
+               "if(navigator.sendBeacon){navigator.sendBeacon('/api/mens')}"
+               "else{fetch('/api/mens',{method:'POST',keepalive:true})}}catch(e){}}"
+               "['scroll','pointerdown','keydown','touchstart','mousemove'].forEach("
+               "function(e){addEventListener(e,m,{once:true,passive:true})})})();</script>")
+
+
+@app.route("/api/mens", methods=["POST"])
+def api_mens():
+    """Zie MENS_SCRIPT. Zelfde dagcode als de bezoekersteller, niets meer."""
+    ua = (request.headers.get("User-Agent", "") or "").lower()
+    if ua and not any(r in ua for r in BEZOEK_ROBOTS):
+        kenmerk = _bezoeker_kenmerk()
+        if app.testing:
+            db.noteer_mens(kenmerk)
+        else:
+            threading.Thread(target=db.noteer_mens, args=(kenmerk,), daemon=True).start()
+    return ("", 204)
 
 
 # ---------------------------------------------------------------------------
@@ -999,6 +1036,45 @@ def _pers_stand():
     return (f"<h2>Naar wie</h2><ul>{naar}</ul><h2>Al verstuurd</h2><ul>{gedaan or '<li>Nog niets.</li>'}</ul>")
 
 
+@app.route("/lijstje/<token>/stop", methods=["GET", "POST"])
+def lijstje_stop(token):
+    """De afmeldlink uit de mail van de lijstjesagent. Een klik, klaar."""
+    import lijstjesagent
+    domein = lijstjesagent.stop(token)
+    if domein:
+        _meld_aan_beheer("Lijstje afgemeld", f"{escape(domein)} wil geen mail meer over GEO-lijstjes.")
+    return render_template("fout.html", titel="Done",
+                           bericht="You will not hear from us again. Sorry for the interruption."), 200
+
+
+@app.route("/admin/lijstjes")
+def admin_lijstjes():
+    """Wat de lijstjesagent vond en mailde."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import lijstjesagent
+    rijen = "".join(
+        f"<tr><td>{escape(r['domein'])}</td><td>{escape(r['stand'] or '')}</td>"
+        f"<td>{('<a href=' + chr(39) + escape(r['url']) + chr(39) + ' target=_blank>' + escape(r.get('titel') or r['url']) + '</a>') if r.get('url') else ''}</td>"
+        f"<td>{escape(r.get('adres') or '')}</td>"
+        f"<td>{r['verstuurd_op'].strftime('%d-%m %H:%M') if r.get('verstuurd_op') else ''}</td>"
+        f"<td>{escape(r.get('notitie') or r.get('waarom') or '')}</td></tr>"
+        for r in lijstjesagent.overzicht())
+    return (f"<!doctype html><meta charset='utf-8'><title>Lijstjes GEO-tools</title>"
+            f"<body style='font-family:system-ui;max-width:1100px;margin:30px auto;padding:0 16px'>"
+            f"<p><a href='/admin'>Terug</a></p><h1>Lijstjes met beste GEO-tools</h1>"
+            f"<p>De lijstjesagent zoekt een keer per week nieuwe artikelen en mailt de schrijver een keer, "
+            f"hoogstens {lijstjesagent.PER_WEEK} per week. Een antwoord komt binnen op hello@ en staat op "
+            f"/admin/antwoorden. Staat er 'geen adres' met een formulier, dan kun je dat met de hand doen.</p>"
+            f"<table cellpadding='8' style='border-collapse:collapse;width:100%'>"
+            f"<tr><th align=left>Site</th><th align=left>Stand</th><th align=left>Artikel</th>"
+            f"<th align=left>Adres</th><th align=left>Gemaild</th><th align=left>Notitie</th></tr>"
+            f"{rijen or '<tr><td colspan=6>Nog niets gevonden.</td></tr>'}</table></body>")
+
+
 @app.route("/r/<code>")
 def doorverwijslink(code):
     """Stap 94: de link van een klant of partner. Stuurt door naar de gratis
@@ -1047,6 +1123,104 @@ def partners_aanvraag():
                      f"Bericht: {escape(bericht or '-')}. Goedkeuren of afwijzen op /admin/doorverwijzen "
                      f"(voorgestelde code: {escape(code)}).")
     return jsonify({"ok": True})
+
+
+@app.route("/agencies")
+@app.route("/brands")
+def merken_en_bureaus():
+    """De pagina voor merken en bureaus. Zie merkenbureaus.py waarom."""
+    return render_template("agencies.html", basis_url=get_base_url().rstrip("/"),
+                           soort="brand" if request.path == "/brands" else "agency")
+
+
+def _pitch_uitkomst(winkels):
+    import merkenbureaus
+    landen = [r["land"] for r in (_bewaard(("landen",), db.landen_in_index) or [])]
+    return merkenbureaus.pitch(
+        winkels, landen,
+        lambda land: [c["categorie"] for c in (_bewaard(("perland", land), db.categorieen_per_land, land,
+                                                        MINIMUM_PER_LAND) or [])],
+        _ranglijst_bewaard, categorieen.naam_en, _winkel_slug)
+
+
+@app.route("/api/agencies/check", methods=["POST"])
+def api_merken_check():
+    """Tot tien winkels in een keer opzoeken in de index. Geen account nodig,
+    kost niets (alles uit de bewaarde ranglijsten), met dezelfde rem als de
+    gratis tools zodat niemand er een robot van maakt."""
+    import merkenbureaus
+    import gratistools
+    data = request.get_json(silent=True) or {}
+    winkels = merkenbureaus.lees_winkels(data.get("winkels"))
+    if not winkels:
+        return jsonify({"fout": "Paste one or more store addresses, like store.com."}), 400
+    if not gratistools.mag_nu("merkcheck:" + (_bezoeker_kenmerk() or request.remote_addr or "?")):
+        return jsonify({"fout": "You just ran a check. Try again in a minute."}), 429
+    return jsonify({"ok": True, "uitkomst": _pitch_uitkomst(winkels)})
+
+
+@app.route("/api/agencies", methods=["POST"])
+def api_merken_aanvraag():
+    """Het korte formulier op /agencies: bewaren, Nino een seintje, de aanvrager
+    een bevestiging. Geen lege mail meer die iemand zelf moet schrijven."""
+    import merkenbureaus
+    import gratistools
+    data = request.get_json(silent=True) or {}
+    naam = (data.get("naam") or "").strip()[:120]
+    bedrijf = (data.get("bedrijf") or "").strip()[:160]
+    email = (data.get("email") or "").strip()[:200]
+    website = (data.get("website") or "").strip()[:200]
+    aantal = (data.get("aantal") or "").strip()[:20]
+    soort = "brand" if data.get("soort") == "brand" else "agency"
+    bericht = (data.get("bericht") or "").strip()[:2000]
+    winkels = ", ".join(merkenbureaus.lees_winkels(data.get("winkels")))
+    if not naam or not email or not _EMAIL_VORM.match(email):
+        return jsonify({"fout": "Enter your name and a valid work email address."}), 400
+    if not gratistools.mag_nu("merken:" + (_bezoeker_kenmerk() or request.remote_addr or "?")):
+        return jsonify({"fout": "We already have your request. We reply within one working day."}), 429
+    try:
+        merkenbureaus.bewaar(naam, bedrijf, email, website, aantal, soort, bericht, winkels)
+    except Exception as e:
+        print(f"Merkaanvraag bewaren mislukt: {e}")
+        return jsonify({"fout": "Something went wrong. Email hello@krilloai.com and we reply the same day."}), 500
+    _meld_aan_beheer("Nieuwe aanvraag merken/bureaus",
+                     f"{escape(naam)} van {escape(bedrijf or '-')} ({escape(email)}, {escape(website or '-')}), "
+                     f"{escape(soort)}, {escape(aantal or '?')} winkels. Winkels: {escape(winkels or '-')}. "
+                     f"Bericht: {escape(bericht or '-')}. Alles op /admin/merkaanvragen. Antwoord binnen een werkdag.")
+    try:
+        b = merkenbureaus.bevestiging(naam, soort)
+        emailing.send_klantbericht(email, b["onderwerp"], b["alineas"],
+                                   f"{get_base_url().rstrip('/')}/index", knop="See the Krillo Index")
+    except Exception as e:
+        print(f"Bevestiging merkaanvraag mislukt: {e}")
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/merkaanvragen")
+def admin_merkaanvragen():
+    """De aanvragen van /agencies, nieuwste eerst. (/admin/merken bestond al:
+    dat is de lijst winkels die als merk zijn aangemerkt.)"""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import merkenbureaus
+    rijen = "".join(
+        f"<tr><td>{a['gemaakt_op']:%d-%m %H:%M}</td><td>{escape(a.get('naam') or '')}<br>"
+        f"<small>{escape(a.get('bedrijf') or '')}</small></td>"
+        f"<td><a href='mailto:{escape(a['email'])}'>{escape(a['email'])}</a></td>"
+        f"<td>{escape(a.get('soort') or '')}, {escape(a.get('aantal') or '?')}</td>"
+        f"<td>{escape(a.get('winkels') or '')}</td><td>{escape(a.get('bericht') or '')}</td></tr>"
+        for a in merkenbureaus.aanvragen())
+    return (f"<!doctype html><meta charset='utf-8'><title>Merken en bureaus</title>"
+            f"<body style='font-family:system-ui;max-width:1100px;margin:30px auto;padding:0 16px'>"
+            f"<p><a href='/admin'>Terug</a></p><h1>Aanvragen merken en bureaus</h1>"
+            f"<p>Van de pagina /agencies. Antwoord binnen een werkdag, persoonlijk.</p>"
+            f"<table cellpadding='8' style='border-collapse:collapse;width:100%'>"
+            f"<tr><th align=left>Wanneer</th><th align=left>Wie</th><th align=left>Mail</th>"
+            f"<th align=left>Soort, aantal</th><th align=left>Winkels</th><th align=left>Bericht</th></tr>"
+            f"{rijen or '<tr><td colspan=6>Nog geen aanvragen.</td></tr>'}</table></body>")
 
 
 @app.route("/admin/doorverwijzen", methods=["GET", "POST"])
@@ -2138,11 +2312,14 @@ def checkout_monitoring():
     proef = False
     if data.get("proef"):
         import proefperiode
-        proef = proefperiode.mag_proef(webshop_url, email, pakket, payments.periode_van(data.get("periode")))
-        if not proef:
-            return jsonify({"error": "This store or email address already had Krillo, so the free trial is not "
+        reden = proefperiode.proef_geweigerd_om(webshop_url, email, pakket,
+                                                payments.periode_van(data.get("periode")))
+        proef = reden is None
+        if reden in ("winkel", "email"):
+            wie = ("This store" if reden == "winkel" else "This email address")
+            return jsonify({"error": f"{wie} already had a Krillo subscription, so the free trial is not "
                                      "available again. You can start Watch at EUR 49 a month instead.",
-                            "zonder_proef": True}), 409
+                            "zonder_proef": True, "reden": reden}), 409
     result = payments.create_monitoring_signup(get_base_url(), email, webshop_url,
                                                bedrijfsnaam, bron=bron, pakket=pakket,
                                                periode=payments.periode_van(data.get("periode")),
@@ -3331,6 +3508,16 @@ def _benadering_ronde_werk():
         verslag["mislukt"].append(f"pers: {e}")
         print(f"Persagent mislukt: {e}")
 
+    # De lijstjesagent (29 september): schrijvers van artikelen "beste GEO-tools"
+    # een keer mailen, hoogstens drie per week, binnen kantooruren.
+    try:
+        import lijstjesagent
+        if benadering.binnen_kantooruren():
+            verslag["lijstjes"] = lijstjesagent.ronde(get_base_url().rstrip("/"))
+    except Exception as e:
+        verslag["mislukt"].append(f"lijstjes: {e}")
+        print(f"Lijstjesagent mislukt: {e}")
+
     # De wachtlijst (stap 165): staat een land nu aan, dan krijgt wie erop wacht
     # een keer bericht. Zij vroegen er zelf om, dus ook buiten kantooruren niet
     # erg, maar wel netjes binnen: zelfde regel als de andere mail.
@@ -4031,6 +4218,9 @@ def _start_nachtagenten():
     import leeragent
     threading.Thread(target=nachtagenten.draai, args=(_meld_aan_beheer,), daemon=True).start()
     threading.Thread(target=leeragent.draai, daemon=True).start()
+    # De lijstjesagent zoekt een keer per week nieuwe artikelen "beste GEO-tools".
+    import lijstjesagent
+    threading.Thread(target=lijstjesagent.zoek, daemon=True).start()
 
 
 @app.route("/api/cron/benadering", methods=["GET", "POST"])
@@ -4079,6 +4269,26 @@ def afmelden(token):
     if request.method == "POST":
         return "", 200
     return render_template("afgemeld.html", gelukt=True, winkel=webshop_url)
+
+
+def _benader_regels(alles=False, aantal=200):
+    regels = db.get_benaderingen(alleen_niet_afgemeld=False)
+    if alles:
+        return regels
+    nul = datetime.min.replace(tzinfo=timezone.utc)
+
+    def recent(r):
+        tijden = [t for t in (r.get("antwoord_op"), r.get("bekeken_op"), r.get("gemaild_op"), r.get("opvolg_op")) if t]
+        tijden = [t if t.tzinfo else t.replace(tzinfo=timezone.utc) for t in tijden]
+        return max(tijden) if tijden else nul
+    return sorted(regels, key=recent, reverse=True)[:aantal]
+
+
+def _benader_totaal():
+    try:
+        return sum((db.tel_benaderingen().get("per_stand") or {}).values())
+    except Exception:
+        return None
 
 
 @app.route("/admin/benadering", methods=["GET", "POST"])
@@ -4156,7 +4366,11 @@ def admin_benadering():
                   if st and st != "klaar" and not st.startswith("mislukt")][:5],
         nu_bezig_stand=dict(list(_demo_status.items())[-5:]),
         dagpot=kosten.ruimte_voor_benadering(),
-        regels=db.get_benaderingen(alleen_niet_afgemeld=False),
+        # 29 september: de pagina deed er 32 seconden over. Alle 2000+ regels
+        # met een formulier per regel; nu de 200 met de meest recente
+        # activiteit, en ?alles=1 voor de hele lijst.
+        regels=_benader_regels(request.args.get("alles") == "1"),
+        regels_totaal=_benader_totaal(),
         tellingen=db.tel_benaderingen(),
         klanten_lijst=db.klanten_op_lijst(),
         instellingen=inst,
@@ -5679,7 +5893,11 @@ def openbare_categorie(land, slug):
                        "genoemd": r["genoemd"] or 0, "telbaar": lijst["telbaar"],
                        "naam": (r.get("naam") if r.get("naam") and not str(r.get("naam")).startswith("http")
                                 else eigen_url.replace("https://", "").replace("www.", "").rstrip("/")),
-                       "verder": f"/uitkomst/{kenmerk}/verder"}
+                       "verder": f"/uitkomst/{kenmerk}/verder",
+                       # Stap 168: de gratis proef als grote knop, met winkel
+                       # en mailadres al ingevuld (zie uitkomst_verder).
+                       "proef": f"/uitkomst/{kenmerk}/verder?plan=watch",
+                       "vragen": f"/uitkomst/{kenmerk}/questions"}
                 break
     lijst_voor_ai = [{"@type": "ListItem", "position": r["positie"],
                       "name": r["naam"] or r["webshop_url"], "url": r["webshop_url"]}
@@ -5876,7 +6094,7 @@ def embed_code(land, slug, basis_url=None):
 
 
 def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer=None,
-               pagina="overzicht", proef=None):
+               pagina="overzicht", proef=None, categorie=None):
     """Het dashboard van een winkel. Dezelfde pagina's voor het openbare
     voorbeeld, voor een klant en voor de beheerweergave.
 
@@ -5891,7 +6109,7 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
     import dashboardpaginas as dp
     if pagina not in {n for n, _, _ in dp.PAGINAS}:
         pagina = "overzicht"
-    beeld = klantbeeld.bouw(webshop_url, land=land)
+    beeld = klantbeeld.bouw(webshop_url, land=land, categorie=categorie)
     werk = klant_token is not None or beheer is not None
     if not beeld and not werk:
         return None
@@ -6209,23 +6427,60 @@ def openbaar_voorbeeld(pad=""):
 
     Er staat niets geheims op: precies dezelfde cijfers staan op de openbare
     indexpagina van die categorie."""
-    keuze = db.voorbeeldwinkel()
-    if not keuze:
-        return render_template(
-            "fout.html", titel="There is no example yet",
-            bericht="As soon as the first category is measured, a real "
-                    "dashboard of a real store appears here."), 404
     import dashboardpaginas as dp
     if pad and pad not in dp.PAD_NAAR_PAGINA:
         return redirect("/demo")
-    pagina = _dashboard(keuze["webshop_url"], land=keuze.get("land"), voorbeeld=True,
-                        pagina=dp.PAD_NAAR_PAGINA.get(pad, "overzicht"))
+    # 29 SEPTEMBER: Nino klikte op "Product" en kreeg "There is no example yet",
+    # terwijl 29 categorieen gemeten zijn. De ene zoekvraag hierachter vond
+    # niets (hij eiste een naam en een oude plekkolom). Nu eerst die vraag, en
+    # anders de eerste goede winkel uit de bewaarde ranglijsten. En valt een
+    # dashboard om, dan de volgende kandidaat in plaats van een foutpagina.
+    pagina = None
+    for keuze in _voorbeeld_kandidaten():
+        pagina = _dashboard(keuze["webshop_url"], land=keuze.get("land"), voorbeeld=True,
+                            pagina=dp.PAD_NAAR_PAGINA.get(pad, "overzicht"),
+                            categorie=keuze.get("categorie"))
+        if pagina is not None:
+            break
     if pagina is None:
-        return render_template(
-            "fout.html", titel="There is no example yet",
-            bericht="As soon as the first category is measured, a real "
-                    "dashboard of a real store appears here."), 404
+        # Nooit meer een doodlopende pagina achter "Product": dan de index,
+        # daar staan dezelfde echte cijfers.
+        return redirect("/index")
     return pagina
+
+
+def _voorbeeld_kandidaten(maximaal=3):
+    """Winkels die zich lenen voor het voorbeeld: genoemd, niet nummer 1, liefst
+    met een naam, uit de grootste gemeten categorie. Uit het geheugen."""
+    uit = []
+    try:
+        eerste = db.voorbeeldwinkel()
+        if eerste:
+            uit.append(eerste)
+    except Exception as e:
+        print(f"Voorbeeldwinkel mislukt: {e}")
+    try:
+        landen = [r["land"] for r in _bewaard(("landen",), db.landen_in_index) or []]
+        land = "nl" if "nl" in landen else (landen[0] if landen else None)
+        if land:
+            cats = sorted(_bewaard(("perland", land), db.categorieen_per_land, land, MINIMUM_PER_LAND) or [],
+                          key=lambda c: -(c.get("winkels") or 0))
+            for c in cats[:5]:
+                rijen = (_ranglijst_bewaard(c["categorie"], land) or {}).get("rijen") or []
+                goed = [r for r in rijen if (r.get("genoemd") or 0) > 0 and 2 <= r["positie"] <= 10]
+                goed.sort(key=lambda r: (not (r.get("naam") and not str(r.get("naam")).startswith("http")), r["positie"]))
+                for r in goed[:1]:
+                    uit.append({"webshop_url": r["webshop_url"], "categorie": c["categorie"], "land": land})
+                if len(uit) >= maximaal:
+                    break
+    except Exception as e:
+        print(f"Voorbeeldkandidaten uit de ranglijsten mislukt: {e}")
+    gezien, schoon = set(), []
+    for k in uit:
+        if k["webshop_url"] not in gezien:
+            gezien.add(k["webshop_url"])
+            schoon.append(k)
+    return schoon[:maximaal]
 
 
 @app.route("/mijn/<klant_token>")
@@ -6465,8 +6720,31 @@ def uitkomst_verder(token):
     # met zijn winkel ingevuld. Een klik minder op het moment dat telt.
     plan = request.args.get("plan")
     plan = plan if plan in ("watch", "fix") else None
+    # Stap 168: het kenmerk gaat mee (t=), zodat de homepage het mailadres
+    # waar wij naartoe mailden kan invullen via /api/voorvullen. Niet het
+    # adres zelf in de link: dat komt dan in logboeken en doorverwijzingen.
     return redirect(f"/?winkel={quote(webshop_url)}&utm_source=koude_mail"
-                    + (f"&plan={plan}" if plan else "") + "#pricing")
+                    + (f"&plan={plan}&t={quote(token)}" if plan else "") + "#pricing")
+
+
+@app.route("/api/voorvullen/<token>")
+def api_voorvullen(token):
+    """Stap 168: het mailadres bij een uitkomstlink, om de kassa in te vullen.
+    Alleen met het geheime kenmerk uit onze eigen mail, en niet voor wie zich
+    afmeldde."""
+    webshop_url = db.winkel_bij_benchmark_token(token)
+    if not webshop_url or db.is_afgemeld(webshop_url):
+        return jsonify({}), 404
+    w = db.winkel_kort(webshop_url) or {}
+    email = ""
+    try:
+        import proefperiode
+        rij = proefperiode._sql("SELECT email FROM benadering WHERE webshop_url = %s", (webshop_url,))
+        email = (rij or {}).get("email") or ""
+    except Exception as e:
+        print(f"Voorvullen mislukt: {e}")
+    return jsonify({"winkel": webshop_url.replace("https://", "").replace("www.", "").rstrip("/"),
+                    "email": email, "naam": w.get("naam") or ""})
 
 
 @app.route("/admin/benchmark")

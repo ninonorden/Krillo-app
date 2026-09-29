@@ -54,10 +54,17 @@ AGENTS = [
     ("wacht", "De wachtpost", "houdt de wachtlijst per land bij",
      "SELECT count(*) FROM wachtlijst_land",
      "SELECT count(*) FROM wachtlijst_land WHERE op > now() - interval '{uur}'"),
+    ("pers", "De persagent", "stuurt het persbericht naar de vakmedia",
+     "SELECT count(*) FROM pers_verstuurd",
+     "SELECT count(*) FROM pers_verstuurd WHERE op > now() - interval '{uur}'"),
+    ("lijstjes", "De lijstjesagent", "vraagt schrijvers van GEO-lijstjes om Krillo",
+     "SELECT count(*) FROM lijstjes WHERE stand = 'gemaild'",
+     "SELECT count(*) FROM lijstjes WHERE verstuurd_op > now() - interval '{uur}'"),
 ]
 
 KLEUREN = ["#E8836B", "#6B9BD1", "#E6B655", "#8BB37A", "#C98BB9", "#7FB8B0",
-           "#D9A07A", "#9A8FD1", "#E0927F", "#86A8C9", "#B7C77A", "#D19A9A"]
+           "#D9A07A", "#9A8FD1", "#E0927F", "#86A8C9", "#B7C77A", "#D19A9A",
+           "#A3B8E0", "#E0B3A3"]
 
 
 def _tel(sql):

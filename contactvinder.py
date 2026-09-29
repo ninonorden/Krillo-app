@@ -264,6 +264,46 @@ def _contactlinks(html, basis_url, winkeldomein, max_links=8):
     return uit
 
 
+# Stap 128 deel 3 (29 september): de sitemap als wegwijzer. Veel winkels zetten
+# hun contact- of klantenservicepagina niet in het menu maar alleen in de
+# voettekst van een script, of onder een eigen naam ("/service/vragen",
+# "/pages/over-ons"). Die raden wij nooit, maar ze staan wel in sitemap.xml,
+# die er is voor zoekmachines. Hoogstens twee extra verzoeken: de sitemap en,
+# is dat een index, het deel met de gewone pagina's.
+SITEMAPWOORDEN = ("contact", "klantenservice", "customer-service", "service", "impressum",
+                  "over-ons", "about", "privacy", "retour", "returns", "voorwaarden",
+                  "terms", "legal", "colofon", "faq", "veelgestelde")
+_LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.I)
+
+
+def _uit_sitemap(url, winkeldomein, timeout=8, max_links=4):
+    def haal(adres):
+        try:
+            r = requests.get(adres, headers=scan_engine.HEADERS, timeout=timeout, allow_redirects=True)
+            return r.text[:2_000_000] if r.status_code < 400 else ""
+        except Exception:
+            return ""
+
+    tekst = haal(urljoin(url + "/", "sitemap.xml"))
+    if not tekst:
+        return []
+    adressen = _LOC.findall(tekst)
+    if "<sitemapindex" in tekst.lower():
+        # Een index: het deel met de losse pagina's (Shopify: sitemap_pages_1.xml).
+        deel = next((a for a in adressen if "page" in a.lower() or "pagina" in a.lower()), None)
+        adressen = _LOC.findall(haal(deel)) if deel else []
+    uit = []
+    for a in adressen:
+        a = a.replace("&amp;", "&")
+        if _domein(a) != winkeldomein:
+            continue
+        pad = a.lower().split(winkeldomein, 1)[-1]
+        if any(w in pad for w in SITEMAPWOORDEN) and a not in uit:
+            uit.append(a)
+    uit.sort(key=lambda u: 0 if ("contact" in u.lower() or "klantenservice" in u.lower()) else 1)
+    return uit[:max_links]
+
+
 # Stap 156 (28 september): een contactformulier herkennen. Veel kleine
 # (Shopify-)winkels hebben geen info@ maar wel een formulier. Dat vullen wij
 # NIET automatisch in: vaak zit er een captcha op, en een formulier dat een
@@ -340,6 +380,9 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
                     formulier = doel
                 if doel == url:
                     wachtrij.extend(_contactlinks(antwoord.text, url, winkeldomein))
+        if doel == url:
+            # Stap 128 deel 3: wat de sitemap aanwijst komt voor de geraden paden.
+            wachtrij.extend(_uit_sitemap(url, winkeldomein))
         if doel == url:
             # Na de homepage (ook als die niet laadde): de geraden paden achteraan.
             paden = list(PADEN)

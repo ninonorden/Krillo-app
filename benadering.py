@@ -271,7 +271,9 @@ def zoek_adressen(hoeveel=None):
 # dag) krijgen daarom nog een kans; een nieuwe sleutel is een nieuwe lijst.
 # Versie 3 sinds 28 september (stap 156): nu ook het contactformulier onthouden,
 # dus iedereen op "geen adres" komt nog een keer langs.
-HERKANSING_SLEUTEL = "benadering_adres_herkansing_v3"
+# v4 (29 september): de adresvinder leest nu ook sitemap.xml. Een nieuwe
+# sleutel betekent dat elke winkel zonder adres nog een keer bekeken wordt.
+HERKANSING_SLEUTEL = "benadering_adres_herkansing_v4"
 
 # Hoeveel oude winkels wij per ronde een tweede kans geven. Dit kost geen
 # AI-geld, alleen paginabezoeken, dus het mag ruim.

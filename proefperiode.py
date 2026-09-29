@@ -54,13 +54,35 @@ def laatste_gratis_dag(vandaag=None):
     return (vandaag or date.today()) + timedelta(days=PROEF_DAGEN)
 
 
-def mag_proef(webshop_url, email, pakket, periode):
-    """Watch per maand, en winkel en adres waren nog nooit klant."""
+# Wie telt als "had al Krillo" (29 september, aangescherpt). Alleen wie een
+# ABONNEMENT had (Watch of Fix, of een eerdere proef). Iemand die ooit alleen de
+# audit van 79 euro kocht heeft Watch nooit gehad en mag het dus gratis proberen.
+# Rijen die Nino als test markeerde tellen niet mee, anders kan hij de proef
+# met zijn eigen testwinkel nooit meer nalopen.
+_HAD_ABONNEMENT = """(mollie_klant_id IS NOT NULL OR pakket IS NOT NULL OR gratis_tot IS NOT NULL)
+                     AND NOT is_test"""
+
+
+def proef_geweigerd_om(webshop_url, email, pakket, periode):
+    """None als de proef mag, anders de reden: "pakket", "winkel" of "email".
+
+    De reden gaat mee naar de site, zodat daar precies staat WAAROM. Nino kreeg
+    "already had Krillo" met een nieuw mailadres en dacht dat het een fout was;
+    het lag aan de winkel, en dat stond er niet."""
     if (pakket or "").lower() != "watch" or (periode or "maand") != "maand":
-        return False
-    rij = _sql("SELECT 1 AS x FROM klanten WHERE webshop_url = %s OR lower(email) = %s LIMIT 1",
-               (webshop_url, (email or "").lower()))
-    return not rij
+        return "pakket"
+    if _sql(f"SELECT 1 AS x FROM klanten WHERE webshop_url = %s AND {_HAD_ABONNEMENT} LIMIT 1",
+            (webshop_url,)):
+        return "winkel"
+    if email and _sql(f"SELECT 1 AS x FROM klanten WHERE lower(email) = %s AND {_HAD_ABONNEMENT} LIMIT 1",
+                      ((email or "").lower(),)):
+        return "email"
+    return None
+
+
+def mag_proef(webshop_url, email, pakket, periode):
+    """Watch per maand, en winkel en adres hadden nog nooit een abonnement."""
+    return proef_geweigerd_om(webshop_url, email, pakket, periode) is None
 
 
 def zet_gratis_tot(webshop_url, tot):

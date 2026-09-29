@@ -290,6 +290,7 @@ def stap_herberekenen():
         for land in db.landen_met_eigen_ronde(slug):
             if not categoriemeting.herbereken_ranglijst(slug, land=land).get("fout"):
                 verslag["bijgewerkt"] += 1
+    db.vergeet_onthouden()
     return verslag
 
 
@@ -375,6 +376,9 @@ def stap_meten(hoeveel=None):
                     print(f"Klantwerk vernieuwen mislukt voor {rij['categorie']}: {e}")
                     regel["klantwerk"] = {"fout": str(e)[:160]}
         verslag["gemeten"].append(regel)
+        # Nieuwe ranglijst: het geheugen van de database leegmaken, anders
+        # ziet de site tot vijf minuten lang de oude.
+        db.vergeet_onthouden()
     return verslag
 
 

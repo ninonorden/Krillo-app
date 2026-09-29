@@ -1310,6 +1310,27 @@ def send_bureau_mail(to_email, onderwerp, alineas, link_url, afmeld_url, partner
 
 
 
+def send_lijstje_mail(to_email, onderwerp, alineas, link_url, afmeld_url):
+    """De lijstjesagent (29 september): een schrijver van een artikel met GEO-tools.
+    Kaal en persoonlijk, met een afmeldlink die met een klik werkt."""
+    if not _gekeurd(onderwerp, alineas, "lijstje"):
+        return False
+    g = BEDRIJFSGEGEVENS
+    tekst = "".join(f'<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+                    f'{a}</p>' for a in alina_s_veilig(alineas))
+    html = f"""
+    <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px; margin:0 auto; padding:24px 16px;">
+      {tekst}
+      <p style="font-size:15px; margin:18px 0;"><a href="{link_url}" style="color:#1B3FE0; font-weight:600;">See the Krillo Index</a></p>
+      {handtekening_html()}
+      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+        <a href="{afmeld_url}" style="color:#6B6D85;">No more email from us</a> &middot;
+        {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
+    </div>"""
+    koppen = {"List-Unsubscribe": f"<{afmeld_url}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
+    return send_email(to_email, onderwerp, html, koppen=koppen)
+
+
 def send_klantbericht(to_email, onderwerp, alineas, link_url, knop="Open my Krillo page"):
     """Een persoonlijk bericht aan een KLANT (stap 99, 130, 152): behoud,
     overstappen, terugwinnen. Zelfde kale vorm als de opvolging, zonder

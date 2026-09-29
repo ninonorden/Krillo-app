@@ -30,12 +30,18 @@ MAX_VRAGEN = int(__import__("os").environ.get("DASHBOARD_MAX_VRAGEN", "6"))
 MAX_CONCURRENTEN = 3
 
 
-def bouw(webshop_url, land=None, max_vragen=MAX_VRAGEN):
-    """Het volledige beeld van een winkel. Geeft None als hij nergens in staat."""
-    winkel = db.winkel_kort(webshop_url)
-    if not winkel or not winkel.get("categorie"):
+def bouw(webshop_url, land=None, max_vragen=MAX_VRAGEN, categorie=None):
+    """Het volledige beeld van een winkel. Geeft None als hij nergens in staat.
+
+    "categorie" mag de aanroeper meegeven (29 september, het voorbeeld op
+    /demo). Een winkel die in een ranglijst staat hoeft niet in onze
+    benaderlijst te staan, en dan wist deze functie niet in welke categorie hij
+    moest kijken. Zo gaf /demo "There is no example yet" terwijl er tientallen
+    ranglijsten waren."""
+    winkel = db.winkel_kort(webshop_url) or {"webshop_url": webshop_url}
+    categorie = categorie or winkel.get("categorie")
+    if not categorie:
         return None
-    categorie = winkel["categorie"]
     land = (land or winkel.get("land") or "").lower() or None
 
     lijst = db.ranglijst_per_land(categorie, land, limiet=500)
@@ -54,7 +60,7 @@ def bouw(webshop_url, land=None, max_vragen=MAX_VRAGEN):
 
     return {
         "webshop_url": webshop_url,
-        "naam": winkel.get("naam") or webshop_url,
+        "naam": winkel.get("naam") or mij.get("naam") or webshop_url,
         "categorie": categorie,
         "land": land,
         "ronde": lijst["ronde"],

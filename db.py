@@ -603,6 +603,11 @@ def init_db():
                 # Stap 167: Watch 14 dagen gratis.
                 import proefperiode
                 proefperiode.maak_tabellen(cur)
+                # 29 september: aanvragen van merken en bureaus (/agencies).
+                import merkenbureaus
+                merkenbureaus.maak_tabellen(cur)
+                import lijstjesagent
+                lijstjesagent.maak_tabellen(cur)
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS antwoorden (
                         id SERIAL PRIMARY KEY,
@@ -910,6 +915,21 @@ def init_db():
                     );
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_bezoeken_dag ON bezoeken (gezien_op);")
+                # 29 september: welke bezoekers ECHT een mens waren. Nino zag
+                # 1843 bezoekers en 8 scans. Een deel van die bezoekers is geen
+                # mens: mailbeveiliging (Outlook, Mimecast, Proofpoint) opent elke
+                # link in een koude mail met een gewone browsernaam om hem te
+                # controleren. Die telden mee als bezoeker. Een mens scrolt, tikt
+                # of beweegt de muis; zo'n controlerobot doet dat niet. Alleen de
+                # dagcode wordt bewaard, dezelfde als in bezoeken.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS bezoek_mensen (
+                        bezoeker TEXT NOT NULL,
+                        dag DATE NOT NULL DEFAULT current_date,
+                        gezien_op TIMESTAMPTZ DEFAULT now(),
+                        PRIMARY KEY (bezoeker, dag)
+                    );
+                """)
                 # De gratis zichtbaarheidstest. Hier staat wel een e-mailadres
                 # in, anders dan bij gratis_scans, want de uitslag wordt
                 # gemaild. Daarom ook nieuwsbrief_akkoord apart: het aanvragen
@@ -3326,6 +3346,27 @@ def noteer_bezoek(pad, herkomst=None, bezoeker=None, apparaat=None):
         conn.close()
 
 
+def noteer_mens(bezoeker):
+    """Deze bezoeker deed iets wat alleen een mens doet (scrollen, tikken, typen,
+    de muis bewegen). Een keer per dag per bezoeker, de rest wordt genegeerd."""
+    if not bezoeker:
+        return False
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""INSERT INTO bezoek_mensen (bezoeker) VALUES (%s)
+                               ON CONFLICT DO NOTHING""", (bezoeker[:32],))
+        return True
+    except Exception as e:
+        print(f"Mens vastleggen mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
 def bezoekoverzicht(dagen=30):
     """De cijfers voor /admin/bezoek: hoeveel bezoeken, hoeveel mensen, waar
     ze binnenkomen en waar ze vandaan komen.
@@ -3356,6 +3397,23 @@ def bezoekoverzicht(dagen=30):
                                   FROM bezoeken WHERE gezien_op > {sinds}""")
                 totaal = cur.fetchone() or {}
 
+                # Echte mensen: bezoekers die ook iets deden op de pagina. Telt
+                # pas sinds 29 september; "mensen_sinds" zegt vanaf wanneer.
+                try:
+                    cur.execute(f"""SELECT count(DISTINCT b.bezoeker) AS mensen
+                                      FROM bezoeken b
+                                      JOIN bezoek_mensen m ON m.bezoeker = b.bezoeker
+                                     WHERE b.gezien_op > {sinds}""")
+                    totaal["mensen"] = (cur.fetchone() or {}).get("mensen") or 0
+                    cur.execute("SELECT min(gezien_op) AS sinds FROM bezoek_mensen")
+                    totaal["mensen_sinds"] = (cur.fetchone() or {}).get("sinds")
+                    if totaal["mensen_sinds"]:
+                        cur.execute("""SELECT count(DISTINCT bezoeker) AS n FROM bezoeken
+                                        WHERE gezien_op >= %s""", (totaal["mensen_sinds"],))
+                        totaal["bezoekers_sinds_mensen"] = (cur.fetchone() or {}).get("n") or 0
+                except Exception as e:
+                    print(f"Mensen tellen mislukt: {e}")
+
                 cur.execute(f"""SELECT date_trunc('day', gezien_op)::date AS dag,
                                        count(*) AS bezoeken,
                                        count(DISTINCT bezoeker) AS bezoekers
@@ -3366,6 +3424,7 @@ def bezoekoverzicht(dagen=30):
                 cur.execute(f"""SELECT pad, count(*) AS bezoeken,
                                        count(DISTINCT bezoeker) AS bezoekers
                                   FROM bezoeken WHERE gezien_op > {sinds}
+                                   AND pad NOT LIKE '/wakker%%'
                               GROUP BY pad ORDER BY bezoeken DESC LIMIT 30""")
                 per_pagina = cur.fetchall()
 
@@ -4960,6 +5019,9 @@ def meld_benadering_af(webshop_url):
             conn.close()
     zet_benadering(webshop_url, stand="afgevallen", afgemeld=True,
                    notitie="Afgemeld via de link in de mail.")
+    # Wij beloven dat een afgemelde winkel meteen van de index af is. Het
+    # geheugen van vijf minuten mag dat niet vertragen.
+    vergeet_onthouden()
     return gelukt
 
 
@@ -6100,7 +6162,7 @@ def landen_in_index(minimum_categorieen=1):
         conn.close()
 
 
-def ranglijst_per_land(categorie, land, limiet=200):
+def _ranglijst_per_land_vers(categorie, land, limiet=200):
     """De ranglijst van een categorie voor EEN land.
 
     Waarom dit apart moet. De meting gaat over de categorie, niet over het land:
@@ -6317,18 +6379,24 @@ def voorbeeldwinkel():
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
                     WITH nieuwste AS (
-                        SELECT DISTINCT ON (categorie) categorie, id
+                        SELECT DISTINCT ON (categorie, coalesce(land, '')) categorie, id,
+                               lower(land) AS land
                           FROM categorie_rondes
-                         WHERE afgerond_op IS NOT NULL AND land IS NULL
-                      ORDER BY categorie, id DESC
+                         WHERE afgerond_op IS NOT NULL
+                      ORDER BY categorie, coalesce(land, ''), id DESC
                     )
-                    SELECT u.webshop_url, u.categorie, lower(b.land) AS land
+                    -- 29 september: hier stond "land IS NULL". Sinds de index per
+                    -- land meet heeft elke nieuwe ronde een land, dus vond deze
+                    -- vraag in productie niets en zei /demo "There is no example
+                    -- yet". Nu telt elke afgeronde ronde, het land komt van de
+                    -- ronde zelf, en een naam in de benaderlijst is een pre, geen eis.
+                    SELECT u.webshop_url, u.categorie,
+                           coalesce(n.land, lower(b.land), 'nl') AS land
                       FROM categorie_uitkomsten u
                       JOIN nieuwste n ON n.id = u.ronde
-                      JOIN benadering b ON b.webshop_url = u.webshop_url
-                     WHERE u.genoemd > 0 AND u.positie > 1
-                       AND b.naam IS NOT NULL AND b.land IS NOT NULL
-                  ORDER BY u.positie, u.webshop_url
+                 LEFT JOIN benadering b ON b.webshop_url = u.webshop_url
+                     WHERE u.genoemd > 0 AND u.positie BETWEEN 2 AND 10
+                  ORDER BY (b.naam IS NULL), u.positie, u.webshop_url
                      LIMIT 1
                 """)
                 rij = cur.fetchone()
@@ -6573,7 +6641,7 @@ def gemeten_categorieen():
         conn.close()
 
 
-def antwoorden_van_ronde(ronde):
+def _antwoorden_van_ronde_vers(ronde):
     """Alles wat er in een ronde gelezen is, zonder limiet.
 
     Verschil met bewaarde_antwoorden: die is voor de modelvergelijking en pakt
@@ -7174,3 +7242,59 @@ def review_mag_gevraagd(winkel):
         return False
     finally:
         conn.close()
+
+
+
+# ---------------------------------------------------------------------------
+# KORT ONTHOUDEN (29 september). /admin/traag liet zien dat pagina's die een
+# klantbeeld bouwen (uitkomst, badge, demo, de agents) seconden wachtten op
+# twee zware vragen: de ranglijst van een categorie en alle antwoorden van een
+# meting. Die veranderen alleen na een meting. Vijf minuten onthouden scheelt
+# honderden heenreizen naar de database per uur.
+#
+# Alleen op Render (RENDER staat daar vanzelf aan) of met DB_ONTHOUDEN=1: in de
+# tests schrijven we tussendoor rechtstreeks in de tabellen, en dan moet elke
+# vraag vers zijn.
+# ---------------------------------------------------------------------------
+import copy as _copy
+
+_ONTHOUD = {}
+_ONTHOUD_SLOT = threading.Lock()
+ONTHOUD_SECONDEN = int(os.environ.get("DB_ONTHOUD_SECONDEN", "300"))
+
+
+def _onthouden_aan():
+    return bool(os.environ.get("RENDER")) or os.environ.get("DB_ONTHOUDEN") == "1"
+
+
+def _onthouden(sleutel, functie, *args):
+    if not _onthouden_aan():
+        return functie(*args)
+    nu = time.time()
+    with _ONTHOUD_SLOT:
+        vak = _ONTHOUD.get(sleutel)
+    if vak and nu - vak[0] < ONTHOUD_SECONDEN:
+        return _copy.deepcopy(vak[1])
+    waarde = functie(*args)
+    # Een lege uitkomst (database even weg) niet onthouden.
+    if waarde and (not isinstance(waarde, dict) or waarde.get("rijen") or waarde.get("ronde")):
+        with _ONTHOUD_SLOT:
+            if len(_ONTHOUD) > 2000:
+                _ONTHOUD.clear()
+            _ONTHOUD[sleutel] = (nu, waarde)
+    return _copy.deepcopy(waarde)
+
+
+def vergeet_onthouden():
+    """Na een meting of herberekening: alles opnieuw ophalen."""
+    with _ONTHOUD_SLOT:
+        _ONTHOUD.clear()
+
+
+def ranglijst_per_land(categorie, land, limiet=200):
+    return _onthouden(("ranglijst", categorie, (land or "").lower(), limiet),
+                      _ranglijst_per_land_vers, categorie, land, limiet)
+
+
+def antwoorden_van_ronde(ronde):
+    return _onthouden(("antwoorden", ronde), _antwoorden_van_ronde_vers, ronde)
