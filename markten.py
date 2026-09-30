@@ -43,6 +43,25 @@ def index_landen_nl():
     return _opsomming([sitetaal.landnaam(c, "nl") for c in index_landen()], "en")
 
 
+# De taal waarin we de koopvragen stellen, per land (30 september). Een label
+# als "ASKED IN DUTCH" hoort bij Nederland en Belgie, niet bij de site. Komt
+# Duitsland erbij, dan zegt het label daar vanzelf "German".
+VRAAGTAAL_EN = {"nl": "Dutch", "be": "Dutch", "de": "German", "at": "German", "ch": "German",
+                "fr": "French", "uk": "English", "ie": "English", "us": "English", "es": "Spanish",
+                "it": "Italian", "dk": "Danish", "se": "Swedish", "pl": "Polish"}
+
+
+def vraagtaal_en(landcode):
+    """'Dutch' voor nl en be. Onbekend: 'the local language' (nooit een gok)."""
+    return VRAAGTAAL_EN.get((landcode or "").lower(), "the local language")
+
+
+def index_landen_kaal_en():
+    """Zonder lidwoord, voor een label: 'Netherlands and Belgium'."""
+    namen = [sitetaal.landnaam(c, "en") for c in index_landen()]
+    return _opsomming([n[4:] if n.lower().startswith("the ") else n for n in namen])
+
+
 def meting_zin_en():
     """De zin voor waar het over de meting gaat."""
     return f"The index measures {index_landen_en()} now; more countries follow."

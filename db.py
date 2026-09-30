@@ -21,6 +21,7 @@ import time
 
 import psycopg2
 import psycopg2.pool
+import psycopg2.extensions
 from psycopg2.extras import RealDictCursor, execute_values
 
 
@@ -44,7 +45,12 @@ _POOL_SLOT = threading.Lock()
 # Klein houden. Neon rekent verbindingen af en Render draait maar een paar
 # processen. Twee tot acht is ruim voor het werk dat hier gebeurt.
 POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))
-POOL_MAX = int(os.environ.get("DB_POOL_MAX", "8"))
+# 30 september: van 8 naar 20. De metingen, de benadering en de nachtagenten
+# draaien in hetzelfde proces als de site. Als die samen alle 8 verbindingen
+# vasthielden, kreeg een bezoeker een LOSSE verbinding, en een nieuwe
+# verbinding naar Neon opzetten kost een paar honderd milliseconden per vraag.
+# Neon kan er ruim honderd aan; 20 is veilig.
+POOL_MAX = int(os.environ.get("DB_POOL_MAX", "20"))
 # Hoe lang wij wachten op een vrije verbinding voordat wij er zelf een opzetten.
 # Vijftig keer twintig milliseconden is een seconde. Een databaseaanroep duurt
 # hier milliseconden, dus in de praktijk is het bijna altijd de eerste poging.
@@ -81,6 +87,28 @@ VERBIND_OPTIES = {
 }
 
 
+# Wanneer elke verbinding in de pool voor het laatst goed werkte (id -> tijd).
+_LAATST_GEBRUIKT = {}
+GEZOND_SECONDEN = int(os.environ.get("DB_GEZOND_SECONDEN", "60"))
+
+
+def _noteer_db(sleutel, hoeveel):
+    """Tel databasewerk op bij het huidige verzoek, voor /admin/traag.
+
+    30 september: we zagen DAT een pagina traag was, niet WAAROM. Nu staat per
+    traag verzoek hoeveel databasevragen het deed, hoeveel tijd daarin zat en
+    of er losse verbindingen nodig waren. Dan zie je meteen of het de database
+    is of iets anders. Buiten een verzoek (achtergrondtaken) doet dit niets."""
+    try:
+        from flask import g, has_request_context
+        if not has_request_context():
+            return
+        tel = g.setdefault("_db_tel", {"vragen": 0, "ms": 0.0, "los": 0})
+        tel[sleutel] += hoeveel
+    except Exception:
+        pass
+
+
 class _Geleend:
     """Een geleende verbinding die zichzelf teruggeeft in plaats van te sluiten.
 
@@ -92,6 +120,8 @@ class _Geleend:
         self._conn = conn
         self._pool = pool
         self._terug = False
+        self._sinds = time.time()
+        _noteer_db("vragen", 1)
 
     def __getattr__(self, naam):
         return getattr(self._conn, naam)
@@ -107,18 +137,34 @@ class _Geleend:
         if self._terug:
             return
         self._terug = True
+        _noteer_db("ms", (time.time() - self._sinds) * 1000)
         try:
             # Een verbinding die stuk is mag niet terug in de pool, anders
             # krijgt de volgende aanroeper hem en gaat die ook stuk.
             if self._conn.closed:
                 self._pool.putconn(self._conn, close=True)
             else:
+                # Onthouden wanneer hij voor het laatst goed werkte: dan hoeft
+                # de volgende lener hem niet opnieuw te controleren (zie
+                # _get_connection, 30 september).
+                _LAATST_GEBRUIKT[id(self._conn)] = time.time()
                 self._pool.putconn(self._conn)
         except Exception:
             try:
                 self._conn.close()
             except Exception:
                 pass
+
+
+def _iets_op_de_lijn(conn):
+    """True als er ongevraagd iets van de database op de socket ligt (een
+    afscheidsbericht of een gesloten lijn). Kijkt zonder te wachten."""
+    try:
+        import select
+        klaar, _, _ = select.select([conn.fileno()], [], [], 0)
+        return bool(klaar)
+    except Exception:
+        return True
 
 
 def _get_connection():
@@ -164,10 +210,33 @@ def _get_connection():
             try:
                 if conn.closed:
                     raise psycopg2.InterfaceError("verbinding stond al dicht")
-                with conn.cursor() as cur:
-                    cur.execute("SELECT 1")
-                    cur.fetchone()
-                conn.rollback()
+                # 30 september: de controle hieronder kostte bij ELKE aanroep drie
+                # reizen naar Neon (BEGIN, SELECT 1, ROLLBACK), en een pagina doet
+                # er tientallen. Een verbinding die minder dan GEZOND_SECONDEN
+                # geleden nog goed werkte en niet midden in iets staat, is nog
+                # goed: Neon sluit pas na minuten stilte. Dat zien we aan onze
+                # kant, zonder reis.
+                #
+                # Maar (test_pool): ook binnen die minuut kan de database een
+                # verbinding weggooien, bijvoorbeeld bij een herstart van Neon.
+                # Dan stuurt hij een afscheidsbericht en sluit hij de lijn, en
+                # dat ligt dan al klaar op onze socket. Een blik daarop kost
+                # geen reis. Ligt er iets, dan toch de echte controle.
+                if (time.time() - _LAATST_GEBRUIKT.get(id(conn), 0) < GEZOND_SECONDEN
+                        and conn.status == psycopg2.extensions.STATUS_READY
+                        and conn.get_transaction_status() == psycopg2.extensions.TRANSACTION_STATUS_IDLE
+                        and not _iets_op_de_lijn(conn)):
+                    return _Geleend(conn, _POOL)
+                # De echte controle in een reis in plaats van drie: zonder
+                # transactie eromheen (geen BEGIN en geen ROLLBACK nodig).
+                conn.autocommit = True
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT 1")
+                        cur.fetchone()
+                finally:
+                    if not conn.closed:
+                        conn.autocommit = False
                 return _Geleend(conn, _POOL)
             except (psycopg2.InterfaceError, psycopg2.OperationalError,
                     psycopg2.DatabaseError):
@@ -183,6 +252,7 @@ def _get_connection():
         # Lukt de pool niet, dan gewoon een losse verbinding. Liever langzaam
         # dan helemaal niet: dit is de laag waar alles op draait.
         print(f"Verbindingenpool niet beschikbaar, losse verbinding gebruikt: {e}")
+        _noteer_db("los", 1)
         try:
             return psycopg2.connect(db_url, **VERBIND_OPTIES)
         except Exception as e2:
@@ -609,6 +679,12 @@ def init_db():
                 # Stap 167: Watch 14 dagen gratis.
                 import proefperiode
                 proefperiode.maak_tabellen(cur)
+                # 30 september, snelheid: de antwoorden werden per ronde
+                # opgehaald zonder index (de hele tabel met lange teksten werd
+                # doorzocht), en de rondes en winkels per categorie ook.
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_cat_antw_ronde ON categorie_antwoorden (ronde);")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_cat_rondes_cat ON categorie_rondes (categorie, afgerond_op);")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_benadering_cat ON benadering (categorie);")
                 # 29 september: aanvragen van merken en bureaus (/agencies).
                 import merkenbureaus
                 merkenbureaus.maak_tabellen(cur)
@@ -5082,7 +5158,69 @@ def is_afgemeld(webshop_url):
         conn.close()
 
 
+def reistijd_ms(keer=5):
+    """Hoe lang een enkele heen-en-terugreis naar de database duurt, in ms.
+
+    30 september: pagina's deden er in het echt tien keer langer over dan hier
+    bij ons. Een pagina doet tientallen databasevragen en elke vraag kost een
+    paar reizen. Staan Render en Neon in verschillende werelddelen, dan is elke
+    reis 100 ms of meer en tikt dat op tot tientallen seconden. Dit getal laat
+    dat zien op /admin/traag, zodat je het niet hoeft te gokken. De kleinste
+    van een paar metingen, want de eerste kan een wakkerwordende database zijn.
+    """
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        tijden = []
+        with conn.cursor() as cur:
+            for _ in range(keer):
+                t = time.time()
+                cur.execute("SELECT 1")
+                cur.fetchone()
+                tijden.append((time.time() - t) * 1000)
+        conn.rollback()
+        return round(min(tijden), 1)
+    except Exception as e:
+        print(f"Reistijd meten mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
 def get_instelling(sleutel, standaard=None):
+    # 30 september: een beheerpagina vroeg twaalf instellingen los op, elk een
+    # reis naar Neon. Binnen een GET-verzoek halen we ze nu in een keer allemaal
+    # op en antwoorden we uit dat lijstje. zet_instelling gooit het weg, dus
+    # wat je net bewaard hebt lees je altijd terug.
+    geheugen = _verzoek_geheugen()
+    if geheugen is not None:
+        if "_instellingen" not in geheugen:
+            geheugen["_instellingen"] = _alle_instellingen()
+        alle = geheugen["_instellingen"]
+        if alle is not None:
+            return alle.get(sleutel, standaard)
+    return _get_instelling_los(sleutel, standaard)
+
+
+def _alle_instellingen():
+    """Alle instellingen als woordenboek, of None als de database weg is."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT sleutel, waarde FROM instellingen")
+                return {s: w for s, w in cur.fetchall()}
+    except Exception as e:
+        print(f"Instellingen ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def _get_instelling_los(sleutel, standaard=None):
     conn = _get_connection()
     if conn is None:
         return standaard
@@ -5101,6 +5239,9 @@ def get_instelling(sleutel, standaard=None):
 
 
 def zet_instelling(sleutel, waarde):
+    geheugen = _verzoek_geheugen()
+    if geheugen is not None:
+        geheugen.pop("_instellingen", None)
     conn = _get_connection()
     if conn is None:
         return False
@@ -7389,3 +7530,107 @@ def gekozen_vragen(webshop_url):
         return []
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# SNELHEID (30 september). Nino zag op /admin/traag pagina's van 10 tot 50
+# seconden. Gemeten met een nagebootste afstand tot Neon: ELKE aanroep naar de
+# database kost een handvol heen-en-weer-reizen, en een pagina deed er tot 32.
+# /mijn/<token> vroeg klant_bij_url zeven keer op in hetzelfde verzoek, de
+# homepage index_cijfers vier keer. Twee maatregelen:
+#
+# 1. BINNEN EEN VERZOEK (alleen GET): dezelfde vraag met dezelfde waarden gaat
+#    maar een keer naar de database. Een GET schrijft niets, dus het antwoord
+#    kan binnen dat ene verzoek niet veranderen.
+# 2. EEN PAAR MINUTEN ONTHOUDEN voor gegevens die alleen na een meting
+#    veranderen (het verloop, de vragen, de antwoorden, de indexcijfers). Zelfde
+#    geheugen als de ranglijsten, dus vergeet_onthouden() na een meting maakt
+#    ook deze leeg. Alleen op Render (zie _onthouden_aan): de tests zien altijd
+#    de verse stand.
+# ---------------------------------------------------------------------------
+import functools as _functools
+
+
+def _verzoek_geheugen():
+    """Het geheugen van dit ene GET-verzoek, of None buiten een verzoek."""
+    try:
+        from flask import g, has_request_context, request
+        if not has_request_context() or request.method != "GET":
+            return None
+        if not hasattr(g, "_db_geheugen"):
+            g._db_geheugen = {}
+        return g._db_geheugen
+    except Exception:
+        return None
+
+
+def _per_verzoek(functie):
+    @_functools.wraps(functie)
+    def omhulsel(*args, **kwargs):
+        geheugen = _verzoek_geheugen()
+        if geheugen is None:
+            return functie(*args, **kwargs)
+        sleutel = (functie.__name__, args, tuple(sorted(kwargs.items())))
+        try:
+            if sleutel in geheugen:
+                return _copy.deepcopy(geheugen[sleutel])
+        except TypeError:
+            return functie(*args, **kwargs)
+        waarde = functie(*args, **kwargs)
+        geheugen[sleutel] = _copy.deepcopy(waarde)
+        return waarde
+    return omhulsel
+
+
+def _minuten(functie):
+    """Onthoud een paar minuten (ONTHOUD_SECONDEN), en ook binnen het verzoek."""
+    @_functools.wraps(functie)
+    def omhulsel(*args, **kwargs):
+        if not _onthouden_aan():
+            return functie(*args, **kwargs)
+        sleutel = ("kort", functie.__name__, args, tuple(sorted(kwargs.items())))
+        nu = time.time()
+        with _ONTHOUD_SLOT:
+            vak = _ONTHOUD.get(sleutel)
+        if vak and nu - vak[0] < ONTHOUD_SECONDEN:
+            return _copy.deepcopy(vak[1])
+        waarde = functie(*args, **kwargs)
+        if waarde:  # een lege uitkomst (database even weg) niet onthouden
+            with _ONTHOUD_SLOT:
+                if len(_ONTHOUD) > 2000:
+                    _ONTHOUD.clear()
+                _ONTHOUD[sleutel] = (nu, waarde)
+        return _copy.deepcopy(waarde)
+    return _per_verzoek(omhulsel)
+
+
+for _naam in ("index_cijfers", "categorie_vragen", "positieverloop", "modellen_van_ronde",
+              "antwoorden_met_tekst_van_ronde", "landen_in_index", "categorieen_per_land",
+              "voorbeeldwinkel", "index_nooit_genoemd", "tel_gescande_webshops", "winkel_kort"):
+    globals()[_naam] = _minuten(globals()[_naam])
+for _naam in ("klant_bij_url", "get_klant", "get_winkelprofiel", "shopify_winkel_bij_webadres"):
+    globals()[_naam] = _per_verzoek(globals()[_naam])
+
+
+def _per_beheerverzoek(functie):
+    """Onthoud binnen een GET op een /admin-pagina, en nergens anders.
+
+    tel_benaderingen is ook de dagrem van de benadering: de verzendronde telt
+    er na elke mail mee hoeveel er vandaag al uit zijn. Daar mag hij dus nooit
+    een oud getal geven. Een beheerpagina die alleen laat zien hoe het staat
+    vroeg hem wel drie keer op; daar is een keer genoeg."""
+    onthoud = _per_verzoek(functie)
+
+    @_functools.wraps(functie)
+    def omhulsel(*args, **kwargs):
+        try:
+            from flask import has_request_context, request
+            beheer = has_request_context() and request.path.startswith("/admin/")
+        except Exception:
+            beheer = False
+        return (onthoud if beheer else functie)(*args, **kwargs)
+    return omhulsel
+
+
+for _naam in ("tel_benaderingen", "adres_uitsplitsing", "_kosten_optellen"):
+    globals()[_naam] = _per_beheerverzoek(globals()[_naam])

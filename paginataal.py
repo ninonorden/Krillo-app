@@ -114,9 +114,9 @@ TEKSTEN = {
         # september is het Watch 49, Fix 149 of Merken 490. Het pakket staat
         # alleen bij Mollie, dus hier geen bedrag maar wat altijd klopt. Het
         # precieze bedrag staat op de factuur.
-        "abo_tekst": ("Je betaalt per maand voor je pakket en kunt elke maand opzeggen. "
-                      "Zeg je op, dan houd je toegang tot het einde van de periode die je "
-                      "al betaald hebt en wordt er daarna niets meer afgeschreven."),
+        "abo_tekst": ("Je kunt je pakket altijd opzeggen. Zeg je op, dan houd je toegang tot "
+                      "het einde van de maand of het jaar dat je al betaald hebt, en wordt er "
+                      "daarna niets meer afgeschreven."),
         "abo_knop": "Mijn abonnement opzeggen",
         "abo_bezig": "Bezig met opzeggen...",
         "abo_gelukt": ("Je abonnement is opgezegd. Je krijgt een bevestiging per e-mail. "
@@ -401,9 +401,9 @@ TEKSTEN = {
                           "for word, who your competitors are, and all thirteen checks on "
                           "your site."),
         "abo_kop": "Your subscription",
-        "abo_tekst": ("You pay monthly for your plan and can cancel every month. If you "
-                      "cancel you keep access until the end of the period you already "
-                      "paid for, and nothing is charged after that."),
+        "abo_tekst": ("You can cancel your plan at any time. If you cancel you keep access "
+                      "until the end of the month or year you already paid for, and nothing "
+                      "is charged after that."),
         "abo_knop": "Cancel my subscription",
         "abo_bezig": "Cancelling...",
         "abo_gelukt": ("Your subscription has been cancelled. You will get a confirmation by "
@@ -433,9 +433,10 @@ TEKSTEN = {
         "d_titel": "All measurements",
         "d_nav_actief": "Subscription active",
         "d_eyebrow": "Your measurements",
-        "d_sub": "This page always stays at the same address and is updated every week.",
-        "d_bewaar": ("Keep this link, for example as a bookmark. You do not have to log in, "
-                     "and you will always find your newest scan here."),
+        "d_sub": ("This page always stays at the same address. The checks on your site run "
+                  "every week; your rank is measured every month."),
+        "d_bewaar": ("Keep this link, for example as a bookmark. It is your key: no password. "
+                     "Lost it? Log in on krilloai.com and we email it again."),
         "d_terug": "Back to your dashboard",
 
         "d_huidig_label": "Current AI readability",

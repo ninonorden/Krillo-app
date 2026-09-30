@@ -53,7 +53,7 @@ TOOLS = {
         "beter_als": "you run marketing for a brand or agency and want deep analytics across many models and "
                      "markets.",
         "krillo_anders": [
-            "Made for webshops, with the buying questions shoppers in each country actually ask, in their own language.",
+            "Made for webshops, with the buying questions shoppers in the countries we measure actually ask, in their own language.",
             "Prices on our site, and a free check without an account.",
             "With Fix we do the work in your store, not only the reporting.",
         ],
@@ -89,6 +89,8 @@ TOOLS = {
     },
     "shopify-apps": {
         "naam": "AI visibility apps on Shopify",
+        # Voor zinnen als "When a Shopify app is the better choice" (enkelvoud).
+        "naam_zin": "a Shopify app",
         "bron": "https://apps.shopify.com/search?q=ai%20visibility",
         "wat": "The Shopify App Store has a growing group of AI visibility apps (for example IndexGPT, "
                "ShopRank AI and Kwik GEO). Most generate files and texts for AI, many with a free plan.",

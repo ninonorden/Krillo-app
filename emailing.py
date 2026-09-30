@@ -100,15 +100,17 @@ def send_email(to_email, subject, html_body, koppen=None):
 # omvallen. Hij verandert niets meer.
 
 # De huisstijl van de site, in kleuren die ook in een mailprogramma werken.
-# Zelfde namen als in _stijl.html, zodat je ze terugvindt.
+# Zelfde namen als in _stijl.html, zodat je ze terugvindt. 30 september: ook de
+# koude mail en de losse mails in deze kleuren (inkt, grijzen, EEN blauw, groen
+# voor goed); geen rood of oranje meer, dat kent de huisstijl niet.
 INKT = "#0A0A0B"
 INKT_ZACHT = "#4A4A55"
 LIJN = "#E8E8EC"
-VLAK = "#F4F5F8"
+VLAK = "#F7F7F9"
 BLAUW = "#1B3FE0"
 BLAUW_TEKST = "#142FA8"
 GOED = "#0B7C5E"
-MIS = "#B42318"
+MIS = "#4A4A55"
 
 VOETTEKST = ("Questions? Just reply to this email, a person reads it.<br>"
              "Krillo &middot; Gerard Doustraat 22-3V, 1072 VW Amsterdam &middot; "
@@ -273,7 +275,7 @@ def send_herroeping_melding(beheerder_email, klant_email, webshop_url, toelichti
     Klant: {veilig(klant_email)}<br>
     Webshop: {veilig(webshop_url) or 'niet opgegeven'}</p>
     <p style="font-size:14px;">Toelichting: {veilig(toelichting) or 'geen'}</p>
-    <p style="font-size:13.5px; color:#3B3D57;">Wettelijke termijn: binnen veertien dagen afhandelen en eventueel terugbetalen via dezelfde betaalmethode.</p>
+    <p style="font-size:13.5px; color:#4A4A55;">Wettelijke termijn: binnen veertien dagen afhandelen en eventueel terugbetalen via dezelfde betaalmethode.</p>
     """
     html = _base_html("Herroeping ontvangen", "Actie nodig.", body)
     return send_email(beheerder_email, "Herroeping bij Krillo, actie nodig", html)
@@ -327,7 +329,7 @@ def _score_button(report_url, label="Open your dashboard"):
 def send_audit_email(to_email, webshop_url, scan_result, fix_previews, report_url=None, taal="nl"):
     score = scan_result.get("score", 0)
     problemen = [c for c in scan_result.get("checks", []) if c["status"] != "ok"]
-    score_color = "#1FB6A4" if score >= 80 else ("#C77D00" if score >= 40 else MIS)
+    score_color = "#0B7C5E" if score >= 80 else ("#4A4A55" if score >= 40 else MIS)
     engels = True  # sinds 21 september: alle mails Engels
 
     if engels:
@@ -357,10 +359,10 @@ def send_audit_email(to_email, webshop_url, scan_result, fix_previews, report_ur
         onderwerp = "Je Krillo-audit is klaar"
 
     body = f"""
-    <div style="background:#12142B; border-radius:12px; padding:24px; margin-bottom:20px; text-align:center;">
-      <div style="font-family:'Courier New',monospace; font-size:11px; color:#8B8DA8; text-transform:uppercase; margin-bottom:8px;">{kopje}</div>
-      <div style="font-size:40px; font-weight:700; color:{score_color};">{score}<span style="font-size:18px; color:#8B8DA8;">/100</span></div>
-      <div style="font-size:13px; color:#B9BBD4; margin-top:4px;">{webshop_url}</div>
+    <div style="background:#0A0A0B; border-radius:12px; padding:24px; margin-bottom:20px; text-align:center;">
+      <div style="font-family:'Courier New',monospace; font-size:11px; color:#A9AAB2; text-transform:uppercase; margin-bottom:8px;">{kopje}</div>
+      <div style="font-size:40px; font-weight:700; color:{score_color};">{score}<span style="font-size:18px; color:#A9AAB2;">/100</span></div>
+      <div style="font-size:13px; color:#D6D6DC; margin-top:4px;">{webshop_url}</div>
     </div>
     <p style="font-size:14.5px;">{intro_line}</p>
     <p style="font-size:14.5px;">{tweede}</p>
@@ -608,7 +610,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
 
     if afmeld_url:
         afmelden = (f'Rather not hear about this? Use '
-                    f'<a href="{afmeld_url}" style="color:#6B6D85;">this link</a>: one click, '
+                    f'<a href="{afmeld_url}" style="color:#6E7079;">this link</a>: one click, '
                     f'no questions. You get no more email from us, and we take your store '
                     f'out of the public index.')
     else:
@@ -638,8 +640,8 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
         namen = [n for n in (v.get("concurrenten") or []) if n][:2]
         if v.get("vraag") and namen:
             regels = "".join(
-                f'<tr><td style="padding:4px 0; font-size:14.5px; color:#12142B;">'
-                f'<span style="color:#1FB6A4; font-weight:700;">&#10003;</span>'
+                f'<tr><td style="padding:4px 0; font-size:14.5px; color:#0A0A0B;">'
+                f'<span style="color:#0B7C5E; font-weight:700;">&#10003;</span>'
                 f'&nbsp;&nbsp;{e(n)}</td></tr>' for n in namen)
             # Hoofdletter voorop: de vragen staan zoals een koper ze typt
             # ("beste speelgoedwinkel online"), maar in een mail leest een
@@ -660,17 +662,17 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                 label = f"Even at #1: a question where you were missing{taaldeel}"
             else:
                 label = f"One of the questions we asked{taaldeel}"
-            regels += (f'<tr><td style="padding:4px 0; font-size:14.5px; color:#D42E22; '
+            regels += (f'<tr><td style="padding:4px 0; font-size:14.5px; color:#0A0A0B; '
                        f'font-weight:600;"><span style="font-weight:700;">&#10005;</span>'
                        f'&nbsp;&nbsp;{winkel} was not named</td></tr>')
             voorbeeld = f"""
-          <div style="font-size:11.5px; color:#6B6D85; letter-spacing:.06em;
+          <div style="font-size:11.5px; color:#6E7079; letter-spacing:.06em;
                       text-transform:uppercase; margin:22px 0 10px;">
             {e(label)}</div>
           <table role="presentation" cellpadding="0" cellspacing="0">
-            <tr><td style="background:#F6F5F1; border-radius:14px 14px 14px 4px;
+            <tr><td style="background:#F7F7F9; border-radius:14px 14px 14px 4px;
                            padding:12px 16px; font-size:15.5px; font-weight:600;
-                           color:#12142B; line-height:1.4;">{e(vraag)}</td></tr>
+                           color:#0A0A0B; line-height:1.4;">{e(vraag)}</td></tr>
           </table>
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
                  style="margin-top:12px;">{regels}</table>"""
@@ -688,7 +690,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     # gegokt.
     shopify_regel = ""
     if (platform or "").lower() == "shopify":
-        shopify_regel = ('<p style="font-size:15px; color:#12142B; line-height:1.65; margin:10px 0 6px;">'
+        shopify_regel = ('<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:10px 0 6px;">'
                          'Your store runs on Shopify, so this takes you almost no time: the Krillo '
                          'app on the Shopify App Store writes the product texts and puts them in '
                          'your store, and you can undo every change.</p>')
@@ -698,11 +700,11 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     # alleen waar als het waar is; de aanroeper kijkt het na in de database.
     klant_regel = ""
     if concurrent_is_klant:
-        klant_regel = ('<p style="font-size:15px; color:#12142B; line-height:1.65; margin:10px 0 6px;">'
+        klant_regel = ('<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:10px 0 6px;">'
                        f'One store in {cat} already works with Krillo to get named more often.</p>')
 
     # De eerste zin verschilt per versie, de rest niet (zie MAILVARIANTEN).
-    p = '<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+    p = '<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;">'
     if variant == "b":
         opening = (f"{p}When shoppers in {land} ask ChatGPT or Gemini where to buy "
                    f"in the {cat} category, a few stores get named and the rest do not. We ask those "
@@ -714,38 +716,38 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                    f"{winkel} is in that ranking.</p>")
 
     html = f"""
-    <div style="background:#F6F5F1; padding:28px 16px; font-family:-apple-system,
+    <div style="background:#F7F7F9; padding:28px 16px; font-family:-apple-system,
                 'Segoe UI', Arial, sans-serif;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
              style="max-width:560px; margin:0 auto;">
-        <tr><td style="background:#FFFFFF; border:1px solid #E4E2DA; border-radius:14px;
+        <tr><td style="background:#FFFFFF; border:1px solid #E8E8EC; border-radius:14px;
                        padding:32px 30px;">
 
-          <div style="font-size:14px; font-weight:700; color:#12142B; letter-spacing:.08em;">
-            KRILLO <span style="font-weight:400; color:#6B6D85; font-size:11px;
+          <div style="font-size:14px; font-weight:700; color:#0A0A0B; letter-spacing:.08em;">
+            KRILLO <span style="font-weight:400; color:#6E7079; font-size:11px;
             letter-spacing:.12em;">INDEX</span></div>
-          <div style="font-size:12px; color:#6B6D85; margin-top:2px;">
-            The Krillo index: which stores AI recommends</div>
+          <div style="font-size:12px; color:#6E7079; margin-top:2px;">
+            The Krillo Index: which stores AI recommends</div>
 
-          <div style="height:1px; background:#E4E2DA; margin:20px 0 22px;"></div>
+          <div style="height:1px; background:#E8E8EC; margin:20px 0 22px;"></div>
 
           {opening}
 
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
-                 style="border:1px solid #E4E2DA; border-radius:10px; margin:22px 0;">
+                 style="border:1px solid #E8E8EC; border-radius:10px; margin:22px 0;">
             <tr><td style="padding:20px 22px;">
-              <div style="font-size:12px; color:#3B3D57; letter-spacing:.04em;
+              <div style="font-size:12px; color:#4A4A55; letter-spacing:.04em;
                           text-transform:uppercase; margin-bottom:8px;">
                 Your place in {cat}, {land}</div>
-              <div style="font-size:30px; font-weight:700; color:#12142B; line-height:1.2;">
+              <div style="font-size:30px; font-weight:700; color:#0A0A0B; line-height:1.2;">
                 #{positie} of {van}</div>
-              <div style="font-size:13.5px; color:#3B3D57; margin-top:8px; line-height:1.55;">
+              <div style="font-size:13.5px; color:#4A4A55; margin-top:8px; line-height:1.55;">
                 {onder}</div>
               {voorbeeld}
             </td></tr>
           </table>
 
-          <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 6px;">
+          <p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 6px;">
             {bij_een}Your own Krillo page shows where you stand, the buying questions you lose
             with the real AI answer, and what would move you up. No login, and nothing to
             fill in. Want your rank every month and the fixes to win those questions? Watch is
@@ -760,13 +762,13 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                 See my Krillo page</a>
             </td></tr>
           </table>
-          <p style="font-size:12.5px; color:#6B6D85; margin:0 0 4px;">
+          <p style="font-size:12.5px; color:#6E7079; margin:0 0 4px;">
             The link goes to {zichtbaar}</p>
           {ondertekening}
 
-          <div style="height:1px; background:#E4E2DA; margin:26px 0 16px;"></div>
+          <div style="height:1px; background:#E8E8EC; margin:26px 0 16px;"></div>
 
-          <p style="font-size:12.5px; color:#6B6D85; line-height:1.7; margin:0;">
+          <p style="font-size:12.5px; color:#6E7079; line-height:1.7; margin:0;">
             You get this email because your store is in the Krillo index. We only used
             public information and the answers AI gave; we changed nothing on your website.
             {afmelden}<br><br>
@@ -1130,16 +1132,16 @@ def handtekening_html():
     naam = (os.environ.get("AFZENDER_NAAM") or "Nino").strip()
     titel = (os.environ.get("AFZENDER_TITEL") or "Founder").strip()
     return f"""
-      <p style="font-size:15px; color:#12142B; margin:20px 0 10px;">Kind regards,</p>
+      <p style="font-size:15px; color:#0A0A0B; margin:20px 0 10px;">Kind regards,</p>
       <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
         <tr><td style="border-left:3px solid {BLAUW}; padding:2px 0 2px 12px;
                        font-family:-apple-system,'Segoe UI',Arial,sans-serif;">
-          <div style="font-size:15px; font-weight:700; color:#12142B;">{e(naam)}</div>
+          <div style="font-size:15px; font-weight:700; color:#0A0A0B;">{e(naam)}</div>
           <div style="font-size:13px; color:#4A4A55;">{e(titel)}, Krillo</div>
           <div style="font-size:13px; color:#4A4A55; margin-top:4px;">
             <a href="https://krilloai.com" style="color:{BLAUW}; text-decoration:none;">krilloai.com</a>
             &middot; <a href="mailto:hello@krilloai.com" style="color:{BLAUW}; text-decoration:none;">hello@krilloai.com</a></div>
-          <div style="font-size:12px; color:#6B6D85; margin-top:2px;">AI visibility for online stores</div>
+          <div style="font-size:12px; color:#6E7079; margin-top:2px;">AI visibility for online stores</div>
         </td></tr>
       </table>"""
 
@@ -1155,9 +1157,9 @@ def send_opvolging(to_email, onderwerp, alinea_s, link_url, afmeld_url=None):
     e = _html.escape
     naam = (os.environ.get("AFZENDER_NAAM") or "").strip()
     g = BEDRIJFSGEGEVENS
-    tekst = "".join(f'<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+    tekst = "".join(f'<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;">'
                     f'{a}</p>' for a in alina_s_veilig(alinea_s))
-    afmelden = (f'<a href="{afmeld_url}" style="color:#6B6D85;">No more email from us</a>'
+    afmelden = (f'<a href="{afmeld_url}" style="color:#6E7079;">No more email from us</a>'
                 if afmeld_url else "Reply and we remove you the same day.")
     html = f"""
     <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px;
@@ -1166,7 +1168,7 @@ def send_opvolging(to_email, onderwerp, alinea_s, link_url, afmeld_url=None):
       <p style="font-size:15px; margin:18px 0;"><a href="{link_url}"
          style="color:#1B3FE0; font-weight:600;">Open my Krillo page</a></p>
       {handtekening_html()}
-      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+      <p style="font-size:12px; color:#6E7079; line-height:1.6; margin-top:28px;">
         {afmelden} &middot; {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
     </div>"""
     koppen = ({"List-Unsubscribe": f"<{afmeld_url}>",
@@ -1221,14 +1223,14 @@ def send_antwoord(to_email, onderwerp, tekst):
     g = BEDRIJFSGEGEVENS
     alineas = [a.strip() for a in (tekst or "").split("\n\n") if a.strip()]
     lijf = "".join(
-        '<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+        '<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;">'
         + _html.escape(a).replace("\n", "<br>") + "</p>" for a in alineas)
     html = f"""
     <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px;
                 margin:0 auto; padding:24px 16px;">
       {lijf}
       {handtekening_html()}
-      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+      <p style="font-size:12px; color:#6E7079; line-height:1.6; margin-top:28px;">
         {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
     </div>"""
     return send_email(to_email, onderwerp, html)
@@ -1241,23 +1243,23 @@ def send_badge(to_email, onderwerp, alinea_s, embedcode, slot, link_url, afmeld_
     if not _gekeurd(onderwerp, alinea_s, "badge"):
         return False
     g = BEDRIJFSGEGEVENS
-    tekst = "".join(f'<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+    tekst = "".join(f'<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;">'
                     f'{a}</p>' for a in alina_s_veilig(alinea_s))
     code = _html.escape(embedcode or "")
-    afmelden = (f'<a href="{afmeld_url}" style="color:#6B6D85;">No more email from us</a>'
+    afmelden = (f'<a href="{afmeld_url}" style="color:#6E7079;">No more email from us</a>'
                 if afmeld_url else "Reply and we remove you the same day.")
     html = f"""
     <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px;
                 margin:0 auto; padding:24px 16px;">
       {tekst}
-      <div style="background:#F4F5F8; border:1px solid #E4E2DA; border-radius:8px; padding:12px 14px;
-                  font-family:Menlo,Consolas,monospace; font-size:12px; color:#12142B; word-break:break-all;
+      <div style="background:#F7F7F9; border:1px solid #E8E8EC; border-radius:8px; padding:12px 14px;
+                  font-family:Menlo,Consolas,monospace; font-size:12px; color:#0A0A0B; word-break:break-all;
                   margin:0 0 16px;">{code}</div>
-      <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">{_html.escape(slot or "")}</p>
+      <p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;">{_html.escape(slot or "")}</p>
       <p style="font-size:15px; margin:18px 0;"><a href="{link_url}"
          style="color:#1B3FE0; font-weight:600;">See your full ranking</a></p>
       {handtekening_html()}
-      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+      <p style="font-size:12px; color:#6E7079; line-height:1.6; margin-top:28px;">
         {afmelden} &middot; {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
     </div>"""
     koppen = ({"List-Unsubscribe": f"<{afmeld_url}>",
@@ -1269,14 +1271,14 @@ def send_partner_welkom(to_email, naam, link, procent=20, maanden=12):
     """Stap 94: een goedgekeurde partner krijgt zijn eigen link en de afspraken.
     Kort en persoonlijk, zoals de rest van onze mails."""
     g = BEDRIJFSGEGEVENS
-    stijl = 'style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;"'
+    stijl = 'style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;"'
     aanhef = f"Hi {_html.escape(naam.split()[0])}," if naam else "Hi,"
     html = f"""
     <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px; margin:0 auto; padding:24px 16px;">
       <p {stijl}>{aanhef}</p>
       <p {stijl}>Welcome as a Krillo partner. This is your own link:</p>
-      <div style="background:#F4F5F8; border:1px solid #E4E2DA; border-radius:8px; padding:12px 14px;
-                  font-family:Menlo,Consolas,monospace; font-size:14px; color:#12142B; word-break:break-all;
+      <div style="background:#F7F7F9; border:1px solid #E8E8EC; border-radius:8px; padding:12px 14px;
+                  font-family:Menlo,Consolas,monospace; font-size:14px; color:#0A0A0B; word-break:break-all;
                   margin:0 0 16px;">{_html.escape(link)}</div>
       <p {stijl}>How it works: a store that opens your link and starts a paid plan within 60 days counts as
          yours. You get {procent} percent of what that store pays us (excluding VAT), for as long as it pays, up to {maanden} months.
@@ -1285,7 +1287,7 @@ def send_partner_welkom(to_email, naam, link, procent=20, maanden=12):
          in the Krillo Index and the buying questions where ChatGPT names someone else.</p>
       <p {stijl}>Questions? Just reply to this email.</p>
       {handtekening_html()}
-      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+      <p style="font-size:12px; color:#6E7079; line-height:1.6; margin-top:28px;">
         {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
     </div>"""
     return send_email(to_email, "Your Krillo partner link", html)
@@ -1297,17 +1299,17 @@ def send_bureau_mail(to_email, onderwerp, alineas, link_url, afmeld_url, partner
     if not _gekeurd(onderwerp, alineas, "bureau"):
         return False
     g = BEDRIJFSGEGEVENS
-    tekst = "".join(f'<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+    tekst = "".join(f'<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;">'
                     f'{a}</p>' for a in alina_s_veilig(alineas))
     html = f"""
     <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px; margin:0 auto; padding:24px 16px;">
       {tekst}
       <p style="font-size:15px; margin:18px 0;"><a href="{link_url}" style="color:#1B3FE0; font-weight:600;">See your clients in the index</a>
          &middot; <a href="{partners_url}" style="color:#1B3FE0;">The partner program</a></p>
-      <p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">Interested? Just reply.</p>
+      <p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;">Interested? Just reply.</p>
       {handtekening_html()}
-      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
-        <a href="{afmeld_url}" style="color:#6B6D85;">No more email from us</a> &middot;
+      <p style="font-size:12px; color:#6E7079; line-height:1.6; margin-top:28px;">
+        <a href="{afmeld_url}" style="color:#6E7079;">No more email from us</a> &middot;
         {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
     </div>"""
     koppen = {"List-Unsubscribe": f"<{afmeld_url}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
@@ -1321,15 +1323,15 @@ def send_lijstje_mail(to_email, onderwerp, alineas, link_url, afmeld_url):
     if not _gekeurd(onderwerp, alineas, "lijstje"):
         return False
     g = BEDRIJFSGEGEVENS
-    tekst = "".join(f'<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+    tekst = "".join(f'<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;">'
                     f'{a}</p>' for a in alina_s_veilig(alineas))
     html = f"""
     <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px; margin:0 auto; padding:24px 16px;">
       {tekst}
       <p style="font-size:15px; margin:18px 0;"><a href="{link_url}" style="color:#1B3FE0; font-weight:600;">See the Krillo Index</a></p>
       {handtekening_html()}
-      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
-        <a href="{afmeld_url}" style="color:#6B6D85;">No more email from us</a> &middot;
+      <p style="font-size:12px; color:#6E7079; line-height:1.6; margin-top:28px;">
+        <a href="{afmeld_url}" style="color:#6E7079;">No more email from us</a> &middot;
         {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
     </div>"""
     koppen = {"List-Unsubscribe": f"<{afmeld_url}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
@@ -1343,14 +1345,14 @@ def send_klantbericht(to_email, onderwerp, alineas, link_url, knop="Open my Kril
     if not _gekeurd(onderwerp, alineas, "klant"):
         return False
     g = BEDRIJFSGEGEVENS
-    tekst = "".join(f'<p style="font-size:15px; color:#12142B; line-height:1.65; margin:0 0 14px;">'
+    tekst = "".join(f'<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;">'
                     f'{a}</p>' for a in alina_s_veilig(alineas))
     html = f"""
     <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px; margin:0 auto; padding:24px 16px;">
       {tekst}
       <p style="font-size:15px; margin:18px 0;"><a href="{link_url}" style="color:#1B3FE0; font-weight:600;">{_html.escape(knop)}</a></p>
       {handtekening_html()}
-      <p style="font-size:12px; color:#6B6D85; line-height:1.6; margin-top:28px;">
+      <p style="font-size:12px; color:#6E7079; line-height:1.6; margin-top:28px;">
         {g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p>
     </div>"""
     return send_email(to_email, onderwerp, html)
@@ -1360,6 +1362,6 @@ def send_persbericht(to_email, onderwerp, tekst):
     """Het maandelijkse persbericht (persagent.py). Platte tekst in een kale
     mail: redacties kopieren eruit, en opmaak zit dan in de weg."""
     html = ('<div style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif; max-width:640px; '
-            'margin:0 auto; padding:24px 16px; font-size:15px; color:#12142B; line-height:1.6; '
+            'margin:0 auto; padding:24px 16px; font-size:15px; color:#0A0A0B; line-height:1.6; '
             'white-space:pre-wrap;">' + _html.escape(tekst) + "</div>")
     return send_email(to_email, onderwerp, html)

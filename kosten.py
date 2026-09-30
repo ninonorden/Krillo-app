@@ -333,7 +333,9 @@ def ruimte_voor_benadering():
         print(f"Kosten van vandaag ophalen mislukt: {e}")
         return {"mag": True, "reden": None, "besteed": None, "grens": grens}
     if totaal >= grens:
-        return {"mag": False, "besteed": totaal, "grens": grens,
+        # past_nog 0 erbij (30 september): zonder stond er op /admin/benadering
+        # "2.00 van 2.00 gebruikt. Daar passen nu nog metingen in", zonder getal.
+        return {"mag": False, "besteed": totaal, "grens": grens, "past_nog": 0,
                 "reden": (f"Er is vandaag al {totaal:.2f} euro aan metingen uitgegeven, "
                           f"de grens voor de eigen benadering is {grens:.2f} euro. "
                           f"De rest van de dagpot houden we vrij voor klanten.")}

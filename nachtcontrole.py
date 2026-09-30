@@ -23,14 +23,18 @@ from datetime import datetime, timezone, timedelta
 import db
 
 # Pagina, en een stukje tekst dat er MOET staan. Engels, want de site is Engels.
+# 30 september: "/demo/plan" zocht nog "Start Watch", maar de knop heet sinds
+# de proef "Try Watch free for 14 days". De pagina was goed, de controle oud.
+# Daarom zoekt hij nu naar de knoppen zoals ze echt heten, en bewaakt
+# test_nachtcontrole_teksten dat elke tekst op de echte pagina staat.
 PAGINAS = [
-    ("/", "Check my store"),
-    ("/#pricing", "Fix"),
+    ("/", "Get my free rank"),
+    ("/#pricing", "Try 14 days free"),
     ("/demo", "Overview"),
     ("/demo/ranking", "Ranking"),
     ("/demo/questions", "All buying questions"),
     ("/demo/fixes", "Start Fix"),
-    ("/demo/plan", "Start Watch"),
+    ("/demo/plan", "Try Watch free for 14 days"),
     ("/index", "Krillo"),
     ("/privacy", "Privacy"),
     ("/faq", "?"),
@@ -153,7 +157,17 @@ def controleer(app, nu=None, proef=True):
         fout.append("SMTP_REPLY_TO gaat naar de antwoordagent, maar BEHEERDER_EMAIL ontbreekt: "
                     "meldingen komen dan nergens aan.")
 
-    # 5. De kassa zelf, met de testsleutel van Mollie (stap 134 deel 2).
+    # 5. De knop "Get my free rank" zoals een bezoeker hem gebruikt (30
+    # september, idee van 29 september dat Nino goedkeurde). Een pagina kan
+    # prima laden terwijl de knop zelf niets teruggeeft; dat zag je hierboven niet.
+    try:
+        g, f = gratis_plek(app)
+        goed += g
+        fout += f
+    except Exception as e:
+        fout.append(f"Gratis plek nakijken mislukt: {type(e).__name__}: {e}")
+
+    # 6. De kassa zelf, met de testsleutel van Mollie (stap 134 deel 2).
     if proef:
         try:
             g, f = proefbetaling(app)
@@ -163,6 +177,72 @@ def controleer(app, nu=None, proef=True):
             fout.append(f"Proefbetaling mislukt: {e}")
 
     return {"goed": goed, "fout": fout, "op": nu.isoformat()}
+
+
+# Duurt de gratis check langer dan dit, dan is hij voor een bezoeker kapot:
+# die klikt weg voordat er iets staat.
+GRATIS_PLEK_MAX_SECONDEN = 25
+GRATIS_PLEK_HERKOMST = "nachtcontrole"
+
+
+def gratis_plek(app, winkel=None):
+    """De knop "Get my free rank" met een winkel die in de index staat.
+
+    Wat hij nakijkt: /api/scan geeft antwoord, binnen GRATIS_PLEK_MAX_SECONDEN,
+    en noemt de PLEK van de winkel in zijn categorie. Dat is de belofte van de
+    knop; een antwoord met alleen de dertien technische punten is voor deze
+    winkel fout. Kon zijn site niet gelezen worden, dan telt dat niet als fout:
+    de plek hangt daar niet van af, en de pagina zegt dat eerlijk.
+
+    Een keer per nacht een gewone paginaopvraag bij een winkel, niet meer. De
+    regel die dit in gratis_scans achterlaat halen we weer weg, zodat de
+    cijfers in het ochtendbericht alleen echte bezoekers tellen.
+
+    Geeft (goed, fout). Zonder gemeten winkel slaat hij over."""
+    import time
+    if winkel is None:
+        try:
+            voorbeeld = db.voorbeeldwinkel()
+            winkel = (voorbeeld or {}).get("webshop_url")
+        except Exception:
+            winkel = None
+    if not winkel:
+        return ["Gratis plek overgeslagen (nog geen gemeten winkel om mee te proberen)"], []
+    klant = app.test_client()
+    begin = time.time()
+    try:
+        r = klant.post("/api/scan", json={"url": winkel, "herkomst": GRATIS_PLEK_HERKOMST})
+        data = r.get_json(silent=True) or {}
+    except Exception as e:
+        return [], [f"'Get my free rank' gaf een fout voor {winkel}: {type(e).__name__}: {e}"]
+    finally:
+        _ruim_gratis_scan_op()
+    duur = time.time() - begin
+    fout = []
+    if r.status_code != 200:
+        fout.append(f"'Get my free rank' geeft {r.status_code} voor {winkel}: {str(data)[:200]}")
+    elif not (data.get("rang") or {}).get("positie"):
+        fout.append(f"'Get my free rank' noemt geen plek voor {winkel}, terwijl die in de index "
+                    f"staat. De bezoeker ziet dan alleen de technische punten.")
+    if duur > GRATIS_PLEK_MAX_SECONDEN:
+        fout.append(f"'Get my free rank' deed er {duur:.0f} seconden over voor {winkel}. "
+                    f"Een bezoeker klikt dan weg. Kijk op /admin/traag.")
+    if fout:
+        return [], fout
+    return [f"'Get my free rank' werkt ({winkel}: plek {data['rang']['positie']} van "
+            f"{data['rang'].get('van')}, {duur:.0f} s)"], []
+
+
+def _ruim_gratis_scan_op():
+    try:
+        conn = db._get_connection()
+        if conn is not None:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM gratis_scans WHERE herkomst = %s", (GRATIS_PLEK_HERKOMST,))
+            conn.close()
+    except Exception:
+        pass
 
 
 PROEFWINKEL = "https://nachtcontrole.krilloai.com"

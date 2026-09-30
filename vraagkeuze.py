@@ -107,7 +107,30 @@ def _kies_met_model(omschrijving, vragen):
     return uit
 
 
+# 30 september, snelheid: /admin/formulieren deed dit per winkel opnieuw, met
+# elke keer de site ophalen en een vraag aan het model. Tien winkels was 44
+# seconden. De uitkomst verandert pas bij een nieuwe meting (andere gemiste
+# vragen), dus een dag onthouden, per winkel en per rij vragen.
+_KEUZE_GEHEUGEN = {}
+KEUZE_SECONDEN = 24 * 3600
+
+
 def passende_vragen(webshop_url, gemiste, ophalen=None):
+    gemiste = [g for g in (gemiste or []) if g.get("vraag")]
+    sleutel = (webshop_url, tuple(g["vraag"] for g in gemiste))
+    if ophalen is None:
+        vak = _KEUZE_GEHEUGEN.get(sleutel)
+        if vak and time.time() - vak[0] < KEUZE_SECONDEN:
+            return list(vak[1])
+    uit = _passende_vragen_vers(webshop_url, gemiste, ophalen=ophalen)
+    if ophalen is None and uit:
+        if len(_KEUZE_GEHEUGEN) > 5000:
+            _KEUZE_GEHEUGEN.clear()
+        _KEUZE_GEHEUGEN[sleutel] = (time.time(), list(uit))
+    return uit
+
+
+def _passende_vragen_vers(webshop_url, gemiste, ophalen=None):
     """De gemiste vragen die bij deze winkel passen, beste eerst.
 
     gemiste: de lijst uit klantbeeld (elk een dict met "vraag"). Geeft een

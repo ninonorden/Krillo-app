@@ -192,6 +192,8 @@ def zet_basis_url_klaar():
     # en Belgie" in een sjabloon zelf (28 september, we gaan groeien).
     return {"basis_url": get_base_url().rstrip("/"), "index_landen_en": markten.index_landen_en(), "index_landen_nl": markten.index_landen_nl(),
             "meting_zin_en": markten.meting_zin_en(),
+            "index_landen_kaal_en": markten.index_landen_kaal_en(),
+            "vraagtaal_en": markten.vraagtaal_en,
             "wachtlijst_landen": {c: n for c, n in markten.WACHTLIJST_LANDEN.items() if not markten.in_index(c)}}
 
 
@@ -287,6 +289,7 @@ def _apparaat():
 # in het geheugen (de laatste 200), op /admin/traag en in het ochtendbericht.
 # ---------------------------------------------------------------------------
 TRAAG_SECONDEN = float(os.environ.get("TRAAG_SECONDEN", "2"))
+_GESTART_OP = time.time()
 _traag = collections.deque(maxlen=200)
 _verzoeken = {"totaal": 0, "traag": 0}
 
@@ -307,9 +310,15 @@ def _meet_duur(antwoord):
             _verzoeken["totaal"] += 1
             if duur >= TRAAG_SECONDEN:
                 _verzoeken["traag"] += 1
+                tel = getattr(g, "_db_tel", None) or {"vragen": 0, "ms": 0.0, "los": 0}
                 _traag.append({"pad": request.path, "sec": round(duur, 1),
-                               "op": datetime.now().strftime("%d-%m %H:%M")})
-                print(f"TRAAG: {request.path} duurde {duur:.1f} s")
+                               "op": datetime.now().strftime("%d-%m %H:%M"),
+                               "vragen": tel["vragen"], "db_sec": round(tel["ms"] / 1000, 1),
+                               "los": tel["los"],
+                               "na_start": round(time.time() - _GESTART_OP) < 120})
+                print(f"TRAAG: {request.path} duurde {duur:.1f} s "
+                      f"({tel['vragen']} databasevragen, {tel['ms'] / 1000:.1f} s database, "
+                      f"{tel['los']} losse verbindingen)")
     except Exception:
         pass
     return antwoord
@@ -319,9 +328,16 @@ def traag_overzicht():
     """Per pad: hoe vaak traag en de langste duur. Voor /admin/traag en het ochtendbericht."""
     per = {}
     for t in list(_traag):
-        p = per.setdefault(t["pad"], {"pad": t["pad"], "keer": 0, "max": 0.0, "laatst": t["op"]})
+        p = per.setdefault(t["pad"], {"pad": t["pad"], "keer": 0, "max": 0.0, "laatst": t["op"],
+                                      "vragen": 0, "db_sec": 0.0, "los": 0, "na_start": 0})
         p["keer"] += 1
+        if t["sec"] >= p["max"]:
+            # De cijfers van het langste verzoek: daar zit de oorzaak.
+            p["vragen"] = t.get("vragen", 0)
+            p["db_sec"] = t.get("db_sec", 0.0)
+            p["los"] = t.get("los", 0)
         p["max"] = max(p["max"], t["sec"])
+        p["na_start"] += 1 if t.get("na_start") else 0
         p["laatst"] = t["op"]
     return {"totaal": _verzoeken["totaal"], "traag": _verzoeken["traag"],
             "paden": sorted(per.values(), key=lambda p: -p["max"])}
@@ -341,7 +357,14 @@ def _warm_op_na_start():
 
     def _warm():
         try:
-            time.sleep(5)
+            # 30 september: eerst de homepage, want daar komt bijna iedereen
+            # binnen. Zo wacht de eerste bezoeker na een herstart niet zelf op
+            # het uitrekenen (Nino zag 17 seconden op /).
+            try:
+                _thuisgegevens()
+            except Exception as e:
+                print(f"Homepage opwarmen mislukt: {e}")
+            time.sleep(2)
             for rij in db.landen_in_index():
                 land = rij["land"]
                 for c in db.categorieen_per_land(land):
@@ -354,10 +377,15 @@ def _warm_op_na_start():
             sitemap_inhoud()
             # De voorbeeldpagina achter "Product" alvast opbouwen, zodat de
             # eerste bezoeker na een upload niet op het opbouwen wacht.
-            with app.test_request_context("/demo"):
-                demo = _maak_demo("")
-                if demo:
-                    _demo_bewaard[("", "")] = (time.time(), demo)
+            # 30 september: alle tabbladen van het voorbeeld, niet alleen het
+            # overzicht. Anders wachtte wie op "Ranking" klikte alsnog.
+            import dashboardpaginas as dp
+            for pad in [""] + [p for p in dp.PAD_NAAR_PAGINA if p]:
+                with app.test_request_context("/demo" + (f"/{pad}" if pad else "")):
+                    demo = _maak_demo(pad)
+                    if demo:
+                        _demo_bewaard[(pad, "")] = (time.time(), demo)
+                time.sleep(0.3)
         except Exception as e:
             print(f"Opwarmen mislukt: {e}")
     threading.Thread(target=_warm, daemon=True).start()
@@ -700,6 +728,14 @@ def _bereken_thuis():
             "eigen_cijfer": _eigen_benchmarkcijfer()}
 
 
+def _assistenten(modellen):
+    """Modelnamen (gpt-5.6-terra) als de namen die een winkelier kent (ChatGPT).
+    30 september: op de categoriepagina stonden de ruwe modelnamen, en dat is
+    jargon voor een webshop-eigenaar."""
+    import dashboardpaginas as dp
+    return sorted({dp.assistent_naam(m) for m in (modellen or [])})
+
+
 def _kale_naam(r):
     naam = r.get("naam")
     if not naam or str(naam).startswith("http"):
@@ -753,7 +789,7 @@ def _thuis_tab(categorie, land, lijst):
         print(f"Voorbeeldvraag voor de homepage overslaan: {e}")
     return {"categorie": categorie, "naam": categorieen.naam_en(categorie), "land": land,
             "telbaar": telbaar, "winkels": len(alle), "niet_genoemd": len(alle) - len(genoemd),
-            "rijen": rijen, "stijger": stijger,
+            "rijen": rijen, "stijger": stijger, "beweging": any(r["beweging"] for r in rijen),
             "punten": punten, "vraag": vraag}
 
 
@@ -1692,6 +1728,46 @@ def admin_wereld():
     return render_template("agentwereld.html", w=agentwereld.stand())
 
 
+def _cpu_deel():
+    """Hoeveel processor de server mag gebruiken, uit de instellingen van de
+    container zelf (cgroup). 0.1 betekent een tiende van een processor. None
+    als het niet te lezen is."""
+    try:
+        with open("/sys/fs/cgroup/cpu.max") as f:
+            quota, periode = f.read().split()[:2]
+        if quota != "max":
+            return round(int(quota) / int(periode), 2)
+    except Exception:
+        pass
+    try:
+        with open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us") as f:
+            quota = int(f.read().strip())
+        with open("/sys/fs/cgroup/cpu/cpu.cfs_period_us") as f:
+            periode = int(f.read().strip())
+        if quota > 0:
+            return round(quota / periode, 2)
+    except Exception:
+        pass
+    return None
+
+
+def _rekenkracht_zin():
+    """30 september: het tweede deel van de traagheid. Het gratis pakket van
+    Render geeft een fractie van een processor. Het opbouwen van een pagina dat
+    bij ons 0,3 seconde kost, kost daar dan seconden, en de achtergrondtaken
+    (metingen, benadering) delen diezelfde fractie. Dit laat zien wat de server
+    echt heeft, zodat het geen gok is."""
+    deel = _cpu_deel()
+    if deel is None:
+        return "Niet uit te lezen op deze server."
+    if deel < 0.5:
+        return (f"{deel:g} processor. Dat is heel weinig: elke pagina en elke achtergrondtaak "
+                f"deelt dit. Zet de webservice in Render op Starter (0,5) of beter Standard (1).")
+    if deel < 1:
+        return f"{deel:g} processor. Werkbaar; Standard (1 processor) maakt de pagina's nog vlotter."
+    return f"{deel:g} processor. Genoeg."
+
+
 @app.route("/admin/traag")
 def admin_traag():
     """Welke pagina's traag waren sinds de laatste start (29 september)."""
@@ -1701,15 +1777,41 @@ def admin_traag():
     if doorsturen:
         return redirect(doorsturen)
     t = traag_overzicht()
-    rijen = "".join(f"<tr><td>{escape(p['pad'])}</td><td>{p['keer']}</td><td>{p['max']} s</td><td>{escape(p['laatst'])}</td></tr>"
+    # De afstand tot de database (30 september). Dit is de grootste knop: een
+    # pagina doet tientallen vragen, en elke vraag kost een paar reizen.
+    reis = db.reistijd_ms()
+    if reis is None:
+        reis_zin = "De database gaf geen antwoord, dus de afstand is niet gemeten."
+    elif reis <= 10:
+        reis_zin = (f"Een reis naar de database duurt {reis:g} ms. Dat is goed: de site en "
+                    f"de database staan dicht bij elkaar.")
+    elif reis <= 40:
+        reis_zin = (f"Een reis naar de database duurt {reis:g} ms. Dat kan beter: zet de "
+                    f"webservice in Render in dezelfde regio als de database in Neon (Frankfurt).")
+    else:
+        reis_zin = (f"Een reis naar de database duurt {reis:g} ms. Dat is te ver weg en "
+                    f"de hoofdoorzaak van trage pagina's: de site en de database staan in "
+                    f"verschillende delen van de wereld. Zet de webservice in Render in de "
+                    f"regio Frankfurt, net als de database in Neon.")
+    cpu_zin = escape(_rekenkracht_zin())
+    rijen = "".join(f"<tr><td>{escape(p['pad'])}</td><td>{p['keer']}</td><td>{p['max']} s</td>"
+                    f"<td>{p.get('vragen', 0)}</td><td>{p.get('db_sec', 0)} s</td><td>{p.get('los', 0)}</td>"
+                    f"<td>{p.get('na_start', 0)}</td><td>{escape(p['laatst'])}</td></tr>"
                     for p in t["paden"])
     return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
             f"<title>Traag | Krillo</title><body style='font-family:Arial,sans-serif;max-width:800px;"
             f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Trage pagina's</h1>"
             f"<p>Sinds de laatste start: {t['totaal']} verzoeken, waarvan {t['traag']} van {TRAAG_SECONDEN:g} "
             f"seconden of langer. Na een deploy begint de telling opnieuw.</p>"
-            f"<table cellpadding='6'><tr style='text-align:left'><th>Pagina</th><th>Keer traag</th><th>Langste</th>"
-            f"<th>Laatst</th></tr>{rijen or '<tr><td colspan=4>Niets traags gezien.</td></tr>'}</table></body>")
+            f"<p id='reistijd'><b>Afstand tot de database:</b> {escape(reis_zin)}</p>"
+            f"<p id='rekenkracht'><b>Rekenkracht van de server:</b> {cpu_zin}</p>"
+            f"<p>Bij het langste verzoek: hoeveel databasevragen, hoeveel tijd daarvan in de database zat, "
+            f"en hoeveel losse verbindingen nodig waren (0 is goed). 'Vlak na start' telt de keren "
+            f"binnen twee minuten na het opstarten: dan was de server net wakker.</p>"
+            f"<div style='overflow-x:auto'><table cellpadding='6'><tr style='text-align:left'><th>Pagina</th>"
+            f"<th>Keer traag</th><th>Langste</th><th>Vragen</th><th>Database</th><th>Los</th>"
+            f"<th>Vlak na start</th><th>Laatst</th></tr>"
+            f"{rijen or '<tr><td colspan=8>Niets traags gezien.</td></tr>'}</table></div></body>")
 
 
 @app.route("/sitemap.xml")
@@ -4167,7 +4269,14 @@ def _dagbericht_sturen():
             ergste = t["paden"][0]
             regels = list(regels) + [f"Trage pagina's sinds de laatste start: {t['traag']} van {t['totaal']} "
                                      f"verzoeken duurden {TRAAG_SECONDEN:g} seconden of langer. Traagste: "
-                                     f"{ergste['pad']} ({ergste['max']} s). Alles op /admin/traag."]
+                                     f"{ergste['pad']} ({ergste['max']} s, {ergste.get('vragen', 0)} "
+                                     f"databasevragen). Alles op /admin/traag."]
+        # De afstand tot de database, elke ochtend (30 september). Boven de
+        # 40 ms staan Render en Neon te ver uit elkaar, en dat is dan de oorzaak.
+        reis = db.reistijd_ms()
+        if reis is not None and reis > 40:
+            regels = list(regels) + [f"Een reis naar de database duurt {reis:g} ms. Dat is te ver: zet "
+                                     f"de webservice in Render in de regio Frankfurt, net als Neon."]
         onderwerp, body = ochtendbericht.tekst(
             ochtendbericht.verzamel(get_base_url().rstrip("/")), extra_regels=regels)
         if emailing.send_email(ontvanger, onderwerp, body):
@@ -6153,7 +6262,7 @@ def openbare_categorie(land, slug):
         telbaar=lijst["telbaar"],
         gemeten_op=(genoemd[0].get("gemeten_op") if genoemd else None),
         vragen=_bewaard(("vragen", lijst["ronde"]), db.gemeten_vragen_van_ronde, lijst["ronde"]),
-        modellen=_bewaard(("modellen", lijst["ronde"]), db.modellen_van_ronde, lijst["ronde"]),
+        modellen=_assistenten(_bewaard(("modellen", lijst["ronde"]), db.modellen_van_ronde, lijst["ronde"])),
         canonical=f"/index/{land}/{slug}",
         basis_url=basis_url,
         basis=get_base_url(),
@@ -6214,7 +6323,7 @@ def openbare_winkel(land, slug, winkel):
         categorie=categorie, landnaam=landnaam, totaal=len(lijst["rijen"]), telbaar=lijst["telbaar"],
         buren=buren, kruimels=kruimels, basis_url=basis_url,
         maand=(rij.get("gemeten_op").strftime("%B %Y") if rij.get("gemeten_op") else None),
-        modellen=_bewaard(("modellen", lijst["ronde"]), db.modellen_van_ronde, lijst["ronde"]))
+        modellen=_assistenten(_bewaard(("modellen", lijst["ronde"]), db.modellen_van_ronde, lijst["ronde"])))
 
 
 @app.route("/api/plekmelding", methods=["POST"])
@@ -6679,7 +6788,13 @@ def openbaar_voorbeeld(pad=""):
     # voor iedereen dezelfde pagina, dus bewaren wij hem tien minuten.
     sleutel = (pad, request.args.get("taal") or "")
     bewaard = _demo_bewaard.get(sleutel)
-    if bewaard and time.time() - bewaard[0] < DEMO_SECONDEN and _thuis_onthouden_aan():
+    if bewaard and _thuis_onthouden_aan():
+        # 30 september: na tien minuten wachtte de volgende bezoeker weer op het
+        # hele opbouwen (Nino zag 50 seconden op /demo). Nu krijgt hij meteen de
+        # bewaarde pagina, en bouwen we de nieuwe op de achtergrond. Het is
+        # voorbeelddata: een versie van tien minuten oud is prima.
+        if time.time() - bewaard[0] >= DEMO_SECONDEN:
+            _ververs_demo_op_achtergrond(sleutel, pad)
         return bewaard[1]
     pagina = _maak_demo(pad)
     if pagina is None:
@@ -6692,6 +6807,29 @@ def openbaar_voorbeeld(pad=""):
 
 DEMO_SECONDEN = 600
 _demo_bewaard = {}
+_demo_bezig = set()
+
+
+def _ververs_demo_op_achtergrond(sleutel, pad):
+    """Bouw een voorbeeldpagina opnieuw, maar nooit twee keer tegelijk."""
+    with _bewaard_slot:
+        if sleutel in _demo_bezig:
+            return
+        _demo_bezig.add(sleutel)
+    taal = sleutel[1]
+
+    def _bouw():
+        try:
+            doel = "/demo" + (f"/{pad}" if pad else "") + (f"?taal={taal}" if taal else "")
+            with app.test_request_context(doel):
+                pagina = _maak_demo(pad)
+            if pagina:
+                _demo_bewaard[sleutel] = (time.time(), pagina)
+        except Exception as e:
+            print(f"Voorbeeld verversen mislukt ({pad}): {e}")
+        finally:
+            _demo_bezig.discard(sleutel)
+    threading.Thread(target=_bouw, daemon=True).start()
 
 
 def _maak_demo(pad=""):

@@ -150,7 +150,7 @@ T = {
         "niet_inkopen_kop": "Wat er niet in zit",
         "niet_inkopen": ("Geen betaalde plekken. Een winkel kan zich hier niet inkopen, "
                          "en de volgorde volgt alleen uit de antwoorden."),
-        "telbaar_kop": "Waarom niet alle dertig vragen meetellen",
+        "telbaar_kop": "Waarom niet elke vraag meetelt",
         "telbaar": ("Vraagt iemand naar een merk of naar algemene informatie, dan komt "
                     "daar geen webshop in voor, ook de beste niet. Die vragen laten we "
                     "buiten de telling."),
@@ -160,7 +160,7 @@ T = {
         "overige": "De overige {n} webshops werden bij geen enkele van deze vragen genoemd.",
         "niemand_genoemd": ("Bij deze meting werd geen enkele webshop uit onze lijst "
                             "genoemd."),
-        "cta_kop": "Sta jij hier niet bij?",
+        "cta_kop": "Staat jouw winkel niet in een ranglijst?",
         "cta_tekst": ("Doe de gratis check van je webshop. Je ziet meteen of "
                       "AI-assistenten je winkel kunnen vinden en lezen."),
         "cta_knop": "Gratis check",
@@ -203,7 +203,8 @@ T = {
         "assistenten": "assistants",
         "vragen_kop": "The questions we asked",
         "vragen_uitleg": ("Only the questions that could really name a store, because "
-                          "only those count."),
+                          "only those count. They are in the language of the market, "
+                          "because that is how shoppers there ask them."),
         "lezen_kop": "How to read this",
         "momentopname_kop": "This is a snapshot",
         "momentopname": ("AI assistants change their answers. This list is what came out "
@@ -212,7 +213,7 @@ T = {
         "niet_inkopen_kop": "What is not in it",
         "niet_inkopen": ("No paid positions. A store cannot buy its way in, and the order "
                          "follows from the answers alone."),
-        "telbaar_kop": "Why not all thirty questions count",
+        "telbaar_kop": "Why not every question counts",
         "telbaar": ("If someone asks about a brand or for general information, no store "
                     "appears in the answer, not even the best one. Those questions are "
                     "left out of the count."),
@@ -221,7 +222,7 @@ T = {
                            "not the same as being advised, so we count them separately."),
         "overige": "The other {n} stores were named in none of these questions.",
         "niemand_genoemd": "No store from our list was named in this measurement.",
-        "cta_kop": "Not on this list?",
+        "cta_kop": "Your store not in a ranking?",
         "cta_tekst": ("Run the free check on your store. You will see straight away "
                       "whether AI assistants can find and read it."),
         "cta_knop": "Free check",

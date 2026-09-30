@@ -91,6 +91,17 @@ def _bedragen(prijs):
     return re.findall(r"\$\d[\d,]*", prijs or "")
 
 
+def _zichtbare_bedragen(html):
+    """De tekst van een pagina zonder opmaak, met "$ 29" samengetrokken tot "$29"."""
+    import html as htmlmod
+    tekst = re.sub(r"<!--.*?-->", "", html or "", flags=re.S)
+    tekst = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", tekst, flags=re.S | re.I)
+    tekst = re.sub(r"<[^>]+>", "", tekst)
+    tekst = htmlmod.unescape(tekst)
+    tekst = re.sub(r"\$\s+(?=\d)", "$", tekst)
+    return tekst
+
+
 def concurrenten(haal=None, vandaag=None):
     """Staan de bedragen die wij noemen nog op hun prijspagina?"""
     import vergelijkingen
@@ -118,11 +129,48 @@ def concurrenten(haal=None, vandaag=None):
             html = ""
         if not html:
             continue   # niet bereikbaar zegt niets over hun prijs
-        tekst = html.replace("&#36;", "$")
+        tekst = _zichtbare_bedragen(html)
+        # 30 september: het ochtendbericht zei dat $29 en $295 niet meer op de
+        # pagina's van Otterly en AthenaHQ stonden. Ze stonden er gewoon. Hun
+        # pagina's zetten het dollarteken en het getal in aparte stukjes
+        # opmaak ("$<!-- -->29"), of bouwen de prijzen pas in de browser op.
+        # Nu kijken we naar de tekst zoals een bezoeker hem leest, en staat
+        # er helemaal geen bedrag in, dan is de pagina niet na te kijken en
+        # zeggen we niets (in plaats van een vals alarm).
+        if not re.search(r"\$\d", tekst):
+            continue
         weg = [b for b in bedragen if b not in tekst]
         if weg:
             uit.append(f"{t['naam']}: {', '.join(weg)} staat niet meer op {t['bron']}. /compare/{slug} nakijken")
     return uit
+
+
+# 30 september: het ochtendbericht zei "Opbrengst per maand 198" en tegelijk
+# "Nieuwe echte klanten 0". Die 198 was 49 + 149: klantregels die geen cent
+# opleveren. Nu telt een regel alleen als er echt geld binnenkomt:
+# - niet opgezegd, geen test, en niet het eigen adres van Nino;
+# - niet midden in de gratis proef (dan betaalt hij nu nog niets);
+# - en hij betaalt via Mollie (er staat een Mollie-klant bij), of via Shopify
+#   terwijl de Shopify-facturen echt zijn (SHOPIFY_BILLING_TEST uit).
+OPBRENGST_SQL = """
+    SELECT k.pakket, k.periode FROM klanten k
+     WHERE NOT k.is_test AND k.opgezegd_op IS NULL
+       AND lower(coalesce(k.email, '')) <> %s
+       AND (k.gratis_tot IS NULL OR k.gratis_tot < current_date)
+       AND (k.mollie_klant_id IS NOT NULL
+            OR (%s AND EXISTS (SELECT 1 FROM shopify_winkels s
+                                WHERE s.webshop_url = k.webshop_url AND s.verwijderd_op IS NULL)))"""
+
+
+def _eigen_adres():
+    import os
+    return ((os.environ.get("BEHEERDER_EMAIL") or os.environ.get("BEHEER_EMAIL") or "").strip().lower()
+            or "-")
+
+
+def _shopify_telt():
+    import os
+    return (os.environ.get("SHOPIFY_BILLING_TEST") or "").strip().lower() not in ("ja", "1", "true")
 
 
 def kosten_week():
@@ -132,8 +180,7 @@ def kosten_week():
                "WHERE moment > now() - interval '7 days'") or {}
     kosten = float(rij.get("k") or 0)
     opbrengst = 0.0
-    for k in _sql("SELECT pakket, periode FROM klanten WHERE NOT is_test AND opgezegd_op IS NULL",
-                  alles=True) or []:
+    for k in _sql(OPBRENGST_SQL, (_eigen_adres(), _shopify_telt()), alles=True) or []:
         try:
             if (k.get("periode") or "maand") == "jaar":
                 opbrengst += float(payments.prijs_van(k.get("pakket"), "jaar")["value"]) / 12
