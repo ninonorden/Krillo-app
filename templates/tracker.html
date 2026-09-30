@@ -57,6 +57,12 @@
   {% endif %}
 
   <div class="tr-blok">
+    {% if pagina.platform == 'shopify' %}
+    <h2>Are your product texts copied from your supplier?</h2>
+    <p>If a dozen other stores sell the same product with the same words, AI has no reason to pick yours.
+       <a href="/tools/supplier-text-check">Check your product texts for free</a>: we search a sentence from each
+       of your first products word for word.</p>
+    {% endif %}
     <h2>What you get for free, and what Watch adds</h2>
     <p>The free check gives your rank in the Krillo Index (if your category is measured) and 13 checks on what AI
        can read on your site. Watch, from &euro;{{ prijs_watch }} a month with 14 days free, shows it every month: every buying

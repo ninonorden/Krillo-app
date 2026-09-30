@@ -73,6 +73,15 @@
     <h2>Blocking training is not the same as blocking search</h2>
     <p>Some robots collect pages to train AI models (like GPTBot). Blocking those is a fair choice and does not stop
        ChatGPT from recommending you. Blocking the search robots (OAI-SearchBot, ChatGPT-User, PerplexityBot) does.</p>
+  {% elif slug == 'supplier-text-check' %}
+    <h2>What this checks</h2>
+    <p>Many webshops use the product texts their supplier wrote. Then dozens of stores sell the same product
+       with the same words, and an AI assistant has no reason to name yours. We take a few of your products,
+       pick one distinctive sentence from each text and search for it word for word.</p>
+    <p>On Shopify we read your product list directly. On other platforms, paste the address of a product page.</p>
+    <h2>What to do with the result</h2>
+    <p>Rewrite the copied texts in your own words: who the product is for, what makes it different, and the facts
+       buyers ask about (size, material, delivery). That gives AI something only your store says.</p>
   {% elif slug == 'product-data-check' %}
     <h2>What this checks</h2>
     <p>When a shopper asks an AI assistant for a product, the answer is built from facts it can read with certainty:
@@ -128,6 +137,13 @@
       d.robots.forEach(function(r){ h += regel(r.mag, r.wie + ' (' + r.bot + '): ' + (r.mag ? 'allowed' : 'blocked'), r.wat); });
       (d.opmerkingen || []).forEach(function(o){ h += '<p style="margin-top:12px;">' + e(o) + '</p>'; });
       if (d.oordeel !== 'open'){ h += '<p><strong>How to fix it.</strong> ' + e(d.herstel) + '</p>'; }
+    } else if (d.teksten){
+      d.teksten.forEach(function(r){
+        h += regel(!r.aantal, r.titel || 'Product', r.aantal
+          ? 'Also on: ' + r.andere.join(', ') + (r.aantal > r.andere.length ? ' and more' : '') + '. Sentence: "' + r.zin + '"'
+          : 'Not found elsewhere. Sentence: "' + r.zin + '"');
+      });
+      if (d.advies){ h += '<p style="margin-top:12px;">' + e(d.advies) + '</p>'; }
     } else if (d.punten){
       d.punten.forEach(function(p){ h += regel(p.ok, p.naam, p.waarom); });
     } else if (d.gevonden){
