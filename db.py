@@ -641,6 +641,8 @@ def init_db():
                 # ging (45 dagen rust) en voor welk moment (nooit twee keer).
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_op TIMESTAMPTZ;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS overgeslagen_op TIMESTAMPTZ;")
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS categorie_gecheckt_op TIMESTAMPTZ;")
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS categorie_klopt BOOLEAN;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_sleutel TEXT;")
                 # Stap 116: over welke meting wij al een bewegingsmail stuurden.
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS beweging_ronde INTEGER;")
@@ -4947,6 +4949,9 @@ def te_mailen_met_positie(limiet):
                      WHERE b.stand IN ('adres', 'meten', 'gemeten') AND b.afgemeld = FALSE
                        AND b.email IS NOT NULL AND b.email <> ''
                        AND b.gemaild_op IS NULL
+                       -- 30 september (bel-air.be): alleen winkels waarvan de
+                       -- categoriecheck de site zelf las en zei dat het klopt.
+                       AND b.categorie_klopt IS TRUE
                        -- 30 september: wie geen bruikbare plek had, een week niet.
                        AND (b.overgeslagen_op IS NULL OR b.overgeslagen_op < now() - interval '7 days')
                        -- Stap 156: wie via zijn formulier benaderd is, kreeg de
@@ -6423,6 +6428,9 @@ def _ranglijst_per_land_vers(categorie, land, limiet=200):
                        -- pas bij de volgende meting: de afmeldmail belooft
                        -- "we take your store out of the public index".
                        AND coalesce(b.afgemeld, FALSE) = FALSE
+                       -- 30 september (bel-air.be): wat de categoriecheck als
+                       -- "geen webshop" herkent, is meteen uit elke ranglijst.
+                       AND coalesce(b.soort, 'winkel') <> 'geen-webshop'
                   ORDER BY u.aanbevolen DESC, u.genoemd DESC, u.webshop_url
                      LIMIT %s""",
                     (vorige, nu, land, (land or "").lower() or None, limiet))
@@ -7246,6 +7254,8 @@ ADRES_REDENEN = [
     ("geen_email", "stand adres maar geen mailadres"),
     ("al_gemaild", "al eens gemaild"),
     ("geen_winkel", "geen gewone winkel (merk, platform of keten)"),
+    ("site_niet_nagekeken", "site nog niet nagekeken door de categoriecheck (of twijfel)"),
+    ("geen_plek", "in de index, maar zonder bruikbare plek voor de mail (een week overgeslagen)"),
     ("geen_categorie", "nog geen categorie"),
     ("niet_gemeten", "categorie nog niet gemeten"),
     ("te_weinig", "wel in de meting, maar te weinig bruikbare antwoorden (minder dan 3)"),
@@ -7268,6 +7278,11 @@ def adres_uitsplitsing():
                       WHEN b.email IS NULL OR b.email = '' THEN 'geen_email'
                       WHEN b.gemaild_op IS NOT NULL THEN 'al_gemaild'
                       WHEN coalesce(b.soort, 'winkel') <> 'winkel' THEN 'geen_winkel'
+                      WHEN b.overgeslagen_op > now() - interval '7 days' THEN 'geen_plek'
+                      WHEN EXISTS (SELECT 1 FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
+                                    WHERE u.webshop_url = b.webshop_url AND coalesce(u.telbaar, 0) >= 3
+                                      AND r.afgerond_op IS NOT NULL)
+                           AND b.categorie_klopt IS NOT TRUE THEN 'site_niet_nagekeken'
                       WHEN EXISTS (SELECT 1 FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
                                     WHERE u.webshop_url = b.webshop_url AND coalesce(u.telbaar, 0) >= 3
                                       AND r.afgerond_op IS NOT NULL) THEN 'klaar'

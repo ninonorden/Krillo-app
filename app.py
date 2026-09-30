@@ -4624,6 +4624,14 @@ def _benadering_ronde_werk():
         # op. Stonden bovenaan vijf winkels zonder bruikbare plek (GEEN_POSITIE),
         # dan ging er niets uit, en de volgende ronde stonden diezelfde vijf er
         # weer: de post stond stil terwijl er honderden klaar lagen.
+        # 30 september (bel-air.be): eerst de site zelf lezen. Alleen wie daar
+        # als webshop in de goede categorie uitkomt, kan hierna post krijgen.
+        try:
+            import categoriecheck
+            verslag["categoriecheck"] = categoriecheck.ronde()
+        except Exception as e:
+            verslag["mislukt"].append(f"categoriecheck: {e}")
+            print(f"Categoriecheck mislukt: {e}")
         beurt = benadering.te_mailen(mag * KANDIDATEN_FACTOR)
         if not beurt:
             verslag["redenen"].append("Er mocht wel post uit, maar geen enkele winkel "
@@ -5027,6 +5035,18 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
         # Welke versie van de mail (stap 56). Vast per winkel; een proefmail
         # mag er een kiezen, zodat je beide versies kunt bekijken.
         variant = variant or emailing.kies_variant(webshop_url)
+        platform = (db.get_winkelprofiel(webshop_url) or {}).get("platform")
+        # Stap 217 (30 september): bij kleine Shopify-winkels de leverancierstekst-
+        # check in de mail. Drie zoekopdrachten, binnen het dagplafond van de tool;
+        # lukt het niet, dan gaat de mail gewoon zonder die zin.
+        leverancier = None
+        if (platform or "").lower() == "shopify" and not proef:
+            try:
+                import gratistools
+                uit = gratistools.leverancierstekst_check(webshop_url, max_producten=3)
+                leverancier = uit if uit.get("teksten") else None
+            except Exception as e:
+                print(f"Leverancierstekst voor de mail mislukt ({webshop_url}): {e}")
         gelukt = emailing.send_onderzoeksmail(
             email, webshop_url, f"{basis}/uitkomst/{token}", beeld=beeld,
             categorienaam=categorieen.naam_en(beeld["categorie"]),
@@ -5036,7 +5056,8 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
             # verdwijnt die winkel uit de index (23 september).
             afmeld_url=None if proef else f"{basis}/afmelden/{token}",
             onderwerp_voor=f"[TEST {variant}] " if proef else "",
-            variant=variant, platform=(db.get_winkelprofiel(webshop_url) or {}).get("platform"),
+            variant=variant, platform=platform,
+            leverancier=leverancier,
             concurrent_is_klant=db.categorie_heeft_klant(beeld.get("categorie"), beeld.get("land"),
                                                          behalve_url=webshop_url))
         # Alleen een echte mail telt mee in de vergelijking van de versies.
@@ -8703,6 +8724,15 @@ def admin_antwoorden():
         elif actie == "klaar" and nr:
             aa.klaar(nr)
             melding = "Op klaar gezet, er gaat niets uit."
+        elif actie == "uit_index":
+            # 30 september (bel-air.be): "wij zijn geen webshop". Meteen uit elke
+            # ranglijst en uit de post, en nooit meer gemaild.
+            import categoriecheck
+            url = (request.form.get("url") or "").strip()
+            if url:
+                categoriecheck.zet_uit_index(url)
+                db.vergeet_onthouden()
+                melding = f"{url} staat niet meer in de index en krijgt geen post meer."
         elif actie == "koppelen":
             _, melding = aa.koppel_brevo(basis, (os.environ.get("BREVO_WEBHOOK_SLEUTEL") or "").strip(),
                                          request.form.get("domein") or None)
@@ -8736,7 +8766,11 @@ def admin_antwoorden():
                     f"{escape(r.get('concept') or '')}</textarea><br>"
                     f"<button name='actie' value='versturen' style='padding:8px 14px;background:#1B3FE0;color:#fff;"
                     f"border:0;border-radius:6px'>Versturen</button> "
-                    f"<button name='actie' value='klaar' style='padding:8px 14px'>Zelf afgehandeld</button></form>")
+                    f"<button name='actie' value='klaar' style='padding:8px 14px'>Zelf afgehandeld</button></form>"
+                    + (f"<form method='post' style='margin-top:6px'><input type='hidden' name='url' "
+                       f"value='{escape(r['webshop_url'])}'><button name='actie' value='uit_index' "
+                       f"style='padding:6px 12px;font-size:13px'>Geen webshop of verkeerde categorie: "
+                       f"uit de index halen</button></form>" if r.get("webshop_url") else ""))
         elif r["stand"] == "verstuurd" and r.get("concept"):
             kop += (f"<div style='font-size:13px;color:#666;margin-top:8px'>Ons antwoord:</div>"
                     f"<div style='white-space:pre-wrap;font-size:14px'>{escape(r['concept'])}</div>")

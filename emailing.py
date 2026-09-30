@@ -587,7 +587,8 @@ _TAALNAAM = {"nl": "Dutch", "de": "German", "fr": "French", "en": "English",
 
 def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                         categorienaam=None, landnaam=None, afmeld_url=None,
-                        onderwerp_voor="", variant="a", platform=None, concurrent_is_klant=False):
+                        onderwerp_voor="", variant="a", platform=None, concurrent_is_klant=False,
+                        leverancier=None):
     """De koude mail aan een winkel die in de Krillo index staat.
 
     OMGEBOUWD 23 SEPTEMBER (stap 36). Dit was de laatste mail uit het oude
@@ -704,12 +705,29 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     # Stap 156 (28 september): een kleine Shopify-winkel wil weten dat het werk
     # niet op hem neerkomt. Alleen als de adresvinder of scan Shopify zag; nooit
     # gegokt.
+    # 30 september: hier stond dat de app "on the Shopify App Store" het werk
+    # doet, terwijl de app nog bij Shopify ter beoordeling ligt. Dat was niet
+    # waar. Nu staat er wat vandaag klopt: met Fix doen wij het in de winkel,
+    # en alles kan terug. Voor WooCommerce net zo (koppeling sinds 30 sep).
     shopify_regel = ""
-    if (platform or "").lower() == "shopify":
+    systeem = {"shopify": "Shopify", "woocommerce": "WooCommerce", "wordpress": "WordPress"}.get(
+        (platform or "").lower())
+    if systeem:
         shopify_regel = ('<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:10px 0 6px;">'
-                         'Your store runs on Shopify, so this takes you almost no time: the Krillo '
-                         'app on the Shopify App Store writes the product texts and puts them in '
-                         'your store, and you can undo every change.</p>')
+                         f'Your store runs on {systeem}, so this takes you almost no time: with Fix we '
+                         'write the missing product texts and put them in your store for you, and '
+                         'you can undo every change.</p>')
+
+    # Stap 217 in de koude mail (30 september): bij een Shopify-winkel een
+    # zin uit zijn eigen productteksten letterlijk opgezocht. Alleen als er
+    # echt iets gevonden is; anders zeggen we niets.
+    if leverancier and leverancier.get("gekopieerd"):
+        voorbeeld = next((t["andere"][0] for t in leverancier.get("teksten", []) if t.get("andere")), None)
+        shopify_regel += ('<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:10px 0 6px;">'
+                          f'We also searched one sentence from {leverancier["van"]} of your product texts: '
+                          f'<strong>{leverancier["gekopieerd"]} appear word for word on other sites</strong>'
+                          + (f' (for example {e(voorbeeld)})' if voorbeeld else '') +
+                          '. When a dozen stores use the same text, AI has no reason to name yours.</p>')
 
     # Idee Nino, 28 september: zodra een ANDERE winkel in dezelfde categorie
     # echt klant is, zeggen we dat. Zonder naam: dat is van de klant. Het is

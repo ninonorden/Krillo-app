@@ -318,7 +318,7 @@ def _kenmerkende_zin(tekst):
     return max(goed, key=len).rstrip(".!?")
 
 
-def _teksten_van(url, ophalen=None):
+def _teksten_van(url, ophalen=None, maximaal=None):
     """[(titel, tekst)] van een paar producten. Shopify geeft /products.json
     openbaar; anders de productgegevens van de pagina zelf."""
     basis = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
@@ -337,10 +337,10 @@ def _teksten_van(url, ophalen=None):
             for p in _producten(pagina.text):
                 if len((p.get("description") or "").split()) >= 20:
                     uit.append((p.get("name") or "", p.get("description") or ""))
-    return uit[:LEVERANCIER_PRODUCTEN]
+    return uit[:maximaal or LEVERANCIER_PRODUCTEN]
 
 
-def leverancierstekst_check(url, ophalen=None, zoek=None, vandaag=None):
+def leverancierstekst_check(url, ophalen=None, zoek=None, vandaag=None, max_producten=None):
     url, fout = _schoon(url)
     if fout:
         return {"fout": fout}
@@ -354,7 +354,7 @@ def leverancierstekst_check(url, ophalen=None, zoek=None, vandaag=None):
         _leverancier_teller.update(dag=vandaag, n=0)
     if _leverancier_teller["n"] >= LEVERANCIER_PER_DAG:
         return {"fout": "This check is very busy today. Try again tomorrow."}
-    teksten = _teksten_van(url, ophalen)
+    teksten = _teksten_van(url, ophalen, max_producten)
     if not teksten:
         return {"fout": "We could not find product texts to check. Paste the address of one product page "
                         "instead of the homepage."}
