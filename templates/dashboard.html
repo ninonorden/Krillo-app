@@ -370,7 +370,7 @@
           lb.textContent = p ? p.d : ''; svg.appendChild(lb);
           var breed = n > 1 ? (R - L) / (n - 1) : 80;
           var v = el('rect', {x: x(i) - breed / 2, y: 0, width: breed, height: 230, fill: 'transparent', style: 'cursor:pointer'});
-          v.addEventListener('click', function(){ stand.meting = i; teken(false); });
+          v.addEventListener('click', function(){ stand.meting = i; stand.tip = true; teken(false); });
           svg.appendChild(v);
         });
         var eenheid = stand.maat === 'zicht' ? '%' : '', voor = stand.maat === 'positie' ? '#' : '';
@@ -380,7 +380,12 @@
         }).join('');
         var schaal = (svg.getBoundingClientRect().width || 520) / 520;
         tip.style.left = (stand.meting > (n - 1) / 2 ? hx * schaal - 210 : hx * schaal + 16) + 'px';
-        tip.hidden = false; tip.classList.remove('op'); void tip.offsetWidth; tip.classList.add('op');
+        // 30 september: het zwarte kaartje stond meteen open en lag in een smal
+        // vak (de uitkomstpagina, een telefoon) over de hele grafiek heen. In
+        // een smal vak nu pas na een klik op een meting; in een breed vak blijft
+        // het zoals goedgekeurd.
+        if (!stand.tip && (svg.getBoundingClientRect().width || 0) < 640) { tip.hidden = true; tip.style.display = 'none'; } else {
+        tip.hidden = false; tip.style.display = ''; tip.classList.remove('op'); void tip.offsetWidth; tip.classList.add('op'); }
         var titel = document.querySelector('[data-grafiektitel]'); if (titel) titel.textContent = titels[stand.maat];
       }
       var tegels = alle('.d8-tegel[data-maat]');
