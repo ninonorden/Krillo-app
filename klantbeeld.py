@@ -39,19 +39,27 @@ def bouw(webshop_url, land=None, max_vragen=MAX_VRAGEN, categorie=None):
     moest kijken. Zo gaf /demo "There is no example yet" terwijl er tientallen
     ranglijsten waren."""
     winkel = db.winkel_kort(webshop_url) or {"webshop_url": webshop_url}
+    vast = categorie is not None
     categorie = categorie or winkel.get("categorie")
     if not categorie:
         return None
     land = (land or winkel.get("land") or "").lower() or None
 
-    lijst = db.ranglijst_per_land(categorie, land, limiet=500)
-    if not lijst or not lijst.get("ronde"):
-        return None
-
-    rijen = lijst["rijen"]
-    mij = next((r for r in rijen if r["webshop_url"] == webshop_url), None)
+    # Eerst zijn eigen categorie; staat hij daar niet, dan de ouder of een kind
+    # (categorieen.familie). Een meegegeven categorie blijft wat hij is.
+    import categorieen
+    lijst = mij = None
+    for probeer in ([categorie] if vast else categorieen.familie(categorie)):
+        kandidaat = db.ranglijst_per_land(probeer, land, limiet=500)
+        if not kandidaat or not kandidaat.get("ronde"):
+            continue
+        gevonden = next((r for r in kandidaat["rijen"] if r["webshop_url"] == webshop_url), None)
+        if gevonden is not None:
+            lijst, mij, categorie = kandidaat, gevonden, probeer
+            break
     if mij is None:
         return None
+    rijen = lijst["rijen"]
 
     verloop = db.positieverloop(webshop_url, categorie, land)
     vorige = verloop[-2]["positie"] if len(verloop) > 1 else None

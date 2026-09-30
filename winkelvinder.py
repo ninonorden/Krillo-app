@@ -323,22 +323,56 @@ LANDNAAM_IN_ZOEKOPDRACHT = {"be": "Belgie", "nl": "Nederland", "de": "Deutschlan
 LANDTAAL = {"be": "nl", "nl": "nl", "de": "de", "fr": "fr"}
 
 
-def vul_land(land, categorieen_met_naam, huidige_aantallen, doel=15, max_zoekopdrachten=12):
-    """Zoekt winkels van een land voor de categorieen waar er te weinig zijn.
+# 30 september: elke nacht dezelfde zoekopdracht gaf elke nacht dezelfde
+# winkels, die er al in stonden. Nu draait de zin mee met de dag, zodat de
+# zoekmachine andere winkels teruggeeft.
+ZOEKZINNEN = {
+    "nl": ["{naam} webshop {gebied}", "{naam} online kopen", "{naam} online bestellen",
+           "{naam} winkel online {gebied}", "beste {naam} webshop"],
+    "de": ["{naam} Onlineshop {gebied}", "{naam} online kaufen", "{naam} Shop bestellen"],
+    "fr": ["{naam} boutique en ligne {gebied}", "{naam} acheter en ligne", "{naam} e-shop"],
+}
 
-    categorieen_met_naam: [(slug, naam)]. huidige_aantallen: {slug: aantal}.
-    De dunste categorieen eerst. Geeft een verslag terug."""
-    verslag = {"land": land, "gezocht": 0, "nieuw": 0, "categorieen": [], "via_ai": 0}
+
+def zoekzin(naam, land, gebied, dag=None):
+    import datetime
+    dag = dag if dag is not None else datetime.date.today().toordinal()
+    zinnen = ZOEKZINNEN.get(LANDTAAL.get(land, "nl"), ZOEKZINNEN["nl"])
+    return zinnen[dag % len(zinnen)].format(naam=naam.lower(), gebied=gebied)
+
+
+def kies_tekort(categorieen_met_naam, huidige_aantallen, doel, hoeveel, dichtst_bij=False):
+    """Welke categorieen deze nacht aan de beurt zijn.
+
+    Standaard de dunste eerst. Met dichtst_bij (30 september, voor categorieen
+    zonder ranglijst): twee derde van de plekken naar wie het dichtst bij de
+    grens zit, want daar levert een paar winkels erbij meteen een nieuwe
+    ranglijst op; een derde naar de dunste, zodat die niet voorgoed wachten."""
     tekort = sorted([(huidige_aantallen.get(slug, 0), slug, naam)
                      for slug, naam in categorieen_met_naam
                      if huidige_aantallen.get(slug, 0) < doel])
+    if not dichtst_bij:
+        return tekort[:hoeveel]
+    dichtbij = tekort[::-1][:max(1, (hoeveel * 2) // 3)] if hoeveel else []
+    rest = [t for t in tekort if t not in dichtbij][:max(0, hoeveel - len(dichtbij))]
+    return dichtbij + rest
+
+
+def vul_land(land, categorieen_met_naam, huidige_aantallen, doel=15, max_zoekopdrachten=12,
+             dichtst_bij=False, dag=None):
+    """Zoekt winkels van een land voor de categorieen waar er te weinig zijn.
+
+    categorieen_met_naam: [(slug, naam)]. huidige_aantallen: {slug: aantal}.
+    Welke eerst: zie kies_tekort. Geeft een verslag terug."""
+    verslag = {"land": land, "gezocht": 0, "nieuw": 0, "categorieen": [], "via_ai": 0}
+    tekort = kies_tekort(categorieen_met_naam, huidige_aantallen, doel, max_zoekopdrachten, dichtst_bij)
     gebied = LANDNAAM_IN_ZOEKOPDRACHT.get(land, land.upper())
-    for _, slug, naam in tekort[:max_zoekopdrachten]:
+    for _, slug, naam in tekort:
         verslag["gezocht"] += 1
         hosts = set()
         if brave_bruikbaar():
             try:
-                resultaten = bronnen.zoek(f"{naam.lower()} webshop {gebied}",
+                resultaten = bronnen.zoek(zoekzin(naam, land, gebied, dag),
                                           land=land.upper(), taal=LANDTAAL.get(land, "en"))
                 hosts = {_domein(r.get("url")) for r in resultaten or []}
             except Exception as e:

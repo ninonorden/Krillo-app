@@ -163,6 +163,8 @@ def kandidaten(hoeveel):
 
 
 def _leg_vast(url, klopt, soort=None, categorie=None):
+    """Legt het oordeel vast. Bij een verplaatsing onthouden we de oude categorie
+    in categorie_was, voor de gecorrigeerd-teller in het ochtendbericht."""
     conn = db._get_connection()
     if conn is None:
         return
@@ -170,9 +172,12 @@ def _leg_vast(url, klopt, soort=None, categorie=None):
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""UPDATE benadering SET categorie_gecheckt_op = now(), categorie_klopt = %s,
-                                      soort = coalesce(%s, soort), categorie = coalesce(%s, categorie),
+                                      soort = coalesce(%s, soort),
+                                      categorie_was = CASE WHEN %s IS NOT NULL AND %s <> categorie
+                                                           THEN categorie ELSE categorie_was END,
+                                      categorie = coalesce(%s, categorie),
                                       bijgewerkt_op = now()
-                                WHERE webshop_url = %s""", (klopt, soort, categorie, url))
+                                WHERE webshop_url = %s""", (klopt, soort, categorie, categorie, categorie, url))
     finally:
         conn.close()
 
@@ -224,8 +229,83 @@ def ronde(hoeveel=None, ophalen=None, vraag_model=None):
     return verslag
 
 
-def zet_uit_index(webshop_url):
+def _host(adres):
+    """bel-air.be, https://www.bel-air.be/nl/ en BEL-AIR.BE worden allemaal bel-air.be."""
+    adres = (adres or "").strip().lower()
+    adres = re.sub(r"^[a-z]+://", "", adres).split("/")[0].split("?")[0].split("#")[0]
+    return adres[4:] if adres.startswith("www.") else adres
+
+
+def gevonden_adressen(invoer):
+    """Alle adressen in de benaderlijst van dezelfde site, hoe het ook getypt is."""
+    host = _host(invoer)
+    if not host or "." not in host:
+        return []
+    conn = db._get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT webshop_url FROM benadering
+                                WHERE lower(webshop_url) ~ %s""",
+                            (r"^[a-z]+://(www\.)?" + re.escape(host) + r"(/|$)",))
+                return [r[0] for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def zet_uit_index(invoer):
     """Met de hand: deze site is geen webshop (bijvoorbeeld na een mail als die
-    van bel-air.be). Uit de post, uit elke ranglijst, en nooit meer gemaild."""
-    _leg_vast(webshop_url, False, soort=SOORT_GEEN_WEBSHOP)
-    db.meld_benadering_af(webshop_url)
+    van bel-air.be). Uit de post, uit elke ranglijst, en nooit meer gemaild.
+
+    Nino typt het adres zoals hij het ziet ("bel-air.be"), maar in de lijst staat
+    het als "https://www.bel-air.be/". Daarom zoeken we op de site zelf en niet
+    op de letterlijke tekst; anders zou er "gelukt" staan terwijl er niets
+    veranderde. Geeft de adressen terug die zijn aangepast."""
+    adressen = gevonden_adressen(invoer)
+    for url in adressen:
+        _leg_vast(url, False, soort=SOORT_GEEN_WEBSHOP)
+        db.meld_benadering_af(url)
+    if not adressen and _host(invoer):
+        # Staat niet (meer) in de lijst: toch afmelden, zodat hij er ook later niet in komt.
+        db.meld_benadering_af("https://" + _host(invoer))
+    return adressen
+
+
+def gecorrigeerd(uren=24, dagen_bron=7, minimum=5, drempel=0.3):
+    """De gecorrigeerd-teller (idee 30 september, na bel-air).
+
+    Hoeveel winkels de check de laatste {uren} uur nakeek, en hoeveel daarvan
+    verplaatst of eruit gehaald zijn. Plus de categorieen waar in de laatste
+    {dagen_bron} dagen minstens {drempel} van de nagekeken winkels fout bleek:
+    daar levert de winkelvinder rommel aan en moeten de zoekwoorden anders.
+    Zo zie je het volgende bel-air aankomen voordat er een mail uitgaat."""
+    conn = db._get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    SELECT count(*),
+                           count(*) FILTER (WHERE categorie_klopt IS TRUE AND categorie_was IS NOT NULL),
+                           count(*) FILTER (WHERE categorie_klopt IS FALSE)
+                      FROM benadering WHERE categorie_gecheckt_op > now() - interval '{int(uren)} hours'""")
+                bekeken, verplaatst, eruit = cur.fetchone()
+                cur.execute(f"""
+                    SELECT coalesce(categorie_was, categorie) AS bron, count(*),
+                           count(*) FILTER (WHERE categorie_klopt IS FALSE
+                                            OR (categorie_klopt IS TRUE AND categorie_was IS NOT NULL))
+                      FROM benadering
+                     WHERE categorie_gecheckt_op > now() - interval '{int(dagen_bron)} days'
+                       AND categorie_klopt IS NOT NULL
+                  GROUP BY 1 HAVING count(*) >= %s
+                  ORDER BY 3::float / count(*) DESC""", (int(minimum),))
+                rommel = [(r[0], r[2], r[1]) for r in cur.fetchall() if r[1] and r[2] / r[1] >= drempel]
+        return {"bekeken": bekeken, "verplaatst": verplaatst, "eruit": eruit, "rommel": rommel}
+    except Exception as e:
+        print(f"Categoriecheck, gecorrigeerd-teller mislukt: {e}")
+        return None
+    finally:
+        conn.close()

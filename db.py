@@ -643,6 +643,9 @@ def init_db():
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS overgeslagen_op TIMESTAMPTZ;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS categorie_gecheckt_op TIMESTAMPTZ;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS categorie_klopt BOOLEAN;")
+                # Waar de categoriecheck een winkel weghaalde: zo zie je in welke
+                # categorie de winkelvinder rommel aanlevert (ochtendbericht).
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS categorie_was TEXT;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_sleutel TEXT;")
                 # Stap 116: over welke meting wij al een bewegingsmail stuurden.
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS beweging_ronde INTEGER;")
@@ -4922,6 +4925,13 @@ def zet_overgeslagen(webshop_url):
         conn.close()
 
 
+def _familie_json():
+    """{categorie: [zichzelf, ouder, kinderen]} voor in SQL."""
+    import json as _json
+    import categorieen
+    return _json.dumps({slug: categorieen.familie(slug) for slug, _, _ in categorieen.CATEGORIEEN})
+
+
 def te_mailen_met_positie(limiet):
     """Winkels die aan de beurt zijn voor de koude mail EN een positie hebben.
 
@@ -4968,7 +4978,14 @@ def te_mailen_met_positie(limiet):
                              JOIN categorie_rondes r ON r.id = u.ronde
                             WHERE u.webshop_url = b.webshop_url
                               AND coalesce(u.telbaar, 0) >= 3
-                              AND r.afgerond_op IS NOT NULL)
+                              AND r.afgerond_op IS NOT NULL
+                              -- 30 september: alleen een plek in zijn eigen
+                              -- categorie, de ouder of een kind (zie
+                              -- categorieen.familie). Een plek in een oude,
+                              -- door de categoriecheck verbeterde categorie
+                              -- telt niet: dat zou weer een bel-air-mail zijn.
+                              AND (u.categorie = b.categorie OR u.categorie = ANY(ARRAY(
+                                  SELECT jsonb_array_elements_text(%s::jsonb -> b.categorie)))))
                   -- STAP 127 (28 september): de kansrijkste winkels eerst.
                   -- Plek 2 tot 8 heeft iets te winnen en is dichtbij; wie al
                   -- genoemd wordt snapt het probleem sneller; op Shopify of
@@ -4990,7 +5007,7 @@ def te_mailen_met_positie(limiet):
                                   FROM winkelprofielen p WHERE p.webshop_url = b.webshop_url), 0)
                     DESC NULLS LAST,
                     b.toegevoegd_op, b.webshop_url
-                     LIMIT %s""", (int(limiet),))
+                     LIMIT %s""", (_familie_json(), int(limiet)))
                 return [dict(r) for r in cur.fetchall()]
     except Exception as e:
         print(f"Winkels met positie voor de mail ophalen mislukt: {e}")

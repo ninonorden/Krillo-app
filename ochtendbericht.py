@@ -231,6 +231,20 @@ def verzamel(basis_url):
         gisteren += index_groei()
     except Exception as e:
         print(f"Ochtendbericht, indexgroei mislukt: {e}")
+    # 30 september (idee na bel-air): de gecorrigeerd-teller. Stijgt het aantal
+    # verplaatste of verwijderde winkels in een categorie, dan levert de
+    # winkelvinder daar rommel aan en passen we de zoekwoorden aan.
+    try:
+        import categoriecheck
+        g = categoriecheck.gecorrigeerd()
+        if g is not None:
+            gisteren.append(("Categoriecheck: nagekeken / verplaatst / uit de index",
+                             f"{g['bekeken']} / {g['verplaatst']} / {g['eruit']}"))
+            if g["rommel"]:
+                gisteren.append(("Categorieen met veel fouten (7 dagen, fout van nagekeken)",
+                                 ", ".join(f"{c} {f} van {n}" for c, f, n in g["rommel"][:4])))
+    except Exception as e:
+        print(f"Ochtendbericht, gecorrigeerd mislukt: {e}")
     try:
         klaar_voor_post = len(db.te_mailen_met_positie(10000))
     except Exception:

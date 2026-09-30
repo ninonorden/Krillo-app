@@ -237,7 +237,7 @@ def send_herroeping_bevestiging(to_email, nummer, webshop_url=None):
     """Bevestiging aan de klant dat zijn herroeping is ontvangen. Wettelijk
     verplicht om te bevestigen, en het geeft de klant iets in handen.
 
-    In het Engels sinds 21 september, net als het formulier op /herroepen.
+    In het Engels sinds 21 september, net als het formulier op /withdrawal.
     Een Engels formulier met een Nederlandse bevestiging erachter is precies
     het soort breuk waardoor iemand gaat twijfelen of het wel aangekomen is."""
     kenmerk = f"HR-{datetime.now().year}-{nummer:04d}" if nummer else "unknown"

@@ -192,6 +192,22 @@ NAMEN_EN = {
 }
 
 
+def familie(slug):
+    """De categorie zelf, zijn ouder en zijn kinderen, in die volgorde.
+
+    WAAROM (30 september, de GEEN_POSITIE-winkels). Een kleine categorie rolt op
+    in zijn ouder: een make-upwinkel staat in de ranglijst van cosmetica. De
+    mailrij zag die plek wel, maar het klantbeeld zocht alleen in "make-up" en
+    vond niets, dus kreeg de winkel geen mail. Broers en zussen horen er bewust
+    NIET bij: een herenwinkel over een damesranglijst mailen is het bel-air-
+    probleem in het klein."""
+    if not slug:
+        return []
+    ouder = {s: o for s, _, o in CATEGORIEEN}.get(slug)
+    kinderen = [s for s, _, o in CATEGORIEEN if o == slug]
+    return [slug] + ([ouder] if ouder else []) + kinderen
+
+
 def naam_en(slug):
     """De Engelse naam van een categorie; valt terug op de Nederlandse."""
     return NAMEN_EN.get(slug) or naam_van(slug)

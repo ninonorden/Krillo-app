@@ -856,7 +856,30 @@ def veelgestelde_vragen_oud():
     return redirect("/faq", code=301)
 
 
-@app.route("/voorwaarden")
+# Stap 204 en 114 (30 september): de laatste Nederlandse adressen onder Engelse
+# pagina's. Zelfde aanpak als hierboven: nieuw Engels adres, het oude blijft met
+# een 301 werken (links in verstuurde mails, in Google en bij andere sites).
+OUDE_ADRESSEN = {"/zo-meten-we": "/how-we-measure", "/over-ons": "/about", "/voorwaarden": "/terms",
+                 "/herroepen": "/withdrawal", "/artikelen": "/articles"}
+
+
+def _oud_adres(nieuw):
+    def doorsturen():
+        doel = nieuw + (("?" + request.query_string.decode()) if request.query_string else "")
+        return redirect(doel, code=301)
+    return doorsturen
+
+
+for _oud, _nieuw in OUDE_ADRESSEN.items():
+    app.add_url_rule(_oud, "oud_" + _oud.strip("/").replace("-", "_"), _oud_adres(_nieuw))
+
+
+@app.route("/artikelen/<slug>")
+def artikel_oud(slug):
+    return redirect(f"/articles/{slug}", code=301)
+
+
+@app.route("/terms")
 def voorwaarden():
     return render_template("voorwaarden.html")
 
@@ -866,17 +889,17 @@ def veelgestelde_vragen():
     return render_template("faq.html")
 
 
-@app.route("/zo-meten-we")
+@app.route("/how-we-measure")
 def zo_meten_we():
     return render_template("zo-meten-we.html")
 
 
-@app.route("/over-ons")
+@app.route("/about")
 def over_ons():
     return render_template("over-ons.html")
 
 
-@app.route("/herroepen")
+@app.route("/withdrawal")
 def herroepen_pagina():
     return render_template("herroepen.html")
 
@@ -1002,12 +1025,19 @@ def api_opzeggen(klant_token):
     return jsonify({"ok": True})
 
 
-@app.route("/artikelen")
+@app.route("/changelog")
+def changelog_pagina():
+    """Stap 182: wat er nieuw is (changelog.py)."""
+    import changelog
+    return render_template("changelog.html", maanden=changelog.regels())
+
+
+@app.route("/articles")
 def artikelen_overzicht():
     return render_template("artikelen.html", artikelen=artikelen.alle())
 
 
-@app.route("/artikelen/<slug>")
+@app.route("/articles/<slug>")
 def artikel_pagina(slug):
     artikel = artikelen.get_artikel(slug)
     if artikel is None:
@@ -1042,7 +1072,7 @@ def robots_txt():
     # oude domein nog hardgecodeerd stond, en een robots.txt die naar de
     # sitemap van een ander domein wijst is precies het soort stille fout waar
     # wij bij klanten op controleren.
-    # /mijn-link staat hier bewust NIET meer in. Die pagina heeft een
+    # /get-my-link staat hier bewust NIET meer in. Die pagina heeft een
     # noindex-tag, maar Google leest die tag alleen als hij de pagina mag
     # ophalen. Met een Disallow erbij meldde Search Console "geindexeerd,
     # hoewel geblokkeerd door robots.txt": het adres kwam in Google zonder dat
@@ -1358,7 +1388,7 @@ def admin_artikelen():
         actie, cid = request.form.get("actie"), int(request.form.get("id") or 0)
         if actie == "plaats":
             artikelagent.publiceer(cid)
-            melding = "Geplaatst op /artikelen."
+            melding = "Geplaatst op /articles."
         elif actie == "weg":
             artikelagent.wijs_af(cid)
             melding = "Afgewezen."
@@ -2362,15 +2392,15 @@ def _bouw_sitemap():
     nieuwste = max([a["datum"] for a in artikelen.alle()] or ["2026-08-01"])
     # /uitkomst/<token> staat hier BEWUST niet in. Die pagina's gaan over één
     # winkel met naam en toenaam en horen niet in Google.
-    vast = ["/", "/artikelen", "/zo-meten-we", "/faq",
-            "/index", "/demo", "/over-ons", "/voorwaarden", "/privacy",
-            "/herroepen", "/tools", "/compare", "/partners"]
+    vast = ["/", "/articles", "/how-we-measure", "/faq",
+            "/index", "/demo", "/about", "/terms", "/privacy",
+            "/withdrawal", "/tools", "/compare", "/partners", "/changelog"]
     import trackerpaginas
     vast += [f"/{slug}" for slug in trackerpaginas.PAGINAS]
     regels = [(p, nieuwste) for p in vast]
     # Het nieuws per gemeten land, uit markten.py (niet meer vast nl en be).
     regels += [(f"/news/{land}", nieuwste) for land in markten.index_landen()]
-    regels += [(f"/artikelen/{a['slug']}", a["datum"]) for a in artikelen.alle()]
+    regels += [(f"/articles/{a['slug']}", a["datum"]) for a in artikelen.alle()]
     # Stap 162 en 163: de gratis tools en de vergelijkingen.
     import gratistools
     import vergelijkingen
@@ -2507,15 +2537,15 @@ Krillo do it.
 - The public index: every measured category and ranking, free to read without an
   account: https://krilloai.com/index
 - Example of a customer dashboard, without an account: https://krilloai.com/demo
-- Articles about AI visibility (in Dutch): https://krilloai.com/artikelen
-- How we measure: https://krilloai.com/zo-meten-we
+- Articles about AI visibility (in Dutch): https://krilloai.com/articles
+- How we measure: https://krilloai.com/how-we-measure
 - Frequently asked questions: https://krilloai.com/veelgestelde-vragen
-- About Krillo and contact: https://krilloai.com/over-ons
+- About Krillo and contact: https://krilloai.com/about
 - The Krillo index, rankings per category and country: https://krilloai.com/index
 
 ## Articles
 """ + "\n".join(
-        f"- {a['titel']}: https://krilloai.com/artikelen/{a['slug']}"
+        f"- {a['titel']}: https://krilloai.com/articles/{a['slug']}"
         for a in artikelen.alle()
     ) + """
 
@@ -5160,6 +5190,19 @@ def _wachtklok_tik(nu=None):
         print("WACHTKLOK: geen nachtwerk gezien, de site start het zelf.")
         _start_nachtwerk()
         gedaan.append("nacht")
+    # Stap 88 (30 september): het opleveroverzicht vanzelf, overdag, hooguit
+    # een keer per uur (zie opleveragent.py).
+    if 9 <= nu.hour < 19 and db.claim_moment("oplevering_auto", 55 * 60):
+        def _oplever():
+            try:
+                import opleveragent
+                v = opleveragent.ronde(get_base_url())
+                if v["verstuurd"] or v["mislukt"]:
+                    print(f"Oplevering vanzelf: {v}")
+            except Exception as e:
+                print(f"Oplevering vanzelf mislukt: {e}")
+        threading.Thread(target=_oplever, daemon=True).start()
+        gedaan.append("oplevering")
     return gedaan
 
 
@@ -5189,6 +5232,10 @@ def _start_nachtagenten():
     # De lijstjesagent zoekt een keer per week nieuwe artikelen "beste GEO-tools".
     import lijstjesagent
     threading.Thread(target=lijstjesagent.zoek, daemon=True).start()
+    # Stap 181: een keer per week kijken of AI-robots de winkels van klanten nog mogen lezen.
+    import robotwacht
+    threading.Thread(target=robotwacht.ronde, kwargs={"meld": _meld_aan_beheer,
+                                                       "basis_url": get_base_url()}, daemon=True).start()
 
 
 @app.route("/api/cron/benadering", methods=["GET", "POST"])
@@ -6918,7 +6965,34 @@ def openbare_categorie(land, slug):
         basis=get_base_url(),
         winkel_slug=_winkel_slug,
         embed=embed_code(land, slug, basis_url),
+        # Stap 187: de kaart genoemd tegen aanbevolen.
+        kaart=_categoriekaart_svg(lijst["rijen"], lijst["telbaar"]),
     )
+
+
+def _categoriekaart_svg(rijen, telbaar):
+    try:
+        import categoriekaart
+        return categoriekaart.svg(rijen, telbaar)
+    except Exception as e:
+        print(f"Categoriekaart mislukt: {e}")
+        return ""
+
+
+@app.route("/index/<land>/<slug>/map.png")
+def categoriekaart_png(land, slug):
+    """Stap 187: de kaart als plaatje voor LinkedIn (1200 x 1200)."""
+    import categoriekaart
+    land = (land or "").lower()
+    lijst = _bewaard(("ranglijst", slug, land), db.ranglijst_per_land, slug, land, 1000) \
+        if land in sitetaal.LANDEN else None
+    if not lijst or not lijst.get("ronde") or len(categoriekaart.punten(lijst["rijen"], lijst["telbaar"])) < 3:
+        return "Not enough stores named for a map.", 404
+    naam = categorieen.naam_en(slug) if hasattr(categorieen, "naam_en") else categorieen.naam_van(slug)
+    gemeten = next((r.get("gemeten_op") for r in lijst["rijen"] if r.get("gemeten_op")), None)
+    maand = gemeten.strftime("%B %Y") if hasattr(gemeten, "strftime") else ""
+    data = categoriekaart.png(lijst["rijen"], lijst["telbaar"], naam, sitetaal.landnaam(land, "en"), maand)
+    return Response(data, mimetype="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 def _winkel_slug(webshop_url):
@@ -6973,7 +7047,21 @@ def openbare_winkel(land, slug, winkel):
         categorie=categorie, landnaam=landnaam, totaal=len(lijst["rijen"]), telbaar=lijst["telbaar"],
         buren=buren, kruimels=kruimels, basis_url=basis_url,
         maand=(rij.get("gemeten_op").strftime("%B %Y") if rij.get("gemeten_op") else None),
+        imago=_imago(lijst["ronde"], rij["webshop_url"], naam),
         modellen=_assistenten(_bewaard(("modellen", lijst["ronde"]), db.modellen_van_ronde, lijst["ronde"])))
+
+
+def _imago(ronde, webshop_url, naam):
+    """Stap 179. Nooit een fout naar de bezoeker: zonder imago blijft de pagina gewoon staan."""
+    try:
+        import imago
+        # Het resultaat bewaren, niet de antwoorden zelf: zestig antwoordteksten
+        # per ronde, voor honderd rondes, is te veel geheugen op Render.
+        return _bewaard(("imago", ronde, webshop_url),
+                        lambda: imago.beeld(webshop_url, naam, db.antwoorden_met_tekst_van_ronde(ronde)))
+    except Exception as e:
+        print(f"Imago mislukt voor {webshop_url}: {e}")
+        return None
 
 
 @app.route("/api/plekmelding", methods=["POST"])
@@ -7544,7 +7632,7 @@ def klant_dashboard(klant_token, pad=""):
     if not klant:
         return render_template(
             "fout.html", titel="This link no longer works",
-            bericht="Ask for a new one on /mijn-link and we will email it "
+            bericht="Ask for a new one on /get-my-link and we will email it "
                     "again."), 404
     import dashboardpaginas as dp
     if pad and pad not in dp.PAD_NAAR_PAGINA:
@@ -7591,7 +7679,10 @@ def klant_kies_vraag(klant_token):
 
 
 @app.route("/login", methods=["GET", "POST"])
-@app.route("/mijn-link", methods=["GET", "POST"])
+# /mijn-link was het oude adres (stap 114). Het formulier kan nog in een open
+# tabblad staan, dus een POST daarheen blijft gewoon werken; GET gaat met een 301.
+@app.route("/mijn-link", methods=["GET", "POST"], endpoint="mijn_link_oud")
+@app.route("/get-my-link", methods=["GET", "POST"])
 def link_opnieuw():
     """De link opnieuw laten mailen.
 
@@ -7601,6 +7692,9 @@ def link_opnieuw():
     Het antwoord is ALTIJD hetzelfde, of het adres nu bestaat of niet. Anders is
     dit formulier een manier om uit te vinden welke webshops klant bij ons zijn,
     en dat gaat niemand aan."""
+    if request.path == "/mijn-link" and request.method == "GET":
+        return redirect("/get-my-link" + (("?" + request.query_string.decode()) if request.query_string else ""),
+                        code=301)
     verstuurd = request.args.get("m") == "verstuurd"
     if request.method == "POST":
         adres = (request.form.get("email") or "").strip().lower()
@@ -7616,7 +7710,7 @@ def link_opnieuw():
                     kop="Your dashboard link")
         except Exception as e:
             print(f"Link opnieuw sturen mislukt: {e}")
-        return redirect(("/login" if request.path == "/login" else "/mijn-link") + "?m=verstuurd")
+        return redirect(("/login" if request.path == "/login" else "/get-my-link") + "?m=verstuurd")
     # 29 september: Peec heeft een nette inlogpagina met een link per mail en
     # geen wachtwoord. Dat hadden wij al (de geheime link), alleen heette het
     # "Lost your link?" en stond het nergens in het menu. Nu is het /login,
@@ -8730,9 +8824,11 @@ def admin_antwoorden():
             import categoriecheck
             url = (request.form.get("url") or "").strip()
             if url:
-                categoriecheck.zet_uit_index(url)
+                gevonden = categoriecheck.zet_uit_index(url)
                 db.vergeet_onthouden()
-                melding = f"{url} staat niet meer in de index en krijgt geen post meer."
+                melding = (f"Uit de index en uit de post: {', '.join(gevonden)}. Krijgt nooit meer mail van ons."
+                           if gevonden else
+                           f"{url} stond niet in onze lijst. Wel afgemeld, zodat hij er ook later niet in komt.")
         elif actie == "koppelen":
             _, melding = aa.koppel_brevo(basis, (os.environ.get("BREVO_WEBHOOK_SLEUTEL") or "").strip(),
                                          request.form.get("domein") or None)
@@ -8793,6 +8889,13 @@ def admin_antwoorden():
             f"<button name='actie' value='koppelen'>Koppel bij Brevo</button> "
             f"<button name='actie' value='test'>Stuur een testmail</button></form>"
             f"<p style='margin-top:10px'><a href='/admin/verkoop'>Naar de verkoopagent</a></p>"
+            # 30 september: bel-air.be mailde naar Nino's eigen inbox en stond dus niet
+            # hieronder, waardoor de knop per antwoord er niet was. Dit veld werkt altijd.
+            f"<h2 style='margin-top:28px'>Een site uit de index halen</h2>"
+            f"<form method='post'><p style='margin:0 0 6px'>Geen webshop, of een fout in de categorie? Typ het "
+            f"adres zoals je het ziet (bijvoorbeeld bel-air.be). Hij gaat uit elke ranglijst en krijgt nooit "
+            f"meer post.</p><input name='url' placeholder='bel-air.be' size='28' required> "
+            f"<button name='actie' value='uit_index'>Uit de index halen</button></form>"
             f"<h2 style='margin-top:28px'>Binnengekomen ({wacht} wachten op jou)</h2>"
             f"{blokken or '<p>Nog niets binnengekomen.</p>'}</body>")
 

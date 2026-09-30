@@ -38,7 +38,7 @@ PAGINAS = [
     ("/index", "Krillo"),
     ("/privacy", "Privacy"),
     ("/faq", "?"),
-    ("/voorwaarden", "Krillo"),
+    ("/terms", "Krillo"),
     ("/robots.txt", "User-agent"),
 ]
 

@@ -1,4 +1,4 @@
-"""De artikelagent: elke week een artikel voor /artikelen, Nino keurt goed (stap 203, 30 september).
+"""De artikelagent: elke week een artikel voor /articles, Nino keurt goed (stap 203, 30 september).
 
 WAAROM DIT BESTAAT. Nino: "moeten we een artikel agent maken die artikels
 aanmaakt voor onze SEO en voor duidelijkheid?". Ja, maar niet zoals de meeste:
@@ -13,7 +13,7 @@ staat. Dat hebben wij: de cijfers uit de index. Dus:
 - het concept gaat langs de tekstkeuring (geen beloftes, geen termijnen die
   niet in de voorwaarden staan), en daarna langs Nino op /admin/artikelen.
   Niets komt vanzelf online;
-- een goedgekeurd artikel staat meteen op /artikelen, in de sitemap, met een
+- een goedgekeurd artikel staat meteen op /articles, in de sitemap, met een
   eigen adres.
 
 Taal: Engels, zoals de rest van de site. Gewone woorden, geen lange streepjes.

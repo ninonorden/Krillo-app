@@ -111,7 +111,7 @@ def persbericht_nl(ov, basis_url="https://krilloai.com", embed=None):
         "begint een zoektocht naar een product bij een AI-assistent (Q&A Retail, mei 2026). Wie daar niet "
         "genoemd wordt, bestaat voor die koper niet.")
     regels.append("")
-    regels.append(f"Alle ranglijsten en de meetmethode: {basis_url}/index/{ov['land']} en {basis_url}/zo-meten-we")
+    regels.append(f"Alle ranglijsten en de meetmethode: {basis_url}/index/{ov['land']} en {basis_url}/how-we-measure")
     regels.append("")
     # Stap 164: de ranglijst om in het artikel te plakken. Een redactie hoeft
     # niets over te typen, en elke plaatsing is een link terug.

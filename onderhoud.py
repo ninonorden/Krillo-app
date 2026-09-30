@@ -250,7 +250,8 @@ def stap_landen_vullen():
     try:
         verslag["nieuwe_categorieen"] = winkelvinder.vul_land(
             "nl", nog_te_vullen(set(db.gemeten_categorieen())), db.winkels_per_categorie_in_land("nl"),
-            doel=categorieen.MINIMUM_VOOR_INDEX + 2, max_zoekopdrachten=NIEUWE_CATEGORIEEN_PER_NACHT)
+            doel=categorieen.MINIMUM_VOOR_INDEX + 2, max_zoekopdrachten=NIEUWE_CATEGORIEEN_PER_NACHT,
+            dichtst_bij=True)
     except Exception as e:
         verslag["nieuwe_categorieen"] = {"fout": str(e)[:160]}
     return verslag
