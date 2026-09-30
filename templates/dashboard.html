@@ -551,11 +551,19 @@
           <button type="button" data-filter="verloren">{{ 'Verloren' if taal == 'nl' else 'Lost' }} ({{ vragen.verloren }})</button>
           <button type="button" data-filter="gewonnen">{{ 'Gewonnen' if taal == 'nl' else 'Won' }} ({{ vragen.gewonnen }})</button>
         </div>
+        {# Stap 193: waar gaat de vraag over. Per label hoeveel je er verliest,
+           zodat je ziet waar het zit (bijvoorbeeld: alle prijsvragen kwijt). #}
+        {% if vragen.labels and vragen.labels | length > 1 %}
+        <div class="filters labelfilters" role="group" aria-label="{{ 'Soort vraag' if taal == 'nl' else 'Kind of question' }}">
+          <button type="button" class="aan" data-label="alle">{{ 'Elk onderwerp' if taal == 'nl' else 'Every topic' }}</button>
+          {% for l in vragen.labels %}<button type="button" data-label="{{ l.sleutel }}">{{ labelnaam(l.sleutel, taal) }} &middot; {{ l.verloren }}/{{ l.totaal }} {{ 'verloren' if taal == 'nl' else 'lost' }}</button>{% endfor %}
+        </div>
+        {% endif %}
       </div>
       {% for v in vragen.vragen %}
-      <details class="vraagrij" data-stand="{{ 'gewonnen' if v.gewonnen else 'verloren' }}">
+      <details class="vraagrij" data-stand="{{ 'gewonnen' if v.gewonnen else 'verloren' }}" data-label="{{ v.label or 'algemeen' }}">
         <summary>
-          <span class="vraag">{{ v.vraag }}</span>
+          <span class="vraag">{{ v.vraag }}{% if v.label %} <span class="vraaglabel">{{ labelnaam(v.label, taal) }}</span>{% endif %}</span>
           <span class="stippen">
             {% for m in v.per_model %}<span class="asst {{ 'ja' if m.genoemd else 'nee' }}" title="{{ m.assistent }}">{{ m.assistent }} {{ '&#10003;'|safe if m.genoemd else '&#10005;'|safe }}</span>{% endfor %}
           </span>
@@ -583,15 +591,26 @@
     </div>
     <script>
     (function(){
-      var knoppen = document.querySelectorAll('.filters button');
+      // Twee filters die samen werken: gewonnen of verloren, en het onderwerp.
+      var stand = 'alle', onderwerp = 'alle';
+      function toon(){
+        document.querySelectorAll('.vraagrij').forEach(function(r){
+          var ok = (stand === 'alle' || r.dataset.stand === stand) && (onderwerp === 'alle' || r.dataset.label === onderwerp);
+          r.style.display = ok ? '' : 'none';
+        });
+      }
+      var knoppen = document.querySelectorAll('.filters:not(.labelfilters) button');
       knoppen.forEach(function(k){
         k.addEventListener('click', function(){
           knoppen.forEach(function(x){ x.classList.remove('aan'); });
-          k.classList.add('aan');
-          var f = k.dataset.filter;
-          document.querySelectorAll('.vraagrij').forEach(function(r){
-            r.style.display = (f === 'alle' || r.dataset.stand === f) ? '' : 'none';
-          });
+          k.classList.add('aan'); stand = k.dataset.filter; toon();
+        });
+      });
+      var labelknoppen = document.querySelectorAll('.labelfilters button');
+      labelknoppen.forEach(function(k){
+        k.addEventListener('click', function(){
+          labelknoppen.forEach(function(x){ x.classList.remove('aan'); });
+          k.classList.add('aan'); onderwerp = k.dataset.label; toon();
         });
       });
     })();

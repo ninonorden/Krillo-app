@@ -2295,6 +2295,13 @@
   input.addEventListener('keydown', function(e){
     if(e.key === 'Enter') runScan();
   });
+  // 30 september: de trackerpagina's (/chatgpt-visibility-tracker enz.) sturen
+  // hierheen met ?check=winkel.nl. Dan meteen de check draaien, zodat die
+  // pagina's dezelfde uitslag tonen zonder een tweede kopie van deze code.
+  try {
+    var teCheck = new URLSearchParams(location.search).get('check');
+    if (teCheck) { input.value = teCheck.slice(0, 200); runScan(); }
+  } catch(e) {}
 })();
 </script>
 

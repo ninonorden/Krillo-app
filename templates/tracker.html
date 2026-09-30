@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# Stap 183 en 156 deel 3 (30 september): trackerpagina's. De check zelf draait
+   op de homepage (?check=), zodat er maar een versie van de uitslag bestaat.
+   De cijfers komen uit trackerpaginas.py en staan er alleen als er genoeg
+   metingen zijn. #}
+<title>{{ pagina.titel }} | Krillo</title>
+<meta name="description" content="{{ pagina.kort }}">
+<link rel="canonical" href="{{ basis_url }}/{{ slug }}">
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":{{ faq_ld | tojson }}}
+</script>
+{% include "_stijl.html" %}
+<style>
+  .tr-form{display:flex; gap:10px; max-width:620px; margin:10px 0 8px; flex-wrap:wrap;}
+  .tr-form input{flex:1; min-width:0; height:52px; border-radius:8px; border:1.5px solid #D8D8DE; padding:0 16px;
+                 font-family:var(--mono); font-size:15px;}
+  .tr-form button{height:52px; padding:0 24px; border-radius:8px; border:0; background:#1B3FE0; color:#fff;
+                  font-weight:600; font-size:15px; cursor:pointer;}
+  .tr-noot{font-family:var(--mono); font-size:11px; letter-spacing:.06em; color:#6E7079;}
+  .tr-cijfers{border:1px solid #E4E2DA; border-left:4px solid #1B3FE0; border-radius:10px; padding:16px 20px;
+              margin:34px 0; max-width:720px; background:#fff;}
+  .tr-cijfers p{margin:6px 0;}
+  .tr-blok{max-width:720px;}
+  .tr-blok h2{font-size:26px; margin-top:34px;}
+  .tr-meer{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
+  .tr-meer a{border:1px solid #E4E2DA; border-radius:8px; padding:8px 12px; text-decoration:none; color:inherit;}
+  @media (max-width:560px){ .tr-form button{width:100%;} }
+</style>
+{% include "_k_stijl.html" %}
+</head>
+<body>
+{% include "_kop.html" %}
+
+<main><div class="wrap">
+  <div class="kruimels"><a href="/tools">Free tools</a> &rsaquo; {{ pagina.titel }}</div>
+  <h1>{{ pagina.h1 }}</h1>
+  <p class="inleiding">{{ pagina.intro }}</p>
+
+  <form class="tr-form" action="/" method="get">
+    <input name="check" type="text" inputmode="url" autocomplete="url" placeholder="yourstore.com"
+           aria-label="Your store address" required>
+    <button type="submit">Get my free rank</button>
+  </form>
+  <div class="tr-noot">FREE &middot; NO ACCOUNT &middot; YOUR RANK AND 13 CHECKS ON YOUR SITE</div>
+
+  {% if cijfers %}
+  <div class="tr-cijfers" id="cijfers">
+    <div class="tr-noot" style="margin-bottom:6px">FROM THE KRILLO INDEX, MEASURED EVERY MONTH</div>
+    {% for z in cijfers %}<p>{{ z }}</p>{% endfor %}
+    <p style="font-size:14px; color:#6E7079;">{{ meting_zin_en }} <a href="/zo-meten-we">How we measure</a>.</p>
+  </div>
+  {% endif %}
+
+  <div class="tr-blok">
+    <h2>What you get for free, and what Watch adds</h2>
+    <p>The free check gives your rank in the Krillo Index (if your category is measured) and 13 checks on what AI
+       can read on your site. Watch, from &euro;{{ prijs_watch }} a month with 14 days free, shows it every month: every buying
+       question, which stores {{ pagina.assistent or 'ChatGPT and Gemini' }} named instead of you, and what to change.
+       With Fix we make the changes for you.</p>
+    <p><a class="knop vol" href="/?plan=watch#pricing">Try Watch free for 14 days</a></p>
+
+    <h2>Questions</h2>
+    {% for v, a in vragen %}
+    <h3>{{ v }}</h3>
+    <p>{{ a }}</p>
+    {% endfor %}
+
+    <h2>More free checks</h2>
+    <div class="tr-meer">
+      {% for s, t in andere.items() %}<a href="/{{ s }}">{{ t }}</a>{% endfor %}
+      <a href="/tools">All free tools</a>
+      <a href="/index">The Krillo Index</a>
+    </div>
+  </div>
+</div></main>
+
+{% include "_voet.html" %}
+</body>
+</html>
