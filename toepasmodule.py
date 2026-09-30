@@ -16,7 +16,7 @@ dat niet bestaat. Dit is opgeschreven kennis, en als er iets verandert bij een
 platform pas je één regel aan.
 
 En wat een stekker NIET is, zolang dat niet waar is: automatisch. Alleen
-Shopify kan Krillo echt zelf in de winkel schrijven, want daar bestaat een app
+Shopify en (sinds 30 september) WooCommerce kan Krillo echt zelf in de winkel schrijven, want daar bestaat een app
 met toestemming van de winkelier en een knop om alles terug te zetten
 (shopify_werk.py). Voor de rest staat hier eerlijk `automatisch: False`. Een
 stekker die doet alsof hij schrijft terwijl hij dat niet doet is erger dan geen
@@ -176,12 +176,18 @@ STEKKERS = {
     # alles terug te zetten. De motor staat in shopify_werk.py.
     "shopify": {"naam": "Shopify", "automatisch": True, "beheer": "Winkel beheren",
                 "motor": "shopify_werk", "stappen": _SHOPIFY},
-    "woocommerce": {"naam": "WooCommerce", "automatisch": False, "beheer": "WordPress-beheer",
-                    "motor": None, "stappen": _WOOCOMMERCE},
+    # SINDS 30 SEPTEMBER ook automatisch: de motor staat in wordpress_werk.py
+    # (applicatiewachtwoord, oude waarde bewaard, alles kan terug). Eerst getest
+    # tegen een nagebootste winkel, daarna door Nino op een echte WooCommerce-
+    # testsite: voorstellen, toepassen en terugzetten werkten.
+    "woocommerce": {"naam": "WooCommerce", "automatisch": True, "beheer": "WordPress-beheer",
+                    "motor": "wordpress_werk", "stappen": _WOOCOMMERCE},
     # WordPress zonder WooCommerce is hetzelfde beheerscherm. Dezelfde stappen
-    # dus, en geen tweede lijst om uit elkaar te laten lopen.
-    "wordpress": {"naam": "WordPress", "automatisch": False, "beheer": "WordPress-beheer",
-                  "motor": None, "stappen": _WOOCOMMERCE},
+    # dus, en geen tweede lijst om uit elkaar te laten lopen. Productteksten zijn
+    # er niet zonder WooCommerce, maar de vragenpagina en fotobeschrijvingen wel;
+    # de koppeling zegt het eerlijk als WooCommerce ontbreekt.
+    "wordpress": {"naam": "WordPress", "automatisch": True, "beheer": "WordPress-beheer",
+                  "motor": "wordpress_werk", "stappen": _WOOCOMMERCE},
     "lightspeed": {"naam": "Lightspeed", "automatisch": False, "beheer": "Lightspeed-beheer",
                    "motor": None, "stappen": _LIGHTSPEED},
     "ccvshop": {"naam": "CCV Shop", "automatisch": False, "beheer": "CCV-beheer",

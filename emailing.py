@@ -442,6 +442,22 @@ def send_uitvoering_welkom(to_email, webshop_url, platform=None, monitoring_url=
     vraag in en verder niets."""
     winkel = _kaal_adres(webshop_url)
     stappen = TOEGANG_UITLEG.get(platform or "", TOEGANG_ALGEMEEN)
+    # 30 september: WordPress en WooCommerce koppelen nu zelf, met een
+    # applicatiewachtwoord op de eigen koppelpagina. Geen beheerdersaccount
+    # voor ons meer: veiliger voor de klant, en wij schrijven dan zelf in de
+    # winkel in plaats van met de hand (wordpress_werk.py).
+    if platform in ("WooCommerce", "WordPress") and monitoring_url and "/mijn/" in monitoring_url:
+        koppel = monitoring_url.rstrip("/").split("/mijn/")[0] + "/mijn/" + \
+            monitoring_url.rstrip("/").split("/mijn/")[1].split("/")[0] + "/wordpress"
+        stappen = f"""
+      <li>In WordPress, go to Users, Profile (Gebruikers, Profiel) and scroll down to
+          Application Passwords (Applicatiewachtwoorden).</li>
+      <li>Type <strong>Krillo</strong> as the name and click Add New Application Password.
+          Copy the password WordPress shows. It is not your login password: it only works
+          for this connection.</li>
+      <li>Open <a href="{veilig(koppel)}">your connection page</a> and paste your store
+          address, your WordPress username and that password.</li>
+      <li>You can revoke it any time, in the same place in WordPress or on that page.</li>"""
     platform_zin = (
         f"Your store runs on {platform}, so this is how it works for you:"
         if platform in TOEGANG_UITLEG else

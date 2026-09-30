@@ -191,6 +191,8 @@ class Winkel:
             v["link"] = f"{self.site}/wp-admin/post.php?post={v['product_id']}&action=edit"
         else:
             v["link"] = f"{self.site}/wp-admin/edit.php?post_type=page"
+            # "Online Store, Pages" is de weg in Shopify; in WordPress heet het Pages.
+            v["waar"] = "Pages"
         return v
 
     # ------------------------------------------------------------ schrijven

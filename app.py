@@ -2090,7 +2090,8 @@ def _beheerbalk(antwoord):
                 "<a href='/admin/ochtendbericht' style='color:#cbd5e1;text-decoration:none'>Ochtendbericht</a>"
                 "<a href='/admin/benadering' style='color:#cbd5e1;text-decoration:none'>Benadering</a>"
                 "<a href='/admin/antwoorden' style='color:#cbd5e1;text-decoration:none'>Antwoorden</a>"
-                "<a href='/admin/linkedin' style='color:#cbd5e1;text-decoration:none'>LinkedIn</a></div>")
+                "<a href='/admin/linkedin' style='color:#cbd5e1;text-decoration:none'>LinkedIn</a>"
+                "<a href='/admin/wordpress' style='color:#cbd5e1;text-decoration:none'>WordPress</a></div>")
         antwoord.set_data(html[:m.end()] + balk + html[m.end():])
     except Exception:
         pass
