@@ -178,6 +178,25 @@
   .v8 .d8-kies.klaar{background:#DFF3EC; color:#0B7C5E;}
   .v8 .d8-kies[disabled]{cursor:default;}
 
+  /* 30 september, Nino: "plan ziet er niet goed uit, niet goed gespatieerd".
+     In versie 2 kreeg een kaart geen binnenruimte (de kop heeft die zelf), maar
+     tekst, lijsten en knoppen erin stonden daardoor tegen de rand. Tabellen
+     blijven over de volle breedte. */
+  .v8 .kaartblok > :not(.kaartkop):not(table):not(.tabel):not(.binnen):not(script){margin-left:18px; margin-right:18px;}
+  .v8 .kaartblok > .kaartkop + :not(table):not(.tabel):not(.binnen){margin-top:14px;}
+  .v8 .kaartblok > :last-child:not(table):not(.tabel):not(.binnen){margin-bottom:18px;}
+  .v8 .kaartkop{letter-spacing:.02em;}
+  .v8 .planlijst{padding-left:20px; margin-top:8px; margin-bottom:14px; font-size:14.5px; line-height:1.8; color:#4A4A55;}
+  .v8 .plannaam{font-size:32px; margin-top:4px;}
+  .v8 .plankaart{display:flex; flex-direction:column;}
+  .v8 .plankaart > a{align-self:flex-start; margin-top:auto;}
+  .v8 .plankaart.aangeraden{border:1.5px solid #1B3FE0; box-shadow:0 1px 2px rgba(27,63,224,.08), 0 20px 44px -24px rgba(27,63,224,.3);}
+  .v8 .knop-rand{border-radius:8px; padding:9px 14px; color:#0A0A0B; text-decoration:none; background:#fff;}
+  .v8 .knop-rand:hover{background:#F7F7F9;}
+  .v8 .knop-vol{border-radius:8px; padding:9px 14px; color:#fff; text-decoration:none;}
+  .v8 .drie{gap:18px;}
+  .v8 .werkblad > .klein{margin-top:0;}
+  .v8 .d8-taal{font-size:9.5px; color:#6E7079; letter-spacing:.06em;}
   @media(max-width:1200px){
     .v8 .d8-overzicht{grid-template-columns:1fr;}
     .v8 .d8-lade{position:static;}
@@ -186,6 +205,9 @@
   }
   @media(max-width:760px){
     .v8 .werkblad{margin:0; border-radius:0; border-left:0; border-right:0;}
+    .v8 .zijmenu{flex-wrap:wrap; flex-direction:row;}
+    .v8 .zijmenu a.uit, .v8 .d8-zijkaart, .v8 .zijvoet{display:none;}
+    .v8 .d8-vlak svg{overflow:hidden;}
     .v8 .zijkant{width:auto;}
     .v8 .d8-tegels{grid-template-columns:repeat(2,minmax(0,1fr));}
     .v8 .d8-vraagkop, .v8 .d8-vraag{grid-template-columns:minmax(0,1fr) 80px;}

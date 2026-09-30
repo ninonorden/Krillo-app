@@ -185,13 +185,13 @@
           <button type="button" class="kpi d8-tegel" data-maat="zicht"{% if not reeksen %} disabled{% endif %}>
             <span class="label">{{ 'Zichtbaarheid' if nl else 'Visibility' }}</span>
             <span class="rij"><span class="groot">{{ zicht }}%</span></span>
-            <span class="onder">{{ ('genoemd in ' ~ beeld.genoemd ~ ' van ' ~ beeld.telbaar ~ ' antwoorden') if nl else ('named in ' ~ beeld.genoemd ~ ' of ' ~ beeld.telbaar ~ ' answers') }}</span>
+            <span class="onder">{{ ('genoemd bij ' ~ beeld.genoemd ~ ' van ' ~ beeld.telbaar ~ ' vragen') if nl else ('named in ' ~ beeld.genoemd ~ ' of ' ~ beeld.telbaar ~ ' questions') }}</span>
             {% if vonkjes and vonkjes.zicht %}<svg class="d8-vonk" viewBox="0 0 200 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ vonkjes.zicht }}"/></svg>{% endif %}
           </button>
           <button type="button" class="kpi d8-tegel" data-maat="aanbevolen"{% if not reeksen %} disabled{% endif %}>
-            <span class="label">{{ 'Als eerste aangeraden' if nl else 'Recommended first' }}</span>
+            <span class="label">{{ 'Aangeraden' if nl else 'Recommended' }}</span>
             <span class="rij"><span class="groot">{{ beeld.aanbevolen }}</span></span>
-            <span class="onder">{{ 'keer dat AI jou adviseert' if nl else 'times AI advises your store' }}</span>
+            <span class="onder">{{ ('vragen waarin AI jou aanraadt, van ' ~ beeld.telbaar) if nl else ('questions where AI advises your store, of ' ~ beeld.telbaar) }}</span>
             {% if vonkjes and vonkjes.aanbevolen %}<svg class="d8-vonk" viewBox="0 0 200 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ vonkjes.aanbevolen }}"/></svg>{% endif %}
           </button>
           <div class="kpi d8-tegel stil">
@@ -246,7 +246,7 @@
           {% set anderen = [] %}{% for m in v.per_model %}{% for n in m.anderen %}{% if n not in anderen %}{% set _ = anderen.append(n) %}{% endif %}{% endfor %}{% endfor %}
           <button type="button" class="d8-vraag{{ ' aan' if loop.first }}" data-vraag="{{ loop.index0 }}" data-stand="{{ 'gewonnen' if v.gewonnen else 'verloren' }}">
             <span class="t">{{ v.vraag }}</span>
-            <span class="d8-mono jij {{ 'op' if v.gewonnen else 'nee' }}">{% if v.aanbevolen %}{{ 'AANGERADEN' if nl else 'ADVISED' }}{% elif v.gewonnen %}{{ 'GENOEMD' if nl else 'NAMED' }}{% else %}&mdash;{% endif %}</span>
+            <span class="d8-mono jij {{ 'op' if v.gewonnen else 'nee' }}">{% if v.aanbevolen %}{{ 'AANGERADEN' if nl else 'ADVISED' }}{% elif v.gewonnen %}{{ 'GENOEMD' if nl else 'NAMED' }}{% else %}{{ 'NIET GENOEMD' if nl else 'NOT NAMED' }}{% endif %}</span>
             <span class="w">{% if v.slot %}<em>{{ 'zichtbaar met Watch' if nl else 'visible with Watch' }}</em>{% elif anderen %}{{ anderen[:2] | join(', ') }}{% else %}<em>{{ 'geen winkel' if nl else 'no store' }}</em>{% endif %}</span>
           </button>
           {% else %}
@@ -264,6 +264,7 @@
         <div class="d8-ladekop">
           <span class="d8-mono">{{ 'VRAAG' if nl else 'QUESTION' }} <span data-l="nr">1</span> {{ 'VAN' if nl else 'OF' }} {{ vr.totaal }}</span>
           <b data-l="vraag">{{ v0.vraag if v0 else '' }}</b>
+          {% if beeld.land and not nl and vraagtaal_en(beeld.land) not in ('English', 'the local language') %}<span class="d8-mono d8-taal">ASKED IN {{ vraagtaal_en(beeld.land) | upper }}, AS SHOPPERS IN {{ landnaam | upper }} ASK IT</span>{% endif %}
           <div class="d8-seg" data-l="modellen">{% if v0 %}{% for m in v0.per_model %}<button type="button" class="{{ 'aan' if loop.first }}" data-model="{{ loop.index0 }}">{{ m.assistent }}</button>{% endfor %}{% endif %}</div>
         </div>
         <div class="d8-antwoord">
@@ -298,7 +299,7 @@
       "antwoordde": ('ANTWOORDDE' if nl else 'ANSWERED'),
       "aangeraden": ('AANGERADEN' if nl else 'RECOMMENDED'), "genoemd": ('GENOEMD' if nl else 'NAMED'),
       "gewonnen": ('Je wordt hier genoemd. Houd de pagina die AI citeert actueel, en kijk of je ook als eerste aangeraden kan worden.' if nl else 'You are named here. Keep the page AI quotes up to date, and aim to be the store it advises first.'),
-      "verloren": ('Nu genoemd: {w}. Wat zij wel hebben en jij niet, staat bij je verbeteringen. Zet deze vraag op je lijst, dan pakken we hem als eerste op.' if nl else 'Named now: {w}. What they have and you do not is in your fixes. Add this question to your list and it goes first.'),
+      "verloren": ('Nu genoemd: {w}. Wat zij wel hebben en jij niet, staat bij je verbeteringen. Zet deze vraag op je lijst, dan staat hij bovenaan je verbeteringen.' if nl else 'Named now: {w}. What they have and you do not is in your fixes. Add this question to your list and it stays on top of your fixes.'),
       "leeg": ('Nog geen enkele winkel genoemd: de plek is vrij. Een duidelijke pagina over dit onderwerp maakt de kans groot dat jij de eerste bent.' if nl else 'No store is named yet: the spot is open. A clear page on this topic gives you a good chance to be the first.'),
       "toevoegen": ('Zet op mijn lijst' if nl else 'Add to my fixes'),
       "toegevoegd": ('Op je lijst &#10003;' if nl else 'Added to your fixes &#10003;'),
@@ -594,11 +595,15 @@
 
     {# ================================================================ VERBETERINGEN EN ABONNEMENT #}
     {% if (proef or voorbeeld) and pagina in ('verbeteringen', 'abonnement') %}
+    {# 30 september: Verbeteringen en Abonnement waren in het voorbeeld precies
+       gelijk. Nu: Verbeteringen laat zien wat we zouden doen, Abonnement de
+       pakketten. #}
+    {% if pagina == 'verbeteringen' %}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'WAT WE VOOR JE ZOUDEN DOEN' if taal == 'nl' else 'WHAT WE WOULD DO FOR YOU' }}</div>
       <p style="margin:0 0 14px; font-size:15.5px;">
-        {% if taal == 'nl' %}Je verliest {{ beeld.gemiste_vragen|length }} of meer koopvragen aan andere winkels. Dit is wat AI nodig heeft om jou te noemen, en wat we daarvoor in je winkel zetten:
-        {% else %}You lose {{ beeld.gemiste_vragen|length }} or more buying questions to other stores. This is what AI needs to name you, and what we put in your store for it:{% endif %}
+        {% if taal == 'nl' %}Je verliest koopvragen aan andere winkels. Dit is wat AI nodig heeft om jou te noemen, en wat we daarvoor in je winkel zetten:
+        {% else %}You lose buying questions to other stores. This is what AI needs to name you, and what we put in your store for it:{% endif %}
       </p>
       <div class="drie">
         <div><strong>{{ 'Productteksten' if taal == 'nl' else 'Product descriptions' }}</strong>
@@ -609,6 +614,7 @@
           {{ 'De vragen die kopers aan ChatGPT stellen, met jouw antwoord.' if taal == 'nl' else 'The questions shoppers ask ChatGPT, answered by you.' }}</div>
       </div>
     </div>
+    {% endif %}
     <div class="twee gelijk">
       <div class="kaartblok plankaart">
         <div class="kaartkop">WATCH</div>
@@ -761,7 +767,7 @@
         <div class="kaartkop">{{ 'MET FIX ERBIJ' if taal == 'nl' else 'WHAT FIX ADDS' }}</div>
         <ul class="planlijst">
           <li>{{ 'Wij zetten elke verbetering in je winkel' if taal == 'nl' else 'We put every fix into your store' }}</li>
-          <li>{{ 'Nieuwe producten elke week aangevuld' if taal == 'nl' else 'New products filled in every week' }}</li>
+          <li>{{ 'Op Shopify: nieuwe producten elke week aangevuld' if taal == 'nl' else 'On Shopify: new products filled in every week' }}</li>
           <li>{{ 'Elke wijziging met de oude tekst, alles kan terug' if taal == 'nl' else 'Every change with the old text, all can be undone' }}</li>
         </ul>
         <a class="knop-rand" href="mailto:hello@krilloai.com?subject=Switch%20to%20Fix%20for%20{{ winkelnaam|urlencode }}">{{ 'Overstappen naar Fix' if taal == 'nl' else 'Switch to Fix' }}</a>

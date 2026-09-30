@@ -38,11 +38,11 @@
   <div class="cijfers">
     <div><div class="groot">#{{ rij.positie }}</div><div class="klein">of {{ totaal }} stores measured</div></div>
     <div><div class="groot">{{ rij.genoemd }}/{{ telbaar }}</div><div class="klein">buying questions where AI names it</div></div>
-    {% if rij.aanbevolen %}<div><div class="groot">{{ rij.aanbevolen }}</div><div class="klein">times recommended outright</div></div>{% endif %}
+    <div><div class="groot">{{ rij.aanbevolen or 0 }}</div><div class="klein">questions where AI recommends it outright</div></div>
     {% if rij.vorige_positie %}<div><div class="groot">#{{ rij.vorige_positie }}</div><div class="klein">the month before</div></div>{% endif %}
   </div>
-  <p class="klein">Measured with {{ modellen | length }} AI assistant(s), the same questions for every store in this
-     category. <a href="/zo-meten-we">How we measure</a>.</p>
+  <p class="klein">Measured with {{ 'ChatGPT and Gemini' if modellen | length > 1 else 'one AI assistant' }}, the same questions for every store in this
+     category, asked in the language of the market. <a href="/zo-meten-we">Read how we measure</a>.</p>
 
   {% if buren %}
   <h2 style="margin-top:32px;">Around {{ naam }}</h2>

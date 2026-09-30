@@ -35,7 +35,7 @@
 {% if tool %}
   <div class="kruimels"><a href="/compare">Compare</a> &rsaquo; {{ tool.naam }}</div>
   <h1>Krillo vs {{ tool.naam }}</h1>
-  <p class="inleiding">An honest comparison for webshops. Their prices come from their own pricing page, checked on
+  <p class="inleiding">An honest comparison for webshops. Their prices come from {{ 'each app\'s App Store listing' if tool.naam_zin else 'their own pricing page' }}, checked on
      {{ gekeken }}.</p>
 
   <div class="naast">
@@ -57,8 +57,8 @@
   <h2>Where Krillo is different</h2>
   <ul class="anders">{% for r in tool.krillo_anders %}<li>{{ r }}</li>{% endfor %}</ul>
 
-  <h2>When {{ tool.naam }} is the better choice</h2>
-  <p>Choose {{ tool.naam }} if {{ tool.beter_als }}</p>
+  <h2>When {{ tool.naam_zin or tool.naam }} is the better choice</h2>
+  <p>Choose {{ tool.naam_zin or tool.naam }} if {{ tool.beter_als }}</p>
 
   <div class="cta">
     <h2>See where your store ranks</h2>

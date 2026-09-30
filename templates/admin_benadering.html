@@ -180,7 +180,13 @@
   <div class="kaart">
     <div class="uitleg">
       <b>Welke mail werkt beter.</b>
-      Versie a zet de positie voorop, versie b de vraag. Een winkel krijgt altijd dezelfde versie.
+      Versie a zet de positie voorop, versie b de vraag, versie c "ben jij een van de drie die AI noemt".
+      Een winkel krijgt altijd dezelfde versie.
+      {% set met_versie = varianten.rijen | sum(attribute='gemaild') %}
+      {% if trechter and trechter.gemaild and trechter.gemaild > met_versie %}
+        De versies tellen pas sinds ze bestaan: {{ met_versie }} van de {{ trechter.gemaild }} mails.
+        De {{ trechter.gemaild - met_versie }} mails van daarvoor staan hier niet in.
+      {% endif %}
       <table style="margin-top:10px; border-collapse:collapse;">
         <tr><th style="text-align:left; padding:4px 14px 4px 0;">Versie</th>
             <th style="text-align:right; padding:4px 14px;">Gemaild</th>

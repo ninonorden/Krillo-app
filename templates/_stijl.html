@@ -126,6 +126,18 @@
   footer{border-top:1px solid var(--lijn); padding:26px 0; font-size:13.5px;
          color:var(--ink-grijs);}
   footer a{color:var(--ink-grijs); text-decoration:none;}
+  /* 30 september: op een telefoon liepen de ranglijsten en de winkelpagina's
+     20 tot 80 pixels buiten beeld. Brede tabellen scrollen nu binnen hun eigen
+     vak, en lange adressen breken af in plaats van de pagina op te rekken. */
+  @media(max-width:560px){
+    table{display:block; overflow-x:auto; -webkit-overflow-scrolling:touch;}
+    th, td{padding:10px 12px;}
+    .wrap{overflow-wrap:anywhere;}
+    h1{font-size:38px;}
+    .strook{gap:20px; padding:20px;}
+    .strook .landen{margin-left:0; text-align:left;}
+  }
+  img, svg{max-width:100%;}
   @media (prefers-reduced-motion: reduce){
     *, *::before, *::after{animation-duration:0.01ms !important;
       transition-duration:0.01ms !important; scroll-behavior:auto !important;}

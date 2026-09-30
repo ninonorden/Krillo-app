@@ -22,7 +22,7 @@
       "name": "What is AI visibility exactly?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AI visibility is the question of whether assistants such as ChatGPT, Gemini and Perplexity can find, understand and recommend your store. More and more buyers ask an assistant for a recommendation instead of searching themselves. If the assistant does not know your store, you miss that customer without noticing."
+        "text": "AI visibility is the question of whether assistants such as ChatGPT and Gemini can find, understand and recommend your store. More and more buyers ask an assistant for a recommendation instead of searching themselves. If the assistant does not know your store, you miss that customer without noticing."
       }
     },
     {
@@ -35,18 +35,42 @@
     },
     {
       "@type": "Question",
-      "name": "Is the check really free?",
+      "name": "Which countries do you measure?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. You enter your store address and see your score and every finding within about a minute, with no account and no payment details. You pay only when you want more: Watch, where you get your rank every month, or Fix, where we install the solutions in your store."
+        "text": {{ ("Right now " ~ index_landen_en ~ ", with the buying questions shoppers there ask, in their own language. That is why you see Dutch questions and answers on our pages today: we ask them the way shoppers in that market do. Krillo is built for online stores in any country, and more countries follow; on the index page you can leave your email for yours.") | tojson }}
       }
     },
     {
       "@type": "Question",
-      "name": "What does Fix mean?",
+      "name": "Is the check really free?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "We install the improvements in your store ourselves, you paste nothing. For every finding we write the solution, aimed at your products and your sector. We look at your product and category pages too, not only your home page. Afterwards every change is on your own page with the old text beside it, and anything you dislike we roll back."
+        "text": "Yes. You enter your store address and within about a minute you see your rank in the index (if your category is measured) and the thirteen checks on your site. No account and no payment details. You pay only when you want more: Watch or Fix."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What do I get with Watch?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Watch is EUR 49 a month (or EUR 490 a year), and the first 14 days of the monthly plan are free. Every month we put around thirty buying questions in your category to ChatGPT and Gemini. Your dashboard shows your rank, every question with the real answer, which store was named instead of you, and each month the three fixes that win the most, written out so you can make them yourself."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What do I get with Fix?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Everything in Watch, and we make the changes in your store ourselves, starting each month with the ones that win the most. On Shopify our app writes them into your store: product descriptions that are too short, image descriptions and a page with questions and answers. On other platforms our team makes the changes by hand once you have given us access. Every change is kept with the old text beside it, so anything you dislike can be rolled back. At the next monthly measurement you see the difference. Fix is EUR 149 a month or EUR 1,490 a year."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I cancel?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, at any time, from the Plan page in your dashboard. You keep access until the end of the month or year you paid for. If you cancel within fourteen days of your first payment, you get that month back."
       }
     },
     {
@@ -59,26 +83,18 @@
     },
     {
       "@type": "Question",
-      "name": "How does the subscription work?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Every month we put thirty buying questions to ChatGPT and Gemini, questions buyers in your category really ask, and see whether your store is in the answer and whether you are named or actually recommended. Every mention comes with the quote from the answer. From that measurement we take at most three things that gain the most, and with Fix we make those changes in your store. You get a message of what changed, with the old text, so you can always roll it back. If you would rather not give us access, you get those same three things ready to do yourself: the questions and answers written about your products, with a copy button and the route through your own admin screen. If there is a page on the internet that lists a competitor and not you, you get that link and the email to its editors. All those numbers sit behind a link on your own page. You can cancel monthly, there is no minimum term."
-      }
-    },
-    {
-      "@type": "Question",
       "name": "Is this not just an SEO check with AI sauce on it?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Fair question, because half of what we do is indeed technical work you can find elsewhere: does your robots.txt let AI crawlers in, is your text in the page itself, is your product information machine readable. Those are thirteen checks and we are not unique in them. If your store runs on professional shop software, part of it is probably fine already. What matters is the other half: we put real buying questions to ChatGPT and Gemini and see whether your store is in the answer. That is not a check on your site, it is a measurement of the outcome. And it is the only way to know whether all that technical work is getting you anything."
+        "text": "Fair question, because half of what we do is indeed technical work you can find elsewhere: does your robots.txt let AI crawlers in, is your text in the page itself, is your product information machine readable. Those are thirteen checks and we are not unique in them. What matters is the other half: we put real buying questions to ChatGPT and Gemini and see whether your store is in the answer. That is not a check on your site, it is a measurement of the outcome, and the only way to know whether the technical work is getting you anything."
       }
     },
     {
       "@type": "Question",
-      "name": "Does Google not already show AI results for free in Search Console?",
+      "name": "Does Google not already show this in Search Console?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "It does. Since June 2026 there is a report on generative AI in Search Console, and it is free. Use it, it is useful. But it measures something different. Search Console only covers Google's own AI surfaces, so AI Overviews and AI Mode. ChatGPT, Perplexity and Claude are not in it, and a large part of buying questions is asked there. It also only gives impressions: how often a page of yours appeared in such an answer. You do not see which question was asked, you do not see which other stores were in that same answer, and you do not see whether you were named or actually recommended. That last one is the difference between \"you could also look at X\" and \"the raincoats from X last longest\", and only the second gets you a customer. We ask the buying questions ourselves, to ChatGPT and Gemini, and show per question what answered and on what grounds."
+        "text": "Google shows data about its own search results, and it is useful, so use it. But it measures something different. It covers only Google, not ChatGPT, where a large part of buying questions is asked. And it does not show which question was asked, which other stores were in the same answer, or whether you were named or actually recommended. That last one is the difference between \"you could also look at X\" and \"buy it at X\", and only the second gets you a customer."
       }
     },
     {
@@ -86,7 +102,7 @@
       "name": "Tools for this already exist. Why Krillo?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "They do, and for a large brand with a marketing team they are often better. They are also built for that kind of customer: the best known start around a hundred dollars a month and are set up for agencies managing dozens of brands at once. Krillo is built for the owner of one store, costs 49 euro a month to be watched or 149 euro a month if we do the work, and writes the buying questions itself based on what you sell instead of you having to enter them. We also measure the difference between being named and being recommended explicitly, with the quote. If you already run such a tool and you are happy with it, you do not need us. We would rather say that than have you cancel after a month."
+        "text": "They do, and for a large brand with a marketing team they are often better. They are built for that kind of customer: marketing teams and agencies, with prices that grow with the number of prompts you track. Krillo is built for webshops: we write the buying questions for your category ourselves, rank every store in it, measure the difference between being named and being recommended, and with Fix we make the changes for you. If you already use such a tool and you are happy with it, you do not need us."
       }
     },
     {
@@ -94,7 +110,7 @@
       "name": "Who is Krillo for?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "For owners of online stores without a marketing agency. Most tools in this market are built for agencies or large companies. Krillo is built for the owner, and you can choose: do it yourself with the written solutions, or we install them in your store for you."
+        "text": "For owners of online stores, first of all. You can do it yourself with the written fixes (Watch), or we make them in your store (Fix). Agencies and brands with several stores have their own plan: up to 25 stores for EUR 490 a month, and you can check ten stores for free on the agencies page."
       }
     },
     {
@@ -168,38 +184,48 @@
   <h1>Everything you want to know about Krillo</h1>
   <p class="intro">Question not here? Email <a href="mailto:hello@krilloai.com">hello@krilloai.com</a> and you get a personal answer.</p>
 
+{# 30 september: nagelopen op wat Krillo echt doet (Watch en Fix apart, landen, geen datum
+   of prijs van anderen die we niet kunnen aanwijzen). De vragen staan ook hierboven als
+   gestructureerde gegevens voor Google; die twee lijsten horen gelijk te blijven. #}
   <h2>What is AI visibility exactly?</h2>
-  <p>AI visibility is the question of whether assistants such as ChatGPT, Gemini and Perplexity can find, understand and recommend your store. More and more buyers ask an assistant for a recommendation instead of searching themselves. If the assistant does not know your store, you miss that customer without noticing.</p>
+  <p>AI visibility is the question of whether assistants such as ChatGPT and Gemini can find, understand and recommend your store. More and more buyers ask an assistant for a recommendation instead of searching themselves. If the assistant does not know your store, you miss that customer without noticing.</p>
 
   <h2>Is this the same as SEO?</h2>
   <p>No. Ordinary search engine optimisation is about ranking high in a list of results. With AI it is about whether your store is named in the answer itself. That depends on different things, such as whether AI can read your product information and whether your site does not accidentally shut AI crawlers out.</p>
 
-  <h2>Is the check really free?</h2>
-  <p>Yes. You enter your store address and see your score and every finding within about a minute, with no account and no payment details. You pay only when you want more: Watch, where you get your rank every month, or Fix, where we install the solutions in your store.</p>
+  <h2>Which countries do you measure?</h2>
+  <p>Right now {{ index_landen_en }}, with the buying questions shoppers there ask, in their own language. That is why you see Dutch questions and answers on our pages today: we ask them the way shoppers in that market do. Krillo is built for online stores in any country, and more countries follow; on the index page you can leave your email for yours.</p>
 
-  <h2>What does Fix mean?</h2>
-  <p>We make the improvements in your store ourselves, you paste nothing. For every finding we write the solution, aimed at your products and your sector. On Shopify our app writes them into your store: image descriptions, product descriptions that are too short, and a page with questions and answers. On other platforms our team makes the changes by hand, once you have given us access. Every change is kept with the old text beside it, and anything you dislike we roll back.</p>
+  <h2>Is the check really free?</h2>
+  <p>Yes. You enter your store address and within about a minute you see your rank in the index (if your category is measured) and the thirteen checks on your site. No account and no payment details. You pay only when you want more: Watch or Fix.</p>
+
+  <h2>What do I get with Watch?</h2>
+  <p>Watch is EUR 49 a month (or EUR 490 a year), and the first 14 days of the monthly plan are free. Every month we put around thirty buying questions in your category to ChatGPT and Gemini. Your dashboard shows your rank, every question with the real answer, which store was named instead of you, and each month the three fixes that win the most, written out so you can make them yourself.</p>
+
+  <h2>What do I get with Fix?</h2>
+  <p>Everything in Watch, and we make the changes in your store ourselves, starting each month with the ones that win the most. On Shopify our app writes them into your store: product descriptions that are too short, image descriptions and a page with questions and answers. On other platforms our team makes the changes by hand once you have given us access. Every change is kept with the old text beside it, so anything you dislike can be rolled back. At the next monthly measurement you see the difference. Fix is EUR 149 a month or EUR 1,490 a year.</p>
+
+  <h2>Can I cancel?</h2>
+  <p>Yes, at any time, from the Plan page in your dashboard. You keep access until the end of the month or year you paid for. If you cancel within fourteen days of your first payment, you get that month back.</p>
 
   <h2>Do I need to be technical to use this?</h2>
   <p>No. Everything is explained in plain words, without jargon. For technical changes you get the code ready to use, with where to put it.</p>
 
-  <h2>How does the subscription work?</h2>
-  <p>Every month we put thirty buying questions to ChatGPT and Gemini, questions buyers in your category really ask, and see whether your store is in the answer and whether you are named or actually recommended. Every mention comes with the quote from the answer. From that measurement we take at most three things that gain the most, and with Fix we make those changes in your store. You get a message of what changed, with the old text, so you can always roll it back. If you would rather not give us access, you get those same three things ready to do yourself: the questions and answers written about your products, with a copy button and the route through your own admin screen. If there is a page on the internet that lists a competitor and not you, you get that link and the email to its editors. All those numbers sit behind a link on your own page. You can cancel monthly, there is no minimum term.</p>
-
   <h2>Is this not just an SEO check with AI sauce on it?</h2>
-  <p>Fair question, because half of what we do is indeed technical work you can find elsewhere: does your robots.txt let AI crawlers in, is your text in the page itself, is your product information machine readable. Those are thirteen checks and we are not unique in them. If your store runs on professional shop software, part of it is probably fine already. What matters is the other half: we put real buying questions to ChatGPT and Gemini and see whether your store is in the answer. That is not a check on your site, it is a measurement of the outcome. And it is the only way to know whether all that technical work is getting you anything.</p>
+  <p>Fair question, because half of what we do is indeed technical work you can find elsewhere: does your robots.txt let AI crawlers in, is your text in the page itself, is your product information machine readable. Those are thirteen checks and we are not unique in them. What matters is the other half: we put real buying questions to ChatGPT and Gemini and see whether your store is in the answer. That is not a check on your site, it is a measurement of the outcome, and the only way to know whether the technical work is getting you anything.</p>
 
-  <h2>Does Google not already show AI results for free in Search Console?</h2>
-  <p>It does. Since June 2026 there is a report on generative AI in Search Console, and it is free. Use it, it is useful. But it measures something different. Search Console only covers Google's own AI surfaces, so AI Overviews and AI Mode. ChatGPT, Perplexity and Claude are not in it, and a large part of buying questions is asked there. It also only gives impressions: how often a page of yours appeared in such an answer. You do not see which question was asked, you do not see which other stores were in that same answer, and you do not see whether you were named or actually recommended. That last one is the difference between "you could also look at X" and "the raincoats from X last longest", and only the second gets you a customer. We ask the buying questions ourselves, to ChatGPT and Gemini, and show per question what answered and on what grounds.</p>
+  <h2>Does Google not already show this in Search Console?</h2>
+  <p>Google shows data about its own search results, and it is useful, so use it. But it measures something different. It covers only Google, not ChatGPT, where a large part of buying questions is asked. And it does not show which question was asked, which other stores were in the same answer, or whether you were named or actually recommended. That last one is the difference between "you could also look at X" and "buy it at X", and only the second gets you a customer.</p>
 
   <h2>Tools for this already exist. Why Krillo?</h2>
-  <p>They do, and for a large brand with a marketing team they are often better. They are also built for that kind of customer: the best known start around a hundred dollars a month and are set up for agencies managing dozens of brands at once. Krillo is built for the owner of one store, costs 49 euro a month to be watched or 149 euro a month if we do the work, and writes the buying questions itself based on what you sell instead of you having to enter them. We also measure the difference between being named and being recommended explicitly, with the quote. If you already run such a tool and you are happy with it, you do not need us. We would rather say that than have you cancel after a month.</p>
+  <p>They do, and for a large brand with a marketing team they are often better. They are built for that kind of customer: marketing teams and agencies, with prices that grow with the number of prompts you track. Krillo is built for webshops: we write the buying questions for your category ourselves, rank every store in it, measure the difference between being named and being recommended, and with Fix we make the changes for you. If you already use such a tool and you are happy with it, you do not need us.</p>
 
   <h2>Who is Krillo for?</h2>
-  <p>For owners of online stores without a marketing agency. Most tools in this market are built for agencies or large companies. Krillo is built for the owner, and you can choose: do it yourself with the written solutions, or we install them in your store for you.</p>
+  <p>For owners of online stores, first of all. You can do it yourself with the written fixes (Watch), or we make them in your store (Fix). Agencies and brands with several stores have their own plan: up to 25 stores for EUR 490 a month, and you can check ten stores for free on the <a href="/agencies">agencies page</a>.</p>
 
   <h2>How can I get in touch?</h2>
   <p>Email <a href="mailto:hello@krilloai.com">hello@krilloai.com</a>. You get a personal answer, not a support department.</p>
+
 </main>
 
 {% include "_voet.html" %}
