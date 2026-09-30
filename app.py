@@ -1728,6 +1728,171 @@ def admin_wereld():
     return render_template("agentwereld.html", w=agentwereld.stand())
 
 
+# ---------------------------------------------------------------------------
+# HET BEHEERPORTAAL (30 september). Nino: "nu is het teveel pagina's waar ik
+# niet snel even bij kan vanuit 1 portaal". Er waren 40 beheerpagina's en geen
+# beginpagina: je moest de adressen onthouden. Nu is /admin de ingang, met
+# alles per onderwerp, een zoekveld, en bovenaan wat er nu te doen is. En elke
+# beheerpagina krijgt bovenaan een balk terug naar het portaal.
+#
+# De lijst staat hier op EEN plek. test_beheerportaal kijkt of elke
+# beheerpagina erin staat, zodat een nieuwe pagina niet stil ontbreekt.
+# ---------------------------------------------------------------------------
+BEHEER_GROEPEN = [
+    ("Vandaag", [
+        ("/admin/ochtendbericht", "Ochtendbericht", "Het bericht van vanochtend, nu bekijken"),
+        ("/admin/agents", "Commandocentrum", "Alle agents met hun schakelaars"),
+        ("/admin/controle", "Nachtcontrole", "Wat de controleagent vond, en nu draaien"),
+        ("/admin/traag", "Trage pagina's", "Welke pagina's traag waren, en waarom"),
+    ]),
+    ("Klanten en geld", [
+        ("/admin/bestellingen", "Bestellingen", "Wie betaald heeft"),
+        ("/admin/uitvoeringen", "Werklijst Fix", "Wat wij in winkels van klanten doen"),
+        ("/admin/werkbriefje", "Werkbriefje", "Wat jij precies doet in de winkel van een klant"),
+        ("/admin/oplevering", "Oplevering", "Het overzicht dat de klant krijgt als het klaar is"),
+        ("/admin/oplossingen", "Kant-en-klare teksten", "De teksten van het actieplan los schrijven"),
+        ("/admin/shopify", "Shopify-app", "Welke winkels de app hebben"),
+        ("/admin/doorverwijzen", "Partners", "Partneraanvragen goedkeuren"),
+        ("/admin/kosten", "Kosten", "Wat de metingen en modellen kosten"),
+    ]),
+    ("Koude mail en verkoop", [
+        ("/admin/benadering", "Benadering", "De lijst, de rem, en wat de mails opleveren"),
+        ("/admin/antwoorden", "Antwoorden", "Wie terugmailde, met een concept-antwoord"),
+        ("/admin/verkoop", "Verkoopagent", "Opvolgingen goedkeuren of overslaan"),
+        ("/admin/formulieren", "Contactformulieren", "Winkels zonder info@, bericht staat klaar"),
+        ("/admin/bureaus", "Bureaus", "Webbureaus uit de voettekst van winkels"),
+        ("/admin/merken", "Merken en platforms", "Wat het opschonen als merk aanmerkte"),
+        ("/admin/merkaanvragen", "Merkaanvragen", "Aanvragen via /agencies"),
+        ("/admin/onderzoeksmail", "Onderzoeksmail", "Gemeten winkels met hun eigen uitkomst"),
+        ("/admin/wachtlijst", "Wachtlijst per land", "Welke landen wachten, en hoeveel"),
+    ]),
+    ("Zichtbaar worden", [
+        ("/admin/linkedin", "LinkedIn", "Posts van de LinkedIn-agent met plaatje"),
+        ("/admin/persbericht", "Persbericht", "Klaar om te kopieren"),
+        ("/admin/lijstjes", "Lijstjes", "Wat de lijstjesagent vond en mailde"),
+    ]),
+    ("Index en metingen", [
+        ("/admin/ranglijst", "Ranglijst", "Een categorie meten en bekijken"),
+        ("/admin/categorieen", "Categorieen", "Winkels indelen en tellen"),
+        ("/admin/opschonen", "Opschonen", "De winkellijst schoon voor publicatie"),
+        ("/admin/metingen", "Metingen", "Wat de modellen antwoordden"),
+        ("/admin/beoordelingen", "Beoordelingen", "Wat er uit de antwoorden gehaald is"),
+        ("/admin/koopvragen", "Koopvragen", "De vragen per webshop"),
+        ("/admin/benchmark", "Benchmark", "Alle gemeten winkels bij elkaar"),
+        ("/admin/bronnen", "Bronnen", "Welke externe pagina's gevonden zijn"),
+        ("/admin/modellen", "Modellen", "Werken de ingestelde modelnamen nog"),
+    ]),
+    ("Site en bezoek", [
+        ("/admin/bezoek", "Bezoek", "Hoeveel mensen, welke pagina's, waarvandaan"),
+        ("/admin/bezoekers", "Gratis scans", "Scans en waar ze vandaan komen"),
+        ("/admin/voorbeeld", "Klantpagina bekijken", "De klantpagina voor een winkel naar keuze"),
+        ("/admin/demo", "Demo-uitkomsten", "De volledige meting voor een niet-klant"),
+    ]),
+    ("Agents", [
+        ("/admin/leren", "Leeragent", "Wat de agents onderzochten en doorvoerden"),
+        ("/admin/wereld", "Agentendorp", "Het dorp van de agents, ververst vanzelf"),
+    ]),
+]
+
+
+@app.route("/admin")
+@app.route("/admin/")
+def admin_portaal():
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen?verder=/admin")
+    if doorsturen:
+        return redirect(doorsturen)
+    tegels = ""
+    for groep, paginas in BEHEER_GROEPEN:
+        items = "".join(
+            f"<a class='tegel' href='{pad}' data-zoek='{escape((naam + ' ' + uitleg + ' ' + pad).lower())}'>"
+            f"<b>{escape(naam)}</b><span>{escape(uitleg)}</span></a>" for pad, naam, uitleg in paginas)
+        tegels += f"<section><h2>{escape(groep)}</h2><div class='raster'>{items}</div></section>"
+    # Wat er te doen is komt los binnen (fetch): het zijn een stuk of tien
+    # tellingen in de database, en het portaal zelf moet meteen open staan.
+    return ("<!doctype html><html lang='nl'><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width,initial-scale=1'><title>Beheer | Krillo</title>"
+            "<style>body{font-family:Arial,sans-serif;margin:0;background:#f6f7f9;color:#111}"
+            ".binnen{max-width:1100px;margin:0 auto;padding:28px 16px 60px}"
+            "h1{font-size:28px;margin:0 0 4px}h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;"
+            "color:#6b7280;margin:28px 0 10px}"
+            "#zoek{width:100%;box-sizing:border-box;font-size:17px;padding:12px 14px;border:1px solid #d6d9df;"
+            "border-radius:10px;margin:14px 0 4px}"
+            ".raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}"
+            ".tegel{display:block;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;"
+            "text-decoration:none;color:inherit}.tegel:hover{border-color:#1d4ed8}"
+            ".tegel b{display:block;font-size:15px;margin-bottom:3px}.tegel span{font-size:13px;color:#6b7280}"
+            "#tedoen{background:#fff;border:1px solid #e5e7eb;border-left:4px solid #1d4ed8;border-radius:10px;"
+            "padding:12px 16px;margin-top:18px}#tedoen li{margin:6px 0}#tedoen a{color:#1d4ed8}"
+            ".stil{color:#6b7280;font-size:14px}</style><body><div class='binnen'>"
+            "<h1>Beheer</h1><div class='stil'>Alle beheerpagina's op een plek. Typ om te zoeken.</div>"
+            "<input id='zoek' placeholder='Zoek een pagina, bijvoorbeeld mail, linkedin, kosten' autofocus>"
+            "<div id='tedoen'><b>Nu te doen</b><div class='stil' id='tedoenLijst'>Even ophalen...</div></div>"
+            f"{tegels}"
+            "<p class='stil' style='margin-top:30px'><a href='/'>Naar de site</a> &middot; "
+            "<a href='/admin/uitloggen'>Uitloggen</a></p></div>"
+            "<script>"
+            "var z=document.getElementById('zoek');z.addEventListener('input',function(){var q=z.value.toLowerCase().trim();"
+            "document.querySelectorAll('.tegel').forEach(function(t){t.style.display=!q||t.dataset.zoek.indexOf(q)>-1?'':'none'});"
+            "document.querySelectorAll('section').forEach(function(s){var z2=[].some.call(s.querySelectorAll('.tegel'),"
+            "function(t){return t.style.display!=='none'});s.style.display=z2?'':'none'})});"
+            "z.addEventListener('keydown',function(e){if(e.key==='Enter'){var t=[].find.call(document.querySelectorAll('.tegel'),"
+            "function(t){return t.style.display!=='none'});if(t)location=t.href}});"
+            "fetch('/admin/te-doen.json').then(function(r){return r.json()}).then(function(d){var l=document.getElementById('tedoenLijst');"
+            "if(!d.lijst||!d.lijst.length){l.textContent='Niets dat op jou wacht.';return}"
+            "l.className='';var ul=document.createElement('ul');d.lijst.forEach(function(i){var li=document.createElement('li');"
+            "var a=document.createElement('a');a.href=i.link;a.textContent=i.tekst;li.appendChild(a);ul.appendChild(li)});"
+            "l.textContent='';l.appendChild(ul)}).catch(function(){document.getElementById('tedoenLijst').textContent="
+            "'Kon het lijstje niet ophalen. Het ochtendbericht heeft het ook.'})"
+            "</script></body></html>")
+
+
+@app.route("/admin/te-doen.json")
+def admin_te_doen():
+    mag, _ = _mag_bij_beheer()
+    if not mag:
+        return jsonify({"lijst": []}), 403
+    import ochtendbericht
+    basis = get_base_url().rstrip("/")
+    try:
+        lijst = [{"tekst": t, "link": (l[len(basis):] if l and l.startswith(basis) else l) or "/admin"}
+                 for t, l in ochtendbericht.te_doen(basis)]
+    except Exception as e:
+        print(f"Te doen voor het portaal mislukt: {e}")
+        lijst = []
+    return jsonify({"lijst": lijst})
+
+
+@app.after_request
+def _beheerbalk(antwoord):
+    """Een smalle balk boven elke beheerpagina, terug naar /admin.
+
+    Na de start van de body gezet, zodat de pagina zelf niet verandert. Niet op
+    het portaal zelf, het inlogscherm, plaatjes en JSON."""
+    try:
+        pad = request.path
+        if (not pad.startswith("/admin/") or pad in ("/admin/", "/admin/inloggen", "/admin/uitloggen")
+                or antwoord.status_code != 200 or antwoord.direct_passthrough
+                or not (antwoord.mimetype or "").startswith("text/html")):
+            return antwoord
+        html = antwoord.get_data(as_text=True)
+        m = re.search(r"<body[^>]*>", html, flags=re.I)
+        if not m or "id='beheerbalk'" in html:
+            return antwoord
+        balk = ("<div id='beheerbalk' style='position:sticky;top:0;z-index:9999;background:#111;color:#fff;"
+                "font:14px Arial,sans-serif;padding:8px 16px;display:flex;gap:14px;align-items:center'>"
+                "<a href='/admin' style='color:#fff;font-weight:bold;text-decoration:none'>&larr; Beheer</a>"
+                "<a href='/admin/ochtendbericht' style='color:#cbd5e1;text-decoration:none'>Ochtendbericht</a>"
+                "<a href='/admin/benadering' style='color:#cbd5e1;text-decoration:none'>Benadering</a>"
+                "<a href='/admin/antwoorden' style='color:#cbd5e1;text-decoration:none'>Antwoorden</a>"
+                "<a href='/admin/linkedin' style='color:#cbd5e1;text-decoration:none'>LinkedIn</a></div>")
+        antwoord.set_data(html[:m.end()] + balk + html[m.end():])
+    except Exception:
+        pass
+    return antwoord
+
+
 def _cpu_deel():
     """Hoeveel processor de server mag gebruiken, uit de instellingen van de
     container zelf (cgroup). 0.1 betekent een tiende van een processor. None
@@ -3241,7 +3406,10 @@ def admin_inloggen():
                                         admin_key):
             session.permanent = True
             session["beheer"] = True
-            return redirect(request.args.get("verder") or "/admin/benadering")
+            # 30 september: na het inloggen naar het portaal, niet naar een losse
+            # pagina. En alleen naar een eigen beheerpagina, nooit naar buiten.
+            verder = request.args.get("verder") or ""
+            return redirect(verder if verder.startswith("/admin") else "/admin")
         # Bewust geen verschil tussen "geen sleutel ingesteld" en "verkeerde
         # sleutel". Dat verschil vertelt een vreemde iets wat hij niet hoeft te
         # weten.
