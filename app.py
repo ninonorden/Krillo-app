@@ -177,6 +177,11 @@ def stuur_oud_domein_door():
     return redirect(doel, code=301)
 
 
+def _labelnaam(sleutel, taal="en"):
+    import vraaglabels
+    return vraaglabels.naam(sleutel, taal)
+
+
 @app.context_processor
 def zet_basis_url_klaar():
     """Maakt basis_url in ELK sjabloon beschikbaar.
@@ -194,6 +199,7 @@ def zet_basis_url_klaar():
             "meting_zin_en": markten.meting_zin_en(),
             "index_landen_kaal_en": markten.index_landen_kaal_en(),
             "vraagtaal_en": markten.vraagtaal_en,
+            "labelnaam": _labelnaam,
             "wachtlijst_landen": {c: n for c, n in markten.WACHTLIJST_LANDEN.items() if not markten.in_index(c)}}
 
 
@@ -1081,6 +1087,23 @@ def gratis_tools(slug=None):
                            tool=gratistools.TOOLS.get(slug) if slug else None)
 
 
+@app.route("/chatgpt-visibility-tracker")
+@app.route("/gemini-visibility-tracker")
+@app.route("/shopify-ai-visibility")
+def trackerpagina():
+    """Stap 183 en 156 deel 3: een pagina per assistent en een voor Shopify,
+    met de gratis check en echte cijfers uit de index (zie trackerpaginas.py)."""
+    import trackerpaginas
+    slug = request.path.strip("/")
+    return render_template("tracker.html", slug=slug, pagina=trackerpaginas.PAGINAS[slug],
+                           vragen=trackerpaginas.VRAGEN[slug], cijfers=trackerpaginas.cijferzinnen(slug),
+                           andere={s: p["titel"] for s, p in trackerpaginas.PAGINAS.items() if s != slug},
+                           prijs_watch=trackerpaginas._prijs("watch"),
+                           faq_ld=[{"@type": "Question", "name": v,
+                                    "acceptedAnswer": {"@type": "Answer", "text": t}}
+                                   for v, t in trackerpaginas.VRAGEN[slug]])
+
+
 @app.route("/api/tools/<slug>", methods=["POST"])
 def gratis_tool_api(slug):
     """De check zelf. Geen AI-geld, alleen de pagina's van de winkel lezen, met
@@ -1293,8 +1316,30 @@ def admin_linkedin():
             f"<li>Kopieer de link van je post, plak hem hieronder en klik <b>Geplaatst</b>.</li>"
             f"<li>Na een dag of drie: de weergaven en reacties invullen.</li></ol>"
             f"<p>Beste moment: tussen 8:00 en 9:30.</p>{beste_html}"
+            f"<p><b>Maandrapport:</b> <a href='/admin/linkedin/rapport.pdf'>Download de PDF</a> en plaats hem na de "
+            f"maandmeting als document (Start a post, het documenticoon, titel: Krillo Index {datetime.now():%B %Y}). "
+            f"Mensen bladeren erdoorheen, en dat geeft meer bereik dan een gewone post.</p>"
             f"<form method='post'><button name='actie' value='vullen'>Nu de komende week klaarzetten</button></form>"
             f"{''.join(blokken) or '<p>Nog geen posts. Klik hierboven of wacht op de volgende uurronde.</p>'}</body>")
+
+
+@app.route("/admin/linkedin/rapport.pdf")
+def admin_linkedin_rapport():
+    """Stap 209: het maandrapport als PDF voor een documentpost op LinkedIn."""
+    mag, _ = _mag_bij_beheer()
+    if not mag:
+        return "", 404
+    import linkedinagent
+    maand = datetime.now().strftime("%B %Y")
+    paginas = linkedinagent.rapport_paginas(
+        db.categorieen_per_land(linkedinagent.LAND, MINIMUM_PER_LAND) or [], _ranglijst_bewaard,
+        categorieen.naam_en, sitetaal.landnaam(linkedinagent.LAND, "en"), maand)
+    if not any(p["soort"] == "ranglijst" for p in paginas):
+        # Nooit een rapport met "0 stores": dan liever niets.
+        return ("Nog te weinig metingen voor een maandrapport: er is geen ranglijst met drie genoemde "
+                "winkels. Na de volgende maandmeting opnieuw.", 200, {"Content-Type": "text/plain; charset=utf-8"})
+    return Response(linkedinagent.rapport_pdf(paginas, maand=maand), mimetype="application/pdf",
+                    headers={"Content-Disposition": f"attachment; filename=krillo-index-{maand.lower().replace(' ', '-')}.pdf"})
 
 
 @app.route("/admin/linkedin/beeld/<int:post_id>.png")
@@ -1826,6 +1871,7 @@ BEHEER_GROEPEN = [
         ("/admin/oplevering", "Oplevering", "Het overzicht dat de klant krijgt als het klaar is"),
         ("/admin/oplossingen", "Kant-en-klare teksten", "De teksten van het actieplan los schrijven"),
         ("/admin/shopify", "Shopify-app", "Welke winkels de app hebben"),
+        ("/admin/wordpress", "WordPress-winkels", "Fix in gekoppelde WooCommerce-winkels"),
         ("/admin/doorverwijzen", "Partners", "Partneraanvragen goedkeuren"),
         ("/admin/kosten", "Kosten", "Wat de metingen en modellen kosten"),
     ]),
@@ -1967,6 +2013,147 @@ def _beheerbalk(antwoord):
     return antwoord
 
 
+# ---------------------------------------------------------------------------
+# STAP 87 (30 september): WordPress en WooCommerce koppelen, zodat Fix daar
+# net zo werkt als in Shopify. De klant geeft een applicatiewachtwoord (nooit
+# zijn gewone wachtwoord), wij controleren het en bewaren het versleuteld.
+# Nino doet het werk op /admin/wordpress: voorstellen maken, nakijken,
+# toepassen, en alles kan terug. Zie wordpress_werk.py.
+# ---------------------------------------------------------------------------
+@app.route("/mijn/<klant_token>/wordpress", methods=["GET", "POST"])
+def klant_wordpress(klant_token):
+    import wordpress_werk
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return redirect("/login")
+    url = klant["webshop_url"]
+    melding, fout = None, None
+    if request.method == "POST":
+        if request.form.get("actie") == "los":
+            db.wis_koppeling(url)
+            melding = "Disconnected. Also revoke the application password in WordPress: Users, Profile."
+        else:
+            uit = wordpress_werk.koppel(url, request.form.get("site"), request.form.get("gebruiker"),
+                                        request.form.get("wachtwoord"))
+            if uit["gelukt"]:
+                melding = "Connected. We check your store and make the first changes within two working days."
+                _meld_aan_beheer("WordPress gekoppeld", f"{url} koppelde WordPress. Aan de slag op /admin/wordpress.")
+            else:
+                fout = uit["fout"]
+    k = db.get_koppeling(url)
+    gekoppeld = bool(k and k.get("platform") == wordpress_werk.PLATFORM and k.get("stand") == "werkt")
+    e = escape
+    berichten = ((f"<p style='color:#0B7C5E'>{e(melding)}</p>" if melding else "")
+                 + (f"<p style='color:#B42318'>{e(fout)}</p>" if fout else ""))
+    formulier = (
+        f"<p><b>Connected</b> to {e(k['basis_url'])}. You can revoke access at any time.</p>"
+        f"<form method='post'><button name='actie' value='los'>Disconnect</button></form>" if gekoppeld else
+        "<ol><li>In WordPress, go to <b>Users</b>, <b>Profile</b>.</li>"
+        "<li>Scroll to <b>Application Passwords</b>, type the name <b>Krillo</b> and click <b>Add New Application "
+        "Password</b>.</li><li>Copy the password WordPress shows (it looks like xxxx xxxx xxxx xxxx) and paste it "
+        "below. This is not your login password: it only works for this connection and you can revoke it with "
+        "one click.</li></ol>"
+        "<form method='post' style='display:grid;gap:10px;max-width:460px'>"
+        f"<label>Store address<br><input name='site' value='{e(url)}' style='width:100%;padding:8px'></label>"
+        "<label>WordPress username<br><input name='gebruiker' autocomplete='off' style='width:100%;padding:8px'></label>"
+        "<label>Application password<br><input name='wachtwoord' type='password' autocomplete='off' "
+        "style='width:100%;padding:8px'></label>"
+        "<button style='padding:10px;background:#1B3FE0;color:#fff;border:0;border-radius:8px'>Connect</button></form>")
+    return (f"<!doctype html><html lang='en'><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<meta name='robots' content='noindex'><title>Connect WordPress | Krillo</title>"
+            f"<body style='font-family:Arial,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;line-height:1.55'>"
+            f"<p><a href='/mijn/{e(klant_token)}'>&larr; Your dashboard</a></p>"
+            f"<h1>Connect your WooCommerce store</h1>"
+            f"<p>With this connection we make the Fix changes in your store for you: descriptions for product "
+            f"photos, product texts where they are missing, and a questions page. We save what was there before, "
+            f"so every change can be undone.</p>"
+            f"{berichten}{formulier}</body></html>")
+
+
+@app.route("/admin/wordpress", methods=["GET", "POST"])
+def admin_wordpress():
+    """Het werk in gekoppelde WooCommerce-winkels: voorstellen, toepassen, terugzetten."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import json as _json
+    import wordpress_werk
+    url = (request.values.get("url") or "").strip()
+    melding = ""
+    sleutel = f"wp_voorstellen:{url}"
+    if request.method == "POST" and url:
+        winkel = wordpress_werk.winkel_van(url)
+        actie = request.form.get("actie")
+        if not winkel:
+            melding = "Geen werkende koppeling voor deze winkel."
+        elif actie == "voorstellen":
+            try:
+                uit = winkel.maak_voorstellen()
+                db.zet_instelling(sleutel, _json.dumps(uit["voorstellen"]))
+                melding = (f"{len(uit['voorstellen'])} voorstel(len). {uit['aantallen']['zonder_alt']} foto's zonder "
+                           f"beschrijving, {uit['aantallen']['dunne_tekst']} dunne productteksten."
+                           + (f" Fouten: {'; '.join(uit['fouten'])}" if uit["fouten"] else ""))
+            except wordpress_werk.Fout as e:
+                melding = str(e)
+        elif actie in ("toepassen", "alles"):
+            voorstellen = _json.loads(db.get_instelling(sleutel) or "[]")
+            kies = request.form.get("id")
+            gedaan, mis = 0, []
+            for v in voorstellen:
+                if actie == "toepassen" and v["id"] != kies:
+                    continue
+                uit = winkel.pas_toe(v, url)
+                if uit["gelukt"]:
+                    gedaan += 1
+                    v["klaar"] = True
+                else:
+                    mis.append(f"{v.get('waar')}: {uit.get('fout')}")
+            db.zet_instelling(sleutel, _json.dumps(voorstellen))
+            melding = f"{gedaan} toegepast." + (f" Niet gelukt: {' | '.join(mis[:5])}" if mis else "")
+        elif actie == "terug":
+            w = next((w for w in db.get_wijzigingen(url) if w.get("taak_id") == request.form.get("id")), None)
+            uit = winkel.zet_terug(w, klant_url=url) if w else {"gelukt": False, "fout": "Niet gevonden."}
+            melding = "Teruggezet." if uit["gelukt"] else f"Terugzetten mislukt: {uit['fout']}"
+        return redirect(f"/admin/wordpress?url={quote(url)}&m={quote(melding)}")
+    melding = request.args.get("m") or ""
+    e = escape
+    melding_html = (f"<p style='background:#E8F6EF;padding:10px 14px;border-radius:8px'>{e(melding)}</p>"
+                    if melding else "")
+    winkels = wordpress_werk.gekoppelde_winkels()
+    lijst = "".join(f"<li><a href='/admin/wordpress?url={quote(w['webshop_url'])}'>{e(w['webshop_url'])}</a> "
+                    f"({e(w['stand'] or '')})</li>" for w in winkels) or "<li>Nog geen gekoppelde winkels.</li>"
+    werk = ""
+    if url:
+        voorstellen = _json.loads(db.get_instelling(sleutel) or "[]")
+        rijen = "".join(
+            f"<tr><td>{e(v.get('wat') or '')}</td><td><a href='{e(v.get('link') or '')}' target='_blank'>"
+            f"{e(v.get('waar') or '')}</a></td><td style='max-width:420px'>{e((v.get('nieuw') or '')[:300])}</td><td>"
+            + ("Klaar" if v.get("klaar") else
+               f"<form method='post'><input type='hidden' name='url' value='{e(url)}'>"
+               f"<input type='hidden' name='id' value='{e(v['id'])}'><button name='actie' value='toepassen'>"
+               f"Toepassen</button></form>") + "</td></tr>" for v in voorstellen)
+        gedaan = "".join(
+            f"<tr><td>{e(w.get('wat') or '')}</td><td>{e(w.get('waar') or '')}</td><td>"
+            f"<form method='post'><input type='hidden' name='url' value='{e(url)}'>"
+            f"<input type='hidden' name='id' value='{e(w['taak_id'])}'><button name='actie' value='terug'>"
+            f"Terugzetten</button></form></td></tr>"
+            for w in db.get_wijzigingen(url) if (w.get("taak_id") or "").startswith("wp:"))
+        werk = (f"<h2>{e(url)}</h2><form method='post'><input type='hidden' name='url' value='{e(url)}'>"
+                f"<button name='actie' value='voorstellen'>Winkel nalopen en voorstellen maken</button> "
+                f"<button name='actie' value='alles'>Alle voorstellen toepassen</button></form>"
+                f"<h3>Voorstellen</h3><table cellpadding='6'>{rijen or '<tr><td>Nog geen.</td></tr>'}</table>"
+                f"<h3>Gedaan (kan terug)</h3><table cellpadding='6'>{gedaan or '<tr><td>Nog niets.</td></tr>'}</table>")
+    return (f"<!doctype html><meta charset='utf-8'><title>WordPress | Krillo</title>"
+            f"<body style='font-family:system-ui;max-width:1100px;margin:30px auto;padding:0 16px'>"
+            f"<h1>WordPress en WooCommerce</h1>"
+            f"{melding_html}"
+            f"<p>Klanten koppelen zelf via hun dashboard (/mijn/&lt;link&gt;/wordpress) met een applicatiewachtwoord. "
+            f"Hier loop je hun winkel na, kijk je de voorstellen na en zet je ze erin. Alles kan terug.</p>"
+            f"<ul>{lijst}</ul>{werk}</body>")
+
+
 def _cpu_deel():
     """Hoeveel processor de server mag gebruiken, uit de instellingen van de
     container zelf (cgroup). 0.1 betekent een tiende van een processor. None
@@ -2075,6 +2262,8 @@ def _bouw_sitemap():
     vast = ["/", "/artikelen", "/zo-meten-we", "/faq",
             "/index", "/demo", "/over-ons", "/voorwaarden", "/privacy",
             "/herroepen", "/tools", "/compare", "/partners"]
+    import trackerpaginas
+    vast += [f"/{slug}" for slug in trackerpaginas.PAGINAS]
     regels = [(p, nieuwste) for p in vast]
     # Het nieuws per gemeten land, uit markten.py (niet meer vast nl en be).
     regels += [(f"/news/{land}", nieuwste) for land in markten.index_landen()]

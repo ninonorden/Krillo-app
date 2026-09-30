@@ -70,7 +70,7 @@ def kwaliteit(ranglijst=None, landen=None, categorieen_per_land=None):
     """Alle bevindingen over de index. Nooit een fout naar buiten."""
     ranglijst = ranglijst or db.ranglijst_per_land
     landen = landen if landen is not None else [r["land"] for r in db.landen_in_index()]
-    categorieen_per_land = categorieen_per_land or db.categorieen_per_land
+    categorieen_per_land = categorieen_per_land or (lambda land: db.categorieen_per_land(land, ook_leeg=True))
     soorten = {r["webshop_url"]: r["soort"] for r in _sql(
         "SELECT webshop_url, soort FROM benadering WHERE soort IS NOT NULL AND soort <> 'winkel'",
         alles=True) or []}
@@ -82,8 +82,72 @@ def kwaliteit(ranglijst=None, landen=None, categorieen_per_land=None):
             except Exception as e:
                 uit.append(f"{c['categorie']} ({land}): ranglijst niet op te halen ({e})")
                 continue
-            uit += bekijk_lijst(f"{c['categorie']} ({land})", rijen, soorten)
+            bevindingen = bekijk_lijst(f"{c['categorie']} ({land})", rijen, soorten)
+            # 30 september (wijn-drank be): "niemand genoemd" zei niet WAAROM.
+            # Nu staat de oorzaak erbij, uit de antwoorden zelf.
+            bevindingen = [b + " " + waarom_niemand(c["categorie"], land) if "niemand genoemd" in b else b
+                           for b in bevindingen]
+            uit += bevindingen
     return uit
+
+
+def waarom_niemand(categorie, land, antwoorden=None, lijst=None):
+    """Een zin met de reden dat in een categorie niemand genoemd werd.
+
+    Drie oorzaken, elk met een andere oplossing:
+    1. de assistenten noemden geen enkele winkel (weigeren, of alleen algemeen
+       advies; bij drank gebeurt dat, omdat ze voorzichtig zijn met alcohol):
+       dan passen de koopvragen niet;
+    2. ze noemden wel winkels, maar niet die op onze lijst: dan mist de lijst
+       de winkels die ertoe doen (en staan ze er na de volgende meting op,
+       via nieuwe_winkels_uit_antwoorden);
+    3. er zijn geen antwoorden: de meting liep niet goed.
+    antwoorden en lijst zijn er voor de test."""
+    import json
+    if antwoorden is None:
+        ronde = _sql("""SELECT id FROM categorie_rondes WHERE categorie = %s AND lower(coalesce(land, '')) = %s
+                          AND afgerond_op IS NOT NULL ORDER BY id DESC LIMIT 1""", (categorie, land.lower()))
+        if not ronde:
+            return "(Geen afgeronde meting gevonden.)"
+        antwoorden = _sql("""SELECT winkel_kon_genoemd, genoemde_winkels, antwoord FROM categorie_antwoorden
+                              WHERE ronde = %s""", (ronde["id"],), alles=True) or []
+    if lijst is None:
+        lijst = {_kaal(r["webshop_url"]) for r in _sql(
+            "SELECT webshop_url FROM benadering WHERE categorie = %s", (categorie,), alles=True) or []}
+    if not antwoorden:
+        return "Oorzaak: er zijn geen antwoorden bewaard, de meting liep niet goed. Opnieuw meten."
+    namen, zonder, leeg = {}, 0, 0
+    for a in antwoorden:
+        if not (a.get("antwoord") or "").strip():
+            leeg += 1
+            continue
+        g = a.get("genoemde_winkels") or {}
+        if isinstance(g, str):
+            try:
+                g = json.loads(g)
+            except ValueError:
+                g = {}
+        winkels = [w for w in g.get("winkels", []) if (w.get("soort") or "winkel") == "winkel"]
+        if not a.get("winkel_kon_genoemd") or not winkels:
+            zonder += 1
+        for w in winkels:
+            sleutel = w.get("adres") or w.get("naam")
+            if sleutel:
+                namen[sleutel] = namen.get(sleutel, 0) + 1
+    totaal = len(antwoorden)
+    if leeg >= totaal / 2:
+        return f"Oorzaak: {leeg} van de {totaal} antwoorden zijn leeg, de meting liep niet goed. Opnieuw meten."
+    if zonder >= totaal * 0.8:
+        return (f"Oorzaak: in {zonder} van de {totaal} antwoorden noemden de assistenten geen enkele winkel "
+                f"(alleen algemeen advies). De koopvragen passen niet: maak ze concreter "
+                f"(\"waar bestel ik ... online\"), of haal de categorie uit dit land.")
+    top = sorted(namen.items(), key=lambda kv: -kv[1])[:5]
+    buiten = [n for n, _ in top if _kaal(n) not in lijst]
+    if buiten:
+        return (f"Oorzaak: de assistenten noemden wel winkels, maar niet die van onze lijst. Het vaakst: "
+                f"{', '.join(buiten)}. Die komen bij de volgende meting vanzelf op de lijst; tot dan klopt "
+                f"deze ranglijst niet en hoort hij niet in de openbare index.")
+    return "Oorzaak onduidelijk: bekijk de antwoorden op /admin/metingen."
 
 
 def _bedragen(prijs):

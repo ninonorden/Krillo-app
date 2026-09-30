@@ -6402,8 +6402,14 @@ def _ranglijst_per_land_vers(categorie, land, limiet=200):
         conn.close()
 
 
-def categorieen_per_land(land, minimum_winkels=3):
-    """Welke categorieen er voor dit land een ranglijst hebben."""
+def categorieen_per_land(land, minimum_winkels=3, ook_leeg=False):
+    """Welke categorieen er voor dit land een ranglijst hebben.
+
+    30 september (wijn-drank be): een categorie waar in de nieuwste meting
+    NIEMAND genoemd werd, is geen ranglijst maar een rij nullen. Die hoort niet
+    in de openbare index, op de homepage of in de sitemap: wie hem ziet, denkt
+    dat de meting stuk is. ook_leeg=True voor de kwaliteitsagent, die hem juist
+    wel moet zien om te melden waarom."""
     conn = _get_connection()
     if conn is None:
         return []
@@ -6428,8 +6434,9 @@ def categorieen_per_land(land, minimum_winkels=3):
                      WHERE lower(b.land) = %s
                   GROUP BY n.categorie, n.afgerond_op, n.telbaar
                     HAVING count(u.id) >= %s
+                       AND (%s OR count(*) FILTER (WHERE u.genoemd > 0) > 0)
                   ORDER BY count(u.id) DESC
-                """, (lc, lc, (land or "").lower(), minimum_winkels))
+                """, (lc, lc, (land or "").lower(), minimum_winkels, bool(ook_leeg)))
                 return [dict(r) for r in cur.fetchall()]
     except Exception as e:
         print(f"Categorieen per land ophalen mislukt: {e}")

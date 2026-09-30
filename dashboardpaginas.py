@@ -16,6 +16,7 @@ from markupsafe import Markup, escape
 
 import db
 import scan_engine
+import vraaglabels
 
 # De pagina's, in de volgorde van de zijbalk. Het tweede veld is het stukje
 # achter /mijn/<token>/ (leeg voor het overzicht).
@@ -114,12 +115,14 @@ def vragen_overzicht(ronde, webshop_url, winkelnaam=None, antwoorden=None):
         item = per_vraag[v]
         item["gewonnen"] = any(m["genoemd"] for m in item["per_model"])
         item["aanbevolen"] = any(m["aanbevolen"] for m in item["per_model"])
+        # Stap 193: het label (prijs, service, ...) voor het filter op de vragenpagina.
+        item["label"] = vraaglabels.label(v)
         vragen.append(item)
     # Verloren eerst: daar valt iets te winnen.
     vragen.sort(key=lambda x: (x["gewonnen"], x["aanbevolen"]))
     gewonnen = sum(1 for v in vragen if v["gewonnen"])
     return {"vragen": vragen, "gewonnen": gewonnen, "verloren": len(vragen) - gewonnen,
-            "totaal": len(vragen), "per_assistent": sorted(per_assistent.values(),
+            "totaal": len(vragen), "labels": vraaglabels.telling(vragen), "per_assistent": sorted(per_assistent.values(),
                                                            key=lambda a: a["naam"])}
 
 

@@ -450,6 +450,37 @@ def beeld_png(beeld, maand=""):
         for regel in _regels_passend(d, beeld["onder"], onder, W - 160 * S)[:3]:
             d.text((80 * S, y), regel, font=onder, fill=INKT, anchor="ls")
             y += 76 * S
+    elif soort in ("omslag", "slot"):
+        # Stap 209: de eerste en laatste pagina van het maandrapport.
+        d.text((80 * S, 300 * S), beeld.get("boven", ""), font=_font("IBMPlexMono-Medium.ttf", 30 * S),
+               fill=BLAUW, anchor="ls")
+        y = 420 * S
+        kopfont = _font("SpaceGrotesk-Bold.ttf", 96 * S)
+        for regel in _regels_passend(d, beeld["kop"], kopfont, W - 160 * S)[:3]:
+            d.text((80 * S, y), regel, font=kopfont, fill=INKT, anchor="ls")
+            y += 110 * S
+        y += 40 * S
+        tf = _font("SpaceGrotesk-Medium.ttf", 44 * S)
+        for regel in _regels_passend(d, beeld.get("tekst", ""), tf, W - 160 * S)[:6]:
+            d.text((80 * S, y), regel, font=tf, fill=GRIJS, anchor="ls")
+            y += 60 * S
+    elif soort == "stijgers":
+        titel = _font("SpaceGrotesk-Bold.ttf", 76 * S)
+        d.text((80 * S, 260 * S), "Biggest climbers", font=titel, fill=INKT, anchor="ls")
+        d.text((80 * S, 330 * S), f"{beeld.get('land', '')} · since the previous measurement",
+               font=_font("IBMPlexMono-Medium.ttf", 26 * S), fill=GRIJS, anchor="ls")
+        y = 400 * S
+        naamfont = _font("SpaceGrotesk-Medium.ttf", 38 * S)
+        pijlfont = _font("SpaceGrotesk-Bold.ttf", 44 * S)
+        for r in beeld["rijen"][:6]:
+            d.line((80 * S, y, W - 80 * S, y), fill=LIJN, width=2 * S)
+            d.text((80 * S, y + 70 * S), f"+{r['plekken']}", font=pijlfont, fill=BLAUW, anchor="ls")
+            naam = f"{r['naam']} · {r['categorie']} · now #{r['positie']}"
+            while d.textlength(naam, font=naamfont) > W - 420 * S and len(naam) > 4:
+                naam = naam[:-2]
+            d.text((230 * S, y + 70 * S), naam, font=naamfont, fill=INKT, anchor="ls")
+            y += 110 * S
+        d.line((80 * S, y, W - 80 * S, y), fill=LIJN, width=2 * S)
     else:
         d.text((80 * S, 300 * S), "TIP", font=_font("IBMPlexMono-Medium.ttf", 30 * S), fill=BLAUW, anchor="ls")
         y = 400 * S
@@ -466,4 +497,56 @@ def beeld_png(beeld, maand=""):
            fill=BLAUW, anchor="ls")
     uit = io.BytesIO()
     im.resize((N, N), Image.LANCZOS).save(uit, "PNG", optimize=True)
+    return uit.getvalue()
+
+
+
+# ------------------------------------------------------------------ stap 209
+# HET MAANDRAPPORT ALS DOCUMENTPOST. Na elke maandmeting een PDF van zes tot
+# acht pagina's die Nino op LinkedIn als document plaatst. Mensen bladeren
+# erdoorheen; dat is aandacht die een gewone post niet krijgt. Alleen echte
+# cijfers uit de index, dezelfde als op de openbare pagina's.
+RAPPORT_CATEGORIEEN = 4
+
+
+def rapport_paginas(categorieen, ranglijst, naam_en, landnaam, maand, land=LAND):
+    """De pagina's (als beeld-woordenboeken) van het maandrapport."""
+    totaal, nooit = cijfer(categorieen, ranglijst, land)
+    paginas = [{"soort": "omslag", "boven": f"KRILLO INDEX · {maand.upper()}",
+                "kop": f"Which webshops AI recommends in {landnaam}",
+                "tekst": f"{totaal} stores, {len(categorieen)} categories. We asked ChatGPT and Gemini the "
+                         f"buying questions shoppers ask, and counted who they name. Swipe through."}]
+    if totaal >= 50:
+        procent = round(100 * nooit / totaal) if totaal else 0
+        paginas.append({"soort": "cijfer", "groot": f"{procent}%",
+                        "onder": f"of {totaal} webshops in {landnaam} were never named by AI"})
+    stijgers = []
+    for c in sorted(categorieen, key=lambda c: -(c.get("winkels") or 0))[:RAPPORT_CATEGORIEEN]:
+        rijen = (ranglijst(c["categorie"], land, 1000) or {}).get("rijen") or []
+        top = [r for r in rijen if (r.get("genoemd") or 0) > 0][:5]
+        if len(top) >= 3:
+            paginas.append({"soort": "ranglijst", "titel": naam_en(c["categorie"]), "land": landnaam,
+                            "rijen": [{"positie": r["positie"], "naam": _naam(r), "genoemd": r.get("genoemd") or 0}
+                                      for r in top]})
+    for c in categorieen:
+        for r in (ranglijst(c["categorie"], land, 1000) or {}).get("rijen") or []:
+            if r.get("vorige_positie") and r["vorige_positie"] - r["positie"] >= 3 and (r.get("genoemd") or 0) > 0:
+                stijgers.append({"naam": _naam(r), "categorie": naam_en(c["categorie"]),
+                                 "positie": r["positie"], "plekken": r["vorige_positie"] - r["positie"]})
+    if stijgers:
+        stijgers.sort(key=lambda r: -r["plekken"])
+        paginas.append({"soort": "stijgers", "land": landnaam, "rijen": stijgers[:6]})
+    paginas.append({"soort": "slot", "boven": "YOUR STORE",
+                    "kop": "Where does your store rank?",
+                    "tekst": "Free check, no account, ten seconds: krilloai.com. Every ranking is public, "
+                             "measured the same way for every store. Nobody can pay for a better place."})
+    return paginas
+
+
+def rapport_pdf(paginas, maand=""):
+    """De pagina's als een PDF, klaar om als document te plaatsen."""
+    from PIL import Image
+    beelden = [Image.open(io.BytesIO(beeld_png(p, maand=maand))).convert("RGB") for p in paginas]
+    uit = io.BytesIO()
+    beelden[0].save(uit, "PDF", save_all=True, append_images=beelden[1:], resolution=150)
     return uit.getvalue()
