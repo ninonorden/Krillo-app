@@ -64,6 +64,7 @@ def maak_tabellen(cur):
 
 
 _tabel_klaar = [False]
+_voorrang = [False]
 
 
 def _sql(opdracht, waarden=None, alles=False):
@@ -149,7 +150,8 @@ Answer ONLY with JSON:
 def _vraag_model(prompt):
     import anthropic
     import kosten
-    rem = kosten.mag_doorgaan()
+    # Met de hand gestart via de knop gaat voor; de wekelijkse ronde niet.
+    rem = kosten.mag_doorgaan(voorrang=_voorrang[0])
     if not rem["mag"]:
         raise RuntimeError(rem["reden"])
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])

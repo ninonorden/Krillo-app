@@ -456,7 +456,8 @@ def _model(webshop_url):
     sleutel = os.environ.get("ANTHROPIC_API_KEY")
     if not sleutel:
         return None, "ANTHROPIC_API_KEY staat niet ingesteld."
-    rem = kosten.mag_doorgaan(webshop_url=webshop_url)
+    # Klantwerk (Fix, de app, de WordPress-koppeling) gaat voor (30 september).
+    rem = kosten.mag_doorgaan(webshop_url=webshop_url, voorrang=True)
     if not rem["mag"]:
         return None, f"Kostenrem: {rem['reden']}"
     return anthropic.Anthropic(api_key=sleutel), None

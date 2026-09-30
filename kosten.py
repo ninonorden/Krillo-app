@@ -395,10 +395,22 @@ def ruimte_vandaag():
             "onbekend": False}
 
 
-def mag_doorgaan(webshop_url=None, scan_id=None):
+# VOORRANG (30 september). De WooCommerce-proef liep vast op "de totale
+# AI-kosten van vandaag staan op 2.72 euro, de dagelijkse grens is 2.00": de
+# benadering en de index hadden de dagpot al op, en daarmee stond ook het werk
+# voor klanten stil. Dat is precies omgekeerd: betaald werk (Fix) en wat Nino
+# met de hand start gaan voor. Die mogen VOORRANG_EURO boven de dagpot. De
+# grens per klant per maand blijft gewoon gelden.
+VOORRANG_EURO = float(os.environ.get("VOORRANG_EURO", "3.00"))
+
+
+def mag_doorgaan(webshop_url=None, scan_id=None, voorrang=False):
     """Wordt aangeroepen VOORDAT een dure aanroep start. Geeft terug of het
     mag, en zo niet waarom. Dit is de rem die voorkomt dat een vastgelopen
-    proces of een uitzonderlijk grote klant je rekening laat oplopen."""
+    proces of een uitzonderlijk grote klant je rekening laat oplopen.
+
+    voorrang=True: werk voor een klant of met de hand gestart; mag tot
+    VOORRANG_EURO boven de dagpot (zie hierboven)."""
     redenen = []
 
     if scan_id:
@@ -428,10 +440,12 @@ def mag_doorgaan(webshop_url=None, scan_id=None):
 
     vandaag = db.kosten_vandaag()
     totaal = _met_onbekend(vandaag)
-    if totaal >= GRENS_TOTAAL_DAG_EURO:
+    grens = GRENS_TOTAAL_DAG_EURO + (VOORRANG_EURO if voorrang else 0)
+    if totaal >= grens:
         redenen.append(
             f"De totale AI-kosten van vandaag staan op {totaal:.2f} euro, "
-            f"de dagelijkse grens is {GRENS_TOTAAL_DAG_EURO:.2f} euro."
+            f"de dagelijkse grens is {grens:.2f} euro"
+            + (" (inclusief de voorrang voor klantwerk)." if voorrang else ".")
         )
     else:
         _waarschuw_bij_drempel("alles samen", totaal, GRENS_TOTAAL_DAG_EURO, "dag")

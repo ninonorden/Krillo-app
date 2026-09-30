@@ -550,3 +550,87 @@ def rapport_pdf(paginas, maand=""):
     uit = io.BytesIO()
     beelden[0].save(uit, "PDF", save_all=True, append_images=beelden[1:], resolution=150)
     return uit.getvalue()
+
+
+# ------------------------------------------------------------------ volgen en uitnodigen (30 september)
+# Nino: "kan er op de linkedin admin pagina iets komen dat er mensen of
+# bedrijven worden voorgesteld die echt het meest geschikt zijn, voor inviting
+# en following, die gelijk loopt met de markten". Elke dag een paar:
+# - PAGINA'S OM TE VOLGEN: winkels uit de top van onze eigen ranglijsten (die
+#   zien dat Krillo ze volgt, en het is precies de doelgroep), gevonden bureaus,
+#   en de vaste e-commercepartijen van het land. Alleen landen die de index
+#   meet (markten.index_landen), dus nu Nederland en Belgie.
+# - WIE UITNODIGEN: LinkedIn laat alleen je eigen connecties uitnodigen, en die
+#   zien wij niet. Dus zoekwoorden om in het uitnodigscherm te typen, zodat
+#   Nino de passende mensen vindt. Er zijn 50 uitnodigingen per maand: liever
+#   een paar goede per dag dan alles in een keer.
+# De links zijn zoekopdrachten op LinkedIn, geen geraden paginanamen: een
+# verzonnen adres dat naar een verkeerde pagina gaat is erger dan zoeken.
+VOLGEN_PER_DAG = 5
+UITNODIG_PER_DAG = 3
+VASTE_PAGINAS = {
+    "nl": ["Thuiswinkel.org", "Emerce", "Twinkle", "Frankwatching", "Marketingfacts", "ShoppingTomorrow",
+           "Webwinkel Vakdagen", "Dutch Digital Agencies", "Channable", "Sendcloud", "MyParcel", "Mollie"],
+    "be": ["BeCommerce", "Comeos", "RetailDetail", "Gondola"],
+}
+UITNODIG_WOORDEN = ["webshop", "e-commerce", "Shopify", "WooCommerce", "online marketing", "SEO",
+                    "marketing manager", "eigenaar", "founder", "retail", "Lightspeed", "Magento"]
+_GEHAD = "linkedin_volg_gehad"
+
+
+def _zoeklink(naam, soort="companies"):
+    from urllib.parse import quote
+    return f"https://www.linkedin.com/search/results/{soort}/?keywords={quote(naam)}"
+
+
+def _kandidaat_paginas(landen, ranglijst=None, categorieen_per_land=None):
+    """(naam, waarom) van alles wat de moeite van volgen waard is."""
+    uit = []
+    ranglijst = ranglijst or (lambda slug, land, *a: db.ranglijst_per_land(slug, land, 1000))
+    categorieen_per_land = categorieen_per_land or db.categorieen_per_land
+    for land in landen:
+        for c in categorieen_per_land(land) or []:
+            for r in ((ranglijst(c["categorie"], land) or {}).get("rijen") or [])[:3]:
+                if (r.get("genoemd") or 0) > 0:
+                    uit.append((_naam(r), f"#{r['positie']} in {c['categorie']} ({land.upper()}), een winkel uit de index"))
+    try:
+        for b in _sql("SELECT site, naam FROM bureaus WHERE coalesce(stand, '') <> 'afgemeld' "
+                      "ORDER BY site LIMIT 200", alles=True) or []:
+            uit.append((b.get("naam") or b["site"].replace("https://", ""), "webbureau dat voor webshops werkt"))
+    except Exception:
+        pass
+    for land in landen:
+        for naam in VASTE_PAGINAS.get(land, []):
+            uit.append((naam, f"e-commerce in {land.upper()}: hun volgers zijn onze doelgroep"))
+    return uit
+
+
+def suggesties(vandaag=None, ranglijst=None, categorieen_per_land=None, landen=None):
+    """Wat Nino vandaag volgt en in welke hoek hij uitnodigt. Elke dag andere
+    pagina's, tot alles een keer langs is geweest."""
+    import json
+    import markten
+    vandaag = vandaag or date.today()
+    landen = landen or list(markten.index_landen())
+    try:
+        gehad = json.loads(db.get_instelling(_GEHAD) or "{}")
+    except ValueError:
+        gehad = {}
+    dag = vandaag.isoformat()
+    if dag in gehad.get("per_dag", {}):
+        namen = gehad["per_dag"][dag]
+    else:
+        al = set(gehad.get("namen", []))
+        pool = [n for n, _ in _kandidaat_paginas(landen, ranglijst, categorieen_per_land)]
+        vers = [n for n in dict.fromkeys(pool) if n not in al]
+        if len(vers) < VOLGEN_PER_DAG:          # alles gehad: opnieuw beginnen
+            al, vers = set(), list(dict.fromkeys(pool))
+        namen = vers[:VOLGEN_PER_DAG]
+        per_dag = dict(list(gehad.get("per_dag", {}).items())[-6:])
+        per_dag[dag] = namen
+        db.zet_instelling(_GEHAD, json.dumps({"namen": sorted(al | set(namen))[-2000:], "per_dag": per_dag}))
+    waarom = dict(_kandidaat_paginas(landen, ranglijst, categorieen_per_land))
+    start = vandaag.toordinal() * UITNODIG_PER_DAG % len(UITNODIG_WOORDEN)
+    woorden = [UITNODIG_WOORDEN[(start + i) % len(UITNODIG_WOORDEN)] for i in range(UITNODIG_PER_DAG)]
+    return {"volgen": [{"naam": n, "waarom": waarom.get(n, ""), "link": _zoeklink(n)} for n in namen],
+            "uitnodigen": woorden}

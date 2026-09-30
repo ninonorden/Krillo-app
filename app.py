@@ -1303,6 +1303,24 @@ def admin_linkedin():
     melding_html = (f"<p style='background:#E8F6EF;padding:10px 14px;border-radius:8px'>{escape(melding)}</p>"
                     if melding else "")
     beste = linkedinagent.beste_soort()
+    # Volgen en uitnodigen (30 september): elke dag een paar, uit onze markten.
+    try:
+        sug = linkedinagent.suggesties()
+    except Exception as e:
+        print(f"LinkedIn-suggesties mislukt: {e}")
+        sug = {"volgen": [], "uitnodigen": []}
+    volg_html = "".join(f"<li><a href='{escape(v['link'])}' target='_blank'>{escape(v['naam'])}</a>"
+                        f" <span style='color:#6E7079'>{escape(v['waarom'])}</span></li>" for v in sug["volgen"])
+    suggestie_html = (
+        "<div style='border:1px solid #ddd;border-radius:10px;padding:14px 18px;margin:18px 0'>"
+        "<h2 style='margin-top:0'>Vandaag: volgen en uitnodigen</h2>"
+        "<p><b>Volg als Krillo</b> (op de bedrijfspagina rechtsboven <i>Follow other Pages</i>, of open de link "
+        "en klik op Follow terwijl je als Krillo werkt):</p>"
+        f"<ul>{volg_html or '<li>Nog niets; er is nog geen ranglijst.</li>'}</ul>"
+        "<p><b>Nodig uit</b> (op de bedrijfspagina <i>Invite connections</i>): typ een van deze woorden in het "
+        f"zoekveld en kies de mensen die echt een webshop hebben of voor webshops werken: "
+        f"<b>{escape(', '.join(sug['uitnodigen']))}</b>. Je hebt 50 uitnodigingen per maand: een paar goede per "
+        "dag werkt beter dan alles in een keer. Let op: de uitnodiging komt van jouw eigen naam.</p></div>")
     beste_html = ("<p><b>Wat werkt:</b> " + ", ".join(
         f"{escape(r['soort'])} gemiddeld {int(r['gem'])} weergaven ({r['n']} posts)" for r in beste) + "</p>"
         if beste else "<p><b>Wat werkt:</b> vul na een paar dagen bij elke geplaatste post de weergaven in. "
@@ -1318,7 +1336,7 @@ def admin_linkedin():
             f"niet in de post: posts met een link naar buiten krijgen minder bereik.</li>"
             f"<li>Kopieer de link van je post, plak hem hieronder en klik <b>Geplaatst</b>.</li>"
             f"<li>Na een dag of drie: de weergaven en reacties invullen.</li></ol>"
-            f"<p>Beste moment: tussen 8:00 en 9:30.</p>{beste_html}"
+            f"<p>Beste moment: tussen 8:00 en 9:30.</p>{beste_html}{suggestie_html}"
             f"<p><b>Maandrapport:</b> <a href='/admin/linkedin/rapport.pdf'>Download de PDF</a> en plaats hem na de "
             f"maandmeting als document (Start a post, het documenticoon, titel: Krillo Index {datetime.now():%B %Y}). "
             f"Mensen bladeren erdoorheen, en dat geeft meer bereik dan een gewone post.</p>"
@@ -1345,7 +1363,11 @@ def admin_artikelen():
             artikelagent.wijs_af(cid)
             melding = "Afgewezen."
         elif actie == "schrijf":
-            uit = artikelagent.schrijf_concept()
+            artikelagent._voorrang[0] = True
+            try:
+                uit = artikelagent.schrijf_concept()
+            finally:
+                artikelagent._voorrang[0] = False
             melding = "Nieuw concept staat hieronder." if uit.get("gelukt") else uit.get("fout", "Mislukt.")
         return redirect("/admin/artikelen?m=" + quote(melding))
     melding = request.args.get("m") or ""

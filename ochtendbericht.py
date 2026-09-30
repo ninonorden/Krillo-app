@@ -212,6 +212,17 @@ def verzamel(basis_url):
         gisteren.append(("Opbrengst per maand van betalende klanten (euro)", f"{o:.2f}"))
     except Exception:
         pass
+    # 30 september (idee na de stille middag): de mails van gisteren tegenover
+    # het doel. "12 van 50" zie je meteen; een los getal niet.
+    try:
+        import benadering
+        doel = benadering.instellingen()["per_dag"]
+        n = _tel("SELECT count(*) FROM benadering WHERE gemaild_op > now() - interval '24 hours'")
+        gisteren.append(("Koude mails tegenover het doel", f"{n if n is not None else '?'} van {doel}"
+                         + (" (te weinig: kijk op /admin/benadering bij de laatste rondes)"
+                            if n is not None and doel and n < doel * 0.6 else "")))
+    except Exception as e:
+        print(f"Ochtendbericht, doel mislukt: {e}")
     # 30 september, Nino: "zijn nu alle categorieen gescand? hoe groeien we
     # dit?". Elke ochtend de stand van de index zelf: hoeveel ranglijsten
     # openbaar, hoeveel categorieen nog wachten op genoeg winkels, en wat er
