@@ -36,6 +36,7 @@ AGENTS = [
     ("plekmelding", "Plekmelding", "meldt wie zijn plek volgt als die verandert", None, "plekmelding", None, "/admin/benadering"),
     ("pers", "Persagent", "stuurt het persbericht naar de vakmedia", "pers", "pers", "PERSBERICHT_AUTO", "/admin/persbericht"),
     ("linkedin", "LinkedIn-agent", "zet drie posts per week klaar", None, "linkedin", "LINKEDINAGENT", "/admin/linkedin"),
+    ("artikel", "Artikelagent", "schrijft elke dinsdag een concept-artikel met cijfers uit de index", None, "artikel", None, "/admin/artikelen"),
     ("lijstjes", "Lijstjesagent", "vraagt schrijvers van GEO-lijstjes om Krillo", "lijstjes", "lijstjes", "LIJSTJESAGENT", "/admin/lijstjes"),
     ("wachtlijst", "Wachtpost", "meldt wie op een land wacht zodra het aan staat", "wacht", "wachtlijst", None, "/admin/wachtlijst"),
 ]

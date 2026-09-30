@@ -360,6 +360,7 @@ def _warm_op_na_start():
     if _opgewarmd["gestart"] or app.testing or not _thuis_onthouden_aan():
         return
     _opgewarmd["gestart"] = True
+    _start_wachtklok()
 
     def _warm():
         try:
@@ -1003,7 +1004,7 @@ def api_opzeggen(klant_token):
 
 @app.route("/artikelen")
 def artikelen_overzicht():
-    return render_template("artikelen.html", artikelen=artikelen.ARTIKELEN)
+    return render_template("artikelen.html", artikelen=artikelen.alle())
 
 
 @app.route("/artikelen/<slug>")
@@ -1011,7 +1012,7 @@ def artikel_pagina(slug):
     artikel = artikelen.get_artikel(slug)
     if artikel is None:
         return render_template("fout.html"), 404
-    andere = [a for a in artikelen.ARTIKELEN if a["slug"] != slug][:3]
+    andere = [a for a in artikelen.alle() if a["slug"] != slug][:3]
     return render_template("artikel.html", artikel=artikel, andere=andere)
 
 
@@ -1116,6 +1117,8 @@ def gratis_tool_api(slug):
     url = ((request.get_json(silent=True) or {}).get("url") or "").strip()[:300]
     if slug == "ai-crawler-check":
         uit = gratistools.crawler_check(url)
+    elif slug == "supplier-text-check":
+        uit = gratistools.leverancierstekst_check(url)
     elif slug == "product-data-check":
         uit = gratistools.productdata_check(url)
     else:
@@ -1321,6 +1324,64 @@ def admin_linkedin():
             f"Mensen bladeren erdoorheen, en dat geeft meer bereik dan een gewone post.</p>"
             f"<form method='post'><button name='actie' value='vullen'>Nu de komende week klaarzetten</button></form>"
             f"{''.join(blokken) or '<p>Nog geen posts. Klik hierboven of wacht op de volgende uurronde.</p>'}</body>")
+
+
+@app.route("/admin/artikelen", methods=["GET", "POST"])
+def admin_artikelen():
+    """Stap 203: de concepten van de artikelagent. Niets gaat vanzelf online."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    import artikelagent
+    melding = ""
+    if request.method == "POST":
+        actie, cid = request.form.get("actie"), int(request.form.get("id") or 0)
+        if actie == "plaats":
+            artikelagent.publiceer(cid)
+            melding = "Geplaatst op /artikelen."
+        elif actie == "weg":
+            artikelagent.wijs_af(cid)
+            melding = "Afgewezen."
+        elif actie == "schrijf":
+            uit = artikelagent.schrijf_concept()
+            melding = "Nieuw concept staat hieronder." if uit.get("gelukt") else uit.get("fout", "Mislukt.")
+        return redirect("/admin/artikelen?m=" + quote(melding))
+    melding = request.args.get("m") or ""
+    e = escape
+    blokken = []
+    for c in artikelagent.concepten():
+        inhoud = c["inhoud"] if isinstance(c["inhoud"], list) else _json_los(c["inhoud"])
+        tekst = "".join((f"<h3>{e(k)}</h3>" if k else "") + f"<p>{e(a)}</p>" for k, a in inhoud)
+        knoppen = ("" if c["stand"] != "concept" else
+                   f"<form method='post' style='display:flex;gap:8px'><input type='hidden' name='id' value='{c['id']}'>"
+                   f"<button name='actie' value='plaats'>Plaatsen</button>"
+                   f"<button name='actie' value='weg'>Afwijzen</button></form>")
+        let_op = (f"<p style='background:#FFF4E5;padding:8px 12px;border-radius:8px'><b>Let op:</b> {e(c['keuring'])}</p>"
+                  if c.get("keuring") else "")
+        blokken.append(f"<details style='border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0'"
+                       f"{' open' if c['stand'] == 'concept' else ''}><summary><b>{e(c['titel'])}</b> &middot; "
+                       f"{e(c['stand'])} &middot; {c['gemaakt_op']:%d %B}</summary>{let_op}"
+                       f"<p><i>{e(c.get('samenvatting') or '')}</i></p>{tekst}{knoppen}</details>")
+    melding_html = (f"<p style='background:#E8F6EF;padding:10px 14px;border-radius:8px'>{e(melding)}</p>"
+                    if melding else "")
+    return (f"<!doctype html><meta charset='utf-8'><title>Artikelen | Krillo</title>"
+            f"<body style='font-family:system-ui;max-width:900px;margin:30px auto;padding:0 16px;line-height:1.55'>"
+            f"<h1>Artikelen</h1>{melding_html}"
+            f"<p>Elke dinsdag schrijft de artikelagent een concept over een vraag die webshop-eigenaren stellen, "
+            f"met alleen echte cijfers uit de index. Lees het, en klik Plaatsen of Afwijzen. Niets komt vanzelf "
+            f"online. Staat er een Let op, kijk dat stuk dan extra na.</p>"
+            f"<form method='post'><button name='actie' value='schrijf'>Nu een concept schrijven</button></form>"
+            f"{''.join(blokken) or '<p>Nog geen concepten.</p>'}</body>")
+
+
+def _json_los(tekst):
+    import json as _j
+    try:
+        return _j.loads(tekst or "[]")
+    except ValueError:
+        return []
 
 
 @app.route("/admin/linkedin/rapport.pdf")
@@ -1890,6 +1951,7 @@ BEHEER_GROEPEN = [
         ("/admin/linkedin", "LinkedIn", "Posts van de LinkedIn-agent met plaatje"),
         ("/admin/persbericht", "Persbericht", "Klaar om te kopieren"),
         ("/admin/lijstjes", "Lijstjes", "Wat de lijstjesagent vond en mailde"),
+        ("/admin/artikelen", "Artikelen", "Concepten van de artikelagent nakijken en plaatsen"),
     ]),
     ("Index en metingen", [
         ("/admin/ranglijst", "Ranglijst", "Een categorie meten en bekijken"),
@@ -2083,6 +2145,15 @@ def admin_wordpress():
     url = (request.values.get("url") or "").strip()
     melding = ""
     sleutel = f"wp_voorstellen:{url}"
+    if request.method == "POST" and request.form.get("actie") == "koppel":
+        # 30 september: Nino koppelt zelf, voor de proef of voor een Fix-klant
+        # die het liever samen doet. Het wachtwoord typt hij hier, nooit in een
+        # mail of chat; het gaat versleuteld de database in.
+        doel = url or scan_engine.normalize_url(request.form.get("site") or "")
+        uit = wordpress_werk.koppel(doel, request.form.get("site"), request.form.get("gebruiker"),
+                                    request.form.get("wachtwoord"))
+        melding = "Gekoppeld. Klik nu op Winkel nalopen en voorstellen maken." if uit["gelukt"] else uit["fout"]
+        return redirect(f"/admin/wordpress?url={quote(doel)}&m={quote(melding)}")
     if request.method == "POST" and url:
         winkel = wordpress_werk.winkel_van(url)
         actie = request.form.get("actie")
@@ -2145,13 +2216,22 @@ def admin_wordpress():
                 f"<button name='actie' value='alles'>Alle voorstellen toepassen</button></form>"
                 f"<h3>Voorstellen</h3><table cellpadding='6'>{rijen or '<tr><td>Nog geen.</td></tr>'}</table>"
                 f"<h3>Gedaan (kan terug)</h3><table cellpadding='6'>{gedaan or '<tr><td>Nog niets.</td></tr>'}</table>")
+    koppelvak = ("<h2>Een winkel koppelen</h2><p>Voor de proef of voor een klant. Vul het adres van de "
+                 "WordPress-site in, de gebruikersnaam, en het applicatiewachtwoord (WordPress: Gebruikers, "
+                 "Profiel, Applicatiewachtwoorden). Winkeladres alleen invullen als het anders is dan de site.</p>"
+                 "<form method='post' style='display:grid;gap:8px;max-width:460px'><input type='hidden' name='actie' "
+                 "value='koppel'><input name='site' placeholder='https://jouwtestsite.s1-tastewp.com' required>"
+                 "<input name='gebruiker' placeholder='Gebruikersnaam' autocomplete='off' required>"
+                 "<input name='wachtwoord' type='password' placeholder='Applicatiewachtwoord' autocomplete='off' required>"
+                 "<input name='url' placeholder='Winkeladres van de klant (mag leeg)'>"
+                 "<button>Koppelen</button></form>")
     return (f"<!doctype html><meta charset='utf-8'><title>WordPress | Krillo</title>"
             f"<body style='font-family:system-ui;max-width:1100px;margin:30px auto;padding:0 16px'>"
             f"<h1>WordPress en WooCommerce</h1>"
             f"{melding_html}"
             f"<p>Klanten koppelen zelf via hun dashboard (/mijn/&lt;link&gt;/wordpress) met een applicatiewachtwoord. "
             f"Hier loop je hun winkel na, kijk je de voorstellen na en zet je ze erin. Alles kan terug.</p>"
-            f"<ul>{lijst}</ul>{werk}</body>")
+            f"<ul>{lijst}</ul>{werk}{koppelvak}</body>")
 
 
 def _cpu_deel():
@@ -2256,7 +2336,7 @@ def _bouw_sitemap():
     # opnieuw op te halen om te zien of er iets veranderd is. Met een datum
     # erbij weet hij meteen wat nieuw is, en dat is precies wat je wil op het
     # moment dat je artikelen toevoegt.
-    nieuwste = max([a["datum"] for a in artikelen.ARTIKELEN] or ["2026-08-01"])
+    nieuwste = max([a["datum"] for a in artikelen.alle()] or ["2026-08-01"])
     # /uitkomst/<token> staat hier BEWUST niet in. Die pagina's gaan over één
     # winkel met naam en toenaam en horen niet in Google.
     vast = ["/", "/artikelen", "/zo-meten-we", "/faq",
@@ -2267,7 +2347,7 @@ def _bouw_sitemap():
     regels = [(p, nieuwste) for p in vast]
     # Het nieuws per gemeten land, uit markten.py (niet meer vast nl en be).
     regels += [(f"/news/{land}", nieuwste) for land in markten.index_landen()]
-    regels += [(f"/artikelen/{a['slug']}", a["datum"]) for a in artikelen.ARTIKELEN]
+    regels += [(f"/artikelen/{a['slug']}", a["datum"]) for a in artikelen.alle()]
     # Stap 162 en 163: de gratis tools en de vergelijkingen.
     import gratistools
     import vergelijkingen
@@ -2410,10 +2490,10 @@ Krillo do it.
 - About Krillo and contact: https://krilloai.com/over-ons
 - The Krillo index, rankings per category and country: https://krilloai.com/index
 
-## Articles (in Dutch)
+## Articles
 """ + "\n".join(
         f"- {a['titel']}: https://krilloai.com/artikelen/{a['slug']}"
-        for a in artikelen.ARTIKELEN
+        for a in artikelen.alle()
     ) + """
 
 ## Contact
@@ -4248,6 +4328,15 @@ def _benadering_ronde_werk():
             verslag["mislukt"].append(f"linkedin: {e}")
             print(f"LinkedIn-agent mislukt: {e}")
 
+    # De artikelagent (stap 203, 30 september): op dinsdag een concept, Nino keurt goed.
+    if commandocentrum.aan("artikel"):
+        try:
+            import artikelagent
+            verslag["artikel"] = artikelagent.ronde()
+        except Exception as e:
+            verslag["mislukt"].append(f"artikel: {e}")
+            print(f"Artikelagent mislukt: {e}")
+
     # De lijstjesagent (29 september): schrijvers van artikelen "beste GEO-tools"
     # een keer mailen, hoogstens drie per week, binnen kantooruren.
     if commandocentrum.aan("lijstjes"):
@@ -4507,14 +4596,25 @@ def _benadering_ronde_werk():
             print(f"Benadering, geen post deze ronde: {reden}")
             benadering.onthoud_rondeverslag(verslag)
             return
-        beurt = benadering.te_mailen(mag)
+        # 30 september: meer kandidaten ophalen dan er mogen, en doorgaan tot
+        # er `mag` verstuurd zijn. Hiervoor haalde de ronde er precies `mag`
+        # op. Stonden bovenaan vijf winkels zonder bruikbare plek (GEEN_POSITIE),
+        # dan ging er niets uit, en de volgende ronde stonden diezelfde vijf er
+        # weer: de post stond stil terwijl er honderden klaar lagen.
+        beurt = benadering.te_mailen(mag * KANDIDATEN_FACTOR)
         if not beurt:
             verslag["redenen"].append("Er mocht wel post uit, maar geen enkele winkel "
                                       "was aan de beurt: gemeten, adres bekend en nog "
                                       "nooit gemaild.")
         for winkel in beurt:
+            if verslag["gemaild"] >= mag:
+                break
             gelukt, fout = _stuur_onderzoeksmail(winkel["webshop_url"], winkel["email"],
                                                  winkel.get("land"))
+            if not gelukt and str(fout or "").startswith("GEEN_POSITIE"):
+                # Een week uit de rij, dan staat hij niet meer vooraan te blokkeren.
+                # Is zijn categorie dan gemeten, dan komt hij vanzelf terug.
+                db.zet_overgeslagen(winkel["webshop_url"])
             benadering.markeer_gemaild(winkel["webshop_url"], gelukt, fout)
             if gelukt:
                 # Ook in het winkelprofiel, want dat is wat de beheerpagina
@@ -4862,6 +4962,9 @@ def _varianten_met_oordeel():
     return {"rijen": rijen, "oordeel": oordeel}
 
 
+KANDIDATEN_FACTOR = 6
+
+
 def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=None):
     """Stuurt één winkel zijn eigen uitkomst. Geeft (gelukt, reden) terug.
 
@@ -4948,15 +5051,87 @@ def cron_onderhoud():
     # De nachtronde roept dit aan zodra een categorie gemeten is. Zo kan
     # onderhoud.py het werk van klanten verversen zonder app.py te importeren
     # (dat zou een kringetje zijn: app importeert onderhoud).
+    gestart = _start_nachtwerk()
+    return ("ok" if gestart else "loopt al"), 200
+
+
+def _start_nachtwerk():
+    """Alles van de nacht. Apart, zodat de wachtklok het ook kan starten."""
     onderhoud.NA_METING = _ververs_klantwerk
+    try:
+        db.zet_instelling(NACHTWERK_SLEUTEL, str(int(time.time())))
+    except Exception:
+        pass
     threading.Thread(target=_controleer_betalingen, daemon=True).start()
     # De controleagent (stap 134): loopt de klantweg na en mailt als er iets mis is.
     import nachtcontrole
     threading.Thread(target=nachtcontrole.draai, args=(app, _meld_aan_beheer),
                      daemon=True).start()
     _start_nachtagenten()
-    gestart = onderhoud.start_ronde()
-    return ("ok" if gestart else "loopt al"), 200
+    return onderhoud.start_ronde()
+
+
+# ---------------------------------------------------------------------------
+# DE WACHTKLOK (30 september). Na de verhuizing naar de nieuwe dienst in
+# Frankfurt kwam er twee uur lang geen enkele uurronde: de taak in Render die
+# elk uur /api/cron/benadering aanroept, riep die niet meer (goed) aan. Van
+# buitenaf zag je alleen dat er geen mail meer uitging. Nu kijkt de site zelf
+# elke vijf minuten:
+# - is er langer dan WACHTKLOK_MINUTEN geen uurronde geweest, dan start hij er
+#   zelf een, en meldt hij het een keer per dag aan Nino;
+# - is het nachtwerk langer dan 26 uur niet gestart, dan doet hij dat tussen
+#   2 en 5 uur 's nachts.
+# De taak in Render blijft de gewone weg; dit is het vangnet. Twee diensten
+# tegelijk (oud en nieuw) kunnen niet allebei starten: wie de ronde "claimt"
+# doet dat in een keer in de database (db.claim_moment).
+# ---------------------------------------------------------------------------
+WACHTKLOK_MINUTEN = int(os.environ.get("WACHTKLOK_MINUTEN", "75"))
+NACHTWERK_SLEUTEL = "nachtwerk_gestart"
+_wachtklok = {"gestart": False}
+
+
+def _wachtklok_tik(nu=None):
+    """Een keer kijken. Geeft terug wat er gestart is (voor de test)."""
+    gedaan = []
+    klok = benadering.KLOK
+    nu = nu or (datetime.now(klok) if klok else datetime.now())
+    laatst = benadering.laatste_ronde()
+    if laatst is not None and laatst.tzinfo is None and nu.tzinfo is not None:
+        laatst = laatst.replace(tzinfo=nu.tzinfo)
+    te_lang = laatst is None or (nu - laatst).total_seconds() > WACHTKLOK_MINUTEN * 60
+    if te_lang and db.claim_moment("wachtklok_benadering", 50 * 60):
+        print("WACHTKLOK: geen uurronde gezien, de site start er zelf een.")
+        threading.Thread(target=_benadering_ronde, daemon=True).start()
+        gedaan.append("benadering")
+        if db.claim_moment("wachtklok_melding", 20 * 3600):
+            _meld_aan_beheer("De uurtaak in Render riep de site niet aan",
+                             "Er was langer dan een uur geen ronde van de benadering. De site heeft er zelf een "
+                             "gestart, dus de post loopt door. Kijk in Render bij de Cron Job welk adres hij "
+                             "aanroept: dat moet https://krilloai.com/api/cron/benadering?key=... zijn.")
+    try:
+        nacht = float(db.get_instelling(NACHTWERK_SLEUTEL) or 0)
+    except (TypeError, ValueError):
+        nacht = 0
+    if 2 <= nu.hour < 5 and time.time() - nacht > 26 * 3600 and db.claim_moment("wachtklok_nacht", 20 * 3600):
+        print("WACHTKLOK: geen nachtwerk gezien, de site start het zelf.")
+        _start_nachtwerk()
+        gedaan.append("nacht")
+    return gedaan
+
+
+def _start_wachtklok():
+    if _wachtklok["gestart"] or app.testing:
+        return
+    _wachtklok["gestart"] = True
+
+    def lus():
+        while True:
+            time.sleep(300)
+            try:
+                _wachtklok_tik()
+            except Exception as e:
+                print(f"Wachtklok mislukt: {e}")
+    threading.Thread(target=lus, daemon=True).start()
 
 
 def _start_nachtagenten():

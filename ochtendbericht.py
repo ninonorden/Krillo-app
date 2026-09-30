@@ -172,6 +172,27 @@ def te_doen(basis_url):
     return uit
 
 
+def index_groei():
+    """Regels over de groei van de index, voor het ochtendbericht."""
+    import categorieen
+    import markten
+    regels = []
+    ouders = {ouder for _, _, ouder in categorieen.CATEGORIEEN if ouder}
+    meetbaar = [slug for slug, _, _ in categorieen.CATEGORIEEN if slug not in ouders]
+    for land in markten.index_landen():
+        online = len(db.categorieen_per_land(land, categorieen.MINIMUM_VOOR_INDEX))
+        regels.append((f"Ranglijsten openbaar in {land.upper()} (van {len(meetbaar)} categorieen)", online))
+    per = db.winkels_per_categorie_in_land("nl") or {}
+    gemeten = set(db.gemeten_categorieen())
+    wachten = sorted((per.get(s, 0), s) for s in meetbaar if s not in gemeten)
+    regels.append(("Categorieen die nog op genoeg winkels wachten (10 nodig)", len(wachten)))
+    if wachten:
+        regels.append(("Het dichtst bij (winkels nu)", ", ".join(f"{s} {n}" for n, s in wachten[::-1][:4])))
+    regels.append(("Nieuwe winkels op de lijst gisteren",
+                   _tel("SELECT count(*) FROM benadering WHERE toegevoegd_op > now() - interval '24 hours'")))
+    return regels
+
+
 def verzamel(basis_url):
     gisteren = [(wat, _tel(sql)) for wat, sql in GISTEREN]
     # Hoe de post landt (stap 117): zelfde telling als de automatische rem.
@@ -191,6 +212,14 @@ def verzamel(basis_url):
         gisteren.append(("Opbrengst per maand van betalende klanten (euro)", f"{o:.2f}"))
     except Exception:
         pass
+    # 30 september, Nino: "zijn nu alle categorieen gescand? hoe groeien we
+    # dit?". Elke ochtend de stand van de index zelf: hoeveel ranglijsten
+    # openbaar, hoeveel categorieen nog wachten op genoeg winkels, en wat er
+    # gisteren bij kwam.
+    try:
+        gisteren += index_groei()
+    except Exception as e:
+        print(f"Ochtendbericht, indexgroei mislukt: {e}")
     try:
         klaar_voor_post = len(db.te_mailen_met_positie(10000))
     except Exception:

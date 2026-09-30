@@ -145,8 +145,22 @@ ARTIKELEN = [
 ]
 
 
+def alle():
+    """De vaste artikelen hierboven plus de goedgekeurde van de artikelagent
+    (stap 203), nieuwste eerst. Valt de database weg, dan gewoon de vaste."""
+    try:
+        import artikelagent
+        extra = artikelagent.gepubliceerd()
+    except Exception as e:
+        print(f"Artikelen uit de database ophalen mislukt: {e}")
+        extra = []
+    vast = {a["slug"] for a in ARTIKELEN}
+    return sorted([a for a in extra if a["slug"] not in vast] + ARTIKELEN,
+                  key=lambda a: a["datum"], reverse=True)
+
+
 def get_artikel(slug):
-    for artikel in ARTIKELEN:
+    for artikel in alle():
         if artikel["slug"] == slug:
             return artikel
     return None

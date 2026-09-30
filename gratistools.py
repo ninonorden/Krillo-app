@@ -22,6 +22,8 @@ REGELS
 - Een eenvoudige rem per bezoeker, zodat niemand ons als gratis robot gebruikt.
 """
 import json
+import os
+import re
 import time
 import urllib.robotparser
 from urllib.parse import urljoin, urlparse
@@ -54,6 +56,13 @@ TOOLS = {
         "kort": "Checks whether a product page carries the details AI assistants copy: price, stock, brand, reviews.",
         "invoer": "The address of one product page",
         "voorbeeld": "yourstore.com/products/your-product",
+    },
+    "supplier-text-check": {
+        "titel": "Is your product text on other stores too?",
+        "kort": "Checks whether your product texts appear word for word on other webshops. Copied supplier "
+                "texts are a common reason AI names someone else.",
+        "invoer": "Your store address or one product page",
+        "voorbeeld": "yourstore.com",
     },
     "index-check": {
         "titel": "Is your store in the Krillo Index?",
@@ -277,3 +286,106 @@ def bewaar_gebruik(tool, url, oordeel):
         print(f"Toolgebruik bewaren mislukt: {e}")
     finally:
         conn.close()
+
+
+
+# ------------------------------------------------------------------ 4. leverancierstekst (stap 217)
+# IDEE 30 SEPTEMBER, door Nino goedgekeurd. Veel kleine winkels, vooral op
+# Shopify, gebruiken de productteksten van hun leverancier. Honderd andere
+# winkels hebben precies dezelfde tekst, en dan heeft AI geen reden om juist
+# jouw winkel te noemen. Deze check maakt dat zichtbaar: van een paar producten
+# een kenmerkende zin letterlijk opzoeken, en tellen op hoeveel andere sites
+# hij staat. Een zin als "7 van je 10 productteksten staan woord voor woord op
+# 40 andere winkels" vergeet een winkelier niet, en het is precies wat Fix oplost.
+#
+# Kosten: een zoekopdracht per product, hoogstens LEVERANCIER_PRODUCTEN per
+# check, en hoogstens LEVERANCIER_PER_DAG checks per dag voor de hele site.
+LEVERANCIER_PRODUCTEN = 5
+LEVERANCIER_PER_DAG = int(os.environ.get("LEVERANCIER_PER_DAG", "60"))
+_leverancier_teller = {"dag": "", "n": 0}
+
+
+def _kenmerkende_zin(tekst):
+    """De langste gewone zin van 8 tot 25 woorden: lang genoeg om uniek te
+    zijn, kort genoeg om letterlijk te zoeken. None als er geen is."""
+    import html as htmlmod
+    kaal = re.sub(r"<[^>]+>", " ", tekst or "")
+    kaal = re.sub(r"\s+", " ", htmlmod.unescape(kaal)).strip()
+    zinnen = [z.strip(" -•*") for z in re.split(r"(?<=[.!?])\s+", kaal)]
+    goed = [z for z in zinnen if 8 <= len(z.split()) <= 25 and '"' not in z]
+    if not goed:
+        return None
+    return max(goed, key=len).rstrip(".!?")
+
+
+def _teksten_van(url, ophalen=None):
+    """[(titel, tekst)] van een paar producten. Shopify geeft /products.json
+    openbaar; anders de productgegevens van de pagina zelf."""
+    basis = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+    uit = []
+    j = _haal(basis + "/products.json?limit=20", ophalen)
+    if j is not None and j.status_code == 200:
+        try:
+            for p in (j.json().get("products") or []):
+                if len(re.sub(r"<[^>]+>", " ", p.get("body_html") or "").split()) >= 20:
+                    uit.append((p.get("title") or "", p.get("body_html") or ""))
+        except ValueError:
+            pass
+    if not uit:
+        pagina = _haal(url, ophalen)
+        if pagina is not None and pagina.status_code < 400:
+            for p in _producten(pagina.text):
+                if len((p.get("description") or "").split()) >= 20:
+                    uit.append((p.get("name") or "", p.get("description") or ""))
+    return uit[:LEVERANCIER_PRODUCTEN]
+
+
+def leverancierstekst_check(url, ophalen=None, zoek=None, vandaag=None):
+    url, fout = _schoon(url)
+    if fout:
+        return {"fout": fout}
+    import bronnen
+    if zoek is None:
+        if not bronnen.beschikbaar():
+            return {"fout": "This check is not available right now. Try again tomorrow."}
+        zoek = bronnen.zoek
+    vandaag = vandaag or time.strftime("%Y-%m-%d")
+    if _leverancier_teller["dag"] != vandaag:
+        _leverancier_teller.update(dag=vandaag, n=0)
+    if _leverancier_teller["n"] >= LEVERANCIER_PER_DAG:
+        return {"fout": "This check is very busy today. Try again tomorrow."}
+    teksten = _teksten_van(url, ophalen)
+    if not teksten:
+        return {"fout": "We could not find product texts to check. Paste the address of one product page "
+                        "instead of the homepage."}
+    _leverancier_teller["n"] += 1
+    eigen = urlparse(url).netloc.replace("www.", "")
+    rijen = []
+    for titel, tekst in teksten:
+        zin = _kenmerkende_zin(tekst)
+        if not zin:
+            continue
+        try:
+            resultaten = zoek(f'"{zin}"') or []
+        except Exception:
+            resultaten = []
+        andere = []
+        for r in resultaten:
+            host = urlparse(r.get("url") or "").netloc.replace("www.", "")
+            if host and host != eigen and not host.endswith(("shopify.com", "myshopify.com")) and host not in andere:
+                andere.append(host)
+        rijen.append({"titel": titel, "zin": zin, "andere": andere[:5], "aantal": len(andere)})
+    if not rijen:
+        return {"fout": "Your product texts are too short to check. That is a problem of its own: AI has "
+                        "nothing to quote."}
+    gekopieerd = sum(1 for r in rijen if r["aantal"])
+    sites = len({h for r in rijen for h in r["andere"]})
+    if gekopieerd:
+        kop = (f"{gekopieerd} of {len(rijen)} product texts we checked appear word for word on other sites "
+               f"({sites} {'site' if sites == 1 else 'sites'}).")
+    else:
+        kop = f"None of the {len(rijen)} product texts we checked were found word for word on other sites. Good."
+    return {"winkel": eigen, "teksten": rijen, "gekopieerd": gekopieerd, "van": len(rijen), "kop": kop,
+            "advies": ("AI has no reason to name your store for a text a dozen other stores also have. Rewrite "
+                       "these in your own words: who the product is for, what makes it different, the facts a "
+                       "buyer asks about. Fix does this for you." if gekopieerd else "")}

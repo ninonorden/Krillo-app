@@ -640,6 +640,7 @@ def init_db():
                 # als "laatste extra mail" voor de bewegingsagent. Oorspronkelijk: wanneer de laatste seizoensmail
                 # ging (45 dagen rust) en voor welk moment (nooit twee keer).
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_op TIMESTAMPTZ;")
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS overgeslagen_op TIMESTAMPTZ;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_sleutel TEXT;")
                 # Stap 116: over welke meting wij al een bewegingsmail stuurden.
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS beweging_ronde INTEGER;")
@@ -4901,6 +4902,24 @@ def get_benadering(webshop_url):
         conn.close()
 
 
+def zet_overgeslagen(webshop_url):
+    """Een winkel zonder bruikbare plek een week uit de mailrij (30 september)."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET overgeslagen_op = now() WHERE webshop_url = %s",
+                            (webshop_url,))
+        return True
+    except Exception as e:
+        print(f"Overgeslagen vastleggen mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
 def te_mailen_met_positie(limiet):
     """Winkels die aan de beurt zijn voor de koude mail EN een positie hebben.
 
@@ -4928,6 +4947,8 @@ def te_mailen_met_positie(limiet):
                      WHERE b.stand IN ('adres', 'meten', 'gemeten') AND b.afgemeld = FALSE
                        AND b.email IS NOT NULL AND b.email <> ''
                        AND b.gemaild_op IS NULL
+                       -- 30 september: wie geen bruikbare plek had, een week niet.
+                       AND (b.overgeslagen_op IS NULL OR b.overgeslagen_op < now() - interval '7 days')
                        -- Stap 156: wie via zijn formulier benaderd is, kreeg de
                        -- belofte "we will not contact you again".
                        AND b.formulier_op IS NULL
@@ -5184,6 +5205,32 @@ def reistijd_ms(keer=5):
     except Exception as e:
         print(f"Reistijd meten mislukt: {e}")
         return None
+    finally:
+        conn.close()
+
+
+def claim_moment(sleutel, seconden):
+    """Een keer per `seconden` True, over alle diensten heen (30 september).
+
+    Voor de wachtklok: als de oude en de nieuwe dienst tegelijk draaien, mag
+    er toch maar een een ronde starten. Het kijken en het vastleggen gebeurt in
+    een enkele opdracht in de database, dus twee tegelijk kan niet."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    nu = time.time()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO instellingen (sleutel, waarde) VALUES (%s, %s)
+                    ON CONFLICT (sleutel) DO UPDATE SET waarde = EXCLUDED.waarde, bijgewerkt_op = now()
+                    WHERE coalesce(NULLIF(instellingen.waarde, ''), '0')::float < %s
+                    RETURNING sleutel""", (sleutel, str(nu), nu - seconden))
+                return cur.fetchone() is not None
+    except Exception as e:
+        print(f"Claim mislukt ({sleutel}): {e}")
+        return False
     finally:
         conn.close()
 

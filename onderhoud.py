@@ -256,7 +256,12 @@ def stap_landen_vullen():
     return verslag
 
 
-NIEUWE_CATEGORIEEN_PER_NACHT = int(os.environ.get("ONDERHOUD_NIEUWE_CATEGORIEEN", "6"))
+# 30 september: van 6 naar 15. Nino: "meer winkels nodig om de index te
+# vullen". Een zoekopdracht kost een halve cent (Brave) of een paar cent (het
+# model); een nieuwe categorie is een nieuwe ranglijst, nieuwe winkelpagina's en
+# nieuwe winkels om te mailen. Met 6 per nacht duurde het weken voor de 34
+# categorieen zonder ranglijst aan de beurt waren.
+NIEUWE_CATEGORIEEN_PER_NACHT = int(os.environ.get("ONDERHOUD_NIEUWE_CATEGORIEEN", "15"))
 
 
 def nog_te_vullen(gemeten):
