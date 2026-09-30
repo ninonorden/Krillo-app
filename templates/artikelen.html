@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Articles on AI visibility for online stores | Krillo</title>
 <meta name="description" content="Plain explanations of how ChatGPT, Gemini and other AI assistants find and recommend online stores. Written for store owners, not marketers.">
-<link rel="canonical" href="{{ basis_url }}/artikelen">
+<link rel="canonical" href="{{ basis_url }}/articles">
 <link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=2026">
 <meta property="og:type" content="website">
-<meta property="og:url" content="{{ basis_url }}/artikelen">
+<meta property="og:url" content="{{ basis_url }}/articles">
 <meta property="og:title" content="Articles on AI visibility for online stores">
 <meta property="og:description" content="Plain explanations of how AI assistants find and recommend online stores.">
 <meta property="og:image" content="{{ basis_url }}/static/krillo-share-2026.png">
@@ -20,7 +20,7 @@
   "@context": "https://schema.org",
   "@type": "CollectionPage",
   "name": "Articles on AI visibility",
-  "url": "{{ basis_url }}/artikelen",
+  "url": "{{ basis_url }}/articles",
   "description": "Plain explanations of how AI assistants find and recommend online stores.",
   "publisher": {"@type": "Organization", "name": "Krillo", "url": "{{ basis_url }}"}
 }
@@ -92,7 +92,7 @@
   <p class="intro">Plain explanations of how ChatGPT, Gemini and other AI assistants find and recommend online stores. Written for store owners, not marketers.</p>
 
   {% for artikel in artikelen %}
-  <a class="kaart" href="/artikelen/{{ artikel.slug }}">
+  <a class="kaart" href="/articles/{{ artikel.slug }}">
     <div class="kaart-meta">{{ artikel.leestijd }} read</div>
     <h2>{{ artikel.titel }}</h2>
     <p>{{ artikel.samenvatting }}</p>

@@ -42,7 +42,7 @@
     {% if rij.vorige_positie %}<div><div class="groot">#{{ rij.vorige_positie }}</div><div class="klein">the month before</div></div>{% endif %}
   </div>
   <p class="klein">Measured with {{ 'ChatGPT and Gemini' if modellen | length > 1 else 'one AI assistant' }}, the same questions for every store in this
-     category, asked in the language of the market. <a href="/zo-meten-we">Read how we measure</a>.</p>
+     category, asked in the language of the market. <a href="/how-we-measure">Read how we measure</a>.</p>
 
   {% if buren %}
   <h2 style="margin-top:32px;">Around {{ naam }}</h2>
@@ -54,6 +54,23 @@
     {% endfor %}
   </table>
   <p><a href="/index/{{ land }}/{{ slug }}">See the full ranking for {{ categorie }}</a></p>
+  {% endif %}
+
+  {# Stap 179 (30 september): wat AI over deze winkel zegt, letterlijk. #}
+  {% if imago and (imago.kenmerken or imago.citaten) %}
+  <h2 style="margin-top:32px;">What AI says about {{ naam }}</h2>
+  {% if imago.kenmerken %}
+  <p>In the {{ imago.antwoorden }} answer{{ '' if imago.antwoorden == 1 else 's' }} that name {{ naam }}, AI mentions:
+    {% for label, n in imago.kenmerken[:5] %}<strong>{{ label | lower }}</strong> ({{ n }}x){{ ', ' if not loop.last else '.' }}{% endfor %}</p>
+  {% endif %}
+  {% for c in imago.citaten %}
+  <blockquote style="border-left:3px solid #1B3FE0; margin:12px 0; padding:4px 14px;">
+    <p style="margin:0 0 4px;">&ldquo;{{ c.zin }}&rdquo;</p>
+    <p class="klein" style="margin:0;">{{ c.assistent }}, asked: {{ c.vraag }}</p>
+  </blockquote>
+  {% endfor %}
+  <p class="klein">Quoted word for word from the answers in our measurement. What AI says about your store decides
+     which buying questions it names you for.</p>
   {% endif %}
 
   {# Stap 166: claim je plek. Alleen een mailadres, met dubbele bevestiging. #}

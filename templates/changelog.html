@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# Stap 182 (30 september): wat er nieuw is, uit changelog.py. #}
+<title>What is new at Krillo | Changelog</title>
+<meta name="description" content="Every change to Krillo that a store owner notices, newest first.">
+<link rel="canonical" href="{{ basis_url }}/changelog">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ basis_url }}/changelog">
+<meta property="og:title" content="What is new at Krillo">
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+{% include "_stijl.html" %}
+<style>
+  .cl-maand{font-family:var(--mono); font-size:12px; letter-spacing:.08em; color:#6E7079; margin:38px 0 6px;
+            text-transform:uppercase;}
+  .cl-regel{border-top:1px solid #E4E2DA; padding:18px 0; max-width:720px; display:grid;
+            grid-template-columns:110px 1fr; gap:16px;}
+  .cl-dag{font-family:var(--mono); font-size:13px; color:#6E7079; padding-top:3px;}
+  .cl-regel h2{font-size:20px; margin:0 0 6px;}
+  .cl-regel p{margin:0 0 6px;}
+  @media (max-width:560px){ .cl-regel{grid-template-columns:1fr; gap:4px;} }
+</style>
+{% include "_k_stijl.html" %}
+</head>
+<body>
+{% include "_kop.html" %}
+<main><div class="wrap">
+  <h1>What is new</h1>
+  <p class="inleiding">Every change to Krillo that you would notice as a store owner, newest first.</p>
+  {% for maand, lijst in maanden %}
+  <div class="cl-maand">{{ maand }}</div>
+  {% for r in lijst %}
+  <div class="cl-regel" id="{{ r.datum }}-{{ loop.index }}">
+    <div class="cl-dag">{{ r.dag }}</div>
+    <div>
+      <h2>{{ r.titel }}</h2>
+      <p>{{ r.tekst }}</p>
+      {% if r.link %}<p><a href="{{ r.link }}">Take a look</a></p>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% endfor %}
+</div></main>
+{% include "_voet.html" %}
+</body>
+</html>

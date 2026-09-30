@@ -138,6 +138,14 @@
   <p style="font-size:14px; margin-top:6px; opacity:0.75;">
     {{ t.index_dekking.replace('{n}', totaal | string) }}
   </p>
+  {% if kaart %}
+  {# Stap 187 (30 september): genoemd is niet hetzelfde als aangeraden. #}
+  <h2 style="margin-top:44px;">Named is not recommended</h2>
+  <p style="margin-bottom:12px;">Each dot is a store. Further right: named in more buying questions. Higher: recommended
+     more often. Stores low on the right are known to AI but rarely the tip. That gap is what most stores can close.</p>
+  <div class="blok" style="padding:12px">{{ kaart | safe }}</div>
+  <p style="font-size:13px; margin-top:6px; opacity:.75;"><a href="/index/{{ land }}/{{ slug }}/map.png">Download this map as an image</a></p>
+  {% endif %}
   {% else %}
   <div class="leeg">{{ t.niemand_genoemd }}</div>
   {% endif %}
@@ -159,7 +167,7 @@
     <h3>{{ t.niet_inkopen_kop }}</h3>
     <p>{{ t.niet_inkopen }}</p>
     <h3>{{ t.telbaar_kop }}</h3>
-    <p style="margin-bottom:0;">{{ t.telbaar }} <a href="/zo-meten-we">{{ t.zo_meten_we }}</a>.</p>
+    <p style="margin-bottom:0;">{{ t.telbaar }} <a href="/how-we-measure">{{ t.zo_meten_we }}</a>.</p>
   </div>
 
   {# Stap 164: de ranglijst insluiten. Voor redacties en blogs; elke plaatsing
