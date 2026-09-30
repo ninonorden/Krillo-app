@@ -29,6 +29,7 @@ Elke link heeft utm_source=linkedin, zodat /admin/bezoek laat zien wat het oplev
 """
 import io
 import os
+import re
 from datetime import date, timedelta
 
 import db
@@ -86,6 +87,13 @@ def maak_tabellen(cur):
             gemaakt_op TIMESTAMPTZ DEFAULT now()
         );
     """)
+    # 30 september (stap 207, 208, 212): de link staat in een eigen reactie,
+    # de winkels uit de top worden onthouden voor de deelmail, en Nino vult de
+    # link naar de geplaatste post en later de weergaven in.
+    for kolom in ("reactie TEXT", "winkels JSONB", "post_url TEXT", "weergaven INTEGER",
+                  "reacties INTEGER", "gedeeld_gemaild INTEGER"):
+        cur.execute(f"ALTER TABLE linkedin_posts ADD COLUMN IF NOT EXISTS {kolom}")
+    cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS linkedin_op TIMESTAMPTZ")
 
 
 def _naam(rij):
@@ -132,6 +140,11 @@ def post_ranglijst(slug, rijen, naam_en, landnaam, basis_url):
         f"We asked the questions shoppers ask{f' ({telbaar} buying questions)' if telbaar else ''} and counted "
         f"which stores AI names. {len(rijen)} stores in this category, measured the same way.",
         "",
+        # Een vraag die mensen willen beantwoorden (30 september). Reacties
+        # wegen voor LinkedIn zwaarder dan likes, en elke winkel die iemand
+        # noemt is een winkel voor de index.
+        f"Which {naam_en.lower()} store is missing from this top {len(top)}? Tell us below.",
+        "",
         f"The full ranking, and where your store is: {_link(basis_url, f'/index/{LAND}/{slug}', 'ranglijst')}",
         "",
         "#ecommerce #AIsearch #GEO #webshop",
@@ -177,6 +190,27 @@ def post_tip(nummer, basis_url):
     return "\n".join(regels), {"soort": "tip", "kop": kop, "tekst": tekst}
 
 
+def link_naar_reactie(tekst, basis_url):
+    """Haalt de link uit de post en zet hem in een eigen eerste reactie (stap 207).
+
+    WAAROM: posts met een link naar buiten krijgen volgens de meeste metingen
+    minder bereik op LinkedIn. De zin blijft in de post staan, met "link in the
+    first comment" waar de link stond. In de reactie komt altijd ook de gratis
+    check: die is sinds de verhuizing naar Frankfurt snel genoeg om aan te bieden.
+    Geeft (post, reactie)."""
+    post, links = [], []
+    for regel in tekst.split("\n"):
+        if basis_url in regel:
+            links.append(regel)
+            post.append(re.sub(r"\s*https?://\S+", " link in the first comment.", regel).replace(":  ", ": "))
+        else:
+            post.append(regel)
+    gratis = f"{basis_url}/?utm_source=linkedin&utm_campaign=reactie"
+    if not any("utm_campaign=cijfer" in l or "utm_campaign=reactie" in l for l in links):
+        links.append(f"Check your own store's rank in 10 seconds, free: {gratis}")
+    return "\n".join(post), "\n\n".join(links)
+
+
 def klaarzetten(basis_url, categorieen, ranglijst, naam_en, landnaam, vandaag=None):
     """Zorgt dat voor elke postdag in de komende week een post klaarstaat."""
     if os.environ.get("LINKEDINAGENT") == "uit":
@@ -192,7 +226,7 @@ def klaarzetten(basis_url, categorieen, ranglijst, naam_en, landnaam, vandaag=No
             vorige = _sql("SELECT soort FROM linkedin_posts WHERE extract(isodow FROM dag) = 3 AND dag < %s ORDER BY dag DESC LIMIT 1",
                           (dag,))
             soort = "tip" if (vorige or {}).get("soort") == "cijfer" else "cijfer"
-        taggen, onderwerp = None, None
+        taggen, onderwerp, winkels = None, None, None
         if soort == "ranglijst":
             keuze = kies_categorie(categorieen, ranglijst)
             if not keuze:
@@ -200,6 +234,9 @@ def klaarzetten(basis_url, categorieen, ranglijst, naam_en, landnaam, vandaag=No
             else:
                 onderwerp, rijen = keuze
                 tekst, beeld, taggen = post_ranglijst(onderwerp, rijen, naam_en(onderwerp), landnaam, basis_url)
+                # De top 3 voor de deelmail (stap 208), met plek.
+                winkels = [{"webshop_url": r["webshop_url"], "positie": r["positie"]}
+                           for r in rijen if (r.get("genoemd") or 0) > 0][:3]
         if soort == "cijfer":
             totaal, nooit = cijfer(categorieen, ranglijst)
             if totaal < 50:
@@ -211,11 +248,119 @@ def klaarzetten(basis_url, categorieen, ranglijst, naam_en, landnaam, vandaag=No
             onderwerp = str(n % len(TIPS))
             tekst, beeld = post_tip(n, basis_url)
         import json
-        _sql("""INSERT INTO linkedin_posts (dag, soort, onderwerp, tekst, beeld, taggen)
-                VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (dag) DO NOTHING""",
-             (dag, soort, onderwerp, tekst, json.dumps(beeld), taggen))
+        tekst, reactie = link_naar_reactie(tekst, basis_url)
+        _sql("""INSERT INTO linkedin_posts (dag, soort, onderwerp, tekst, beeld, taggen, reactie, winkels)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (dag) DO NOTHING""",
+             (dag, soort, onderwerp, tekst, json.dumps(beeld), taggen, reactie,
+              json.dumps(winkels) if winkels else None))
         gemaakt.append((dag.isoformat(), soort))
     return {"gemaakt": gemaakt}
+
+
+# ------------------------------------------------------------------ stap 208
+# DE DEELMAIL. Een bedrijfspagina bereikt uit zichzelf maar een klein deel van
+# de volgers. De winkels die in een ranglijstpost staan hebben volgers die
+# precies onze doelgroep zijn, en winkels delen graag dat AI ze aanbeveelt.
+# Dus: staat een winkel in de top 3 van een post die Nino net plaatste, dan
+# krijgt hij een korte mail met de link naar de post en zijn badge.
+#
+# Dezelfde regels als elke extra mail: alleen winkels op onze lijst met een
+# adres, niet afgemeld, geen bounce of klacht, niet wie terugmailde, 30 dagen
+# rust na een andere extra mail (seizoen_op), en per winkel een keer per 90
+# dagen een LinkedIn-mail. Afmeldlink en afmeldkop in elke mail.
+DEEL_RUST_DAGEN = 90
+
+
+def deel_kandidaten(winkels):
+    urls = [w["webshop_url"] for w in (winkels or []) if w.get("webshop_url")]
+    if not urls:
+        return []
+    return _sql(f"""
+        SELECT b.webshop_url, b.email FROM benadering b
+         WHERE b.webshop_url = ANY(%s)
+           AND b.email IS NOT NULL AND b.email <> ''
+           AND NOT b.afgemeld AND b.bounce_op IS NULL AND b.klacht_op IS NULL AND b.antwoord_op IS NULL
+           AND coalesce(b.soort, 'winkel') = 'winkel'
+           AND (b.seizoen_op IS NULL OR b.seizoen_op < now() - interval '30 days')
+           AND (b.linkedin_op IS NULL OR b.linkedin_op < now() - interval '{DEEL_RUST_DAGEN} days')""",
+                (urls,), alles=True) or []
+
+
+def deelmail_tekst(naam, positie, van, categorie, landnaam, post_url):
+    """Onderwerp en alinea's. Kort en feitelijk: wat er staat, en waar."""
+    onderwerp = f"{naam} is #{positie} in our {categorie.lower()} post on LinkedIn"
+    alineas = [
+        "Hi,",
+        f"We just posted this month's {categorie.lower()} ranking for {landnaam} on LinkedIn. "
+        f"<strong>{naam} is #{positie}</strong>{f' of {van} stores' if van else ''}: when shoppers ask "
+        f"ChatGPT and Gemini where to buy, your store is one of the names they give.",
+        f"Here is the post, in case you want to share it with your followers: "
+        f'<a href="{post_url}">{post_url}</a>',
+        "And if you like, show it on your site with the badge below. It updates itself every month "
+        "and only shows a rank while you are in the top 5.",
+    ]
+    slot = "Staying on top is the hard part. Watch shows you every month where you stand."
+    return onderwerp, alineas, slot
+
+
+def deelmails(post_id, basis_url, bouw_beeld, categorienaam, landnaam, verstuur=None):
+    """Na Geplaatst mét link: de deelmail naar de winkels uit de top. Geeft het aantal verstuurd."""
+    import json
+    import badgeagent
+    p = _sql("SELECT * FROM linkedin_posts WHERE id = %s", (post_id,))
+    if not p or p.get("soort") != "ranglijst" or not (p.get("post_url") or "").startswith("https://"):
+        return 0
+    if p.get("gedeeld_gemaild") is not None:
+        return 0   # een keer per post, ook als Nino twee keer op de knop drukt
+    winkels = p.get("winkels") or []
+    if isinstance(winkels, str):
+        winkels = json.loads(winkels)
+    if verstuur is None:
+        import emailing
+        verstuur = emailing.send_badge
+    verstuurd = 0
+    for w in deel_kandidaten(winkels):
+        url = w["webshop_url"]
+        try:
+            beeld = bouw_beeld(url)
+        except Exception:
+            beeld = None
+        gegevens = badgeagent.badge_gegevens(beeld, categorienaam(beeld) if beeld else None)
+        # Alleen als de plek van NU nog in de top 3 staat: nooit een mail over
+        # een plek die niet meer klopt.
+        if not gegevens or gegevens["plek"] > 3:
+            continue
+        token = db.get_benchmark_token(url)
+        if not token:
+            continue
+        naam = badgeagent._kaal(url)
+        onderwerp, alineas, slot = deelmail_tekst(naam, gegevens["plek"], beeld.get("van"),
+                                                  gegevens["categorie"] or "your category",
+                                                  landnaam(beeld) or "your country", p["post_url"])
+        pagina = f"{basis_url}/index/{(beeld.get('land') or '').lower()}/{beeld.get('categorie')}"
+        code = badgeagent.embedcode(basis_url, token, pagina, gegevens)
+        _sql("UPDATE benadering SET linkedin_op = now(), seizoen_op = now() WHERE webshop_url = %s", (url,))
+        if verstuur(w["email"], onderwerp, alineas, code, slot, f"{basis_url}/uitkomst/{token}",
+                    afmeld_url=f"{basis_url}/afmelden/{token}"):
+            verstuurd += 1
+    _sql("UPDATE linkedin_posts SET gedeeld_gemaild = %s WHERE id = %s", (verstuurd, post_id))
+    return verstuurd
+
+
+def zet_cijfers(post_id, weergaven, reacties):
+    """Stap 212: LinkedIn geeft zijn cijfers niet aan ons door, dus Nino vult ze in."""
+    _sql("UPDATE linkedin_posts SET weergaven = %s, reacties = %s WHERE id = %s",
+         (weergaven, reacties, post_id))
+
+
+def beste_soort():
+    """Welk soort post gemiddeld de meeste weergaven haalt. None bij te weinig cijfers."""
+    rijen = _sql("""SELECT soort, round(avg(weergaven)) AS gem, count(*) AS n FROM linkedin_posts
+                     WHERE weergaven IS NOT NULL GROUP BY soort ORDER BY avg(weergaven) DESC""",
+                 alles=True) or []
+    if sum(r["n"] for r in rijen) < 3:
+        return None
+    return rijen
 
 
 def posts(limiet=30):
@@ -223,8 +368,9 @@ def posts(limiet=30):
                     WHERE dag >= current_date - 14 ORDER BY dag LIMIT %s""", (limiet,), alles=True) or []
 
 
-def zet_geplaatst(post_id):
-    return _sql("UPDATE linkedin_posts SET stand = 'geplaatst', geplaatst_op = now() WHERE id = %s", (post_id,))
+def zet_geplaatst(post_id, post_url=None):
+    return _sql("UPDATE linkedin_posts SET stand = 'geplaatst', geplaatst_op = now(), "
+                "post_url = coalesce(%s, post_url) WHERE id = %s", (post_url, post_id))
 
 
 def vandaag_klaar():

@@ -1180,45 +1180,119 @@ def lijstje_stop(token):
 
 @app.route("/admin/linkedin", methods=["GET", "POST"])
 def admin_linkedin():
-    """De posts van de LinkedIn-agent: kopieren, plaatje downloaden, geplaatst."""
+    """De posts van de LinkedIn-agent: kopieren, plaatje downloaden, geplaatst.
+
+    30 september: de link staat in een eigen eerste reactie (stap 207). Bij
+    Geplaatst plakt Nino de link naar de post; dan krijgen de winkels uit de
+    top een deelmail (stap 208). En per post vult hij later de weergaven in
+    (stap 212), zodat we zien welk soort post werkt."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
         return redirect("/admin/inloggen")
     if doorsturen:
         return redirect(doorsturen)
     import linkedinagent
+    basis = get_base_url().rstrip("/")
+    melding = ""
     if request.method == "POST":
-        if request.form.get("actie") == "geplaatst":
-            linkedinagent.zet_geplaatst(int(request.form.get("id") or 0))
-        elif request.form.get("actie") == "vullen":
+        actie = request.form.get("actie")
+        post_id = int(request.form.get("id") or 0)
+        if actie == "geplaatst":
+            post_url = (request.form.get("post_url") or "").strip()
+            if post_url and not post_url.startswith("https://www.linkedin.com/"):
+                post_url = ""
+            linkedinagent.zet_geplaatst(post_id, post_url or None)
+            if post_url:
+                try:
+                    n = linkedinagent.deelmails(
+                        post_id, basis, lambda url: klantbeeld.bouw(url),
+                        categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
+                        landnaam=lambda b: sitetaal.landnaam(b["land"], "en") if b.get("land") else None)
+                    melding = f"Geplaatst. {n} winkel(s) uit de top kregen een mail met de link naar de post."
+                except Exception as e:
+                    print(f"Deelmail na LinkedIn-post mislukt: {e}")
+                    melding = "Geplaatst, maar de deelmail lukte niet. Staat in de logs."
+        elif actie == "cijfers":
+            def _getal(naam):
+                try:
+                    return max(0, int((request.form.get(naam) or "").strip()))
+                except ValueError:
+                    return None
+            linkedinagent.zet_cijfers(post_id, _getal("weergaven"), _getal("reacties"))
+        elif actie == "vullen":
             linkedinagent.klaarzetten(
-                get_base_url().rstrip("/"),
+                basis,
                 db.categorieen_per_land(linkedinagent.LAND, MINIMUM_PER_LAND) or [],
                 _ranglijst_bewaard, categorieen.naam_en, sitetaal.landnaam(linkedinagent.LAND, "en"))
-        return redirect("/admin/linkedin")
+        return redirect("/admin/linkedin" + (f"?m={quote(melding)}" if melding else ""))
+    melding = request.args.get("m") or ""
+
+    def _kopieer(veld_id, label):
+        return (f"<button onclick=\"navigator.clipboard.writeText(document.getElementById('{veld_id}').value);"
+                f"this.textContent='Gekopieerd'\">{label}</button>")
+
     blokken = []
     for p in linkedinagent.posts():
+        # Posts die voor 30 september klaargezet werden hebben de link nog in
+        # de tekst. Nog niet geplaatst? Dan hier alsnog splitsen.
+        if not p.get("reactie") and p["stand"] != "geplaatst" and basis in (p.get("tekst") or ""):
+            p["tekst"], p["reactie"] = linkedinagent.link_naar_reactie(p["tekst"], basis)
+            linkedinagent._sql("UPDATE linkedin_posts SET tekst = %s, reactie = %s WHERE id = %s",
+                               (p["tekst"], p["reactie"], p["id"]))
         tag = (f"<p><b>Tag deze winkels</b> (typ @ en de naam in de post, als ze een bedrijfspagina hebben): "
                f"{escape(p['taggen'])}</p>") if p.get("taggen") else ""
-        knop = ("<p style='color:#0B7C5E'>Geplaatst.</p>" if p["stand"] == "geplaatst" else
-                f"<form method='post'><input type='hidden' name='id' value='{p['id']}'>"
-                f"<button name='actie' value='geplaatst'>Geplaatst</button></form>")
+        reactie = ""
+        if p.get("reactie"):
+            reactie = (f"<p style='margin:14px 0 4px'><b>Eerste reactie</b> (direct na het plaatsen, als Krillo): "
+                       f"</p><textarea id='r{p['id']}' rows='4' style='width:100%;font:14px system-ui'>"
+                       f"{escape(p['reactie'])}</textarea><p>{_kopieer('r' + str(p['id']), 'Kopieer reactie')}</p>")
+        if p["stand"] == "geplaatst":
+            gedeeld = ""
+            if p.get("gedeeld_gemaild") is not None:
+                gedeeld = f" {p['gedeeld_gemaild']} winkel(s) kregen de deelmail."
+            elif p.get("soort") == "ranglijst" and not p.get("post_url"):
+                gedeeld = " Zonder link naar de post: geen deelmail verstuurd."
+            knop = (f"<p style='color:#0B7C5E'>Geplaatst.{gedeeld}</p>"
+                    f"<form method='post' style='display:flex;gap:8px;flex-wrap:wrap;align-items:center'>"
+                    f"<input type='hidden' name='id' value='{p['id']}'>"
+                    f"<label>Weergaven <input name='weergaven' size='6' value='{p.get('weergaven') or ''}'></label>"
+                    f"<label>Reacties <input name='reacties' size='4' value='{p.get('reacties') or ''}'></label>"
+                    f"<button name='actie' value='cijfers'>Bewaar cijfers</button></form>")
+        else:
+            uitleg = (" Plak de link van je post (de drie puntjes op de post, <i>Copy link to post</i>): dan "
+                      "krijgen de winkels uit de top een mail om hem te delen." if p.get("soort") == "ranglijst" else "")
+            knop = (f"<form method='post'><input type='hidden' name='id' value='{p['id']}'>"
+                    f"<p style='margin:8px 0'>{uitleg}</p>"
+                    f"<input name='post_url' placeholder='https://www.linkedin.com/posts/...' "
+                    f"style='width:100%;max-width:420px;padding:6px'> "
+                    f"<button name='actie' value='geplaatst'>Geplaatst</button></form>")
         blokken.append(
             f"<div style='border:1px solid #ddd;border-radius:10px;padding:16px;margin:16px 0;display:flex;gap:20px;flex-wrap:wrap'>"
             f"<div style='flex:1;min-width:300px'><h3>{p['dag']:%A %d %B} &middot; {escape(p['soort'])}</h3>"
             f"<textarea id='t{p['id']}' rows='12' style='width:100%;font:14px system-ui'>{escape(p['tekst'])}</textarea>"
-            f"<p><button onclick=\"navigator.clipboard.writeText(document.getElementById('t{p['id']}').value);"
-            f"this.textContent='Gekopieerd'\">Kopieer tekst</button> "
+            f"<p>{_kopieer('t' + str(p['id']), 'Kopieer tekst')} "
             f"<a href='/admin/linkedin/beeld/{p['id']}.png' download='krillo-{p['dag']}.png'>Download plaatje</a></p>"
-            f"{tag}{knop}</div>"
+            f"{reactie}{tag}{knop}</div>"
             f"<img src='/admin/linkedin/beeld/{p['id']}.png' style='width:300px;height:300px;border:1px solid #eee'></div>")
+    melding_html = (f"<p style='background:#E8F6EF;padding:10px 14px;border-radius:8px'>{escape(melding)}</p>"
+                    if melding else "")
+    beste = linkedinagent.beste_soort()
+    beste_html = ("<p><b>Wat werkt:</b> " + ", ".join(
+        f"{escape(r['soort'])} gemiddeld {int(r['gem'])} weergaven ({r['n']} posts)" for r in beste) + "</p>"
+        if beste else "<p><b>Wat werkt:</b> vul na een paar dagen bij elke geplaatste post de weergaven in. "
+                      "Vanaf drie posts staat hier welk soort post het best loopt.</p>")
     return (f"<!doctype html><meta charset='utf-8'><title>LinkedIn</title>"
             f"<body style='font-family:system-ui;max-width:1000px;margin:30px auto;padding:0 16px'>"
-            f"<p><a href='/admin'>Terug</a></p><h1>LinkedIn-posts voor de bedrijfspagina</h1>"
-            f"<p>Maandag, woensdag en vrijdag een post, een week vooruit klaargezet uit de echte meetdata. "
-            f"Plaatsen: open de bedrijfspagina Krillo, klik <b>Start a post</b> (je post dan als Krillo), plak de "
-            f"tekst, klik op het fotoicoon en kies het plaatje, <b>Post</b>. Daarna hier op Geplaatst. "
-            f"Beste moment: tussen 8:00 en 9:30.</p>"
+            f"<h1>LinkedIn-posts voor de bedrijfspagina</h1>"
+            f"{melding_html}"
+            f"<p>Maandag, woensdag en vrijdag een post, een week vooruit klaargezet uit de echte meetdata.</p>"
+            f"<ol><li>Open de bedrijfspagina Krillo en klik <b>Start a post</b> (je post dan als Krillo).</li>"
+            f"<li>Plak de tekst, klik op het fotoicoon, kies het plaatje, en <b>Post</b>. Tag de winkels die erbij staan.</li>"
+            f"<li>Plaats meteen daarna de <b>eerste reactie</b> met de link, ook als Krillo. De link staat bewust "
+            f"niet in de post: posts met een link naar buiten krijgen minder bereik.</li>"
+            f"<li>Kopieer de link van je post, plak hem hieronder en klik <b>Geplaatst</b>.</li>"
+            f"<li>Na een dag of drie: de weergaven en reacties invullen.</li></ol>"
+            f"<p>Beste moment: tussen 8:00 en 9:30.</p>{beste_html}"
             f"<form method='post'><button name='actie' value='vullen'>Nu de komende week klaarzetten</button></form>"
             f"{''.join(blokken) or '<p>Nog geen posts. Klik hierboven of wacht op de volgende uurronde.</p>'}</body>")
 
