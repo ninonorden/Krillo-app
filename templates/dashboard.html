@@ -151,6 +151,11 @@
         {% elif geen_plek and geen_plek.soort == 'niet_in_meting' %}
           {% if taal == 'nl' %}Je categorie ({{ geen_plek.categorie }}) is gemeten{% if geen_plek.gemeten %} op {{ geen_plek.gemeten }}{% endif %}, maar je winkel zat toen nog niet in de meting. Bij de volgende meting{% if geen_plek.volgende %} (rond {{ geen_plek.volgende }}){% endif %} doe je mee, en dan staat je plek hier.
           {% else %}Your category ({{ geen_plek.categorie }}) was measured{% if geen_plek.gemeten %} on {{ geen_plek.gemeten }}{% endif %}, but your store was not in that measurement yet. You are in the next one{% if geen_plek.volgende %} (around {{ geen_plek.volgende }}){% endif %}, and your position appears here.{% endif %}
+        {% elif geen_plek and geen_plek.soort == 'niet_gemeten' and geen_plek.wordt_gemeten %}
+          {# 1 oktober: een betalende klant in een categorie die nog nooit gemeten
+             is, krijgt zijn categorie meteen gemeten (klantmeetrij). #}
+          {% if taal == 'nl' %}We meten je categorie ({{ geen_plek.categorie }}) nu speciaal voor jou: dezelfde koopvragen aan ChatGPT en Gemini, voor alle winkels die we erin kennen. Dat duurt meestal minder dan een uur. Daarna staan hier je plek en de vragen waarbij AI een ander noemt, en krijg je bericht.
+          {% else %}We are measuring your category ({{ geen_plek.categorie }}) for you now: the same buying questions to ChatGPT and Gemini, for every store we know in it. That usually takes less than an hour. Then your position and the questions where AI names someone else are here, and we let you know.{% endif %}
         {% elif geen_plek and geen_plek.soort == 'niet_gemeten' %}
           {% if taal == 'nl' %}Je categorie ({{ geen_plek.categorie }}) is nog niet gemeten: we meten vanaf {{ geen_plek.nodig }} winkels en hebben er nu {{ geen_plek.aantal }}. We zoeken er elke nacht bij; daarna verschijnt je plek hier en krijg je bericht.
           {% else %}Your category ({{ geen_plek.categorie }}) has not been measured yet: we measure from {{ geen_plek.nodig }} stores and have {{ geen_plek.aantal }} now. We add stores every night; then your position appears here and we let you know.{% endif %}
@@ -183,6 +188,36 @@
        ================================================================ #}
     {% if volgende %}
     <div class="volgende"><span class="pijl">&rarr;</span> {{ volgende }}</div>
+    {% endif %}
+
+    {# Stap 198 (1 oktober): de wekelijkse snelmeting van de vijf belangrijkste
+       vragen. Alleen voor een betalende klant (snel_dag staat alleen dan). Geen
+       nieuwe plek: die komt uit de maandmeting, en dat staat er ook. #}
+    {% if snel_dag is defined and snel_dag %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'DEZE WEEK: JE VIJF BELANGRIJKSTE VRAGEN' if taal == 'nl' else "THIS WEEK: YOUR FIVE KEY QUESTIONS" }}</div>
+      {% if snel %}
+      <p style="margin:0 0 10px; font-size:15px;">
+        {% if taal == 'nl' %}Genoemd in <strong>{{ snel.genoemd }} van {{ snel.van }}</strong> antwoorden{% if snel.vorige_van %} (vorige week {{ snel.vorige_genoemd }} van {{ snel.vorige_van }}){% endif %}. Gemeten op {{ snel.op.strftime('%d-%m-%Y') }}.
+        {% else %}Named in <strong>{{ snel.genoemd }} of {{ snel.van }}</strong> answers{% if snel.vorige_van %} (last week {{ snel.vorige_genoemd }} of {{ snel.vorige_van }}){% endif %}. Checked on {{ snel.op.strftime('%d %b %Y') }}.{% endif %}
+      </p>
+      <div style="padding:0 16px; overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:14px;">
+        {% for v in snel.vragen %}
+        <tr style="border-top:1px solid var(--lijn, #E8E8EC);">
+          <td style="padding:8px 8px 8px 0;">{{ v.vraag }}{% if v.was is not none and v.was != v.nu %} <span style="font-family:var(--mono); font-size:12px; color:{{ '#0A7F55' if v.nu else '#B42318' }};">{{ ('nu genoemd' if v.nu else 'niet meer genoemd') if taal == 'nl' else ('now named' if v.nu else 'no longer named') }}</span>{% endif %}</td>
+          {% for a in v.assistenten %}
+          <td style="padding:8px 0 8px 8px; white-space:nowrap; font-family:var(--mono); font-size:12px;" title="{{ a.anderen | join(', ') }}">{{ a.naam }} {{ '&#10003;' | safe if a.genoemd else '&#10005;' | safe }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+      </div>
+      <p style="margin:10px 0 0; font-size:13px; color:var(--zacht, #6E7079);">{{ 'Elke ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ ' opnieuw. Je plek in de ranglijst komt uit de maandmeting, waar elke winkel dezelfde vragen krijgt.' if taal == 'nl' else 'Checked again every ' ~ snel_dag ~ '. Your rank comes from the monthly measurement, where every store gets the same questions.' }}</p>
+      {% else %}
+      <p style="margin:0; font-size:15px;">{{ ('Elke week stellen we je vijf belangrijkste koopvragen opnieuw aan ChatGPT en Gemini, zodat je binnen een week ziet of een verbetering werkt. De eerste keer is op ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ '.') if taal == 'nl' else ('Every week we ask your five most important buying questions again to ChatGPT and Gemini, so you see within a week whether a change works. The first check is on ' ~ snel_dag ~ '.') }}</p>
+      {% endif %}
+    </div>
     {% endif %}
 
     {% set zicht = ((beeld.genoemd / beeld.telbaar * 100) | round | int) if beeld.telbaar else 0 %}
@@ -876,7 +911,7 @@
           {% if beeld and beeld.gemeten_op %}
           {{ 'Laatste meting' if taal == 'nl' else 'Last measurement' }}: <strong>{{ beeld.gemeten_op.strftime('%d %b %Y') }}</strong><br>
           {{ 'Volgende meting rond' if taal == 'nl' else 'Next measurement around' }}: <strong>{{ (beeld.gemeten_op + volgende_meting_na).strftime('%d %b %Y') }}</strong>
-          {% else %}{{ 'Je eerste meting komt zodra je categorie aan de beurt is.' if taal == 'nl' else 'Your first measurement comes as soon as your category is up.' }}{% endif %}
+          {% else %}{{ 'We zetten je nu in de ranglijst van je categorie, of meten je categorie eerst als die nieuw is voor ons. Meestal binnen het uur; je krijgt bericht.' if taal == 'nl' else 'We are adding you to the ranking of your category now, or measuring your category first if it is new for us. Usually within the hour; we email you.' }}{% endif %}
         </p>
         <p class="klein">{{ 'Elke maand stellen we dezelfde koopvragen aan ChatGPT en Gemini, voor alle winkels in je categorie tegelijk. Zo is je plek eerlijk te vergelijken.' if taal == 'nl'
              else 'Every month we ask ChatGPT and Gemini the same buying questions, for all stores in your category at once. That keeps your place fair to compare.' }}</p>
