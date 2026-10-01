@@ -184,7 +184,8 @@
     <div class="uitleg">
       <b>Welke mail werkt beter.</b>
       Versie a zet de positie voorop, versie b de vraag, versie c "ben jij een van de drie die AI noemt".
-      Een winkel krijgt altijd dezelfde versie.
+      Een winkel krijgt altijd dezelfde versie. "Link geklikt" is vooral mailbeveiliging;
+      de winnaar gaat op klant, naar de prijzen en echte mensen (geteld sinds 29 september).
       {% set met_versie = varianten.rijen | sum(attribute='gemaild') %}
       {% if trechter and trechter.gemaild and trechter.gemaild > met_versie %}
         De versies tellen pas sinds ze bestaan: {{ met_versie }} van de {{ trechter.gemaild }} mails.
@@ -194,12 +195,14 @@
         <tr><th style="text-align:left; padding:4px 14px 4px 0;">Versie</th>
             <th style="text-align:right; padding:4px 14px;">Gemaild</th>
             <th style="text-align:right; padding:4px 14px;">Link geklikt</th>
+            <th style="text-align:right; padding:4px 14px;">Echte mensen</th>
             <th style="text-align:right; padding:4px 14px;">Naar de prijzen</th>
             <th style="text-align:right; padding:4px 0 4px 14px;">Klant geworden</th></tr>
         {% for r in varianten.rijen %}
         <tr><td style="padding:4px 14px 4px 0;">{{ r.variant }}</td>
             <td style="text-align:right; padding:4px 14px;">{{ r.gemaild }}</td>
             <td style="text-align:right; padding:4px 14px;">{{ r.bekeken }} ({{ r.klik_pct }}%)</td>
+            <td style="text-align:right; padding:4px 14px;">{{ r.mensen or 0 }} ({{ r.mens_pct }}%)</td>
             <td style="text-align:right; padding:4px 14px;">{{ r.doorgeklikt }} ({{ r.door_pct }}%)</td>
             <td style="text-align:right; padding:4px 0 4px 14px;">{{ r.klant }}</td></tr>
         {% endfor %}

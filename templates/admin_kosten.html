@@ -107,6 +107,25 @@
     </div>
   </div>
 
+  <h2>Per agent: waar gaat het geld heen?</h2>
+  <p>Dagpot: {{ '%.2f'|format(grenzen.dag_totaal) }} euro. Vandaag gebruikt: {{ '%.2f'|format(vandaag_totaal) }} euro.
+  {% if not eigen_rem.mag %}<br><strong>{{ eigen_rem.reden }}</strong>{% endif %}</p>
+  {% if per_agent_vandaag or per_agent_week %}
+  <table>
+    <tr><th>Wat</th><th>Vandaag</th><th>Laatste 7 dagen</th><th>Mag een dag overslaan</th></tr>
+    {% for r in per_agent_rijen %}
+    <tr>
+      <td>{{ r.naam }}</td>
+      <td class="getal">€{{ '%.2f'|format(r.vandaag) }}</td>
+      <td class="getal">€{{ '%.2f'|format(r.week) }}</td>
+      <td>{{ 'ja' if r.eigen_agent else 'nee' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="leeg">Nog niets.</div>
+  {% endif %}
+
   <h2>Per webshop</h2>
   {% if per_klant %}
   <table>

@@ -108,10 +108,16 @@
       <div>
         <div class="proefkop">{{ 'Je eigen Krillo-dashboard, gratis voorproef' if taal == 'nl' else 'Your own Krillo dashboard, free preview' }}</div>
         <div class="proeftekst">
+          {# 1 oktober: de kern in een regel. Van de 66 die hun uitkomst openden
+             gingen er 3 naar de prijzen. Wie kijkt moet in twee seconden zien
+             wie AI WEL noemt, en meteen de knop ernaast. #}
+          {% set gemist = (beeld.gemiste_vragen or []) | selectattr('concurrenten') | list %}
           {% if taal == 'nl' %}{{ beeld.naam }} staat op <strong>#{{ beeld.positie }}</strong> van {{ beeld.van }} in {{ categorienaam }}.
-          Elke maand dit overzicht, alle antwoorden, en de verbeteringen die je hoger zetten: dat is Watch of Fix.
+          {% if gemist %}AI noemde <strong>{{ (gemist | first).concurrenten[:2] | join(' en ') }}</strong>, niet jou.{% endif %}
+          Watch of Fix zet je hoger.
           {% else %}{{ beeld.naam }} is <strong>#{{ beeld.positie }}</strong> of {{ beeld.van }} in {{ categorienaam }}.
-          This page every month, every answer, and the fixes that move you up: that is Watch or Fix.{% endif %}
+          {% if gemist %}AI named <strong>{{ (gemist | first).concurrenten[:2] | join(' and ') }}</strong>, not you.{% endif %}
+          Watch or Fix moves you up.{% endif %}
         </div>
       </div>
       <div class="proefknoppen">
