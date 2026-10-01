@@ -237,7 +237,7 @@ MINIMUM_VOOR_TELLER = int(os.environ.get("MINIMUM_VOOR_TELLER", "50"))
 # dan geen teller, want je gaat conclusies trekken uit ruis.
 # /embed: de ranglijst in het venster op de site van een ander. Dat is geen
 # bezoek aan onze site, en daar hoort ook geen script in.
-BEZOEK_NEGEREN = ("/static", "/admin", "/api", "/cron", "/wakker", "/shopify", "/embed",
+BEZOEK_NEGEREN = ("/static", "/admin", "/api", "/cron", "/wakker", "/shopify", "/embed", "/v/",
                   "/webhook", "/favicon", "/robots.txt", "/sitemap", "/healthz",
                   "/.well-known")
 
@@ -312,7 +312,9 @@ def _meet_duur(antwoord):
     try:
         from flask import g
         duur = time.time() - getattr(g, "_krillo_start", time.time())
-        if not request.path.startswith("/static"):
+        # De klantblik (eigen controle) telt niet mee bij de trage pagina's.
+        if not request.path.startswith("/static") and \
+                not (request.headers.get("User-Agent") or "").startswith("KrilloKlantblik"):
             _verzoeken["totaal"] += 1
             if duur >= TRAAG_SECONDEN:
                 _verzoeken["traag"] += 1
@@ -1235,7 +1237,7 @@ def admin_persbericht():
     """Stap 92: het persbericht in het Nederlands, klaar om te kopieren."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import indexnieuws
@@ -1293,7 +1295,7 @@ def admin_linkedin():
     (stap 212), zodat we zien welk soort post werkt."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import linkedinagent
@@ -1428,7 +1430,7 @@ def admin_artikelen():
     """Stap 203: de concepten van de artikelagent. Niets gaat vanzelf online."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import artikelagent
@@ -1522,7 +1524,7 @@ def admin_agents():
     """Het commandocentrum (stap 172): alle agents op een plek, met schakelaars."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     if request.method == "POST":
@@ -1551,7 +1553,7 @@ def admin_lijstjes():
     """Wat de lijstjesagent vond en mailde."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import lijstjesagent
@@ -1701,7 +1703,7 @@ def admin_merkaanvragen():
     dat is de lijst winkels die als merk zijn aangemerkt.)"""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import merkenbureaus
@@ -1728,7 +1730,7 @@ def admin_doorverwijzen():
     betalen. Uitbetalen gebeurt met de hand (zie doorverwijzen.py waarom)."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import doorverwijzen
@@ -1868,7 +1870,7 @@ def admin_bureaus():
     verstuur je hier met de hand; daarna kan het vanzelf (BUREAUMAIL_AUTO=1)."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import bureauvinder
@@ -1931,7 +1933,7 @@ def admin_wachtlijst():
     """Stap 165: hoeveel winkels per land wachten. Zo kiezen we welk land eerst."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import wachtlijst
@@ -1952,7 +1954,7 @@ def admin_leren():
     wat ze voorstellen. Met een knop om nu een onderzoek te starten."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import leeragent
@@ -2002,11 +2004,158 @@ def admin_wereld():
     """Stap 148: het dorp van de agents. Ververst elke minuut vanzelf."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import agentwereld
     return render_template("agentwereld.html", w=agentwereld.stand())
+
+
+# ---------------------------------------------------------------------------
+# VOORSTELLEN TER AKKOORD (1 oktober). Zie voorstellen.py en groeiagent.py.
+# Nino tikt in het ochtendbericht op "ja of nee" en komt hier. De link zelf doet
+# niets: mailprogramma's en virusscanners openen links vooraf, en die mogen
+# niets goedkeuren. Pas de knop (POST) beslist. De lange willekeurige code in
+# het adres is de toegang, zodat het vanaf de telefoon zonder inloggen kan.
+# ---------------------------------------------------------------------------
+def _voorstel_pagina(titel, inhoud):
+    from html import escape as _e
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<meta name='robots' content='noindex'><title>{_e(titel)} | Krillo</title>"
+            f"<body style='font-family:Arial,sans-serif;max-width:680px;margin:32px auto;padding:0 16px;"
+            f"line-height:1.55;color:#111'>{inhoud}</body>")
+
+
+def _voorstel_blok(v, met_knoppen=True):
+    from html import escape as _e
+    import groeiagent
+    soortnaam = {"actie": "Handeling: gebeurt meteen na akkoord",
+                 "taak": "Taak voor jou", "bouwen": "Nieuwe functie: gaat op de bouwlijst voor Claude"}
+    stuk = [f"<div style='border:1px solid #ddd;border-radius:10px;padding:14px 16px;margin:0 0 14px'>"
+            f"<div style='font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.04em'>"
+            f"{_e(soortnaam.get(v['soort'], v['soort']))} &middot; {_e(v.get('bron') or '')}"
+            f"{(' &middot; ongeveer ' + str(v['minuten']) + ' min') if v.get('minuten') else ''}</div>"
+            f"<h2 style='font-size:18px;margin:6px 0'>{_e(v['titel'])}</h2>"
+            f"<p style='margin:0 0 10px'>{_e(v.get('waarom') or '')}</p>"]
+    if v.get("bron") == "gidsen":
+        stuk.append("<details><summary>Teksten om te plakken</summary><table cellpadding='4'>" + "".join(
+            f"<tr><td style='vertical-align:top;color:#666'>{_e(k)}</td><td>{_e(w)}</td></tr>"
+            for k, w in groeiagent.AANMELDTEKST.items()) + "</table></details>")
+    if met_knoppen:
+        knop = ("style='font-size:16px;padding:10px 18px;border-radius:8px;border:1px solid #111;"
+                "margin:8px 8px 0 0;cursor:pointer'")
+        stuk.append(f"<form method='post' action='/v/{_e(v['token'])}' style='margin:0'>")
+        if v["stand"] == "open":
+            ja = "Akkoord, ik doe het" if v["soort"] == "taak" else "Akkoord"
+            stuk.append(f"<button name='keuze' value='akkoord' {knop[:-1]};background:#111;color:#fff'>{ja}</button>"
+                        f"<button name='keuze' value='nee' {knop}>Nee</button>")
+            if v["soort"] == "taak":
+                stuk.append(f"<button name='keuze' value='gedaan' {knop}>Al gedaan</button>")
+        elif v["stand"] == "akkoord" and v["soort"] == "taak":
+            stuk.append(f"<button name='keuze' value='gedaan' {knop[:-1]};background:#111;color:#fff'>Gedaan</button>")
+        stuk.append("</form>")
+    stuk.append("</div>")
+    return "".join(stuk)
+
+
+@app.route("/v/<token>", methods=["GET", "POST"])
+def voorstel_beslissen(token):
+    import voorstellen
+    from html import escape as _e
+    v = voorstellen.bij_token(token)
+    if not v:
+        return _voorstel_pagina("Voorstel", "<h1>Dit voorstel bestaat niet (meer)</h1>"), 404
+    melding = ""
+    if request.method == "POST":
+        gelukt, melding = voorstellen.beslis(token, (request.form.get("keuze") or "").strip())
+        v = voorstellen.bij_token(token)
+        melding = (f"<p style='padding:10px 14px;border-radius:8px;background:"
+                   f"{'#e8f5e9' if gelukt else '#fdecea'}'>{_e(melding)}</p>")
+    return _voorstel_pagina("Voorstel", melding + _voorstel_blok(v) +
+                            "<p><a href='/admin/voorstellen'>Alle voorstellen</a></p>")
+
+
+@app.route("/admin/klantblik")
+def admin_klantblik():
+    """Wat de klantblik vond (klantblik.py). Met ?nu=ja draait hij meteen."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return _naar_inloggen()
+    if doorsturen:
+        return redirect(doorsturen)
+    import klantblik
+    from html import escape as _e
+    if request.args.get("nu") == "ja":
+        threading.Thread(target=klantblik.draai, args=(app,), daemon=True).start()
+        return redirect("/admin/klantblik?gestart=ja")
+    uit = klantblik.laatste()
+    stuk = ["<h1>Klantblik</h1><p>Elke ochtend rond zes uur loopt Krillo alle pagina's na zoals een klant ze "
+            "ziet: de openbare site, de demo, ranglijsten en winkelpagina's, en het dashboard van je testwinkels. "
+            "Hij volgt elke link en zoekt naar wat een klant als fout ziet. Fouten staan in het ochtendbericht.</p>"]
+    if request.args.get("gestart") == "ja":
+        stuk.append("<p><strong>Gestart.</strong> Ververs over een minuut of twee.</p>")
+    if not uit.get("op"):
+        stuk.append("<p>Hij heeft nog niet gedraaid.</p>")
+    else:
+        stuk.append(f"<p>Laatst: {_e(uit['op'])}. {uit.get('paginas', 0)} pagina's gelezen, {uit.get('links', 0)} "
+                    f"adressen nagekeken, in {uit.get('duur', '?')} seconden.</p>")
+        for ernst, kop in (("fout", "Fouten"), ("waarschuwing", "Twijfelgevallen")):
+            rijen = uit.get(ernst) or []
+            stuk.append(f"<h2>{kop} ({len(rijen)})</h2>")
+            if not rijen:
+                stuk.append("<p>Geen.</p>")
+                continue
+            stuk.append("<ul>" + "".join(
+                f"<li style='margin-bottom:6px'>{_e(f['tekst'])} <span style='color:#666'>(op {f['aantal']} "
+                f"pagina's: " + ", ".join(f"<a href='{_e(p)}'>{_e(p[:60])}</a>" for p in f["paginas"][:4])
+                + ")</span></li>" for f in rijen) + "</ul>")
+        tekst = klantblik.tekst_voor_claude(uit)
+        if tekst:
+            stuk.append("<h2>Voor Claude</h2><textarea readonly rows='10' style='width:100%;font-family:monospace;"
+                        "font-size:13px'>" + _e(tekst) + "</textarea>")
+    stuk.append("<p><a href='/admin/klantblik?nu=ja'>Nu nalopen</a></p>")
+    return _voorstel_pagina("Klantblik", "".join(stuk))
+
+
+@app.route("/admin/voorstellen", methods=["GET"])
+def admin_voorstellen():
+    """Alle open voorstellen, de lopende taken, de bouwlijst en wat er besloten is."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return _naar_inloggen()
+    if doorsturen:
+        return redirect(doorsturen)
+    import voorstellen
+    import groeiagent
+    from html import escape as _e
+    open_v = voorstellen.open_voorstellen()
+    lopend = voorstellen.lopende_taken()
+    bouw = voorstellen.bouwlijst()
+    verslag = groeiagent.laatste_verslag()
+    stuk = ["<h1>Voorstellen</h1><p>Wat de agents willen doen. Een handeling gebeurt meteen na akkoord; een "
+            "taak is voor jou; een nieuwe functie gaat op de bouwlijst en Claude bouwt hem.</p>"]
+    stuk.append(f"<h2>Open ({len(open_v)})</h2>" + ("".join(_voorstel_blok(v) for v in open_v)
+                                                     or "<p>Niets open.</p>"))
+    if lopend:
+        stuk.append(f"<h2>Taken waar je ja op zei ({len(lopend)})</h2>" + "".join(_voorstel_blok(v) for v in lopend))
+    stuk.append(f"<h2>Bouwlijst voor Claude ({len(bouw)})</h2>")
+    if bouw:
+        stuk.append("<p>Kopieer dit en plak het in je gesprek met Claude:</p><textarea readonly rows='8' "
+                    "style='width:100%;font-family:monospace;font-size:13px'>"
+                    + _e(voorstellen.tekst_voor_claude(bouw)) + "</textarea>")
+    else:
+        stuk.append("<p>Leeg.</p>")
+    if verslag.get("op"):
+        stuk.append(f"<h2>De groeiagent</h2><p>Laatst gekeken: {_e(verslag['op'].replace('T', ' om '))}. Hij kijkt elke "
+                    f"{groeiagent.ELKE_UREN} uur overdag. Nieuw de vorige keer: "
+                    f"{_e(', '.join(verslag.get('nieuw') or []) or 'niets')}.</p>")
+    oud = voorstellen.geschiedenis()
+    if oud:
+        stuk.append("<h2>Besloten</h2><table cellpadding='5' style='border-collapse:collapse;font-size:14px'>"
+                    + "".join(f"<tr><td>{_e(str(r.get('besloten_op') or '')[:16])}</td><td>{_e(r['stand'])}</td>"
+                              f"<td>{_e(r['titel'])}</td><td style='color:#666'>{_e(r.get('uitkomst') or '')}</td></tr>"
+                              for r in oud) + "</table>")
+    return _voorstel_pagina("Voorstellen", "".join(stuk))
 
 
 # ---------------------------------------------------------------------------
@@ -2022,7 +2171,8 @@ def admin_wereld():
 BEHEER_GROEPEN = [
     ("Vandaag", [
         ("/admin/ochtendbericht", "Ochtendbericht", "Het bericht van vanochtend, nu bekijken"),
-        ("/admin/bellijst", "Bellijst", "Wie je vandaag zelf belt of mailt, met wat je zegt"),
+        ("/admin/voorstellen", "Voorstellen", "Ja of nee op wat de agents willen doen, en de bouwlijst voor Claude"),
+        ("/admin/klantblik", "Klantblik", "Alle pagina's nagelopen zoals een klant ze ziet: wat er niet klopt"),
         ("/admin/agents", "Commandocentrum", "Alle agents met hun schakelaars"),
         ("/admin/controle", "Nachtcontrole", "Wat de controleagent vond, en nu draaien"),
         ("/admin/traag", "Trage pagina's", "Welke pagina's traag waren, en waarom"),
@@ -2240,7 +2390,7 @@ def admin_wordpress():
     """Het werk in gekoppelde WooCommerce-winkels: voorstellen, toepassen, terugzetten."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import json as _json
@@ -2382,7 +2532,7 @@ def admin_traag():
     """Welke pagina's traag waren sinds de laatste start (29 september)."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     t = traag_overzicht()
@@ -2712,6 +2862,35 @@ def _mag_bij_beheer():
                                                       **zonder})
         return True, None
     return False, None
+
+
+def _naar_inloggen():
+    """Naar het inlogscherm, en na het inloggen terug naar waar je heen wilde.
+
+    1 oktober: links in het ochtendbericht en in de beheerpagina's dragen de
+    sleutel niet meer. Wie (nog) niet ingelogd is, logt een keer in en komt dan
+    op de pagina waar hij op klikte, niet op het portaal."""
+    from urllib.parse import quote as _q, urlencode as _ue
+    zonder = {k: v for k, v in request.args.items() if k != "key"}
+    verder = request.path + (("?" + _ue(zonder)) if zonder else "")
+    if not verder.startswith("/admin") or request.method != "GET":
+        return redirect("/admin/inloggen")
+    return redirect("/admin/inloggen?verder=" + _q(verder, safe=""))
+
+
+def _zonder_beheersleutel(tekst, sleutel):
+    """Haalt de beheersleutel uit een stuk tekst (1 oktober).
+
+    Nino stuurde een schermafdruk van /admin/oplossingen in de chat, en daarop
+    stond de sleutel in platte tekst. Veel beheerpagina's zetten hem in hun
+    links (?key=...). Dat hoeft niet meer: wie ingelogd is, heeft een koekje.
+    Dit vangnet haalt hem uit ELKE pagina en elke doorverwijzing, ook uit
+    pagina's die later bijkomen. Alleen bij een sleutel van 12 tekens of meer:
+    een korte sleutel kan ook een gewoon woord zijn, en dan zou de pagina stuk
+    gaan."""
+    if not sleutel or len(sleutel) < 12 or not tekst or sleutel not in tekst:
+        return tekst
+    return tekst.replace(sleutel, "")
 
 
 def _sleutel_klopt(gegeven, verwacht):
@@ -3290,8 +3469,9 @@ def _meld_nieuwe_klant(soort, webshop_url, email, bedrag, extra=None):
     # Wie eerder opzegde en terugkomt, krijgt weer zijn maandbericht.
     db.zet_klant_opgezegd(webshop_url, opgezegd=False)
     basis = get_base_url()
-    sleutel = (os.environ.get("ADMIN_KEY") or "").strip()
-    achter = f"?key={quote(sleutel)}&url={quote(webshop_url)}" if sleutel else ""
+    # 1 oktober: geen beheersleutel meer in mails. Ben je niet ingelogd, dan log
+    # je een keer in en kom je daarna op deze pagina (zie _naar_inloggen).
+    achter = f"?url={quote(webshop_url)}"
     regels = [
         f"<strong>{soort}</strong> voor {webshop_url}",
         f"Bedrag: {bedrag}",
@@ -3301,7 +3481,7 @@ def _meld_nieuwe_klant(soort, webshop_url, email, bedrag, extra=None):
         regels.append(extra)
     if basis:
         regels.append(f'<a href="{basis}/admin/werkbriefje{achter}">Naar het werkbriefje</a>')
-        regels.append(f'<a href="{basis}/admin/bestellingen{("?key=" + quote(sleutel)) if sleutel else ""}">Naar de bestellingen</a>')
+        regels.append(f'<a href="{basis}/admin/bestellingen">Naar de bestellingen</a>')
     return _meld_aan_beheer(f"Nieuwe klant: {soort}", "<br>".join(regels))
 
 
@@ -4253,6 +4433,27 @@ def weekly_scans():
     base_url = get_base_url()
     threading.Thread(target=_draai_wekelijkse_scans, args=(base_url, alles), daemon=True).start()
     return "ok", 200
+
+
+@app.after_request
+def _geen_sleutel_in_antwoord(antwoord):
+    """Zie _zonder_beheersleutel: de beheersleutel gaat nooit mee naar de browser."""
+    sleutel = (os.environ.get("ADMIN_KEY") or "").strip()
+    if not sleutel or len(sleutel) < 12:
+        return antwoord
+    try:
+        plek = antwoord.headers.get("Location")
+        if plek and sleutel in plek:
+            antwoord.headers["Location"] = _zonder_beheersleutel(plek, sleutel)
+        soort = antwoord.mimetype or ""
+        if (not antwoord.direct_passthrough and not antwoord.is_streamed
+                and (soort.startswith("text/") or soort == "application/json")):
+            tekst = antwoord.get_data(as_text=True)
+            if sleutel in tekst:
+                antwoord.set_data(_zonder_beheersleutel(tekst, sleutel))
+    except Exception as e:
+        print(f"Sleutel uit het antwoord halen mislukt: {e}")
+    return antwoord
 
 
 @app.after_request
@@ -5387,6 +5588,32 @@ def _wachtklok_tik(nu=None):
         print("WACHTKLOK: geen nachtwerk gezien, de site start het zelf.")
         _start_nachtwerk()
         gedaan.append("nacht")
+    # 1 oktober: de klantblik loopt elke ochtend alle pagina's na zoals een klant
+    # ze ziet, na de nacht en voor het ochtendbericht van acht uur.
+    import commandocentrum
+    if 6 <= nu.hour < 8 and not onderhoud._stand.get("bezig") and commandocentrum.aan("klantblik") \
+            and db.claim_moment("klantblik", 20 * 3600):
+        def _klantblik():
+            try:
+                import klantblik
+                klantblik.draai(app)
+            except Exception as e:
+                print(f"Klantblik mislukt: {e}")
+        threading.Thread(target=_klantblik, daemon=True).start()
+        gedaan.append("klantblik")
+    # 1 oktober: de groeiagent kijkt elke vier uur overdag waar de klantenstroom
+    # vastloopt en zet voorstellen klaar (de eerste voor het ochtendbericht).
+    if 6 <= nu.hour < 21 and commandocentrum.aan("groei") and db.claim_moment("groeiagent", 4 * 3600 - 300):
+        def _groei():
+            try:
+                import groeiagent
+                v = groeiagent.ronde()
+                if v.get("nieuw"):
+                    print(f"Groeiagent: nieuw {v['nieuw']}")
+            except Exception as e:
+                print(f"Groeiagent mislukt: {e}")
+        threading.Thread(target=_groei, daemon=True).start()
+        gedaan.append("groeiagent")
     # Stap 88 (30 september): het opleveroverzicht vanzelf, overdag, hooguit
     # een keer per uur (zie opleveragent.py).
     if 9 <= nu.hour < 19 and db.claim_moment("oplevering_auto", 55 * 60):
@@ -5510,7 +5737,7 @@ def admin_benadering():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -5812,7 +6039,7 @@ def admin_koopvragen():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -5835,7 +6062,7 @@ def admin_koopvragen():
     # Alleen aanvullen, zonder eerst dubbelingen te zoeken.
     if request.args.get("aanvul") == "ja":
         threading.Thread(target=_vul_koopvragen_aan, args=(webshop_url,), daemon=True).start()
-        return redirect(f"/admin/koopvragen?key={admin_key}&url={webshop_url}&aangevuld=ja")
+        return redirect(f"/admin/koopvragen?url={webshop_url}&aangevuld=ja")
 
     # Zoeken naar dubbelingen kost een AI-aanroep, dus dat doen we alleen als
     # erom gevraagd wordt. Deed hij dat bij elke keer verversen, dan betaal je
@@ -5846,7 +6073,7 @@ def admin_koopvragen():
         for d in dubbelingen:
             db.zet_vraag_uit(webshop_url, d["weglaten"])
         threading.Thread(target=_vul_koopvragen_aan, args=(webshop_url,), daemon=True).start()
-        return redirect(f"/admin/koopvragen?key={admin_key}&url={webshop_url}&aangevuld=ja")
+        return redirect(f"/admin/koopvragen?url={webshop_url}&aangevuld=ja")
 
     weg_te_laten = {d["weglaten"]: d["houden"] for d in dubbelingen}
     groepen = {}
@@ -5919,7 +6146,7 @@ def admin_metingen():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -5938,7 +6165,7 @@ def admin_metingen():
         # Meteen doorsturen naar de pagina zonder start=ja. Anders start elke
         # keer verversen een nieuwe meetronde.
         _start_meting(webshop_url)
-        return redirect(f"/admin/metingen?key={admin_key}&url={webshop_url}&gestart=ja")
+        return redirect(f"/admin/metingen?url={webshop_url}&gestart=ja")
 
     net_gestart = request.args.get("gestart") == "ja"
     meting_id = request.args.get("meting") or None
@@ -6825,7 +7052,7 @@ def admin_demo():
         session["beheer"] = True
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -6844,7 +7071,7 @@ def admin_demo():
         opnieuw = request.args.get("opnieuw") == "ja"
         _demo_inplannen(urls, benchmark_stand, opnieuw)
         # Terug zonder start=ja, anders begint elke keer verversen opnieuw.
-        return redirect(f"/admin/demo?key={admin_key}")
+        return redirect(f"/admin/demo")
 
     winkels = db.get_demo_webshops()
     bekend = {w["webshop_url"] for w in winkels}
@@ -6874,7 +7101,7 @@ def admin_onderzoeksmail():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -7437,7 +7664,9 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         gegevens["geen_plek"] = _geen_plek_reden(webshop_url)
         # Een klant (of de beheerweergave) zonder plek: meteen uitrekenen uit de
         # antwoorden van deze maand, in plaats van een maand te wachten.
-        if werk and gegevens["geen_plek"].get("soort") in ("niet_in_meting", "geen_categorie"):
+        eigen_controle = (request.headers.get("User-Agent") or "").startswith("KrilloKlantblik")
+        if werk and gegevens["geen_plek"].get("soort") in ("niet_in_meting", "geen_categorie") \
+                and not eigen_controle:
             _plaats_in_ranglijst(webshop_url)
             # Alleen "bezig" zeggen als het ook echt loopt (of net liep).
             if time.time() - _plaatsen_bezig.get(webshop_url, 0) < 600:
@@ -7985,7 +8214,7 @@ def admin_rapport_pdf():
     dat die winkel klant hoeft te zijn. Precies dezelfde PDF als een klant krijgt."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     beeld = klantbeeld.bouw(url, max_vragen=5) if url else None
     if not beeld:
@@ -8340,7 +8569,7 @@ def admin_benchmark():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -8373,7 +8602,7 @@ def admin_voorbeeld():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -8460,7 +8689,7 @@ def admin_beoordelingen():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -8488,7 +8717,7 @@ def admin_beoordelingen():
         if start:
             threading.Thread(target=_beoordeel_achtergrond,
                              args=(webshop_url, meting_id, winkelnaam), daemon=True).start()
-        return redirect(f"/admin/beoordelingen?key={admin_key}&url={webshop_url}&bezig=ja")
+        return redirect(f"/admin/beoordelingen?url={webshop_url}&bezig=ja")
 
     if webshop_url and request.args.get("controleer") == "ja":
         start = False
@@ -8504,7 +8733,7 @@ def admin_beoordelingen():
                     with _metingen_slot:
                         _beoordelen_bezig.discard(webshop_url)
             threading.Thread(target=klus, daemon=True).start()
-        return redirect(f"/admin/beoordelingen?key={admin_key}&url={webshop_url}&bezig=ja")
+        return redirect(f"/admin/beoordelingen?url={webshop_url}&bezig=ja")
 
     beoordelingen = [dict(b) for b in db.get_beoordelingen(webshop_url, meting_id)] if webshop_url else []
     samenvatting = beoordeling.vat_samen(beoordelingen)
@@ -8530,52 +8759,8 @@ def admin_beoordelingen():
     )
 
 
-@app.route("/admin/bellijst")
-def admin_bellijst():
-    """De winkels die de koude mail kregen, om zelf op te volgen (1 oktober).
-
-    Nino: "hoe krijgen wij vandaag nog klanten?". Na 55 koude mails had nog geen
-    mens doorgeklikt. Een mail is makkelijk te negeren, een telefoontje van
-    iemand die zijn plek al weet niet. Per winkel: plek, waar je het telefoonnummer
-    vindt, zijn eigen Krillo-pagina om tijdens het gesprek te openen, en wat je zegt."""
-    mag, doorsturen = _mag_bij_beheer()
-    if not mag:
-        return redirect("/admin/inloggen")
-    if doorsturen:
-        return redirect(doorsturen)
-    basis = get_base_url().rstrip("/")
-    rijen = ""
-    for r in db.bellijst(25):
-        kaal = _winkel_slug(r["webshop_url"])
-        naam = r.get("naam") if r.get("naam") and not str(r.get("naam")).startswith("http") else kaal
-        token = db.get_benchmark_token(r["webshop_url"])
-        cat = categorieen.naam_van(r["categorie"]) if r.get("categorie") else "?"
-        plek = f"#{r['positie']}" if r.get("positie") else "geen plek"
-        zoek = quote(f"{naam} telefoon klantenservice")
-        geopend = ('<span style="color:#0B7C5E">opende zijn pagina</span>' if r.get("bekeken_op")
-                   else "nog niet geopend")
-        rijen += (f"<tr><td><strong>{escape(naam)}</strong><br><span style='color:#666;font-size:13px'>{escape(kaal)}"
-                  f"{' &middot; ' + escape(r['mail_platform']) if r.get('mail_platform') else ''}</span></td>"
-                  f"<td>{escape(cat)}<br><strong>{plek}</strong>, genoemd {r.get('genoemd') or 0}x</td>"
-                  f"<td>{geopend}</td>"
-                  f"<td><a href='https://www.google.com/search?q={zoek}' target='_blank'>telefoon zoeken</a><br>"
-                  f"<a href='{basis}/uitkomst/{token}' target='_blank'>zijn Krillo-pagina</a></td></tr>")
-    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
-            f"<title>Bellijst | Krillo</title><body style='font-family:Arial,sans-serif;max-width:980px;margin:40px auto;"
-            f"padding:0 16px;line-height:1.5'><h1>Bellijst</h1>"
-            f"<p>Winkels die de laatste twee weken de koude mail kregen. Bovenaan wie zijn pagina opende, dan plek 2 tot 8, "
-            f"dan Shopify en WooCommerce. Bel er vandaag vijf. Open tijdens het gesprek zijn Krillo-pagina, dan zie je wat hij ziet.</p>"
-            f"<div style='background:#F4F5F8;border-radius:8px;padding:12px 16px;margin:14px 0'><strong>Wat je zegt (30 seconden):</strong><br>"
-            f"&ldquo;Goedemiddag, met Nino van Krillo. We meten elke maand welke webshops ChatGPT aanraadt als iemand vraagt "
-            f"waar hij [categorie] koopt. Jullie staan op plek [x], [naam boven je] staat net boven jullie. Ik heb jullie "
-            f"daar een mail over gestuurd. Mag ik u laten zien welke vragen jullie mislopen? Dat duurt twee minuten en het "
-            f"kost niets.&rdquo;<br><span style='color:#666;font-size:13px'>Ja: stuur de link van zijn Krillo-pagina en "
-            f"bied de 14 dagen gratis Watch aan. Nee: vraag of je over een maand de nieuwe plek mag sturen.</span></div>"
-            f"<table cellpadding='8' style='border-collapse:collapse;width:100%'><tr style='text-align:left;"
-            f"border-bottom:1px solid #ddd'><th>Winkel</th><th>Plek</th><th>Mail</th><th>Doen</th></tr>"
-            f"{rijen or '<tr><td colspan=4>Nog niemand gemaild in de laatste twee weken.</td></tr>'}</table></body>")
-
-
+# Het schrijven op /admin/oplossingen loopt op de achtergrond (1 oktober): per
+# winkel of hij bezig is, en wat de laatste keer de uitkomst was.
 _oplossingen_bezig = {}
 _oplossingen_klaar = {}
 
@@ -8595,7 +8780,7 @@ def admin_oplossingen():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -8665,7 +8850,7 @@ def admin_oplossingen():
         f"{tekst}\n\n"
         f"Deze maand uitgegeven aan deze winkel: {uitgegeven:.2f} van "
         f"{kosten.GRENS_PER_KLANT_MAAND_EURO:.2f} euro\n\n"
-        f"Bekijk het resultaat op /admin/voorbeeld?key={admin_key}&url={webshop_url}\n"
+        f"Bekijk het resultaat op /admin/voorbeeld?url={webshop_url}\n"
         f"Opnieuw laten schrijven: voeg &opnieuw=ja toe aan dit adres.\n",
         mimetype="text/plain; charset=utf-8")
 
@@ -8683,7 +8868,7 @@ def admin_bronnen():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -8716,7 +8901,7 @@ def admin_bronnen():
                 webshop_url,
                 "Er liep al een taak voor deze winkel (beoordelen, controleren of zoeken). "
                 "Wacht tot die klaar is en probeer het dan opnieuw.", klaar=True)
-        return redirect(f"/admin/bronnen?key={admin_key}&url={webshop_url}")
+        return redirect(f"/admin/bronnen?url={webshop_url}")
 
     # De zoekmachine los testen. Kost een halve cent en bewijst in een keer of
     # de sleutel werkt. Zonder dit sta je te gissen of het aan de zoekmachine
@@ -8777,7 +8962,7 @@ def admin_modellen():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -8807,7 +8992,7 @@ def admin_bezoekers():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -8847,7 +9032,7 @@ def admin_categorieen():
     pagina opent of ververst. Dat is de les van 11 september."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -8898,7 +9083,7 @@ def admin_opschonen():
     twee minuten af."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -8944,7 +9129,7 @@ def admin_ranglijst():
     op 11 en 13 september allebei al gemaakt."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -9063,7 +9248,7 @@ def admin_bezoek():
     enkel cijfer om ze uit elkaar te houden."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -9104,7 +9289,7 @@ def admin_kosten():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -9207,7 +9392,7 @@ def admin_verkoop():
     """De verkoopagent (stap 125): concepten goedkeuren of overslaan."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import verkoopagent as va
@@ -9285,7 +9470,7 @@ def admin_antwoorden():
     """De antwoordagent (stap 126): wie terugmailde, met een concept-antwoord."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import antwoordagent as aa
@@ -9392,7 +9577,7 @@ def admin_formulieren():
     (captcha's, en een machine die formulieren invult is spam)."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import verkoopagent as va
@@ -9449,7 +9634,7 @@ def admin_merken():
     merk met een eigen webshop hoort er wel bij; met een klik zet je hem terug."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import bewegingsagent as sa  # alleen voor de kleine _sql-hulp
@@ -9506,7 +9691,7 @@ def admin_ochtendbericht():
     """Het ochtendbericht (stap 132) nu bekijken, zonder op de ochtend te wachten."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import ochtendbericht
@@ -9521,7 +9706,7 @@ def admin_controle():
     """De uitkomst van de controleagent, en een knop om hem nu te draaien."""
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     import nachtcontrole
@@ -9562,7 +9747,7 @@ def admin_bestellingen():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -9590,7 +9775,7 @@ def admin_uitvoeringen():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -11129,7 +11314,7 @@ def admin_shopify():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
     return render_template(
@@ -11157,7 +11342,7 @@ def admin_werkbriefje():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 
@@ -11224,7 +11409,7 @@ def admin_oplevering():
     admin_key = os.environ.get("ADMIN_KEY")
     mag, doorsturen = _mag_bij_beheer()
     if not mag:
-        return redirect("/admin/inloggen")
+        return _naar_inloggen()
     if doorsturen:
         return redirect(doorsturen)
 

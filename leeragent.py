@@ -35,6 +35,11 @@ import db
 
 MODEL = os.environ.get("LEER_MODEL", os.environ.get("CONTROLE_MODEL", "claude-sonnet-4-6"))
 ELKE_DAGEN = 30
+# 1 oktober: Nino wil elke dag taken en voorstellen. Groei (kanalen, taken voor
+# Nino) is het belangrijkst en komt elke drie dagen; product (wat de
+# concurrenten hebben en wij niet) elke week. Nog steeds hoogstens een
+# onderzoek per nacht, dus hoogstens een paar dubbeltjes per dag.
+ELKE = {"groei": 3, "product": 7, "markt": 14, "verkoop": 30}
 MAX_ZOEKEN = 5
 
 ONDERWERPEN = {
@@ -67,6 +72,22 @@ ONDERWERPEN = {
                  "Europe look for tools right now: communities, newsletters, directories, events, partner programs "
                  "of platforms. Prefer channels that fit a small team and are allowed under EU rules."),
         "uitdager": False,
+        "extra": ('"taken": [{"taak": "one concrete task for the owner (in Dutch), at most 30 minutes, naming the exact '
+                  'place (site, group or person) and what to post or send", "minuten": 15}]'),
+    },
+    "product": {
+        "naam": "Product: wat de concurrenten hebben",
+        "rol": ("You are the product lead of Krillo: an AI visibility service for online stores (EU). Krillo now has: "
+                "a public monthly ranking per category and country (ChatGPT and Gemini), a customer dashboard with "
+                "rank, lost buying questions and who AI names instead, a weekly 13-point site scan, fixes written "
+                "out (Watch) or carried out in the store via Shopify and WordPress (Fix), sources AI cites, a PDF "
+                "monthly report, free tools and a partner program for agencies."),
+        "zoek": ("Research the current features of Peec AI, Profound, Otterly.AI, AthenaHQ, Semrush AI toolkit and "
+                 "AI visibility apps in the Shopify App Store. Which features do they have that Krillo lacks and "
+                 "that small online stores would pay for? Think of marketing, SEO and content, not only tracking."),
+        "uitdager": False,
+        "extra": ('"functies": [{"titel": "a feature Krillo could add (in Dutch, one sentence)", '
+                  '"waarom": "which competitor has it and why a small store would pay for it (in Dutch)"}]'),
     },
 }
 
@@ -82,10 +103,12 @@ What you found last time (build on it, do not repeat it):
 
 Answer ONLY with one JSON object, no text around it:
 {{"bevindingen": [{{"tekst": "one finding in one sentence", "bron": "https://..."}}],
-  "voorstellen": ["one concrete next step for Krillo, in one sentence"],
-  {uitdager_veld}}}
-Rules: at most 5 findings, each with a real source URL you actually read. At most 3 proposals.
-Plain English, no hype, no em dashes. Never promise results, rankings, guarantees or delivery times."""
+  "voorstellen": ["one concrete next step for Krillo, in one sentence, in Dutch"],
+  {uitdager_veld}{extra_veld}}}
+Rules: at most 5 findings, each with a real source URL you actually read. At most 3 proposals, at most 3 tasks,
+at most 3 features.
+Plain words, no hype, no em dashes. Findings and the paragraph in English; proposals, tasks and features in
+Dutch. Never promise results, rankings, guarantees or delivery times."""
 
 UITDAGER_VELD = ('"uitdager": "a new version of the paragraph, 30 to 70 words, plain English, mentions Watch and '
                  'Fix, promises no result"')
@@ -220,7 +243,8 @@ def onderzoek(onderwerp, client=None):
     o = ONDERWERPEN[onderwerp]
     opdracht = OPDRACHT.format(rol=o["rol"], zoek=o["zoek"], cijfers=_cijfers(onderwerp),
                                vorige=_vorige(onderwerp),
-                               uitdager_veld=UITDAGER_VELD if o["uitdager"] else '"uitdager": null')
+                               uitdager_veld=UITDAGER_VELD if o["uitdager"] else '"uitdager": null',
+                               extra_veld=(",\n  " + o["extra"]) if o.get("extra") else "")
     begin = time.time()
     try:
         tekst, tin, tuit = vraag_claude(opdracht, client)
@@ -245,8 +269,47 @@ def onderzoek(onderwerp, client=None):
     _sql("""INSERT INTO agent_inzichten (onderwerp, bevindingen, voorstellen, uitdager, uitdager_stand)
             VALUES (%s, %s, %s, %s, %s)""",
          (onderwerp, json.dumps(bevindingen), json.dumps(voorstellen), uitdager, stand))
+    klaargezet = naar_voorstellen(onderwerp, voorstellen, uit)
     return {"onderwerp": onderwerp, "bevindingen": bevindingen, "voorstellen": voorstellen,
-            "uitdager": uitdager, "uitdager_stand": stand}
+            "uitdager": uitdager, "uitdager_stand": stand, "klaargezet": klaargezet}
+
+
+def _kaal(tekst, lengte=300):
+    """Kort, en zonder lange streepjes (Nino's regel geldt ook voor agents)."""
+    t = " ".join(str(tekst or "").split())
+    t = t.replace(" \u2014 ", ", ").replace("\u2014", ", ").replace(" \u2013 ", ", ")
+    return t[:lengte]
+
+
+def naar_voorstellen(onderwerp, voorstellen_lijst, uit):
+    """1 oktober: wat de leeragent vindt, wordt een voorstel met een akkoordlink
+    in het ochtendbericht (voorstellen.py). Groei levert taken voor Nino, product
+    levert functies om te bouwen, en de losse voorstellen van markt en verkoop
+    zijn dingen om te bouwen of te veranderen. Geeft het aantal nieuwe."""
+    import voorstellen as vs
+    naam = ONDERWERPEN.get(onderwerp, {}).get("naam", onderwerp)
+    n = 0
+    try:
+        for t in (uit.get("taken") or [])[:3]:
+            if isinstance(t, dict) and t.get("taak"):
+                try:
+                    minuten = max(5, min(60, int(t.get("minuten") or 20)))
+                except (TypeError, ValueError):
+                    minuten = 20
+                if vs.stel_voor("leeragent", "taak", _kaal(t["taak"]), waarom=f"Uit het onderzoek: {naam}",
+                                minuten=minuten):
+                    n += 1
+        for f in (uit.get("functies") or [])[:3]:
+            if isinstance(f, dict) and f.get("titel"):
+                if vs.stel_voor("leeragent", "bouwen", _kaal(f["titel"]), waarom=_kaal(f.get("waarom"), 600)):
+                    n += 1
+        soort = "taak" if onderwerp == "groei" else "bouwen"
+        for v in voorstellen_lijst or []:
+            if vs.stel_voor("leeragent", soort, _kaal(v), waarom=f"Uit het onderzoek: {naam}"):
+                n += 1
+    except Exception as e:
+        print(f"Leeragent, voorstellen klaarzetten mislukt: {e}")
+    return n
 
 
 def zet_uitdager(tekst):
@@ -265,14 +328,15 @@ def zet_uitdager(tekst):
 
 
 def aan_de_beurt(nu=None):
-    """Het onderwerp dat het langst niet onderzocht is, als dat 30 dagen of
-    langer geleden is. Een per nacht, zodat de kosten gespreid zijn."""
+    """Het onderwerp dat het langst niet onderzocht is, als het weer aan de beurt
+    is (ELKE: groei elke 3 dagen, product elke week, markt 14, verkoop 30).
+    Een per nacht, zodat de kosten gespreid zijn."""
     nu = nu or datetime.now(timezone.utc)
     oudste, keuze = None, None
     for onderwerp in ONDERWERPEN:
         rij = _sql("SELECT max(op) AS op FROM agent_inzichten WHERE onderwerp = %s", (onderwerp,)) or {}
         laatst = rij.get("op")
-        if laatst and laatst > nu - timedelta(days=ELKE_DAGEN):
+        if laatst and laatst > nu - timedelta(days=ELKE.get(onderwerp, ELKE_DAGEN)):
             continue
         if keuze is None or (laatst or datetime.min.replace(tzinfo=timezone.utc)) < oudste:
             keuze, oudste = onderwerp, (laatst or datetime.min.replace(tzinfo=timezone.utc))

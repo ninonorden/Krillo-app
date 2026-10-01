@@ -39,6 +39,9 @@ AGENTS = [
     ("artikel", "Artikelagent", "schrijft elke dinsdag een concept-artikel met cijfers uit de index", None, "artikel", None, "/admin/artikelen"),
     ("lijstjes", "Lijstjesagent", "vraagt schrijvers van GEO-lijstjes om Krillo", "lijstjes", "lijstjes", "LIJSTJESAGENT", "/admin/lijstjes"),
     ("wachtlijst", "Wachtpost", "meldt wie op een land wacht zodra het aan staat", "wacht", "wachtlijst", None, "/admin/wachtlijst"),
+    # 1 oktober: de regisseur van de groei en de controle zoals een klant kijkt.
+    ("groei", "Groeiagent", "kijkt elke vier uur waar de klantenstroom vastloopt en zet voorstellen klaar", None, None, None, "/admin/voorstellen"),
+    ("klantblik", "Klantblik", "loopt elke ochtend alle pagina's na zoals een klant ze ziet", None, None, None, "/admin/klantblik"),
 ]
 SLEUTELS = {a[0] for a in AGENTS}
 

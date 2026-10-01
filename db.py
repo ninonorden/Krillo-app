@@ -2246,46 +2246,6 @@ def gemaild_sinds(datum):
         conn.close()
 
 
-def bellijst(limiet=20, dagen=14):
-    """De winkels om vandaag zelf te bellen of te mailen (1 oktober).
-
-    Wie de koude mail kreeg in de laatste {dagen} dagen, met zijn plek. Eerst
-    wie zijn pagina opende, dan plek 2 tot 8 (dichtbij de top), dan Shopify of
-    WooCommerce (daar doet Fix het werk zelf)."""
-    conn = _get_connection()
-    if conn is None:
-        return []
-    try:
-        with conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(f"""
-                    SELECT b.webshop_url, b.naam, b.categorie, lower(coalesce(b.land, 'nl')) AS land, b.email,
-                           b.gemaild_op, b.bekeken_op, b.mail_platform,
-                           (SELECT u.positie FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
-                             WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
-                          ORDER BY u.ronde DESC LIMIT 1) AS positie,
-                           (SELECT u.genoemd FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
-                             WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
-                          ORDER BY u.ronde DESC LIMIT 1) AS genoemd
-                      FROM benadering b
-                     WHERE b.gemaild_op > now() - interval '{int(dagen)} days'
-                       AND NOT b.afgemeld AND coalesce(b.soort, 'winkel') = 'winkel'
-                  ORDER BY (b.bekeken_op IS NOT NULL) DESC,
-                           (SELECT CASE WHEN u.positie BETWEEN 2 AND 8 THEN 0 ELSE 1 END
-                              FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
-                             WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
-                          ORDER BY u.ronde DESC LIMIT 1) NULLS LAST,
-                           (b.mail_platform IN ('shopify', 'woocommerce')) DESC NULLS LAST,
-                           b.gemaild_op DESC
-                     LIMIT %s""", (int(limiet),))
-                return [dict(r) for r in cur.fetchall()]
-    except Exception as e:
-        print(f"Bellijst ophalen mislukt: {e}")
-        return []
-    finally:
-        conn.close()
-
-
 def zet_mail_kenmerken(webshop_url, platform=None, leverancier=None):
     """Platform en aantal gekopieerde teksten bij het mailen (1 oktober)."""
     conn = _get_connection()

@@ -33,6 +33,10 @@ import db
 
 BUREAU_MIN = int(os.environ.get("BUREAU_MIN", "3"))
 HANDMATIG_EERST = 10
+# 1 oktober: Nino geeft akkoord in het ochtendbericht (voorstellen.py) in plaats
+# van eerst tien mails met de hand en dan een instelling in Render. Zijn akkoord
+# IS de controle, dus dan geldt de drempel van tien niet meer.
+SLEUTEL_AUTO = "bureaumail_auto"
 AUTO_PER_DAG = 2
 PER_RONDE = 15
 ADRESSEN_PER_RONDE = 3
@@ -253,13 +257,15 @@ def zet_stand(site, stand, met_de_hand=False):
 
 
 def mag_automatisch():
-    """Automatisch mailen pas na tien met de hand, en alleen met de schakelaar aan."""
-    if os.environ.get("BUREAUMAIL_AUTO", "").strip() not in ("1", "ja", "aan", "true"):
+    """Automatisch mailen: na akkoord van Nino (voorstel in het ochtendbericht),
+    of op de oude manier (tien met de hand en BUREAUMAIL_AUTO=1 in Render)."""
+    akkoord = (db.get_instelling(SLEUTEL_AUTO) or "").strip().lower() == "ja"
+    if not akkoord and os.environ.get("BUREAUMAIL_AUTO", "").strip() not in ("1", "ja", "aan", "true"):
         return 0
     stand = _sql("""SELECT count(*) FILTER (WHERE met_de_hand AND stand <> 'nieuw') AS hand,
                            count(*) FILTER (WHERE gemaild_op >= date_trunc('day', now())) AS vandaag
                     FROM bureaus""") or {}
-    if int(stand.get("hand") or 0) < HANDMATIG_EERST:
+    if not akkoord and int(stand.get("hand") or 0) < HANDMATIG_EERST:
         return 0
     return max(0, AUTO_PER_DAG - int(stand.get("vandaag") or 0))
 

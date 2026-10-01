@@ -68,6 +68,19 @@ OPBOUW_DOEL = int(os.environ.get("OPBOUW_DOEL", "40"))
 # schema op de beheerpagina altijd al zei.
 OPBOUW_DAGEN = int(os.environ.get("OPBOUW_DAGEN", "7"))
 OPBOUW_SLEUTEL = "benadering_volume_verhoogd_op"
+# 1 oktober: het doel kan omhoog met een akkoord in het ochtendbericht (de
+# groeiagent stelt het voor als de post goed landt). Nooit boven OPBOUW_MAX: een
+# jong domein dat honderden koude mails per dag stuurt, belandt in de spam.
+SLEUTEL_OPBOUW_DOEL = "opbouw_doel"
+OPBOUW_MAX = int(os.environ.get("OPBOUW_MAX", "100"))
+
+
+def opbouw_doel():
+    try:
+        waarde = int(db.get_instelling(SLEUTEL_OPBOUW_DOEL) or OPBOUW_DOEL)
+    except (TypeError, ValueError):
+        waarde = OPBOUW_DOEL
+    return max(1, min(OPBOUW_MAX, waarde))
 
 
 def verhoog_volume_stapsgewijs():
@@ -90,7 +103,8 @@ def verhoog_volume_stapsgewijs():
     if not stand["aan"]:
         return {"verhoogd": False, "reden": "De benadering staat uit."}
     nu = stand["per_dag"]
-    if nu >= OPBOUW_DOEL:
+    doel = opbouw_doel()
+    if nu >= doel:
         return {"verhoogd": False, "reden": f"Al op {nu} per dag."}
     klok = datetime.now(KLOK) if KLOK else datetime.now()
     vandaag = klok.strftime("%Y-%m-%d")
@@ -114,7 +128,7 @@ def verhoog_volume_stapsgewijs():
         return {"verhoogd": False,
                 "reden": "Sinds de vorige verhoging is er te weinig verstuurd om te weten "
                          "of het goed gaat."}
-    nieuw = min(OPBOUW_DOEL, max(nu * 2, nu + 5))
+    nieuw = min(doel, max(nu * 2, nu + 5))
     db.zet_instelling("mail_per_dag", str(nieuw))
     # Het aantal per ronde meegroeien, anders haal je de dag nooit vol: er zijn
     # ongeveer twaalf rondes per dag binnen kantooruren.

@@ -144,19 +144,27 @@ def te_doen(basis_url):
     if recent:
         uit.append((f"De controleagent hield {len(recent)} mail(s) tegen, bijvoorbeeld '{recent[-1]['onderwerp']}': "
                     + "; ".join(recent[-1]["fouten"]), f"{basis_url}/admin/controle"))
-    # Stap 96 en 153: wat de leeragent de laatste dag onderzocht en voorstelt.
+    # Stap 96 en 153: of de leeragent mislukte. Wat hij VOORSTELT staat sinds
+    # 1 oktober niet meer als losse zin hier, maar als voorstel met een
+    # akkoordlink onder "Voorstellen" (voorstellen.py).
     try:
         import leeragent
         from datetime import datetime as _d, timedelta as _td, timezone as _tz
         for r in leeragent.laatste():
-            if r.get("op") and r["op"] > _d.now(_tz.utc) - _td(days=1):
-                if r.get("fout"):
-                    uit.append((f"Leeragent ({r['onderwerp']}) mislukte: {r['fout'][:120]}", f"{basis_url}/admin/leren"))
-                elif r.get("voorstellen"):
-                    uit.append((f"Leeragent ({leeragent.ONDERWERPEN.get(r['onderwerp'], {}).get('naam', r['onderwerp'])}) "
-                                f"stelt voor: {r['voorstellen'][0]}", f"{basis_url}/admin/leren"))
+            if r.get("op") and r["op"] > _d.now(_tz.utc) - _td(days=1) and r.get("fout"):
+                uit.append((f"Leeragent ({r['onderwerp']}) mislukte: {r['fout'][:120]}", f"{basis_url}/admin/leren"))
     except Exception:
         pass
+    # 1 oktober: de klantblik (klantblik.py) liep vannacht alle pagina's na zoals
+    # een klant ze ziet. Alleen echte fouten hier; twijfelgevallen op de pagina.
+    try:
+        kb = json.loads(db.get_instelling("klantblik") or "{}")
+    except Exception:
+        kb = {}
+    if kb.get("fout"):
+        uit.append((f"De klantblik vond {len(kb['fout'])} fout(en) die een klant ziet, bijvoorbeeld: "
+                    + "; ".join(f["tekst"] for f in kb["fout"][:2]) + ". Geef de lijst aan Claude",
+                    f"{basis_url}/admin/klantblik"))
     # De LinkedIn-agent: staat er vandaag een post klaar, dan hoort Nino dat.
     n = _tel("SELECT count(*) FROM linkedin_posts WHERE dag = current_date AND stand = 'klaar'")
     if n:
@@ -270,27 +278,70 @@ def verzamel(basis_url):
         klaar_voor_post = len(db.te_mailen_met_positie(10000))
     except Exception:
         klaar_voor_post = None
-    return {"te_doen": te_doen(basis_url), "gisteren": gisteren, "klaar_voor_post": klaar_voor_post}
+    doen = te_doen(basis_url)
+    gegevens = {"te_doen": doen, "gisteren": gisteren, "klaar_voor_post": klaar_voor_post}
+    # 1 oktober: de dagtaken en de voorstellen ter akkoord (groeiagent.py,
+    # voorstellen.py). Mislukt dit, dan blijft het oude bericht gewoon staan.
+    try:
+        import groeiagent
+        import voorstellen
+        gegevens["dagtaken"] = groeiagent.dagtaken(basis_url, te_doen=doen)
+        gegevens["voorstellen"] = [dict(v, link=f"{basis_url}/v/{v['token']}")
+                                   for v in voorstellen.open_voorstellen()]
+        gegevens["bouwlijst"] = len(voorstellen.bouwlijst())
+    except Exception as e:
+        print(f"Ochtendbericht, dagtaken mislukt: {e}")
+    return gegevens
 
 
 def tekst(gegevens, extra_regels=None):
     """(onderwerp, html). Gewone taal, geen opmaak die in een mailprogramma breekt."""
     from html import escape
     doen = gegevens["te_doen"]
+    # De dagtaken (1 oktober). Zonder (oude aanroep): de te_doen-lijst zelf.
+    taken = gegevens.get("dagtaken")
+    if taken is None:
+        taken = [{"tekst": t, "link": l} for t, l in doen]
+    voorstel = gegevens.get("voorstellen") or []
+    minuten = sum(int(t.get("minuten") or 0) for t in taken)
     telling = dict(gegevens["gisteren"])
     mails = telling.get("Koude mails verstuurd")
     klikken = telling.get("Hun Krillo-pagina geopend (ook door mailbeveiliging)")
-    onderwerp = (f"Krillo ochtend: {len(doen) or 'niets'} voor jou, "
-                 f"{mails if mails is not None else '?'} mails, "
+    onderwerp = (f"Krillo ochtend: {len(taken) or 'niets'} voor jou"
+                 + (f" (ongeveer {minuten} min)" if minuten else "")
+                 + (f", {len(voorstel)} voorstel(len)" if voorstel else "")
+                 + f", {mails if mails is not None else '?'} mails, "
                  f"{klikken if klikken is not None else '?'} bekeken")
     stuk = ["<div style='font-family:Arial,sans-serif;font-size:15px;line-height:1.55;max-width:600px'>",
-            "<h2 style='font-size:17px;margin:0 0 8px'>Wat jij vandaag moet doen</h2>"]
-    if doen:
-        stuk.append("<ul style='padding-left:18px;margin:0 0 18px'>" + "".join(
-            f"<li style='margin-bottom:6px'>{escape(t)}: <a href='{escape(l)}'>openen</a></li>" for t, l in doen)
-            + "</ul>")
+            "<h2 style='font-size:17px;margin:0 0 8px'>Wat jij vandaag moet doen"
+            + (f" (ongeveer {minuten} minuten)" if minuten else "") + "</h2>"]
+    if taken:
+        regels = []
+        for t in taken:
+            r = f"<li style='margin-bottom:6px'>{escape(t['tekst'])}"
+            if t.get("minuten"):
+                r += f" <span style='color:#666'>({int(t['minuten'])} min)</span>"
+            if t.get("link"):
+                r += f": <a href='{escape(t['link'])}'>{'openen of op gedaan zetten' if t.get('gedaan') else 'openen'}</a>"
+            regels.append(r + "</li>")
+        stuk.append("<ol style='padding-left:20px;margin:0 0 18px'>" + "".join(regels) + "</ol>")
     else:
         stuk.append("<p style='margin:0 0 18px'>Niets. Alles loopt vanzelf.</p>")
+    if voorstel:
+        stuk.append("<h2 style='font-size:17px;margin:0 0 8px'>Voorstellen: zeg ja of nee</h2>"
+                    "<p style='margin:0 0 8px;color:#666'>Een tik op de link opent een pagina met twee knoppen. "
+                    "Bij een handeling gebeurt het meteen na akkoord; een nieuwe functie gaat op de bouwlijst "
+                    "voor Claude.</p><ol style='padding-left:20px;margin:0 0 18px'>")
+        soortnaam = {"actie": "handeling", "taak": "taak voor jou", "bouwen": "nieuwe functie"}
+        for v in voorstel:
+            stuk.append(f"<li style='margin-bottom:10px'><strong>{escape(v['titel'])}</strong> "
+                        f"<span style='color:#666'>({soortnaam.get(v['soort'], v['soort'])}, "
+                        f"{escape(v.get('bron') or '')})</span><br>{escape(v.get('waarom') or '')}<br>"
+                        f"<a href='{escape(v['link'])}'>ja of nee</a></li>")
+        stuk.append("</ol>")
+    if gegevens.get("bouwlijst"):
+        stuk.append(f"<p style='margin:0 0 18px'>Op de bouwlijst voor Claude: <strong>{gegevens['bouwlijst']}"
+                    f"</strong>. De tekst om te plakken staat op /admin/voorstellen.</p>")
     stuk.append("<h2 style='font-size:17px;margin:0 0 8px'>Wat de agents de laatste 24 uur deden</h2>"
                 "<table cellpadding='4' style='border-collapse:collapse;margin-bottom:18px'>")
     for wat, n in gegevens["gisteren"]:
