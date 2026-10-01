@@ -564,17 +564,30 @@ def _kaal_adres(webshop_url):
 # Versie c (30 september, Nino's idee): de vraag die de homepage ook stelt,
 # "Is jouw winkel een van de drie die AI noemt?". Een vraag in plaats van een
 # cijfer; de telling per versie laat zien of dat vaker geopend wordt.
-MAILVARIANTEN = ("a", "b", "c")
+# Versie d (1 oktober, stap 225): "AI kent je, maar raadt je niet aan". Alleen
+# voor winkels die vaak genoemd en zelden aangeraden worden (d_geschikt), met
+# een letterlijk citaat uit de meting. Dat is concreter dan een plek, en het zegt
+# meteen wat Fix doet. De telling vergelijkt d met de rest; let op dat d alleen
+# naar winkels gaat die al genoemd worden (die klikken van zichzelf al vaker).
+MAILVARIANTEN = ("a", "b", "c", "d")
 
 
-def kies_variant(webshop_url):
+def d_geschikt(beeld):
+    """Vaak genoemd (3 keer of meer), en in hoogstens een derde daarvan aangeraden."""
+    if not beeld:
+        return False
+    genoemd, aanbevolen = int(beeld.get("genoemd") or 0), int(beeld.get("aanbevolen") or 0)
+    return genoemd >= 3 and aanbevolen * 3 <= genoemd
+
+
+def kies_variant(webshop_url, d_mag=False):
     """Welke versie een winkel krijgt. Vast per winkel (zelfde adres, zelfde
     versie), zodat een tweede mail aan dezelfde winkel nooit de telling
     vervuilt. Welke versies meedoen staat in MAIL_VARIANTEN (Render),
-    standaard allebei."""
+    standaard alle vier. Versie d alleen als d_mag (zie d_geschikt)."""
     import hashlib
-    actief = [v.strip() for v in (os.environ.get("MAIL_VARIANTEN") or "a,b,c").split(",")
-              if v.strip() in MAILVARIANTEN] or ["a"]
+    actief = [v.strip() for v in (os.environ.get("MAIL_VARIANTEN") or "a,b,c,d").split(",")
+              if v.strip() in MAILVARIANTEN and (d_mag or v.strip() != "d")] or ["a"]
     getal = int(hashlib.sha256((webshop_url or "").encode()).hexdigest(), 16)
     return actief[getal % len(actief)]
 
@@ -588,7 +601,7 @@ _TAALNAAM = {"nl": "Dutch", "de": "German", "fr": "French", "en": "English",
 def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                         categorienaam=None, landnaam=None, afmeld_url=None,
                         onderwerp_voor="", variant="a", platform=None, concurrent_is_klant=False,
-                        leverancier=None):
+                        leverancier=None, citaat=None):
     """De koude mail aan een winkel die in de Krillo index staat.
 
     OMGEBOUWD 23 SEPTEMBER (stap 36). Dit was de laatste mail uit het oude
@@ -739,7 +752,22 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
 
     # De eerste zin verschilt per versie, de rest niet (zie MAILVARIANTEN).
     p = '<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:0 0 14px;">'
-    if variant == "b":
+    aanbevolen = beeld.get("aanbevolen") or 0
+    if variant == "d":
+        # Stap 225: genoemd is niet aangeraden. Met het echte citaat, als we het hebben.
+        opening = (f"{p}Every month we ask ChatGPT and Gemini the questions shoppers in {land} "
+                   f"ask in the {cat} category. AI knows {winkel}: it named you in {genoemd} of "
+                   f"{telbaar} buying questions. "
+                   + (f"But it did not recommend you outright once. " if not aanbevolen else
+                      f"But it recommended you outright in only {aanbevolen}. ")
+                   + f"When a shopper asks where to buy, "
+                   f"the tip goes to someone else.</p>")
+        if citaat and citaat.get("zin"):
+            opening += (f'<div style="border-left:3px solid #1B3FE0; padding:4px 0 4px 14px; margin:0 0 14px;">'
+                        f'<div style="font-size:15px; color:#0A0A0B; line-height:1.6;">&ldquo;{"&hellip;" if citaat["zin"][:1].islower() else ""}{e(citaat["zin"])}'
+                        f'&rdquo;</div><div style="font-size:12.5px; color:#6E7079; margin-top:4px;">'
+                        f'{e(citaat.get("assistent") or "AI")}, word for word from our measurement</div></div>')
+    elif variant == "b":
         opening = (f"{p}When shoppers in {land} ask ChatGPT or Gemini where to buy "
                    f"in the {cat} category, a few stores get named and the rest do not. We ask those "
                    f"questions every month and rank the stores. {winkel} is in that "
@@ -822,6 +850,8 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                     + (f" in {landnaam}" if landnaam else "")
     elif variant == "c":
         onderwerp = f"{onderwerp_voor}Is {_kaal_adres(webshop_url)} one of the three stores AI names?"
+    elif variant == "d":
+        onderwerp = f"{onderwerp_voor}{_kaal_adres(webshop_url)}: AI names you, but rarely recommends you"
     else:
         onderwerp = f"{onderwerp_voor}{_kaal_adres(webshop_url)}: #{positie} of {van} in the Krillo index"
     return send_email(to_email, onderwerp, html, koppen=koppen)

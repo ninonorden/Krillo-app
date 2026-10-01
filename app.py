@@ -582,12 +582,21 @@ def _thuisgegevens():
 # een veld toevoegt niet het onthouden origineel verandert.
 _bewaard_opslag = {}
 _bewaard_slot = threading.Lock()
+BEWAARD_MAX = int(os.environ.get("BEWAARD_MAX", "500"))
 
 
 def _bewaard(sleutel, functie, *args):
     if not _thuis_onthouden_aan():
         return functie(*args)
     with _bewaard_slot:
+        # 1 oktober (geheugen): nooit onbeperkt. Elke winkelpagina en elke kaart
+        # die Google opvraagt kreeg een eigen vak, en die bleven allemaal staan.
+        if sleutel not in _bewaard_opslag and len(_bewaard_opslag) >= BEWAARD_MAX:
+            grens = time.time() - THUIS_VERS_SECONDEN
+            for k in [k for k, v in _bewaard_opslag.items() if v["op"] < grens and not v["bezig"]]:
+                _bewaard_opslag.pop(k, None)
+            if len(_bewaard_opslag) >= BEWAARD_MAX:
+                _bewaard_opslag.clear()
         vak = _bewaard_opslag.setdefault(
             sleutel, {"waarde": None, "op": 0.0, "bezig": False, "gevuld": False})
     if not vak["gevuld"]:
@@ -967,6 +976,34 @@ def api_herroepen():
     return jsonify({"ok": True})
 
 
+@app.route("/api/naar-fix/<klant_token>", methods=["POST"])
+def api_naar_fix(klant_token):
+    """Stap 130: de knop "Switch to Fix" op de pagina Plan (tot 1 oktober een mailto)."""
+    klant = db.get_klant(klant_token)
+    if klant is None:
+        return jsonify({"error": "This page is no longer valid."}), 404
+    if klant.get("opgezegd_op"):
+        return jsonify({"error": "Your plan is cancelled. Email hello@krilloai.com and we set up Fix for you."}), 400
+    url = klant["webshop_url"]
+    uit = payments.wissel_naar(url, "fix")
+    if "error" in uit:
+        return jsonify(uit), 400
+    db.zet_klant_pakket(url, "fix")
+    # Net als bij een nieuwe Fix-klant: op de werklijst en de toegangsmail.
+    platform = (db.get_winkelprofiel(url) or {}).get("platform")
+    db.start_uitvoering(f"wissel:{url}:{datetime.now(timezone.utc).date().isoformat()}", url, klant["email"], platform)
+    try:
+        emailing.send_uitvoering_welkom(klant["email"], url, platform,
+                                        f"{get_base_url().rstrip('/')}/mijn/{klant_token}")
+    except Exception as e:
+        print(f"Toegangsmail na wissel naar Fix mislukt voor {url}: {e}")
+    _meld_aan_beheer("Van Watch naar Fix",
+                     f"{url} ({klant['email']}) stapte zelf over naar Fix. Vanaf de volgende betaling "
+                     f"({uit.get('volgende_betaling') or 'onbekend'}) EUR {uit.get('bedrag')}. De toegangsmail is verstuurd; "
+                     f"de opdracht staat op de werklijst.")
+    return jsonify({"ok": True, "volgende_betaling": uit.get("volgende_betaling"), "bedrag": uit.get("bedrag")})
+
+
 @app.route("/api/opzeggen/<klant_token>", methods=["POST"])
 def api_opzeggen(klant_token):
     klant = db.get_klant(klant_token)
@@ -1048,6 +1085,18 @@ def artikel_pagina(slug):
 
 @app.errorhandler(404)
 def pagina_niet_gevonden(e):
+    # 1 oktober (sitecontrole): /mijn/<link>/ met een schuine streep erachter gaf
+    # een foutpagina, terwijl /mijn/<link> gewoon bestaat. Iemand die de link
+    # overtypt of een mailprogramma dat er een / achter zet, landt nu goed.
+    pad = request.path
+    if len(pad) > 1 and pad.endswith("/") and request.method == "GET":
+        kaal = pad.rstrip("/")
+        try:
+            app.url_map.bind("").match(kaal, method="GET")
+            return redirect(kaal + (("?" + request.query_string.decode()) if request.query_string else ""),
+                            code=301)
+        except Exception:
+            pass
     return render_template("fout.html"), 404
 
 
@@ -2364,6 +2413,7 @@ def admin_traag():
             f"seconden of langer. Na een deploy begint de telling opnieuw.</p>"
             f"<p id='reistijd'><b>Afstand tot de database:</b> {escape(reis_zin)}</p>"
             f"<p id='rekenkracht'><b>Rekenkracht van de server:</b> {cpu_zin}</p>"
+            f"<p id='geheugen'><b>Geheugen en de nacht:</b> {escape(_nachtregel())}</p>"
             f"<p>Bij het langste verzoek: hoeveel databasevragen, hoeveel tijd daarvan in de database zat, "
             f"en hoeveel losse verbindingen nodig waren (0 is goed). 'Vlak na start' telt de keren "
             f"binnen twee minuten na het opstarten: dan was de server net wakker.</p>"
@@ -3108,10 +3158,10 @@ def checkout_monitoring():
     try:
         if payments.zoek_abonnement(webshop_url):
             return jsonify({
-                "error": "This store already has a Krillo plan. Want to switch from Watch to "
-                         "Fix, or the other way round? Email hello@krilloai.com and we switch "
-                         "you the same day, without paying twice. Your dashboard link is in "
-                         "your welcome email."
+                "error": "This store already has a Krillo plan. Want Fix instead of Watch? Open "
+                         "your dashboard, page Plan, and click Switch to Fix: no second payment. "
+                         "Lost your dashboard link? Use Log in at the top of this page. From Fix "
+                         "to Watch: email hello@krilloai.com and we switch you the same day."
             }), 400
     except Exception as e:
         # Kunnen wij het niet nakijken, dan gaan wij door. Iemand tegenhouden
@@ -4336,6 +4386,10 @@ def _benadering_ronde_werk():
                 # krijgt een keer de vraag of wij het live zetten (Fix).
                 verslag["fix_aanbod"] = proefperiode.fix_aanbod_ronde(get_base_url().rstrip("/"),
                                                                       fix_prijs=_prijs_euro("fix") or 149)
+                # Stap 129 (1 oktober): wie op dag 2 zijn dashboard nog niet opende
+                # en niets koos, krijgt zijn drie verloren vragen.
+                verslag["activatie"] = proefperiode.activatie_ronde(
+                    get_base_url().rstrip("/"), lambda url: klantbeeld.bouw(url, max_vragen=5))
         except Exception as e:
             verslag["mislukt"].append(f"proef: {e}")
             print(f"Proefherinnering mislukt: {e}")
@@ -4869,6 +4923,9 @@ def _dagbericht_sturen():
         if reis is not None and reis > 40:
             regels = list(regels) + [f"Een reis naar de database duurt {reis:g} ms. Dat is te ver: zet "
                                      f"de webservice in Render in de regio Frankfurt, net als Neon."]
+        # 1 oktober: het geheugen en of de nacht afkwam. Na de herstart van die
+        # nacht kwam er geen bericht en wist niemand waarom.
+        regels = list(regels) + [_nachtregel()]
         onderwerp, body = ochtendbericht.tekst(
             ochtendbericht.verzamel(get_base_url().rstrip("/")), extra_regels=regels)
         if emailing.send_email(ontvanger, onderwerp, body):
@@ -5017,6 +5074,14 @@ def _varianten_met_oordeel():
         if (beste.get("klant"), beste["door_pct"], beste["klik_pct"]) == \
                 (slechtste.get("klant"), slechtste["door_pct"], slechtste["klik_pct"]):
             oordeel = "Gelijkspel. Laat ze allebei lopen."
+        elif beste["variant"] == "d":
+            # Versie d past alleen bij een deel van de winkels (stap 225). Alleen
+            # "d" zou de rest op versie a zetten; houd de beste van de andere erbij.
+            rest = [r for r in rijen if r["variant"] != "d"]
+            tweede = max(rest, key=lambda r: ((r.get("klant") or 0), r["door_pct"], r["klik_pct"]))["variant"] \
+                if rest else "a"
+            oordeel = (f"Versie d wint bij de winkels waar hij past. Zet in Render MAIL_VARIANTEN op "
+                       f"\"d,{tweede}\": d voor wie vaak genoemd en zelden aangeraden wordt, {tweede} voor de rest.")
         else:
             oordeel = (f"Versie {beste['variant']} wint. Zet in Render MAIL_VARIANTEN op "
                        f"\"{beste['variant']}\" om versie {slechtste['variant']} te laten afvallen.")
@@ -5064,7 +5129,19 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
         basis = get_base_url().rstrip("/")
         # Welke versie van de mail (stap 56). Vast per winkel; een proefmail
         # mag er een kiezen, zodat je beide versies kunt bekijken.
-        variant = variant or emailing.kies_variant(webshop_url)
+        variant = variant or emailing.kies_variant(webshop_url, d_mag=emailing.d_geschikt(beeld))
+        if variant == "d" and not emailing.d_geschikt(beeld):
+            # Een proef van d over een winkel waarvoor d niet klopt: dan niet.
+            return False, "Versie d past niet bij deze winkel (niet vaak genoemd, of wel aangeraden)."
+        citaat = None
+        if variant == "d":
+            try:
+                import imago
+                citaten = imago.beeld(webshop_url, None,
+                                      db.antwoorden_met_tekst_van_ronde(beeld.get("ronde")))["citaten"]
+                citaat = citaten[0] if citaten else None
+            except Exception as e:
+                print(f"Citaat voor versie d mislukt ({webshop_url}): {e}")
         platform = (db.get_winkelprofiel(webshop_url) or {}).get("platform")
         # Stap 217 (30 september): bij kleine Shopify-winkels de leverancierstekst-
         # check in de mail. Drie zoekopdrachten, binnen het dagplafond van de tool;
@@ -5087,7 +5164,7 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
             afmeld_url=None if proef else f"{basis}/afmelden/{token}",
             onderwerp_voor=f"[TEST {variant}] " if proef else "",
             variant=variant, platform=platform,
-            leverancier=leverancier,
+            leverancier=leverancier, citaat=citaat,
             concurrent_is_klant=db.categorie_heeft_klant(beeld.get("categorie"), beeld.get("land"),
                                                          behalve_url=webshop_url))
         # Alleen een echte mail telt mee in de vergelijking van de versies.
@@ -5129,6 +5206,99 @@ def cron_onderhoud():
     return ("ok" if gestart else "loopt al"), 200
 
 
+def geheugen_mb():
+    """Hoeveel geheugen dit proces nu gebruikt (RSS), in MB. None als het niet lukt.
+
+    1 oktober: Render herstartte de dienst 's nachts omdat hij boven de 512 MB
+    kwam. Daarom staat het geheugen nu in de log van elke nachtstap, op
+    /admin/traag en in het ochtendbericht."""
+    try:
+        with open("/proc/self/status") as f:
+            for regel in f:
+                if regel.startswith("VmRSS:"):
+                    return round(int(regel.split()[1]) / 1024)
+    except Exception:
+        return None
+    return None
+
+
+GEHEUGEN_GRENS_MB = int(os.environ.get("GEHEUGEN_GRENS_MB", "400"))
+
+
+def _nachtwerk_achter_elkaar():
+    """Alle nachtstappen NA ELKAAR op een draad (1 oktober).
+
+    WAAROM. Tot 30 september startte de nacht zes draden tegelijk: de
+    onderhoudsronde (met de meting), de nachtcontrole (die de hele site
+    nabootst), de index-controle, de leeragent, de lijstjesagent en de
+    robotwacht. Elk haalt ranglijsten en antwoorden op. Samen gingen ze in de
+    nacht van 30 september op 1 oktober over de 512 MB van Render: de dienst
+    werd herstart, het werk was weg, en er kwam geen ochtendbericht.
+    Nu een voor een, met opruimen ertussen. Het duurt langer, maar de nacht
+    heeft tijd genoeg. Zit het geheugen na een stap toch boven de grens, dan
+    slaan we de stappen over die kunnen wachten (de leeragent, de lijstjes),
+    in plaats van de hele dienst te laten omvallen."""
+    import gc
+    import nachtcontrole
+    import nachtagenten
+    import leeragent
+    import lijstjesagent
+    import robotwacht
+    stappen = [
+        ("onderhoud", lambda: onderhoud._werk(), True),
+        ("betalingen", _controleer_betalingen, True),
+        ("nachtcontrole", lambda: nachtcontrole.draai(app, _meld_aan_beheer), True),
+        ("indexcontrole", lambda: nachtagenten.draai(_meld_aan_beheer), True),
+        ("robotwacht", lambda: robotwacht.ronde(meld=_meld_aan_beheer, basis_url=get_base_url()), True),
+        ("leeragent", leeragent.draai, False),
+        ("lijstjes", lijstjesagent.zoek, False),
+    ]
+    verslag = {}
+    for naam, stap, moet in stappen:
+        voor = geheugen_mb()
+        if not moet and voor and voor > GEHEUGEN_GRENS_MB:
+            verslag[naam] = f"overgeslagen, geheugen {voor} MB"
+            print(f"NACHT {naam}: overgeslagen, geheugen {voor} MB boven {GEHEUGEN_GRENS_MB}")
+            continue
+        try:
+            stap()
+            verslag[naam] = "ok"
+        except Exception as e:
+            verslag[naam] = f"mislukt: {e}"[:160]
+            print(f"NACHT {naam} mislukt: {e}")
+        db.vergeet_onthouden()
+        _bewaard_opslag.clear()
+        gc.collect()
+        print(f"NACHT {naam}: geheugen {voor} -> {geheugen_mb()} MB")
+    verslag["geheugen_na"] = geheugen_mb()
+    try:
+        db.zet_instelling(NACHTWERK_KLAAR_SLEUTEL, str(int(time.time())))
+        db.zet_instelling("nachtwerk_verslag", json.dumps(verslag)[:4000])
+    except Exception:
+        pass
+    return verslag
+
+
+def _nachtregel():
+    """Een zin voor het ochtendbericht: liep de nacht af, en hoeveel geheugen nu."""
+    try:
+        gestart = float(db.get_instelling(NACHTWERK_SLEUTEL) or 0)
+        klaar = float(db.get_instelling(NACHTWERK_KLAAR_SLEUTEL) or 0)
+        verslag = json.loads(db.get_instelling("nachtwerk_verslag") or "{}")
+    except Exception:
+        gestart, klaar, verslag = 0, 0, {}
+    mb = geheugen_mb()
+    deel = f"Geheugen nu {mb} MB (Render herstart boven 512)." if mb else ""
+    if gestart and klaar >= gestart:
+        mislukt = [k for k, v in verslag.items() if isinstance(v, str) and v != "ok"]
+        return (f"De nacht liep af{', behalve: ' + ', '.join(mislukt) if mislukt else ', alle stappen gelukt'}. "
+                f"Geheugen na de nacht {verslag.get('geheugen_na', '?')} MB. {deel}")
+    if gestart:
+        return (f"LET OP: de nacht startte maar kwam niet af (waarschijnlijk een herstart van Render). "
+                f"De site probeert het tot 7 uur zelf opnieuw. {deel}")
+    return f"De nacht is niet gestart. Kijk bij cron-job.org naar /api/cron/onderhoud. {deel}"
+
+
 def _start_nachtwerk():
     """Alles van de nacht. Apart, zodat de wachtklok het ook kan starten."""
     onderhoud.NA_METING = _ververs_klantwerk
@@ -5136,13 +5306,14 @@ def _start_nachtwerk():
         db.zet_instelling(NACHTWERK_SLEUTEL, str(int(time.time())))
     except Exception:
         pass
-    threading.Thread(target=_controleer_betalingen, daemon=True).start()
-    # De controleagent (stap 134): loopt de klantweg na en mailt als er iets mis is.
-    import nachtcontrole
-    threading.Thread(target=nachtcontrole.draai, args=(app, _meld_aan_beheer),
-                     daemon=True).start()
-    _start_nachtagenten()
-    return onderhoud.start_ronde()
+    # De onderhoudsronde markeren als bezig, zodat een tweede start niets doet.
+    with onderhoud._slot:
+        if onderhoud._stand["bezig"]:
+            return False
+        onderhoud._stand.update({"bezig": True, "stap": "starten", "gestart_op": time.time(),
+                                 "klaar_op": None, "fout": None})
+    threading.Thread(target=_nachtwerk_achter_elkaar, daemon=True).start()
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -5161,6 +5332,7 @@ def _start_nachtwerk():
 # ---------------------------------------------------------------------------
 WACHTKLOK_MINUTEN = int(os.environ.get("WACHTKLOK_MINUTEN", "75"))
 NACHTWERK_SLEUTEL = "nachtwerk_gestart"
+NACHTWERK_KLAAR_SLEUTEL = "nachtwerk_klaar"
 _wachtklok = {"gestart": False}
 
 
@@ -5186,7 +5358,15 @@ def _wachtklok_tik(nu=None):
         nacht = float(db.get_instelling(NACHTWERK_SLEUTEL) or 0)
     except (TypeError, ValueError):
         nacht = 0
-    if 2 <= nu.hour < 5 and time.time() - nacht > 26 * 3600 and db.claim_moment("wachtklok_nacht", 20 * 3600):
+    try:
+        klaar = float(db.get_instelling(NACHTWERK_KLAAR_SLEUTEL) or 0)
+    except (TypeError, ValueError):
+        klaar = 0
+    # 1 oktober: gestart maar nooit klaar (de dienst werd herstart, het werk was
+    # weg) telt als niet gedaan, zolang het nog nacht is.
+    afgebroken = nacht and klaar < nacht and time.time() - nacht > 2 * 3600 and not onderhoud._stand.get("bezig")
+    if (2 <= nu.hour < 7 and afgebroken and db.claim_moment("wachtklok_nacht_opnieuw", 6 * 3600)) or \
+            (2 <= nu.hour < 5 and time.time() - nacht > 26 * 3600 and db.claim_moment("wachtklok_nacht", 20 * 3600)):
         print("WACHTKLOK: geen nachtwerk gezien, de site start het zelf.")
         _start_nachtwerk()
         gedaan.append("nacht")
@@ -6700,14 +6880,21 @@ def admin_onderzoeksmail():
                 # daarna overgeslagen wordt.
                 land = ((db.get_benadering(webshop_url) or {}).get("land"))
                 # Beide versies (stap 56), zodat je ze naast elkaar ziet.
-                verstuurd, fout = True, None
+                verstuurd, fout, gestuurd = True, None, []
                 for v in emailing.MAILVARIANTEN:
                     ok, reden = _stuur_onderzoeksmail(webshop_url, email, land, proef=True,
                                                       variant=v)
-                    verstuurd, fout = verstuurd and ok, fout or reden
-                melding = (f"Twee proefmails over {webshop_url} verstuurd naar {email} "
-                           f"(versie a en b, zie [TEST a] en [TEST b] in het onderwerp). "
-                           f"Er is niets vastgelegd." if verstuurd else
+                    if ok:
+                        gestuurd.append(v)
+                    elif v == "d" and reden and reden.startswith("Versie d past niet"):
+                        continue   # d hoort niet bij elke winkel; geen fout
+                    else:
+                        verstuurd, fout = False, fout or reden
+                melding = (f"{len(gestuurd)} proefmails over {webshop_url} verstuurd naar {email} "
+                           f"(versie {', '.join(gestuurd)}, zie [TEST ...] in het onderwerp)."
+                           + ("" if "d" in gestuurd else " Versie d niet: die is alleen voor winkels die "
+                              "vaak genoemd en zelden aangeraden worden.")
+                           + " Er is niets vastgelegd." if verstuurd else
                            f"De proefmail is NIET verstuurd. {fout or ''}")
                 return render_template("admin_onderzoeksmail.html", regels=[],
                                        melding=melding, basis=get_base_url(),
@@ -6845,7 +7032,7 @@ def _indexoverzicht(land, taal, canonical="/index"):
     rijen.sort(key=lambda r: r["naam"])
     return render_template(
         "index_overzicht.html",
-        t=t, taal=taal, land=land,
+        t=t, taal=taal, land=land, naam_en=categorieen.naam_en,
         landnaam=sitetaal.landnaam(land, taal) if land else None,
         landen=[{"code": r["land"],
                  "naam": sitetaal.landnaam(r["land"], taal),
@@ -6951,6 +7138,7 @@ def openbare_categorie(land, slug):
         landnaam=sitetaal.landnaam(land, taal),
         andere_landen=anders,
         naam=categorieen.naam_van(slug),
+        naam_en=categorieen.naam_en(slug),
         jij=jij,
         lijst_voor_ai=lijst_voor_ai,
         ranglijst=genoemd,
@@ -6991,8 +7179,24 @@ def categoriekaart_png(land, slug):
     naam = categorieen.naam_en(slug) if hasattr(categorieen, "naam_en") else categorieen.naam_van(slug)
     gemeten = next((r.get("gemeten_op") for r in lijst["rijen"] if r.get("gemeten_op")), None)
     maand = gemeten.strftime("%B %Y") if hasattr(gemeten, "strftime") else ""
-    data = categoriekaart.png(lijst["rijen"], lijst["telbaar"], naam, sitetaal.landnaam(land, "en"), maand)
+    # 1 oktober (geheugen): elk plaatje een keer tekenen per meting, en nooit
+    # twee tegelijk. Een tekening kost even een paar tientallen MB; acht
+    # tegelijk (Google die alle kaarten opvraagt) ging over de grens van Render.
+    sleutel = (land, slug, lijst.get("ronde"))
+    data = _kaart_png_opslag.get(sleutel)
+    if data is None:
+        with _kaart_png_slot:
+            data = _kaart_png_opslag.get(sleutel)
+            if data is None:
+                data = categoriekaart.png(lijst["rijen"], lijst["telbaar"], naam, sitetaal.landnaam(land, "en"), maand)
+                if len(_kaart_png_opslag) >= 80:
+                    _kaart_png_opslag.clear()
+                _kaart_png_opslag[sleutel] = data
     return Response(data, mimetype="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+
+_kaart_png_opslag = {}
+_kaart_png_slot = threading.Lock()
 
 
 def _winkel_slug(webshop_url):
@@ -7264,6 +7468,16 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 time.sleep(0.4)
             if not gegevens["ranglijst"]:
                 print(f"Ranglijst voor het dashboard LEEG voor {webshop_url} ({beeld['categorie']})")
+            # 1 oktober (stap 179 en 187 op het dashboard): de kaart met de klant
+            # erin gemarkeerd, en wat AI letterlijk over hem zegt. In de voorproef
+            # (na de koude mail) ook: dat is juist wat hem overhaalt.
+            try:
+                import categoriekaart
+                gegevens["kaart"] = categoriekaart.svg(gegevens["ranglijst"], beeld.get("telbaar"),
+                                                       markeer=webshop_url)
+            except Exception as e:
+                print(f"Kaart voor het dashboard mislukt: {e}")
+            gegevens["imago"] = _imago(beeld["ronde"], webshop_url, winkelnaam)
             buren = dp.buren_verloop(beeld)
             gegevens["grafiek_buren"] = dp.lijngrafiek(buren, breedte=1000, hoogte=280, taal=taal)
             anderen = [b for b in buren if not b.get("jij")]
@@ -7618,6 +7832,30 @@ def _voorbeeld_kandidaten(maximaal=3):
             gezien.add(k["webshop_url"])
             schoon.append(k)
     return schoon[:maximaal]
+
+
+@app.route("/mijn/<klant_token>/report.pdf")
+def klant_rapport_pdf(klant_token):
+    """Stap 184: het maandrapport als PDF van een pagina, om door te sturen."""
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return render_template("fout.html", titel="This link no longer works",
+                               bericht="Ask for a new one on /get-my-link and we will email it again."), 404
+    url = klant["webshop_url"]
+    beeld = klantbeeld.bouw(url, max_vragen=5)
+    if not beeld:
+        return render_template("fout.html", titel="No report yet",
+                               bericht="Your category has not been measured yet. The report is here after the "
+                                       "first measurement."), 404
+    import klantrapport
+    maand = beeld.get("gemeten_op").strftime("%B %Y") if hasattr(beeld.get("gemeten_op"), "strftime") else ""
+    data = klantrapport.pdf(beeld, categorieen.naam_en(beeld["categorie"]),
+                            sitetaal.landnaam(beeld.get("land"), "en") if beeld.get("land") else "",
+                            imago=_imago(beeld["ronde"], url, beeld.get("naam")), maand=maand)
+    naam = _winkel_slug(url).replace(".", "-")
+    return Response(data, mimetype="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="krillo-{naam}.pdf"',
+                             "Cache-Control": "private, max-age=3600"})
 
 
 @app.route("/mijn/<klant_token>")

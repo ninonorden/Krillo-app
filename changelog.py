@@ -11,6 +11,16 @@ Deze lijst wordt ook getest (test_changelog.py): elke link erin moet laden.
 
 # (datum, titel, tekst, link of None). Nieuwste eerst.
 REGELS = [
+    ("2026-10-01", "Switch from Watch to Fix with one click",
+     "On the Plan page of your dashboard: Switch to Fix. Your existing plan is changed, so there is no second "
+     "payment. Fix starts the same day, and the new price applies from your next payment.", None),
+    ("2026-10-01", "Your monthly report as a PDF",
+     "Download a one page report from your dashboard: your rank, the change since last month, the questions you "
+     "lose and who AI named instead, and what AI says about you. Easy to forward to a partner or your agency.",
+     None),
+    ("2026-10-01", "The category map and AI quotes in your dashboard",
+     "The Ranking page of your dashboard now shows where you sit on the map of named against recommended, and "
+     "what ChatGPT and Gemini say about your store, word for word.", "/demo/ranking"),
     ("2026-09-30", "A map of every category: named is not recommended",
      "Every ranking now has a map with each store as a dot: how often AI names it against how often AI recommends "
      "it. Stores low on the right are known to AI but rarely the tip. You can download the map as an image.",

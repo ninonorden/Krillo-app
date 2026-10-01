@@ -233,6 +233,21 @@ def stap_landen_vullen():
     if not rem["mag"]:
         return {"overgeslagen": "kostenrem", "reden": rem["reden"]}
     gemeten = [(slug, categorieen.naam_van(slug)) for slug in db.gemeten_categorieen()]
+    # Stap 80 (1 oktober): een betalende klant in een te kleine categorie. Eerst
+    # zijn categorie aanvullen tot hij meetbaar is, in zijn eigen land.
+    try:
+        ouders = {o for _, _, o in categorieen.CATEGORIEEN if o}
+        per_land = {}
+        for cat, land in db.klant_categorieen():
+            if cat in ouders:
+                continue   # een bovencategorie wordt in zijn kinderen gemeten
+            per_land.setdefault(land, []).append((cat, categorieen.naam_van(cat)))
+        for land, lijst in per_land.items():
+            verslag[f"klanten_{land}"] = winkelvinder.vul_land(
+                land, lijst, db.winkels_per_categorie_in_land(land),
+                doel=categorieen.MINIMUM_VOOR_INDEX + 2, max_zoekopdrachten=len(lijst))
+    except Exception as e:
+        verslag["klanten"] = {"fout": str(e)[:160]}
     for land in vraaglanden.VRAAGLANDEN:
         try:
             verslag[land] = winkelvinder.vul_land(
@@ -318,6 +333,9 @@ def stap_meten(hoeveel=None):
         return verslag
 
     gewoon = db.categorieen_om_te_meten(MINIMUM, OPNIEUW_METEN_NA_DAGEN)
+    # Stap 80 (1 oktober): de categorieen van betalende klanten eerst.
+    van_klanten = {c for c, _ in db.klant_categorieen()}
+    gewoon = sorted(gewoon, key=lambda rij: rij["categorie"] not in van_klanten)
     # Stap 76: de rondes met de eigen vragen van een land. Per nacht hoogstens
     # EEN plek daarvoor, en alleen als er meer dan een plek is: de gewone rij
     # houdt de hele index vers en gaat voor. Maar zet je de landen gewoon

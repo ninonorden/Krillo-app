@@ -44,6 +44,7 @@ def maak_tabellen(cur):
     cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS gratis_tot DATE;")
     cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS proef_herinnerd_op TIMESTAMPTZ;")
     cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS fix_aanbod_op TIMESTAMPTZ;")
+    cur.execute("ALTER TABLE klanten ADD COLUMN IF NOT EXISTS activatie_op TIMESTAMPTZ;")
 
 
 def eerste_incasso(vandaag=None):
@@ -160,11 +161,12 @@ def fix_aanbod_mail(winkel, vragen, fix_prijs):
     alineas = ([f"You put {len(vragen)} buying questions on your list for <strong>{winkel}</strong>:"]
                + [f"\u201c{v}\u201d" for v in vragen[:5]] + [
                "With Watch you get the fix for each one written out, to do yourself. With Fix we put them "
-               "live in your store for you: on Shopify through our app, elsewhere by our team with your access. "
+               "live in your store for you, with access you give us and can take back any time. "
                "The old text is kept, so every change can be undone, and at the next monthly measurement you "
                "see the difference.",
-               f"Fix is EUR {fix_prijs} a month and you can cancel any month. Want us to do it? Reply to this "
-               f"email and we switch your plan. Rather do it yourself? Then nothing changes."])
+               f"Fix is EUR {fix_prijs} a month and you can cancel any month. Want us to do it? Open the Plan "
+               f"page of your dashboard and click Switch to Fix: no second payment. Rather do it yourself? Then "
+               f"nothing changes."])
     return {"onderwerp": "Shall we put these fixes live for you?", "alineas": alineas}
 
 
@@ -187,7 +189,76 @@ def fix_aanbod_ronde(basis_url, verstuur=None, vandaag=None, fix_prijs=149, geko
         _sql("UPDATE klanten SET fix_aanbod_op = now() WHERE klant_token = %s", (k["klant_token"],))
         winkel = k["webshop_url"].replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
         mail = fix_aanbod_mail(winkel, gekozen(k["webshop_url"]), fix_prijs)
-        if verstuur(k["email"], mail["onderwerp"], mail["alineas"], f"{basis_url}/mijn/{k['klant_token']}/fixes",
-                    knop="See my fixes"):
+        if verstuur(k["email"], mail["onderwerp"], mail["alineas"], f"{basis_url}/mijn/{k['klant_token']}/plan",
+                    knop="Switch to Fix"):
             uit["fix_aanbod"] += 1
+    return uit
+
+
+# ---------------------------------------------------------------------------
+# STAP 129, DE ACTIVATIEAGENT (1 oktober).
+#
+# WAAROM. Een proef die niemand gebruikt wordt nooit een betaling. Wie op dag 2
+# van zijn proef zijn dashboard niet meer opende en nog geen enkele vraag op
+# zijn lijst zette, heeft het "aha" nog niet gezien. Die krijgt een keer de
+# drie koopvragen die hij verliest, met wie er wel genoemd werd, en een knop
+# naar precies die pagina. Geen korting, geen druk: zijn eigen cijfers.
+# ---------------------------------------------------------------------------
+ACTIVATIE_NA_DAGEN = 2
+
+
+def activatie_kandidaten(vandaag=None):
+    vandaag = vandaag or date.today()
+    # gratis_tot = start + 14, dus start = gratis_tot - 14; dag 2 = start + 2.
+    grens = vandaag - timedelta(days=ACTIVATIE_NA_DAGEN) + timedelta(days=PROEF_DAGEN)
+    try:
+        return _sql("""SELECT k.* FROM klanten k
+                        WHERE k.gratis_tot IS NOT NULL AND k.gratis_tot <= %s AND k.gratis_tot >= %s
+                          AND k.activatie_op IS NULL AND k.opgezegd_op IS NULL AND NOT k.is_test
+                          AND (k.laatst_bekeken_op IS NULL
+                               OR k.laatst_bekeken_op < k.aangemaakt_op + interval '1 day')
+                          AND NOT EXISTS (SELECT 1 FROM gekozen_vragen g WHERE g.webshop_url = k.webshop_url)""",
+                    (grens, vandaag), alles=True) or []
+    except Exception:
+        # De tabel met gekozen vragen bestaat pas na de eerste keuze.
+        return _sql("""SELECT k.* FROM klanten k
+                        WHERE k.gratis_tot IS NOT NULL AND k.gratis_tot <= %s AND k.gratis_tot >= %s
+                          AND k.activatie_op IS NULL AND k.opgezegd_op IS NULL AND NOT k.is_test
+                          AND (k.laatst_bekeken_op IS NULL
+                               OR k.laatst_bekeken_op < k.aangemaakt_op + interval '1 day')""",
+                    (grens, vandaag), alles=True) or []
+
+
+def activatiemail(winkel, beeld):
+    """De drie verloren vragen, met wie er in plaats van jou genoemd werd."""
+    vragen = [v for v in (beeld or {}).get("gemiste_vragen") or [] if v.get("vraag")][:3]
+    if not vragen:
+        return None
+    alineas = [f"Your free Watch trial for <strong>{winkel}</strong> is running. Here are three buying questions "
+               f"shoppers ask where AI named other stores and not you:"]
+    for v in vragen:
+        wie = ", ".join(n for n in (v.get("concurrenten") or [])[:2] if n)
+        alineas.append(f"\u201c{v['vraag']}\u201d" + (f": AI named {wie}." if wie else "."))
+    alineas.append("Your dashboard shows the full answer for each one, and what to change to win it. Click "
+                   "\"Add to my fixes\" on the questions that matter most to you, and they go on your list.")
+    return {"onderwerp": f"3 questions {winkel} is losing to other stores", "alineas": alineas}
+
+
+def activatie_ronde(basis_url, bouw_beeld, verstuur=None, vandaag=None):
+    if verstuur is None:
+        import emailing
+        verstuur = emailing.send_klantbericht
+    uit = {"activatie": 0}
+    for k in activatie_kandidaten(vandaag):
+        # Eerst afvinken: nooit twee keer, ook niet als er geen vragen zijn.
+        _sql("UPDATE klanten SET activatie_op = now() WHERE klant_token = %s", (k["klant_token"],))
+        try:
+            beeld = bouw_beeld(k["webshop_url"])
+        except Exception:
+            beeld = None
+        winkel = k["webshop_url"].replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
+        mail = activatiemail(winkel, beeld)
+        if mail and verstuur(k["email"], mail["onderwerp"], mail["alineas"],
+                             f"{basis_url}/mijn/{k['klant_token']}/questions", knop="See my questions"):
+            uit["activatie"] += 1
     return uit

@@ -23,7 +23,7 @@ KENMERKEN = [
                     "betaalbaar", "betaalbare", "budget", "affordable", "cheap", "low price", "good value"]),
     ("Premium", ["premium", "luxe", "luxueus", "high-end", "exclusief", "exclusieve", "prijzig", "duurder"]),
     ("Wide range", ["ruim assortiment", "groot assortiment", "breed assortiment", "uitgebreid assortiment",
-                    "veel keuze", "ruime keuze", "grote keuze", "wide range", "large selection", "wide selection"]),
+                    "veel keuze", "ruime keuze", "grote keuze", "veel keus", "ruime keus", "grote keus", "wide range", "large selection", "wide selection"]),
     ("Fast delivery", ["snelle levering", "snel geleverd", "snel in huis", "morgen in huis", "volgende dag",
                        "next day", "same day", "fast delivery", "fast shipping", "snelle verzending", "vandaag besteld"]),
     ("Service and advice", ["klantenservice", "persoonlijk advies", "deskundig", "goed advies", "advies",

@@ -4925,6 +4925,29 @@ def zet_overgeslagen(webshop_url):
         conn.close()
 
 
+def klant_categorieen():
+    """[(categorie, land)] van lopende, betalende klanten (stap 80, 1 oktober).
+
+    Hun categorie gaat 's nachts voor: eerst winkels erbij tot hij meetbaar is,
+    en daarna als eerste gemeten. Een betalende klant hoort niet te wachten tot
+    zijn categorie toevallig aan de beurt is."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT DISTINCT b.categorie, lower(coalesce(b.land, 'nl'))
+                                 FROM klanten k JOIN benadering b ON b.webshop_url = k.webshop_url
+                                WHERE k.opgezegd_op IS NULL AND NOT k.is_test AND b.categorie IS NOT NULL""")
+                return [(r[0], r[1]) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Categorieen van klanten ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def _familie_json():
     """{categorie: [zichzelf, ouder, kinderen]} voor in SQL."""
     import json as _json
@@ -7533,10 +7556,23 @@ def _onthouden(sleutel, functie, *args):
     # Een lege uitkomst (database even weg) niet onthouden.
     if waarde and (not isinstance(waarde, dict) or waarde.get("rijen") or waarde.get("ronde")):
         with _ONTHOUD_SLOT:
-            if len(_ONTHOUD) > 2000:
-                _ONTHOUD.clear()
+            _ruim_onthouden_op(nu)
             _ONTHOUD[sleutel] = (nu, waarde)
     return _copy.deepcopy(waarde)
+
+
+ONTHOUD_MAX = int(os.environ.get("DB_ONTHOUD_MAX", "400"))
+
+
+def _ruim_onthouden_op(nu):
+    """Verlopen vakken weg, en nooit meer dan ONTHOUD_MAX (1 oktober, geheugen).
+    Tot nu toe bleef alles staan tot er 2000 waren: ook wat al lang verlopen was."""
+    if len(_ONTHOUD) < ONTHOUD_MAX // 2:
+        return
+    for k in [k for k, (op, _) in _ONTHOUD.items() if nu - op >= ONTHOUD_SECONDEN]:
+        _ONTHOUD.pop(k, None)
+    if len(_ONTHOUD) >= ONTHOUD_MAX:
+        _ONTHOUD.clear()
 
 
 def vergeet_onthouden():
@@ -7683,15 +7719,17 @@ def _minuten(functie):
         waarde = functie(*args, **kwargs)
         if waarde:  # een lege uitkomst (database even weg) niet onthouden
             with _ONTHOUD_SLOT:
-                if len(_ONTHOUD) > 2000:
-                    _ONTHOUD.clear()
+                _ruim_onthouden_op(nu)
                 _ONTHOUD[sleutel] = (nu, waarde)
         return _copy.deepcopy(waarde)
     return _per_verzoek(omhulsel)
 
 
+# 1 oktober: antwoorden_met_tekst_van_ronde staat hier NIET meer in. Dat zijn
+# zestig volledige AI-antwoorden per ronde; voor elke ronde onthouden was een van
+# de dingen die de dienst over de 512 MB van Render duwde.
 for _naam in ("index_cijfers", "categorie_vragen", "positieverloop", "modellen_van_ronde",
-              "antwoorden_met_tekst_van_ronde", "landen_in_index", "categorieen_per_land",
+              "landen_in_index", "categorieen_per_land",
               "voorbeeldwinkel", "index_nooit_genoemd", "tel_gescande_webshops", "winkel_kort"):
     globals()[_naam] = _minuten(globals()[_naam])
 for _naam in ("klant_bij_url", "get_klant", "get_winkelprofiel", "shopify_winkel_bij_webadres"):

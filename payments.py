@@ -401,6 +401,39 @@ def zoek_abonnement(webshop_url):
     return None
 
 
+def wissel_naar(webshop_url, nieuw="fix"):
+    """Stap 130 (1 oktober): van Watch naar Fix, zonder tweede abonnement.
+
+    Mollie kan het bedrag van een lopend abonnement aanpassen. Dat doen we: het
+    bestaande abonnement krijgt de Fix-prijs vanaf de VOLGENDE betaling, in
+    dezelfde periode (maand of jaar). Geen dubbele betaling, geen nieuwe
+    machtiging. Fix begint meteen; het verschil voor de lopende periode rekenen
+    we niet (bewust: eenvoudig en eerlijk, en het overhalen is meer waard).
+    Geeft {"ok", "volgende_betaling", "bedrag"} of {"error"}."""
+    ab = zoek_abonnement(webshop_url)
+    if not ab:
+        return {"error": "We could not find your plan. Email hello@krilloai.com and we switch it by hand today."}
+    if ab.get("pakket") == nieuw:
+        return {"error": "You already have this plan."}
+    if ab.get("pakket") != "watch":
+        return {"error": "Switching this plan is done by hand. Email hello@krilloai.com and we do it today."}
+    periode = ab.get("periode") or "maand"
+    client = get_mollie_client()
+    if client is None:
+        return {"error": "Switching is not possible right now. Please try again later."}
+    try:
+        customer = client.customers.get(ab["customer_id"])
+        customer.subscriptions.update(ab["subscription_id"], {
+            "amount": prijs_van(nieuw, periode),
+            "description": f"{pakket_van(nieuw)['omschrijving']} ({'yearly' if periode == 'jaar' else 'monthly'})",
+        })
+        return {"ok": True, "volgende_betaling": ab.get("next_payment_date"),
+                "bedrag": prijs_van(nieuw, periode)["value"], "periode": periode}
+    except (MollieError, Exception) as e:
+        print(f"Wisselen naar {nieuw} mislukt voor {webshop_url}: {e}")
+        return {"error": "Switching did not work. Email hello@krilloai.com and we switch it by hand today."}
+
+
 def zeg_abonnement_op(customer_id, subscription_id):
     """Zegt het abonnement op bij Mollie. De klant houdt toegang tot het einde
     van de al betaalde periode, er wordt alleen niet opnieuw geincasseerd."""

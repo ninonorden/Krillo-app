@@ -42,8 +42,30 @@ def _schaal(p):
     return min(1.0, (int(hoogste * 10) + 1) / 10)
 
 
-def svg(rijen, telbaar, breedte=640, hoogte=420):
+def _vrije_regel(geplaatst, x, y, hoogte, links):
+    """Schuift een naam omlaag of omhoog tot hij geen andere naam raakt.
+
+    Zonder dit liggen twee winkels met bijna dezelfde cijfers met hun naam over
+    elkaar (1 oktober, toysshop5 en toysshop6 op de testkaart)."""
+    for stap in (0, 1, -1, 2, -2, 3, -3):
+        kandidaat = y + stap * hoogte
+        if all(abs(kandidaat - gy) >= hoogte or abs(x - gx) > hoogte * 12 or gl != links
+               for gx, gy, gl in geplaatst):
+            geplaatst.append((x, kandidaat, links))
+            return kandidaat
+    geplaatst.append((x, y, links))
+    return y
+
+
+def svg(rijen, telbaar, breedte=640, hoogte=420, markeer=None):
+    """markeer: het webadres van de klant op zijn eigen dashboard. Die stip krijgt
+    altijd een naam met "(you)" erachter en een ring, ook als hij buiten de top valt."""
     p = punten(rijen, telbaar)
+    jij = None
+    if markeer:
+        eigen = [r for r in rijen or [] if r.get("webshop_url") == markeer and int(r.get("genoemd") or 0) > 0]
+        if eigen:
+            jij = punten(eigen, telbaar)[0][0]
     if len(p) < 3:
         return ""
     s = _schaal(p)
@@ -53,7 +75,7 @@ def svg(rijen, telbaar, breedte=640, hoogte=420):
     def xy(x, y):
         return L + x / s * bw, T + bh - y / s * bh
 
-    delen = [f'<svg viewBox="0 0 {breedte} {hoogte}" role="img" style="width:100%;height:auto;max-width:{breedte}px" '
+    delen = [f'<svg viewBox="0 0 {breedte} {hoogte}" role="img" style="width:100%;height:auto;display:block" '
              f'aria-label="Map: how often each store is named against how often it is recommended">',
              f'<rect x="{L}" y="{T}" width="{bw}" height="{bh}" fill="#FAFAF7" stroke="#E4E2DA"/>',
              # De diagonaal: op die lijn is elke noeming ook een aanrader.
@@ -75,14 +97,20 @@ def svg(rijen, telbaar, breedte=640, hoogte=420):
     delen.append(f'<text x="{L + bw - 8}" y="{T + bh - 10}" font-size="11" text-anchor="end" fill="#6E7079">'
                  f'Known, not recommended</text>')
     volgorde = sorted(p, key=lambda t: -(t[1] + t[2]))
+    geplaatst = []
     for i, (naam, x, y) in enumerate(volgorde):
         cx, cy = xy(x, y)
-        delen.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{6 if i < MAX_LABELS else 4}" '
+        if naam == jij:
+            delen.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="11" fill="none" stroke="#0B0C14" stroke-width="2"/>')
+        delen.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{6 if i < MAX_LABELS or naam == jij else 4}" '
                      f'fill="{"#1B3FE0" if i < MAX_LABELS else "#A8B6F5"}"><title>{escape(naam)}</title></circle>')
-        if i < MAX_LABELS:
+        if i < MAX_LABELS or naam == jij:
             links = cx > L + bw * 0.7
-            delen.append(f'<text x="{cx + (-9 if links else 9):.1f}" y="{cy + 4:.1f}" font-size="12" '
-                         f'text-anchor="{"end" if links else "start"}" fill="#0B0C14">{escape(naam[:28])}</text>')
+            ly = _vrije_regel(geplaatst, cx, cy + 4, 14, links)
+            tekst = escape(naam[:28]) + (" (you)" if naam == jij else "")
+            delen.append(f'<text x="{cx + (-14 if links else 14):.1f}" y="{ly:.1f}" font-size="12" '
+                         f'text-anchor="{"end" if links else "start"}" fill="#0B0C14" '
+                         f'font-weight="{700 if naam == jij else 400}">{tekst}</text>')
     delen.append("</svg>")
     return "".join(delen)
 
@@ -124,13 +152,15 @@ def png(rijen, telbaar, titel, land, maand=""):
     d.text((L + bw - 16 * S, T + bh - 20 * S), "Known, not recommended", font=klein, fill=la.GRIJS, anchor="rs")
     d.text((L - 14 * S, T - 26 * S), "Recommended in %", font=asf, fill=la.INKT, anchor="ls")
     naamf = la._font("SpaceGrotesk-Medium.ttf", 26 * S)
+    geplaatst = []
     for i, (naam, x, yv) in enumerate(sorted(p, key=lambda t: -(t[1] + t[2]))):
         cx, cy = L + x / s * bw, T + bh - yv / s * bh
         r = (12 if i < MAX_LABELS else 8) * S
         d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=la.BLAUW if i < MAX_LABELS else la.LICHT)
         if i < MAX_LABELS:
             links = cx > L + bw * 0.7
-            d.text((cx + (-20 if links else 20) * S, cy + 9 * S), naam[:26], font=naamf, fill=la.INKT,
+            ly = _vrije_regel(geplaatst, cx, cy + 9 * S, 32 * S, links)
+            d.text((cx + (-20 if links else 20) * S, ly), naam[:26], font=naamf, fill=la.INKT,
                    anchor="rs" if links else "ls")
     im = im.resize((N, N), Image.LANCZOS)
     import io
