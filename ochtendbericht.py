@@ -222,6 +222,13 @@ def verzamel(basis_url):
         gisteren.append(("Opbrengst per maand van betalende klanten (euro)", f"{o:.2f}"))
     except Exception:
         pass
+    # 1 oktober: kleine Shopify-winkels en dropshippers (stap 156 en 217).
+    gisteren.append(("Waarvan aan Shopify-winkels (7 dagen)",
+                     _tel("SELECT count(*) FROM benadering WHERE gemaild_op > now() - interval '7 days' "
+                          "AND mail_platform = 'shopify'")))
+    gisteren.append(("Waarvan met de zin over gekopieerde leverancierstekst (7 dagen)",
+                     _tel("SELECT count(*) FROM benadering WHERE gemaild_op > now() - interval '7 days' "
+                          "AND coalesce(mail_leverancier, 0) > 0")))
     # 30 september (idee na de stille middag): de mails van gisteren tegenover
     # het doel. "12 van 50" zie je meteen; een los getal niet.
     try:

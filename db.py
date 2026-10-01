@@ -646,6 +646,11 @@ def init_db():
                 # Waar de categoriecheck een winkel weghaalde: zo zie je in welke
                 # categorie de winkelvinder rommel aanlevert (ochtendbericht).
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS categorie_was TEXT;")
+                # 1 oktober (Nino: "hoe weet ik dat dropshippers en kleine
+                # Shopify-winkels de mail krijgen?"): het platform bij het mailen
+                # en of de leverancierstekst-zin erin stond.
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS mail_platform TEXT;")
+                cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS mail_leverancier INTEGER;")
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS seizoen_sleutel TEXT;")
                 # Stap 116: over welke meting wij al een bewegingsmail stuurden.
                 cur.execute("ALTER TABLE benadering ADD COLUMN IF NOT EXISTS beweging_ronde INTEGER;")
@@ -2237,6 +2242,64 @@ def gemaild_sinds(datum):
     except Exception as e:
         print(f"Gemaild tellen mislukt: {e}")
         return 0
+    finally:
+        conn.close()
+
+
+def bellijst(limiet=20, dagen=14):
+    """De winkels om vandaag zelf te bellen of te mailen (1 oktober).
+
+    Wie de koude mail kreeg in de laatste {dagen} dagen, met zijn plek. Eerst
+    wie zijn pagina opende, dan plek 2 tot 8 (dichtbij de top), dan Shopify of
+    WooCommerce (daar doet Fix het werk zelf)."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(f"""
+                    SELECT b.webshop_url, b.naam, b.categorie, lower(coalesce(b.land, 'nl')) AS land, b.email,
+                           b.gemaild_op, b.bekeken_op, b.mail_platform,
+                           (SELECT u.positie FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
+                             WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
+                          ORDER BY u.ronde DESC LIMIT 1) AS positie,
+                           (SELECT u.genoemd FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
+                             WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
+                          ORDER BY u.ronde DESC LIMIT 1) AS genoemd
+                      FROM benadering b
+                     WHERE b.gemaild_op > now() - interval '{int(dagen)} days'
+                       AND NOT b.afgemeld AND coalesce(b.soort, 'winkel') = 'winkel'
+                  ORDER BY (b.bekeken_op IS NOT NULL) DESC,
+                           (SELECT CASE WHEN u.positie BETWEEN 2 AND 8 THEN 0 ELSE 1 END
+                              FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
+                             WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
+                          ORDER BY u.ronde DESC LIMIT 1) NULLS LAST,
+                           (b.mail_platform IN ('shopify', 'woocommerce')) DESC NULLS LAST,
+                           b.gemaild_op DESC
+                     LIMIT %s""", (int(limiet),))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Bellijst ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def zet_mail_kenmerken(webshop_url, platform=None, leverancier=None):
+    """Platform en aantal gekopieerde teksten bij het mailen (1 oktober)."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET mail_platform = %s, mail_leverancier = %s WHERE webshop_url = %s",
+                            ((platform or "").lower() or None, leverancier, webshop_url))
+                return cur.rowcount > 0
+    except Exception as e:
+        print(f"Mailkenmerken bewaren mislukt voor {webshop_url}: {e}")
+        return False
     finally:
         conn.close()
 

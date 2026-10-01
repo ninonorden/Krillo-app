@@ -2022,6 +2022,7 @@ def admin_wereld():
 BEHEER_GROEPEN = [
     ("Vandaag", [
         ("/admin/ochtendbericht", "Ochtendbericht", "Het bericht van vanochtend, nu bekijken"),
+        ("/admin/bellijst", "Bellijst", "Wie je vandaag zelf belt of mailt, met wat je zegt"),
         ("/admin/agents", "Commandocentrum", "Alle agents met hun schakelaars"),
         ("/admin/controle", "Nachtcontrole", "Wat de controleagent vond, en nu draaien"),
         ("/admin/traag", "Trage pagina's", "Welke pagina's traag waren, en waarom"),
@@ -3262,6 +3263,9 @@ def _zet_in_index(webshop_url):
             land = categoriemeting._land_bij_domein(
                 categoriemeting._schoon_domein(webshop_url) or "")
             db.zet_klant_op_lijst(scan_engine.normalize_url(webshop_url), land=land)
+            # Wie betaalt, wacht geen maand op zijn plek: meteen uitrekenen uit
+            # de antwoorden van deze maand (Nino, 1 oktober).
+            _plaats_in_ranglijst(scan_engine.normalize_url(webshop_url))
     except Exception as e:
         print(f"Klant in de index zetten mislukt voor {webshop_url}: {e}")
 
@@ -5181,6 +5185,8 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
         # Alleen een echte mail telt mee in de vergelijking van de versies.
         if gelukt and not proef:
             db.zet_mail_variant(webshop_url, variant)
+            db.zet_mail_kenmerken(webshop_url, platform,
+                                  (leverancier or {}).get("gekopieerd") if leverancier else None)
         return bool(gelukt), None if gelukt else "Verzenden mislukt, kijk in de logs."
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"[:200]
@@ -7429,6 +7435,13 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
     gegevens = {}
     if not beeld:
         gegevens["geen_plek"] = _geen_plek_reden(webshop_url)
+        # Een klant (of de beheerweergave) zonder plek: meteen uitrekenen uit de
+        # antwoorden van deze maand, in plaats van een maand te wachten.
+        if werk and gegevens["geen_plek"].get("soort") in ("niet_in_meting", "geen_categorie"):
+            _plaats_in_ranglijst(webshop_url)
+            # Alleen "bezig" zeggen als het ook echt loopt (of net liep).
+            if time.time() - _plaatsen_bezig.get(webshop_url, 0) < 600:
+                gegevens["geen_plek"]["bezig"] = True
     if beeld:
         winkelnaam = beeld.get("naam")
         if pagina in ("overzicht", "vragen"):
@@ -7552,6 +7565,62 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         basis_url=get_base_url().rstrip("/"),
         **dict({"top": []}, **gegevens),
     )
+
+
+_plaatsen_bezig = {}
+# Lukte het plaatsen niet (geen categorie te bepalen, of de kostenrem), dan
+# niet elke tien minuten opnieuw en niet steeds "ververs over een paar minuten"
+# beloven. Pas na zes uur weer proberen; de nacht pakt hem ook op.
+_plaatsen_mislukt = {}
+
+
+def _plaats_in_ranglijst(webshop_url):
+    """Zet een winkel METEEN in de ranglijst van deze maand (1 oktober).
+
+    Nino: "iemand betaalt en ziet een maand niks, dat is niet goed". Klopt. Een
+    nieuwe meting is niet nodig: de antwoorden van deze maand zijn bewaard. Komt
+    de winkel in zijn categorie, dan rekent herbereken_ranglijst de lijst opnieuw
+    uit die antwoorden, met de nieuwe winkel erbij. Nul vragen opnieuw, nul euro
+    voor het meten; hooguit een aanroep om de categorie te bepalen. Daarna heeft
+    hij binnen een paar minuten zijn plek en zijn verloren vragen.
+    Hooguit eens per tien minuten per winkel. Geeft True als hij gestart is."""
+    nu = time.time()
+    if nu - _plaatsen_bezig.get(webshop_url, 0) < 600:
+        return False
+    if nu - _plaatsen_mislukt.get(webshop_url, 0) < 6 * 3600:
+        return False
+    _plaatsen_bezig[webshop_url] = nu
+
+    def werk():
+        try:
+            import categoriemeting
+            w = db.get_benadering(webshop_url) or {"webshop_url": webshop_url}
+            cat = w.get("categorie")
+            if not cat:
+                ingedeeld = categorieen.deel_in([dict(w, webshop_url=webshop_url)], voorrang=True)
+                # Het model schrijft het adres soms net anders terug (zonder www).
+                # Bij een winkel is er maar een antwoord, dus dat nemen we dan.
+                cat = ingedeeld.get(webshop_url) or (
+                    next(iter(ingedeeld.values())) if len(ingedeeld) == 1 else None)
+                if cat:
+                    db.zet_categorie(webshop_url, cat)
+            if not cat or cat in categorieen.NIET_MEETBAAR:
+                _plaatsen_mislukt[webshop_url] = time.time()
+                return
+            land = (w.get("land") or "").lower() or None
+            for probeer in categorieen.familie(cat):
+                if db.laatste_afgeronde_ronde(probeer):
+                    categoriemeting.herbereken_ranglijst(probeer)
+                if land and db.laatste_afgeronde_ronde(probeer, land=land):
+                    categoriemeting.herbereken_ranglijst(probeer, land=land)
+            db.vergeet_onthouden()
+            _bewaard_opslag.clear()
+            print(f"Plek berekend voor {webshop_url} in {cat}")
+        except Exception as e:
+            _plaatsen_mislukt[webshop_url] = time.time()
+            print(f"Plaatsen in de ranglijst mislukt voor {webshop_url}: {e}")
+    threading.Thread(target=werk, daemon=True).start()
+    return True
 
 
 def _geen_plek_reden(webshop_url):
@@ -8461,6 +8530,56 @@ def admin_beoordelingen():
     )
 
 
+@app.route("/admin/bellijst")
+def admin_bellijst():
+    """De winkels die de koude mail kregen, om zelf op te volgen (1 oktober).
+
+    Nino: "hoe krijgen wij vandaag nog klanten?". Na 55 koude mails had nog geen
+    mens doorgeklikt. Een mail is makkelijk te negeren, een telefoontje van
+    iemand die zijn plek al weet niet. Per winkel: plek, waar je het telefoonnummer
+    vindt, zijn eigen Krillo-pagina om tijdens het gesprek te openen, en wat je zegt."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    if doorsturen:
+        return redirect(doorsturen)
+    basis = get_base_url().rstrip("/")
+    rijen = ""
+    for r in db.bellijst(25):
+        kaal = _winkel_slug(r["webshop_url"])
+        naam = r.get("naam") if r.get("naam") and not str(r.get("naam")).startswith("http") else kaal
+        token = db.get_benchmark_token(r["webshop_url"])
+        cat = categorieen.naam_van(r["categorie"]) if r.get("categorie") else "?"
+        plek = f"#{r['positie']}" if r.get("positie") else "geen plek"
+        zoek = quote(f"{naam} telefoon klantenservice")
+        geopend = ('<span style="color:#0B7C5E">opende zijn pagina</span>' if r.get("bekeken_op")
+                   else "nog niet geopend")
+        rijen += (f"<tr><td><strong>{escape(naam)}</strong><br><span style='color:#666;font-size:13px'>{escape(kaal)}"
+                  f"{' &middot; ' + escape(r['mail_platform']) if r.get('mail_platform') else ''}</span></td>"
+                  f"<td>{escape(cat)}<br><strong>{plek}</strong>, genoemd {r.get('genoemd') or 0}x</td>"
+                  f"<td>{geopend}</td>"
+                  f"<td><a href='https://www.google.com/search?q={zoek}' target='_blank'>telefoon zoeken</a><br>"
+                  f"<a href='{basis}/uitkomst/{token}' target='_blank'>zijn Krillo-pagina</a></td></tr>")
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Bellijst | Krillo</title><body style='font-family:Arial,sans-serif;max-width:980px;margin:40px auto;"
+            f"padding:0 16px;line-height:1.5'><h1>Bellijst</h1>"
+            f"<p>Winkels die de laatste twee weken de koude mail kregen. Bovenaan wie zijn pagina opende, dan plek 2 tot 8, "
+            f"dan Shopify en WooCommerce. Bel er vandaag vijf. Open tijdens het gesprek zijn Krillo-pagina, dan zie je wat hij ziet.</p>"
+            f"<div style='background:#F4F5F8;border-radius:8px;padding:12px 16px;margin:14px 0'><strong>Wat je zegt (30 seconden):</strong><br>"
+            f"&ldquo;Goedemiddag, met Nino van Krillo. We meten elke maand welke webshops ChatGPT aanraadt als iemand vraagt "
+            f"waar hij [categorie] koopt. Jullie staan op plek [x], [naam boven je] staat net boven jullie. Ik heb jullie "
+            f"daar een mail over gestuurd. Mag ik u laten zien welke vragen jullie mislopen? Dat duurt twee minuten en het "
+            f"kost niets.&rdquo;<br><span style='color:#666;font-size:13px'>Ja: stuur de link van zijn Krillo-pagina en "
+            f"bied de 14 dagen gratis Watch aan. Nee: vraag of je over een maand de nieuwe plek mag sturen.</span></div>"
+            f"<table cellpadding='8' style='border-collapse:collapse;width:100%'><tr style='text-align:left;"
+            f"border-bottom:1px solid #ddd'><th>Winkel</th><th>Plek</th><th>Mail</th><th>Doen</th></tr>"
+            f"{rijen or '<tr><td colspan=4>Nog niemand gemaild in de laatste twee weken.</td></tr>'}</table></body>")
+
+
+_oplossingen_bezig = {}
+_oplossingen_klaar = {}
+
+
 @app.route("/admin/oplossingen")
 def admin_oplossingen():
     """Laat de kant-en-klare teksten van het actieplan los schrijven.
@@ -8493,7 +8612,28 @@ def admin_oplossingen():
                 db.verwijder_taakoplossing(webshop_url, actie["id"])
         plan = _klantgegevens(webshop_url)["actieplan"]
 
-    uitkomsten = _maak_taakoplossingen(webshop_url, plan)
+    # 1 oktober: dit liep IN het verzoek. Drie teksten met het model duren langer
+    # dan de 120 seconden die Render een verzoek geeft, en dan kreeg Nino
+    # "Internal Server Error" (WORKER TIMEOUT). Nu op de achtergrond: deze pagina
+    # zegt wat er loopt, en verversen laat de uitkomst zien.
+    loopt = _oplossingen_bezig.get(webshop_url)
+    if plan and not loopt and (request.args.get("opnieuw") == "ja" or request.args.get("start") == "ja"
+                               or webshop_url not in _oplossingen_klaar):
+        def _schrijf():
+            try:
+                _oplossingen_klaar[webshop_url] = _maak_taakoplossingen(webshop_url, plan)
+            except Exception as e:
+                _oplossingen_klaar[webshop_url] = [{"titel": "alles", "gelukt": False, "fout": str(e)[:200],
+                                                     "was_er_al": False}]
+            finally:
+                _oplossingen_bezig.pop(webshop_url, None)
+        _oplossingen_bezig[webshop_url] = True
+        threading.Thread(target=_schrijf, daemon=True).start()
+        loopt = True
+    if request.args.get("opnieuw") == "ja":
+        # Niet op dit adres blijven staan: verversen zou alles opnieuw weggooien.
+        return redirect(f"/admin/oplossingen?url={quote(webshop_url)}")
+    uitkomsten = [] if loopt else _oplossingen_klaar.get(webshop_url, [])
 
     regels = []
     for u in uitkomsten:
@@ -8508,6 +8648,9 @@ def admin_oplossingen():
     if not plan:
         tekst = ("Er is nog geen actieplan voor deze winkel. Draai eerst de keten via "
                  "/admin/demo, of wacht op de wekelijkse ronde.")
+    elif loopt:
+        tekst = ("Bezig met schrijven op de achtergrond (een tot drie minuten). Ververs deze pagina "
+                 "ZONDER &opnieuw=ja om de uitkomst te zien.")
     elif not regels:
         tekst = "Het actieplan heeft geen taken die een geschreven tekst nodig hebben."
     else:
@@ -9918,6 +10061,8 @@ def _shopify_scherm(winkel, rij):
         try:
             db.zet_klant_op_lijst(scan_engine.normalize_url(webshop_url),
                                   land=landcode or None, stand="shopify")
+            # Ook na installeren via Shopify: meteen een plek, geen maand wachten.
+            _plaats_in_ranglijst(scan_engine.normalize_url(webshop_url))
         except Exception as e:
             print(f"Shopify-winkel op de lijst zetten mislukt voor {webshop_url}: {e}")
         try:

@@ -275,7 +275,7 @@ Antwoord met alleen JSON, zonder uitleg eromheen:
 {{"indeling": [{{"webshop_url": "...", "categorie": "slug"}}]}}"""
 
 
-def deel_in(winkels):
+def deel_in(winkels, voorrang=False):
     """Deelt een lijst winkels in. Geeft {webshop_url: slug} terug.
 
     Winkels waar het model niets zinnigs over zegt komen niet in de uitkomst
@@ -285,7 +285,7 @@ def deel_in(winkels):
     if client is None or not winkels:
         return {}
 
-    rem = kosten.mag_doorgaan()
+    rem = kosten.mag_doorgaan(voorrang=voorrang)
     if not rem["mag"]:
         print(f"Indelen geblokkeerd door de kostenrem: {rem['reden']}")
         return {}

@@ -57,8 +57,22 @@ def _zinnen_over(tekst, webshop_url, naam):
     for zin in re.split(r"(?<=[.!?])\s+|\n+|(?<=\S)\s+(?=\d+\.\s)|\s\*\s", tekst):
         laag = zin.lower()
         if any(s in laag for s in sleutels):
-            uit.append(zin.strip(" *-#"))
+            uit.append(_schoon(zin))
     return uit
+
+
+def _schoon(zin):
+    """Opmaak van het antwoord eruit (**vet**, *schuin*, # koppen, opsommingstekens,
+    nummers), en een gedachtestreepje wordt een komma. De woorden blijven wat AI zei."""
+    zin = re.sub(r"\*\*|__|(?<!\w)\*(?!\s)|(?<=\S)\*(?!\w)|`", "", zin or "")
+    zin = re.sub(r"^\s*(#+|[-*\u2022]|\d+[.)])\s*", "", zin)
+    zin = re.sub(r"\s+[\u2013\u2014]\s+", ", ", zin)
+    return re.sub(r"\s{2,}", " ", zin).strip(" *-#")
+
+
+def _andere_winkels(zin):
+    """Hoeveel webadressen of opgesomde namen er in een zin staan."""
+    return len(re.findall(r"\b[\w-]+\.(?:nl|be|com|de|eu|shop)\b", zin or "", re.I))
 
 
 def beeld(webshop_url, naam=None, antwoorden=(), max_citaten=3):
@@ -78,7 +92,12 @@ def beeld(webshop_url, naam=None, antwoorden=(), max_citaten=3):
         for label, woorden in KENMERKEN:
             if any(re.search(r"(?<![a-z])" + re.escape(w) + r"(?![a-z])", tekst) for w in woorden):
                 telling[label] = telling.get(label, 0) + 1
-        for zin in zinnen:
+        # 1 oktober (proefmail versie d over praxis.nl): het citaat was een
+        # opsomming "Gamma.nl, Praxis.nl, Karwei.nl** – prima voor ...". Dat gaat
+        # over drie winkels tegelijk. Nu de zin met de minste andere winkels erin.
+        for zin in sorted(zinnen, key=_andere_winkels):
+            if _andere_winkels(zin) >= 3:
+                continue
             kort = zin if len(zin) <= 240 else zin[:237].rsplit(" ", 1)[0] + "..."
             if len(citaten) < max_citaten and len(kort) > 30 and kort.lower() not in gezien:
                 gezien.add(kort.lower())
