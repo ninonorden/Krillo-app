@@ -35,6 +35,18 @@ import db
 SOORTEN = ("actie", "taak", "bouwen")
 NEE_DAGEN = 30
 
+# Wat Claude gebouwd heeft, op sleutel. Bij de volgende start gaan deze van
+# "akkoord" naar "gebouwd": ze verdwijnen van de bouwlijst en komen nooit terug.
+# Zo hoeft Nino niets af te vinken; de zip met het werk doet het.
+# Taken die Nino al deed en ons vertelde (zelfde werking als GEBOUWD, maar 'gedaan').
+AL_GEDAAN = {
+    "gids:saashub": "Nino, 1 oktober 2026: al aangemeld bij SaaSHub",
+}
+
+GEBOUWD = {
+    "uitbreiding:198": "1 oktober 2026: wekelijkse snelmeting (snelmeting.py, dashboard, /admin/snelmeting)",
+}
+
 
 def _sql(opdracht, waarden=None, alles=False):
     from psycopg2.extras import RealDictCursor
@@ -69,6 +81,12 @@ def maak_tabel():
                 aangemaakt_op TIMESTAMPTZ NOT NULL DEFAULT now(),
                 besloten_op TIMESTAMPTZ)""")
     _sql("CREATE INDEX IF NOT EXISTS voorstellen_sleutel ON voorstellen (sleutel)")
+    for sleutel, wat in AL_GEDAAN.items():
+        _sql("""UPDATE voorstellen SET stand = 'gedaan', uitkomst = %s, besloten_op = coalesce(besloten_op, now())
+                WHERE sleutel = %s AND stand IN ('open', 'akkoord')""", (wat, sleutel))
+    for sleutel, wat in GEBOUWD.items():
+        _sql("""UPDATE voorstellen SET stand = 'gebouwd', uitkomst = %s, besloten_op = coalesce(besloten_op, now())
+                WHERE sleutel = %s AND stand IN ('open', 'akkoord')""", (wat, sleutel))
 
 
 def sleutel_van(tekst):
@@ -86,10 +104,12 @@ def stel_voor(bron, soort, titel, waarom=None, actie=None, sleutel=None, minuten
         return None
     maak_tabel()
     sleutel = sleutel or (f"actie:{actie}" if soort == "actie" else sleutel_van(titel))
+    if sleutel in GEBOUWD or sleutel in AL_GEDAAN:
+        return None
     bestaand = _sql(f"""SELECT id FROM voorstellen WHERE sleutel = %s
                           AND (stand IN ('open', 'akkoord')
                                OR (stand = 'nee' AND besloten_op > now() - interval '{int(NEE_DAGEN)} days')
-                               OR (soort <> 'actie' AND stand IN ('gedaan', 'uitgevoerd')))
+                               OR (soort <> 'actie' AND stand IN ('gedaan', 'uitgevoerd', 'gebouwd')))
                         LIMIT 1""", (sleutel,))
     if bestaand:
         return None
@@ -137,6 +157,8 @@ def beslis(token, keuze):
     v = bij_token(token)
     if not v:
         return False, "Dit voorstel bestaat niet (meer)."
+    if sleutel_gebouwd(v):
+        return False, "Dit is al gebouwd."
     if keuze == "gedaan":
         if v["stand"] not in ("open", "akkoord") or v["soort"] == "actie":
             return False, "Dit voorstel kan niet op gedaan."
@@ -164,6 +186,10 @@ def beslis(token, keuze):
     if v["soort"] == "bouwen":
         return True, "Op de bouwlijst. Claude bouwt het in de volgende sessie; de tekst staat op /admin/voorstellen."
     return True, "Akkoord. De taak staat in je dagtaken tot je hem op gedaan zet."
+
+
+def sleutel_gebouwd(v):
+    return (v or {}).get("sleutel") in GEBOUWD
 
 
 def tekst_voor_claude(rijen=None):

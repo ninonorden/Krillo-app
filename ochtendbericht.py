@@ -291,6 +291,14 @@ def verzamel(basis_url):
         gegevens["bouwlijst"] = len(voorstellen.bouwlijst())
     except Exception as e:
         print(f"Ochtendbericht, dagtaken mislukt: {e}")
+    # De vrijdagscore (1 oktober): op vrijdag wat elke agent die week opleverde.
+    try:
+        from datetime import datetime as _dt
+        if _dt.now().weekday() == 4:
+            import agentscore
+            gegevens["vrijdagscore"] = agentscore.score()
+    except Exception as e:
+        print(f"Ochtendbericht, vrijdagscore mislukt: {e}")
     return gegevens
 
 
@@ -342,6 +350,18 @@ def tekst(gegevens, extra_regels=None):
     if gegevens.get("bouwlijst"):
         stuk.append(f"<p style='margin:0 0 18px'>Op de bouwlijst voor Claude: <strong>{gegevens['bouwlijst']}"
                     f"</strong>. De tekst om te plakken staat op /admin/voorstellen.</p>")
+    if gegevens.get("vrijdagscore"):
+        def _n(x):
+            return "onbekend" if x is None else ("-" if x == "-" else str(x))
+        stuk.append("<h2 style='font-size:17px;margin:0 0 8px'>Vrijdagscore: wat elke agent deze week opleverde</h2>"
+                    "<table cellpadding='4' style='border-collapse:collapse;margin-bottom:18px'>"
+                    "<tr><th style='text-align:left'>Agent</th><th>Verstuurd</th><th>Mensen keken</th>"
+                    "<th>Doorgeklikt</th></tr>")
+        for r in gegevens["vrijdagscore"]:
+            stuk.append(f"<tr><td>{escape(r['naam'])}</td><td style='text-align:right'>{_n(r['verstuurd'])}</td>"
+                        f"<td style='text-align:right'>{_n(r['mensen']) if r['mensen'] is not None else 'niet te tellen'}</td>"
+                        f"<td style='text-align:right'>{_n(r['doorgeklikt']) if r['doorgeklikt'] is not None else 'niet te tellen'}</td></tr>")
+        stuk.append("</table>")
     stuk.append("<h2 style='font-size:17px;margin:0 0 8px'>Wat de agents de laatste 24 uur deden</h2>"
                 "<table cellpadding='4' style='border-collapse:collapse;margin-bottom:18px'>")
     for wat, n in gegevens["gisteren"]:

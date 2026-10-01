@@ -146,7 +146,11 @@ def ronde(nu=None):
     import voorstellen
     f = feiten()
     nieuw = []
-    for stap in (volgende_gids, volgende_uitbreiding):
+    def _vrijdag():
+        import agentscore
+        return agentscore.voorstel(agentscore.score(), nu=nu)
+
+    for stap in (volgende_gids, volgende_uitbreiding, _vrijdag):
         try:
             rij = stap()
             if rij:
@@ -278,6 +282,8 @@ def volgende_uitbreiding(nu=None):
     if int(rij.get("open") or 0) or int(rij.get("vandaag") or 0):
         return None
     for nr, titel, waarom in UITBREIDINGEN:
+        if f"uitbreiding:{nr}" in voorstellen.GEBOUWD:
+            continue
         v = voorstellen.stel_voor("uitbreidingen", "bouwen", titel, waarom=f"{waarom} (roadmap stap {nr})",
                                   sleutel=f"uitbreiding:{nr}")
         if v:

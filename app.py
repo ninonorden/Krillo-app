@@ -2117,6 +2117,44 @@ def admin_klantblik():
     return _voorstel_pagina("Klantblik", "".join(stuk))
 
 
+@app.route("/admin/snelmeting")
+def admin_snelmeting():
+    """Stap 198: de snelmeting van een klant bekijken, en met ?nu=ja meteen draaien."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return _naar_inloggen()
+    if doorsturen:
+        return redirect(doorsturen)
+    import snelmeting
+    from html import escape as _e
+    url = scan_engine.normalize_url((request.args.get("url") or "").strip()) if request.args.get("url") else ""
+    stuk = ["<h1>Snelmeting</h1><p>Elke week, op de vaste meetdag van de klant, de vijf belangrijkste vragen "
+            "opnieuw aan ChatGPT en Gemini (eerst de gekozen vragen, dan de verloren, dan de gewonnen). "
+            "Ongeveer 10 tot 15 cent per klant per week.</p>"
+            "<form method='get'><input name='url' placeholder='bijvoorbeeld sounds.nl' size='30' required> "
+            "<button>Bekijken</button></form>"]
+    if url:
+        if request.args.get("nu") == "ja":
+            threading.Thread(target=snelmeting.meet, args=(url,), daemon=True).start()
+            return redirect(f"/admin/snelmeting?url={quote(url)}&gestart=ja")
+        if request.args.get("gestart") == "ja":
+            stuk.append("<p><strong>Gestart.</strong> Ververs over een minuut.</p>")
+        vragen = snelmeting.vragen_voor(url)
+        stuk.append(f"<h2>{_e(url)}</h2><p>Meetdag: {['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag'][meetdag(url)]}. "
+                    f"De vijf vragen nu:</p><ol>" + "".join(f"<li>{_e(v)}</li>" for v in vragen) + "</ol>"
+                    + ("" if vragen else "<p>Geen: deze winkel staat nog in geen ranglijst.</p>"))
+        o = snelmeting.overzicht(url)
+        if o:
+            stuk.append(f"<p>Laatste: {_e(str(o['op'])[:16])}, genoemd in {o['genoemd']} van {o['van']} antwoorden"
+                        + (f" (de keer ervoor {o['vorige_genoemd']} van {o['vorige_van']})" if o.get('vorige_van') else "")
+                        + ".</p><ul>" + "".join(
+                            f"<li>{_e(v['vraag'])}: " + ", ".join(
+                                f"{_e(a['naam'])} {'ja' if a['genoemd'] else 'nee'}" for a in v["assistenten"]) + "</li>"
+                            for v in o["vragen"]) + "</ul>")
+        stuk.append(f"<p><a href='/admin/snelmeting?url={quote(url)}&nu=ja'>Nu meten</a> (kost ongeveer 10 tot 15 cent)</p>")
+    return _voorstel_pagina("Snelmeting", "".join(stuk))
+
+
 @app.route("/admin/voorstellen", methods=["GET"])
 def admin_voorstellen():
     """Alle open voorstellen, de lopende taken, de bouwlijst en wat er besloten is."""
@@ -2173,6 +2211,7 @@ BEHEER_GROEPEN = [
         ("/admin/ochtendbericht", "Ochtendbericht", "Het bericht van vanochtend, nu bekijken"),
         ("/admin/voorstellen", "Voorstellen", "Ja of nee op wat de agents willen doen, en de bouwlijst voor Claude"),
         ("/admin/klantblik", "Klantblik", "Alle pagina's nagelopen zoals een klant ze ziet: wat er niet klopt"),
+        ("/admin/snelmeting", "Snelmeting", "De wekelijkse meting van de vijf belangrijkste vragen per klant"),
         ("/admin/agents", "Commandocentrum", "Alle agents met hun schakelaars"),
         ("/admin/controle", "Nachtcontrole", "Wat de controleagent vond, en nu draaien"),
         ("/admin/traag", "Trage pagina's", "Welke pagina's traag waren, en waarom"),
@@ -3931,12 +3970,23 @@ def _verwerk_betaling(payment_id, base_url):
                     monitoring_url = f"{base_url}/mijn/{klant_token}" if klant_token else None
                     pakket = (metadata.get("pakket") or payments.STANDAARD_PAKKET).lower()
                     welkom_ok = False
+                    plek = None
+                    try:
+                        import klantbeeld
+                        plek = klantbeeld.bouw(webshop_url, max_vragen=1)
+                    except Exception as e:
+                        print(f"Plek voor de welkomstmail mislukt voor {webshop_url}: {e}")
                     try:
                         import proefperiode
                         welkom_ok = emailing.send_monitoring_welcome_email(
                             email, webshop_url, scan_result, monitoring_url,
                             taal=_mailtaal(webshop_url), pakket=pakket,
-                            gratis_tot=proefperiode.laatste_gratis_dag() if metadata.get("proef") else None)
+                            gratis_tot=proefperiode.laatste_gratis_dag() if metadata.get("proef") else None,
+                            plek=plek)
+                        if welkom_ok and plek and plek.get("positie"):
+                            # Zijn plek stond al in de welkomstmail: geen tweede
+                            # mail "je plek is er" (zie _meld_eerste_plek).
+                            db.claim_moment(f"eerste_plek:{webshop_url}", 365 * 24 * 3600)
                     except Exception as e:
                         print(f"Welkomstmail mislukt voor {webshop_url}: {e}")
                     # Zonder deze mail heeft een betalende klant geen link naar
@@ -4396,6 +4446,16 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                 # meting van zijn categorie, met het maandbericht erbij. Twee
                 # metingen en twee soorten mail over dezelfde vraag verwarren
                 # een klant en kosten per week geld. Zie stap 66 bovenaan.
+
+                # Stap 198 (1 oktober, akkoord Nino): de wekelijkse snelmeting
+                # van zijn vijf belangrijkste vragen. Eigen try: mislukt hij, dan
+                # loopt de rest van de ronde gewoon door.
+                try:
+                    import snelmeting
+                    v = snelmeting.meet(c["webshop_url"])
+                    print(f"Snelmeting {c['webshop_url']}: {v}")
+                except Exception as e:
+                    print(f"Snelmeting mislukt voor {c['webshop_url']}: {e}")
 
                 # Is dit een Shopify-winkel met Fix, dan vullen wij ook uit
                 # onszelf aan. Dat staat op de prijskaart van Fix en zonder dit
@@ -5588,6 +5648,15 @@ def _wachtklok_tik(nu=None):
         print("WACHTKLOK: geen nachtwerk gezien, de site start het zelf.")
         _start_nachtwerk()
         gedaan.append("nacht")
+    # 1 oktober: een categorie van een betalende klant die nog nooit gemeten is,
+    # meteen meten (niet 's nachts, dan loopt het nachtwerk).
+    if not (2 <= nu.hour < 7):
+        try:
+            gestart = _meet_klantcategorie()
+            if gestart:
+                gedaan.append(f"klantmeting {gestart}")
+        except Exception as e:
+            print(f"Klantmeetrij mislukt: {e}")
     # 1 oktober: de klantblik loopt elke ochtend alle pagina's na zoals een klant
     # ze ziet, na de nacht en voor het ochtendbericht van acht uur.
     import commandocentrum
@@ -7665,8 +7734,8 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         # Een klant (of de beheerweergave) zonder plek: meteen uitrekenen uit de
         # antwoorden van deze maand, in plaats van een maand te wachten.
         eigen_controle = (request.headers.get("User-Agent") or "").startswith("KrilloKlantblik")
-        if werk and gegevens["geen_plek"].get("soort") in ("niet_in_meting", "geen_categorie") \
-                and not eigen_controle:
+        if werk and gegevens["geen_plek"].get("soort") in ("niet_in_meting", "geen_categorie", "niet_gemeten") \
+                and not gegevens["geen_plek"].get("wordt_gemeten") and not eigen_controle:
             _plaats_in_ranglijst(webshop_url)
             # Alleen "bezig" zeggen als het ook echt loopt (of net liep).
             if time.time() - _plaatsen_bezig.get(webshop_url, 0) < 600:
@@ -7703,6 +7772,15 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             except Exception as e:
                 print(f"Aanpak per vraag mislukt voor {webshop_url}: {e}")
         if pagina == "overzicht":
+            # Stap 198: de wekelijkse snelmeting, alleen voor een betalende klant.
+            if werk and not proef:
+                try:
+                    import snelmeting
+                    gegevens["snel"] = snelmeting.overzicht(webshop_url)
+                    gegevens["snel_dag"] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+                                            "Saturday", "Sunday"][meetdag(webshop_url)]
+                except Exception as e:
+                    print(f"Snelmeting voor het dashboard mislukt: {e}")
             eigen = [{"naam": winkelnaam, "jij": True,
                       "punten": [(r.get("afgerond_op"), r["positie"]) for r in beeld.get("verloop") or []]}]
             gegevens["grafiek_eigen"] = dp.lijngrafiek(eigen, taal=taal)
@@ -7837,19 +7915,117 @@ def _plaats_in_ranglijst(webshop_url):
                 _plaatsen_mislukt[webshop_url] = time.time()
                 return
             land = (w.get("land") or "").lower() or None
+            gemeten = False
             for probeer in categorieen.familie(cat):
                 if db.laatste_afgeronde_ronde(probeer):
+                    gemeten = True
                     categoriemeting.herbereken_ranglijst(probeer)
                 if land and db.laatste_afgeronde_ronde(probeer, land=land):
                     categoriemeting.herbereken_ranglijst(probeer, land=land)
+            if not gemeten:
+                # 1 oktober, de klantreis nagelopen: is zijn categorie nog nooit
+                # gemeten (te weinig winkels voor de openbare index), dan wachtte
+                # een betalende klant tot er tien winkels waren. Nu gaat zijn
+                # categorie voor in de rij en wordt hij gemeten zodra er geen
+                # andere meting loopt (de wachtklok kijkt elke vijf minuten).
+                # Op de openbare index komt hij pas bij tien winkels, zoals altijd.
+                zet_in_klantmeetrij(cat)
             db.vergeet_onthouden()
             _bewaard_opslag.clear()
             print(f"Plek berekend voor {webshop_url} in {cat}")
+            if gemeten:
+                _meld_eerste_plek(webshop_url)
         except Exception as e:
             _plaatsen_mislukt[webshop_url] = time.time()
             print(f"Plaatsen in de ranglijst mislukt voor {webshop_url}: {e}")
     threading.Thread(target=werk, daemon=True).start()
     return True
+
+
+def _meld_eerste_plek(webshop_url):
+    """Een keer per klant: "je staat erin, op plek X van Y" (1 oktober).
+
+    De welkomstmail belooft: we mailen je zodra je plek er is. Komt die plek uit
+    de antwoorden van deze maand (_plaats_in_ranglijst), dan gaat hier die mail.
+    Komt hij uit een meting van zijn categorie, dan doen de gewone berichten na
+    de meting dat (meldingen.na_meting). Alleen voor een klant met een adres, en
+    hooguit een keer per jaar per winkel, ook als dit vaker wordt aangeroepen."""
+    try:
+        import klantbeeld
+        klant = db.klant_bij_url(webshop_url) or {}
+        if not klant.get("email") or not klant.get("klant_token") or klant.get("opgezegd_op"):
+            return False
+        beeld = klantbeeld.bouw(webshop_url, max_vragen=3)
+        if not beeld or not beeld.get("positie"):
+            return False
+        if not db.claim_moment(f"eerste_plek:{webshop_url}", 365 * 24 * 3600):
+            return False
+        naam = categorieen.naam_en(beeld["categorie"])
+        gemist = beeld.get("gemiste_vragen") or []
+        tekst = (f"Your store is in the Krillo Index: #{beeld['positie']} of {beeld['van']} in {naam}, "
+                 f"from this month's measurement.")
+        if gemist:
+            v = gemist[0]
+            anderen = ", ".join((v.get("concurrenten") or [])[:2])
+            tekst += (f"\n\nOne question you lose: \u201c{v['vraag']}\u201d"
+                      + (f" AI names {anderen} there." if anderen else ""))
+        tekst += "\n\nYour dashboard shows every question, who AI names instead, and what to do first."
+        return emailing.send_vermeldingen_update(
+            klant["email"], webshop_url, tekst,
+            monitoring_url=f"{get_base_url().rstrip('/')}/mijn/{klant['klant_token']}",
+            onderwerp=f"Your rank in the Krillo Index: #{beeld['positie']}", kop="Your rank is in")
+    except Exception as e:
+        print(f"Mail eerste plek mislukt voor {webshop_url}: {e}")
+        return False
+
+
+KLANTMEETRIJ = "klantmeetrij"
+
+
+def zet_in_klantmeetrij(categorie):
+    """Een categorie van een betalende klant die nog nooit gemeten is: voor in de rij."""
+    try:
+        rij = json.loads(db.get_instelling(KLANTMEETRIJ) or "[]")
+    except Exception:
+        rij = []
+    if categorie and categorie not in rij:
+        rij.append(categorie)
+        db.zet_instelling(KLANTMEETRIJ, json.dumps(rij))
+    return rij
+
+
+def _klantmeetrij():
+    try:
+        rij = json.loads(db.get_instelling(KLANTMEETRIJ) or "[]")
+        return rij if isinstance(rij, list) else []
+    except Exception:
+        return []
+
+
+def _meet_klantcategorie(nu=None):
+    """Voor de wachtklok: de eerste categorie uit de klantmeetrij meten, als er
+    geen andere meting of nachtwerk loopt. Geeft de gestarte categorie of None."""
+    import categoriemeting
+    rij = _klantmeetrij()
+    if not rij or onderhoud._stand.get("bezig") or categoriemeting.stand().get("bezig"):
+        return None
+    cat = rij[0]
+    if db.laatste_afgeronde_ronde(cat):
+        # Intussen gemeten (bijvoorbeeld door de nacht): uit de rij, niets te doen.
+        db.zet_instelling(KLANTMEETRIJ, json.dumps(rij[1:]))
+        return None
+    def _berichten(uitkomst):
+        # Dezelfde berichten als na een nachtmeting: de klant hoort zijn plek.
+        import meldingen
+        meldingen.na_meting(uitkomst["ronde"], cat, verstuur=True, basis=get_base_url())
+        db.vergeet_onthouden()
+        _bewaard_opslag.clear()
+
+    if not categoriemeting.start_meting(cat, na=_berichten):
+        return None
+    db.zet_instelling(KLANTMEETRIJ, json.dumps(rij[1:]))
+    print(f"Klantmeetrij: {cat} wordt nu gemeten voor een betalende klant.")
+    return cat
 
 
 def _geen_plek_reden(webshop_url):
@@ -7875,8 +8051,11 @@ def _geen_plek_reden(webshop_url):
                         "volgende": (gemeten + timedelta(days=30)).strftime("%-d %B")
                         if hasattr(gemeten, "strftime") else None}
         aantal = (db.winkels_per_categorie_in_land((winkel.get("land") or "nl").lower()) or {}).get(cat, 0)
+        import categoriemeting
+        st = categoriemeting.stand()
+        wordt_gemeten = (cat in _klantmeetrij()) or (st.get("bezig") and st.get("categorie") == cat)
         return {"soort": "niet_gemeten", "categorie": naam, "aantal": aantal,
-                "nodig": categorieen.MINIMUM_VOOR_INDEX}
+                "nodig": categorieen.MINIMUM_VOOR_INDEX, "wordt_gemeten": bool(wordt_gemeten)}
     except Exception as e:
         print(f"Reden zonder plek mislukt voor {webshop_url}: {e}")
         return {"soort": "onbekend"}
@@ -11503,12 +11682,21 @@ def bedankt():
     if checkout_type == "monitoring":
         return render_template(
             "bedankt.html", gelukt=betaald,
-            title="Your payment went through Mollie",
-            message=("If the payment succeeded, your first measurement is on its way and "
-                     "within about fifteen minutes you get an email with the link to your "
-                     "own page. That page says what to do first."),
-            note=("If nothing was charged and no email arrives, the payment was not "
-                  "completed. You can simply try again, or email hello@krilloai.com."))
+            title=("Payment received. Welcome to Krillo" if betaald else "Your payment went through Mollie"),
+            # 1 oktober: wist hij al zeker dat er betaald is, dan zei de pagina toch
+            # "if the payment succeeded". Nu zeker als het zeker is, en de tijd
+            # zoals hij echt is (de welkomstmail gaat binnen een paar minuten).
+            message=(("Your welcome email with the link to your dashboard is on its way and "
+                      "usually arrives within a few minutes. Your dashboard fills itself: your "
+                      "rank, the questions where AI names someone else, and your first fixes, "
+                      "usually within the hour.") if betaald else
+                     ("If the payment succeeded, you get an email with the link to your own "
+                      "dashboard within a few minutes. That page says what to do first.")),
+            note=(("No email after ten minutes? Look in your spam folder, or get your link "
+                   "again via Log in at the top of the page. Questions: hello@krilloai.com.")
+                  if betaald else
+                  ("If nothing was charged and no email arrives, the payment was not "
+                   "completed. You can simply try again, or email hello@krilloai.com.")))
     if checkout_type == "uitvoering":
         return render_template(
             "bedankt.html", gelukt=betaald,

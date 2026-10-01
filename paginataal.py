@@ -99,7 +99,7 @@ TEKSTEN = {
                                 "opnieuw. Je vorige metingen staan er nog gewoon bij."),
         "eerste_kop": "Je uitgeschreven verbeteringen komen eraan",
         "eerste_tekst": ("We scannen je site en schrijven de verbeteringen ervoor uit, klaar om over te "
-                         "nemen. Dat loopt op de achtergrond en duurt hooguit een dag. Begin intussen met "
+                         "nemen. Dat loopt op de achtergrond, meestal binnen het uur. Begin intussen met "
                          "de vragen om eerst te winnen bovenaan deze pagina."),
         "nognietgemeten_kop": "Er is nog niet gemeten",
         "nognietgemeten_tekst": ("Bij een eenmalige opdracht meten we niet doorlopend. Wil "
@@ -393,7 +393,7 @@ TEKSTEN = {
         # komen uit de scan van de site; die staan er nog niet. Dat zeggen we nu.
         "eerste_kop": "Your written fixes are on their way",
         "eerste_tekst": ("We scan your site and write the fixes for it, ready to copy. That runs in the "
-                         "background and takes up to a day. Until then, start with the questions to win "
+                         "background, usually within the hour. Until then, start with the questions to win "
                          "at the top of this page."),
         "nognietgemeten_kop": "Nothing measured yet",
         "nognietgemeten_tekst": ("With a one-off job we do not keep measuring. Want to know "

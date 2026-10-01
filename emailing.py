@@ -872,7 +872,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
 
 
 def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None,
-                                  taal="en", pakket="fix", gratis_tot=None):
+                                  taal="en", pakket="fix", gratis_tot=None, plek=None):
     """De welkomstmail na de eerste betaling van Watch of Fix.
 
     HERSCHREVEN 21 SEPTEMBER. Hiervoor heette dit "Welcome to Krillo monitoring"
@@ -919,12 +919,22 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
     body = (
         _p(f"Welcome. Your {naam} plan for <strong>{veilig(winkel)}</strong> has started. "
            f"{dashboard}")
-        + _p("<strong>Right now.</strong> We are running your first measurement: thirty "
-             "buying questions that shoppers in your category really ask, put to ChatGPT and "
-             "Gemini. That takes about fifteen minutes, and then your first fixes are on your "
-             "dashboard. Your rank, how often you are named and which stores come out ahead "
-             "of you appear once your category has been measured; for a category we do not "
-             "measure yet, that can take a few days.")
+        # 1 oktober, de klantreis nagelopen. Hier stond "about fifteen minutes"
+        # en "for a category we do not measure yet, that can take a few days".
+        # Nu: staat hij al in de ranglijst, dan zeggen we zijn plek. Zo niet, dan
+        # zetten we hem er meteen in (uit de antwoorden van deze maand), of
+        # meten we zijn categorie meteen (klantmeetrij). Geen dagen wachten.
+        + _p("<strong>Right now.</strong> We are putting thirty buying questions that shoppers "
+             "in your category really ask to ChatGPT and Gemini, and writing your first fixes. "
+             "That usually takes less than an hour; your dashboard fills itself.")
+        + (_p(f"<strong>Your rank.</strong> You are already in the Krillo Index: "
+              f"<strong>#{plek['positie']} of {plek['van']}</strong> in your category, from this "
+              f"month's measurement. Your dashboard shows the questions where AI names another "
+              f"store, and who.") if plek and plek.get("positie") else
+           _p("<strong>Your rank.</strong> We are adding your store to this month's ranking of "
+              "your category now, from the answers AI already gave. That usually takes a few "
+              "minutes. If your category is new for us, we measure it for you first, which "
+              "usually takes less than an hour. Either way, we email you when your rank is in."))
         + _p("<strong>Every month.</strong> We measure your whole category again, and that is "
              "where your rank in the index comes from. You get a message with your position, "
              "and a message when you drop three places or more. Your store also gets the "
@@ -933,7 +943,9 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
              # hij bij de start, dan gaat de klant toch door en stond hier
              # anders "0 of 100", terwijl er niets gemeten was.
              + (f"; it scores {score} of 100 on them today." if (scan_result or {}).get("checks")
-                else "; the first one follows within a week."))
+                else "; the first one follows within a week.")
+             + " <strong>Every week</strong> we also ask your five most important buying questions "
+               "again, so you see within a week whether a change works.")
         + werk
         # Stap 167: bij de gratis proef precies zeggen wanneer er iets betaald wordt.
         + (_p(f"<strong>Your free trial.</strong> Watch is free until {gratis_tot.strftime('%d-%m-%Y')}. "

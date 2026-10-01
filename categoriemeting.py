@@ -1226,12 +1226,19 @@ def meet_categorie(slug, max_vragen=None, land=None):
             "ranglijst": rangen}
 
 
-def _werk(slug, max_vragen, land=None):
+def _werk(slug, max_vragen, land=None, na=None):
     try:
         uitkomst = meet_categorie(slug, max_vragen=max_vragen, land=land)
         if uitkomst.get("fout"):
             _stand["fout"] = uitkomst["fout"]
         print(f"Categoriemeting klaar: {slug}, {uitkomst}")
+        # 1 oktober: wie de meting startte voor een betalende klant, wil daarna
+        # de berichten versturen (zie app._meet_klantcategorie).
+        if na and uitkomst.get("ronde") and not uitkomst.get("fout"):
+            try:
+                na(uitkomst)
+            except Exception as e:
+                print(f"Na de meting mislukt voor {slug}: {e}")
     except Exception as e:
         _stand["fout"] = f"{type(e).__name__}: {e}"[:200]
         print(f"Categoriemeting mislukt voor {slug}: {e}")
@@ -1240,7 +1247,7 @@ def _werk(slug, max_vragen, land=None):
         _stand["klaar_op"] = time.time()
 
 
-def start_meting(slug, max_vragen=None, land=None):
+def start_meting(slug, max_vragen=None, land=None, na=None):
     """Start een categoriemeting op een eigen draad.
 
     Nooit in het verzoek zelf: dertig vragen aan twee modellen is een minuut of
@@ -1256,5 +1263,5 @@ def start_meting(slug, max_vragen=None, land=None):
                        "vraag_nu": 0, "vragen_totaal": 0, "antwoorden": 0,
                        "mislukt": 0, "gestart_op": time.time(),
                        "klaar_op": None, "fout": None})
-    threading.Thread(target=_werk, args=(slug, max_vragen, land), daemon=True).start()
+    threading.Thread(target=_werk, args=(slug, max_vragen, land, na), daemon=True).start()
     return True
