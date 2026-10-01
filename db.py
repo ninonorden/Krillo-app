@@ -2176,12 +2176,18 @@ def trechter_benadering():
                         COUNT(*) FILTER (WHERE bekeken_op IS NOT NULL),
                         COUNT(*) FILTER (WHERE doorgeklikt_op IS NOT NULL),
                         COUNT(*) FILTER (WHERE bounce_op IS NOT NULL),
-                        COUNT(*) FILTER (WHERE klacht_op IS NOT NULL)
+                        COUNT(*) FILTER (WHERE klacht_op IS NOT NULL),
+                        COUNT(*) FILTER (WHERE mens_op IS NOT NULL),
+                        -- 1 oktober: de mens-telling bestaat sinds 29 september. Alleen
+                        -- openingen vanaf dan zeggen iets over mens of mailbeveiliging.
+                        COUNT(*) FILTER (WHERE bekeken_op >= coalesce(
+                            (SELECT min(gezien_op) FROM bezoek_mensen), now()))
                     FROM benadering""")
-                rij = cur.fetchone() or (0, 0, 0, 0, 0)
+                rij = cur.fetchone() or (0, 0, 0, 0, 0, 0, 0)
                 return {"gemaild": rij[0] or 0, "bekeken": rij[1] or 0,
                         "doorgeklikt": rij[2] or 0, "bounces": rij[3] or 0,
-                        "klachten": rij[4] or 0}
+                        "klachten": rij[4] or 0, "mensen": rij[5] or 0,
+                        "bekeken_sinds_menstelling": rij[6] or 0}
     except Exception as e:
         print(f"Trechter ophalen mislukt: {e}")
         return leeg

@@ -36,6 +36,22 @@ import threading as _threading
 _opvang = _threading.local()
 
 
+def platte_tekst(html_body):
+    """De HTML van een mail als leesbare platte tekst: alinea's blijven alinea's,
+    een link wordt "tekst (adres)"."""
+    import re as _re
+    t = html_body or ""
+    t = _re.sub(r"(?is)<(style|script)\b.*?</\1>", "", t)
+    t = _re.sub(r'(?is)<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>', lambda m: f"{m.group(2)} ({m.group(1)})", t)
+    t = _re.sub(r"(?i)<br\s*/?>", "\n", t)
+    t = _re.sub(r"(?i)</(p|div|h\d|li|tr|table)>", "\n\n", t)
+    t = _re.sub(r"<[^>]+>", "", t)
+    t = _html.unescape(t)
+    t = _re.sub(r"[ \t]+", " ", t)
+    t = _re.sub(r"\n\s*\n\s*(\n\s*)+", "\n\n", t)
+    return "\n".join(r.strip() for r in t.strip().split("\n"))
+
+
 def vang_op(lijst):
     """Vanaf nu op deze draad geen mail versturen maar in lijst zetten; None stopt het."""
     _opvang.lijst = lijst
@@ -75,6 +91,10 @@ def send_email(to_email, subject, html_body, koppen=None):
         "to": [{"email": to_email}],
         "subject": subject,
         "htmlContent": html_body,
+        # 1 oktober (mail-tester gaf -0.1 voor MIME_HTML_ONLY): ook een versie
+        # in platte tekst. Spamfilters vertrouwen een mail met beide meer, en
+        # wie mail als tekst leest, ziet geen kale HTML.
+        "textContent": platte_tekst(html_body),
     }
     if reply_to:
         inhoud["replyTo"] = {"name": "Krillo", "email": reply_to}
