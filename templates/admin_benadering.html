@@ -162,6 +162,9 @@
       Daarvan hebben er <b>{{ trechter.bekeken }}</b> hun uitkomst geopend
       {%- if trechter.gemaild %} ({{ (trechter.bekeken * 100 // trechter.gemaild) }} procent){% endif %},
       en <b>{{ trechter.doorgeklikt }}</b> klikten door naar de prijzen.
+      {% if trechter.bekeken_sinds_menstelling is defined %}<br>Echte mensen (scrollen, tikken of muis, geteld sinds 29 september):
+      <b>{{ trechter.mensen }}</b> van de {{ trechter.bekeken_sinds_menstelling }} openingen sinds die datum. De rest is
+      mailbeveiliging die elke link vooraf opent.{% endif %}
       <br>Teruggekaatst (adres bestaat niet): <b>{{ trechter.bounces or 0 }}</b>
       ({{ ((trechter.bounces or 0) * 1000 // trechter.gemaild) / 10 }} procent),
       als spam gemeld: <b>{{ trechter.klachten or 0 }}</b>.
