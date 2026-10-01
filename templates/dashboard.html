@@ -143,6 +143,11 @@
       <div class="kaartkop">{{ 'JOUW POSITIE' if taal == 'nl' else 'YOUR POSITION' }}</div>
       <p style="margin:0; font-size:15px;">
         {% if buiten_markt %}{{ (werkblok.wt.buiten_markt | replace('{landen}', index_landen_nl if taal == 'nl' else index_landen_en)) if werkblok else '' }}
+        {% elif geen_plek and geen_plek.bezig %}
+          {# 1 oktober: wie betaalt, wacht geen maand. De plek wordt nu uitgerekend
+             uit de antwoorden van deze maand, dat duurt een paar minuten. #}
+          {% if taal == 'nl' %}We zetten je winkel nu in de ranglijst van deze maand{% if geen_plek.categorie %} ({{ geen_plek.categorie }}){% endif %}, uit de antwoorden die AI deze maand al gaf. Ververs deze pagina over een paar minuten: dan staan hier je plek en de vragen waarbij AI een ander noemt.
+          {% else %}We are adding your store to this month's ranking{% if geen_plek.categorie %} ({{ geen_plek.categorie }}){% endif %} now, from the answers AI already gave this month. Refresh this page in a few minutes: your position and the questions where AI names someone else will be here.{% endif %}
         {% elif geen_plek and geen_plek.soort == 'niet_in_meting' %}
           {% if taal == 'nl' %}Je categorie ({{ geen_plek.categorie }}) is gemeten{% if geen_plek.gemeten %} op {{ geen_plek.gemeten }}{% endif %}, maar je winkel zat toen nog niet in de meting. Bij de volgende meting{% if geen_plek.volgende %} (rond {{ geen_plek.volgende }}){% endif %} doe je mee, en dan staat je plek hier.
           {% else %}Your category ({{ geen_plek.categorie }}) was measured{% if geen_plek.gemeten %} on {{ geen_plek.gemeten }}{% endif %}, but your store was not in that measurement yet. You are in the next one{% if geen_plek.volgende %} (around {{ geen_plek.volgende }}){% endif %}, and your position appears here.{% endif %}
