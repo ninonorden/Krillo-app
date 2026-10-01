@@ -18,6 +18,9 @@ REGELS = [
     ("2026-10-01", "Your rank within the hour after you start",
      "New customers are added to this month's ranking of their category right away. Is your category new to us, "
      "we measure it for you first. Either way you get an email when your rank is in.", None),
+    ("2026-10-01", "Per page: can AI read it?",
+     "Every week we also check your product and category pages, not only your homepage. Your Fixes page lists "
+     "at most three things to do per page, with ready-made text where it helps.", None),
     ("2026-10-01", "Open spots and a PDF for your web designer",
      "The Questions page now shows where AI names few stores: the quickest questions to win. And the thirteen "
      "technical checks come as a one page PDF, in the order to fix them.", None),
@@ -81,6 +84,15 @@ REGELS = [
      "Agencies, freelancers and Shopify partners can sign up and earn 20 percent for twelve months on every store "
      "they bring.", "/partners"),
 ]
+
+
+# De grootste veranderingen: alleen die gaan in het maandelijkse klantnieuws
+# (klantnieuws.py). Nino, 1 oktober: "alleen de grootste veranderingen".
+GROOT = {
+    "Every week: your five key questions checked again",
+    "Your rank within the hour after you start",
+    "Fix for WooCommerce and WordPress",
+}
 
 
 def regels():

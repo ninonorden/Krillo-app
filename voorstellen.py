@@ -60,6 +60,10 @@ OP_TITEL = [
      "1 okt: Open spots en alle koopvragen van de categorie; echte gesprekken van gebruikers hebben we niet"),
     ("Maak van de wekelijkse 13-punten scan een exporteerbaar rapport", "gebouwd",
      "1 okt: de dertien controles als PDF op volgorde, link op Fixes"),
+    ("Inhoudsaanbevelingen per pagina", "gebouwd",
+     "1 okt: per pagina een kant-en-klare titel, omschrijving en eerste alinea op Fixes (stap 254)"),
+    ("Pagina-voor-pagina AI-gereedheidsaudit", "gebouwd",
+     "1 okt: elke week de homepage plus vijf product- en categoriepagina's, per pagina wat te doen (stap 255)"),
     ("Voeg aan de gratis check een aparte regel toe voor ChatGPT-advertenties", "niet mogelijk",
      "Advertenties staan niet in de antwoorden die wij via de API krijgen; tonen zou gokken zijn"),
 ]

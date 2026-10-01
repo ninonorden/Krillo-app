@@ -4474,6 +4474,12 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                     print(f"Snelmeting {c['webshop_url']}: {v}")
                 except Exception as e:
                     print(f"Snelmeting mislukt voor {c['webshop_url']}: {e}")
+                # Stap 255: de product- en categoriepagina's, per pagina wat AI mist.
+                try:
+                    import paginacheck
+                    paginacheck.ronde(c["webshop_url"])
+                except Exception as e:
+                    print(f"Paginacheck mislukt voor {c['webshop_url']}: {e}")
 
                 # Is dit een Shopify-winkel met Fix, dan vullen wij ook uit
                 # onszelf aan. Dat staat op de prijskaart van Fix en zonder dit
@@ -5687,7 +5693,7 @@ def _wachtklok_tik(nu=None):
     # ze ziet, na de nacht en voor het ochtendbericht van acht uur.
     import commandocentrum
     if 6 <= nu.hour < 8 and not onderhoud._stand.get("bezig") and commandocentrum.aan("klantblik") \
-            and db.claim_moment("klantblik", 20 * 3600):
+            and db.claim_moment("klantblik_klok", 20 * 3600):
         def _klantblik():
             try:
                 import klantblik
@@ -5703,9 +5709,13 @@ def _wachtklok_tik(nu=None):
                 print(f"Proefaankoop mislukt: {e}")
         threading.Thread(target=_klantblik, daemon=True).start()
         gedaan.append("klantblik")
+    # LET OP: de claimsleutels hier ("..._klok") mogen nooit dezelfde naam hebben
+    # als een instelling waar een agent zijn verslag in zet (gevonden 1 oktober:
+    # "groeiagent" en "klantblik" waren allebei; de claim las dan JSON als getal
+    # en lukte nooit meer).
     # 1 oktober: de groeiagent kijkt elke vier uur overdag waar de klantenstroom
     # vastloopt en zet voorstellen klaar (de eerste voor het ochtendbericht).
-    if 6 <= nu.hour < 21 and commandocentrum.aan("groei") and db.claim_moment("groeiagent", 4 * 3600 - 300):
+    if 6 <= nu.hour < 21 and commandocentrum.aan("groei") and db.claim_moment("groeiagent_klok", 4 * 3600 - 300):
         def _groei():
             try:
                 import groeiagent
@@ -5716,6 +5726,19 @@ def _wachtklok_tik(nu=None):
                 print(f"Groeiagent mislukt: {e}")
         threading.Thread(target=_groei, daemon=True).start()
         gedaan.append("groeiagent")
+    # 1 oktober: een keer per maand het klantnieuws (alleen de grootste
+    # verbeteringen, klantnieuws.py). De claim per maand zit in de ronde zelf.
+    if 9 <= nu.hour < 17 and db.claim_moment("klantnieuws_kijk", 6 * 3600):
+        def _nieuws():
+            try:
+                import klantnieuws
+                v = klantnieuws.ronde(get_base_url())
+                if v.get("verstuurd"):
+                    print(f"Klantnieuws verstuurd: {v}")
+            except Exception as e:
+                print(f"Klantnieuws mislukt: {e}")
+        threading.Thread(target=_nieuws, daemon=True).start()
+        gedaan.append("klantnieuws")
     # Stap 88 (30 september): het opleveroverzicht vanzelf, overdag, hooguit
     # een keer per uur (zie opleveragent.py).
     if 9 <= nu.hour < 19 and db.claim_moment("oplevering_auto", 55 * 60):
@@ -7795,6 +7818,13 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             gegevens["balken"] = dp.balken_per_assistent(gegevens["vragen"]["per_assistent"])
             # 1 oktober: de vragen met de minste concurrentie, om eerst over te schrijven.
             gegevens["open_plekken"] = [] if proef else dp.open_plekken(gegevens["vragen"])
+        if pagina == "verbeteringen" and werk and not proef:
+            # Stap 255: AI-gereedheid per pagina, uit de wekelijkse ronde.
+            try:
+                import paginacheck
+                gegevens["paginacheck"] = paginacheck.laatste(webshop_url)
+            except Exception as e:
+                print(f"Paginacheck voor het dashboard mislukt: {e}")
         if pagina == "verbeteringen":
             # 1 oktober: per verloren vraag wat je concreet doet (vraagaanpak.py).
             try:
