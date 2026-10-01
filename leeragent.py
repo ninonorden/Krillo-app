@@ -347,6 +347,13 @@ def draai(client=None):
     """Voor de nachtronde: hoogstens een onderzoek per nacht."""
     if os.environ.get("LEERAGENT", "aan").lower() in ("uit", "0", "nee"):
         return None
+    # Goedkope dag of eigen deel op: een dag overslaan. Het onderwerp blijft
+    # aan de beurt, dus morgen gaat hij gewoon verder.
+    import kosten
+    rem = kosten.mag_eigen_agent()
+    if not rem["mag"]:
+        print(f"Leeragent overgeslagen: {rem['reden']}")
+        return {"overgeslagen": True, "reden": rem["reden"]}
     onderwerp = aan_de_beurt()
     return onderzoek(onderwerp, client) if onderwerp else None
 

@@ -135,6 +135,11 @@ def zoek(client=None):
     """Een keer per week: nieuwe artikelen zoeken. Voor de nachtronde."""
     if os.environ.get("LIJSTJESAGENT") == "uit" or not moet_zoeken():
         return {"overgeslagen": True}
+    # Goedkope dag: overslaan zonder de zoekdatum te zetten, dus morgen opnieuw.
+    import kosten
+    rem = kosten.mag_eigen_agent()
+    if not rem["mag"]:
+        return {"overgeslagen": True, "reden": rem["reden"]}
     db.zet_instelling(ZOEKSLEUTEL, datetime.now(timezone.utc).isoformat())
     import leeragent
     gehad = [r["domein"] for r in (_sql("SELECT domein FROM lijstjes", alles=True) or [])]

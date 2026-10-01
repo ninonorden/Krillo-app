@@ -1397,6 +1397,45 @@ def kosten_vandaag():
         "AT TIME ZONE 'Europe/Amsterdam'", ())
 
 
+def kosten_per_soort(dagen=1):
+    """Wat elke soort werk kostte: vandaag (dagen=1, Nederlandse klok) of de
+    laatste N dagen. Duurste eerst.
+
+    Bestaat sinds 1 oktober: de dagpot stond op 5,63 van 5 euro en niemand kon
+    zien waar het geld heen ging. Per klant en per model zeggen dat niet; per
+    soort (leeragent, categoriemeting, snelmeting...) wel."""
+    if dagen <= 1:
+        voorwaarde = ("moment >= date_trunc('day', now() AT TIME ZONE 'Europe/Amsterdam') "
+                      "AT TIME ZONE 'Europe/Amsterdam'")
+        waarden = ()
+    else:
+        voorwaarde = "moment >= now() - (%s || ' days')::interval"
+        waarden = (int(dagen),)
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    f"""SELECT soort, COUNT(*) AS aantal,
+                               COALESCE(SUM(kosten), 0) AS kosten,
+                               COUNT(*) FILTER (WHERE kosten_status = 'onbekend') AS onbekende_prijs
+                        FROM kostengebeurtenissen WHERE {voorwaarde}
+                        GROUP BY soort ORDER BY kosten DESC""",
+                    waarden,
+                )
+                rijen = [dict(r) for r in cur.fetchall()]
+        for r in rijen:
+            r["kosten"] = float(r["kosten"] or 0)
+        return rijen
+    except Exception as e:
+        print(f"Kosten per soort ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def _kosten_optellen(voorwaarde, waarden):
     conn = _get_connection()
     if conn is None:
@@ -2307,6 +2346,9 @@ def trechter_per_variant():
                            COUNT(*) AS gemaild,
                            COUNT(*) FILTER (WHERE b.bekeken_op IS NOT NULL) AS bekeken,
                            COUNT(*) FILTER (WHERE b.doorgeklikt_op IS NOT NULL) AS doorgeklikt,
+                           -- 1 oktober: echte mensen apart. "Link geklikt" is vooral
+                           -- mailbeveiliging die elke link opent (a en b: 28 procent).
+                           COUNT(*) FILTER (WHERE b.mens_op IS NOT NULL) AS mensen,
                            COUNT(*) FILTER (WHERE EXISTS (
                                SELECT 1 FROM klanten k
                                 WHERE k.webshop_url = b.webshop_url

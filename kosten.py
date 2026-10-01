@@ -322,13 +322,102 @@ def _met_onbekend(regel):
 DEEL_VOOR_BENADERING = float(os.environ.get("DEEL_VOOR_BENADERING", "0.5"))
 
 
+# ---------------------------------------------------------------------------
+# 1 oktober: de eigen agents (leeragent, lijstjesagent, artikelagent).
+#
+# Die draaien 's nachts, en de dagpot begint om middernacht. Alles wat zij
+# uitgaven, ging dus van het deel van de benadering af: om 8 uur was de pot
+# van de mails al half leeg. Nu tellen hun kosten niet mee bij de ruimte voor
+# de benadering, en hebben ze een eigen plafond: het deel dat niet voor de
+# benadering is. En is de hele pot voor 80 procent op ("goedkope dag"), dan
+# slaan ze een dag over. Werk voor klanten slaat nooit over.
+# ---------------------------------------------------------------------------
+EIGEN_AGENTS = ("leeragent", "lijstjesagent", "artikel")
+GOEDKOOP_DREMPEL = float(os.environ.get("GOEDKOOP_DREMPEL", "0.8"))
+
+# Leesbare namen voor /admin/kosten en het ochtendbericht. Wat hier niet
+# staat, wordt getoond met de naam uit de code.
+NAMEN = {
+    "categoriemeting": "Index: categoriemeting",
+    "categorievragen-bedenken": "Index: vragen bedenken",
+    "categorie-antwoord-lezen": "Index: antwoorden lezen",
+    "categoriecheck": "Index: categorie controleren",
+    "vraagkeuze": "Index: vragen kiezen",
+    "winkelvinder-ai": "Winkels zoeken",
+    "winkels-indelen": "Winkels indelen",
+    "winkels-opschonen": "Winkels opschonen",
+    "koopvraag-stellen": "Koopvragen stellen (scans)",
+    "voorproef": "Gratis check",
+    "volledig": "Volledige meting na klik",
+    "snelmeting": "Klanten: wekelijkse snelmeting",
+    "paginateksten": "Klanten: teksten per pagina",
+    "taakoplossing": "Klanten: oplossingen",
+    "audit-teksten": "Klanten: teksten",
+    "antwoordagent": "Antwoordagent",
+    "lijstjesagent": "Lijstjesagent",
+    "artikel": "Artikelagent",
+}
+
+
+def is_eigen_agent(soort):
+    return bool(soort) and str(soort).startswith(EIGEN_AGENTS)
+
+
+def naam_van(soort):
+    if str(soort or "").startswith("leeragent_"):
+        return "Leeragent (" + str(soort)[len("leeragent_"):] + ")"
+    return NAMEN.get(soort, soort or "onbekend")
+
+
+def per_agent(dagen=1):
+    """Kosten per soort werk, met leesbare naam en of het een eigen agent is."""
+    rijen = db.kosten_per_soort(dagen) or []
+    uit = []
+    for r in rijen:
+        bedrag = float(r.get("kosten") or 0) + int(r.get("onbekende_prijs") or 0) * SCHATTING_ONBEKENDE_AANROEP_EURO
+        uit.append({"soort": r.get("soort"), "naam": naam_van(r.get("soort")), "aantal": int(r.get("aantal") or 0),
+                    "kosten": round(bedrag, 4), "eigen_agent": is_eigen_agent(r.get("soort"))})
+    return sorted(uit, key=lambda r: -r["kosten"])
+
+
+def _eigen_agents_vandaag():
+    try:
+        return sum(r["kosten"] for r in per_agent(1) if r["eigen_agent"])
+    except Exception as e:
+        print(f"Kosten eigen agents ophalen mislukt: {e}")
+        return 0.0
+
+
+def mag_eigen_agent():
+    """Of een eigen agent (leeragent, lijstjesagent, artikelagent) vandaag mag.
+
+    Nee op een goedkope dag (pot voor 80 procent op), en nee als de eigen
+    agents hun eigen deel al op hebben."""
+    try:
+        totaal = _met_onbekend(db.kosten_vandaag())
+    except Exception as e:
+        print(f"Kosten van vandaag ophalen mislukt: {e}")
+        return {"mag": True, "reden": None}
+    if totaal >= GRENS_TOTAAL_DAG_EURO * GOEDKOOP_DREMPEL:
+        return {"mag": False, "reden": (f"Goedkope dag: er is al {totaal:.2f} van {GRENS_TOTAAL_DAG_EURO:.2f} "
+                                        f"euro gebruikt. De eigen agents slaan vandaag over.")}
+    plafond = GRENS_TOTAAL_DAG_EURO * (1 - max(0.0, min(1.0, DEEL_VOOR_BENADERING)))
+    eigen = _eigen_agents_vandaag()
+    if eigen >= plafond:
+        return {"mag": False, "reden": (f"De eigen agents gebruikten vandaag al {eigen:.2f} euro, "
+                                        f"hun deel is {plafond:.2f} euro.")}
+    return {"mag": True, "reden": None}
+
+
 def ruimte_voor_benadering():
     """Of de eigen benadering vandaag nog metingen mag doen.
 
-    Aparte, lagere grens dan die voor klanten. Klanten gaan voor."""
+    Aparte, lagere grens dan die voor klanten. Klanten gaan voor. Wat de
+    eigen agents uitgaven telt hier niet mee (zie EIGEN_AGENTS hierboven);
+    de totale grens blijft wel gelden via mag_doorgaan."""
     grens = GRENS_TOTAAL_DAG_EURO * max(0.0, min(1.0, DEEL_VOOR_BENADERING))
     try:
-        totaal = _met_onbekend(db.kosten_vandaag())
+        totaal = max(0.0, _met_onbekend(db.kosten_vandaag()) - _eigen_agents_vandaag())
     except Exception as e:
         print(f"Kosten van vandaag ophalen mislukt: {e}")
         return {"mag": True, "reden": None, "besteed": None, "grens": grens}

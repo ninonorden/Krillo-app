@@ -248,6 +248,18 @@ def stap_landen_vullen():
                 doel=categorieen.MINIMUM_VOOR_INDEX + 2, max_zoekopdrachten=len(lijst))
     except Exception as e:
         verslag["klanten"] = {"fout": str(e)[:160]}
+    # 1 oktober: ligt er al voor meer dan tien dagen aan winkels klaar voor de
+    # mail, dan slaat het betaalde zoeken hieronder een nacht over. Het
+    # aanvullen voor betalende klanten hierboven gaat altijd door.
+    try:
+        import benadering
+        voorraad = benadering.voorraad_genoeg()
+    except Exception as e:
+        voorraad = {"genoeg": False, "fout": str(e)[:160]}
+    if voorraad.get("genoeg"):
+        verslag["zoeken_overgeslagen"] = (f"{voorraad['klaar']} winkels klaar, genoeg voor "
+                                          f"{voorraad['dagen']} dagen mailen")
+        return verslag
     for land in vraaglanden.VRAAGLANDEN:
         try:
             verslag[land] = winkelvinder.vul_land(

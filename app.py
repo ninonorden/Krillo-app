@@ -5370,24 +5370,29 @@ def _varianten_met_oordeel():
         g = r.get("gemaild") or 0
         r["klik_pct"] = round(100 * (r.get("bekeken") or 0) / g, 1) if g else 0
         r["door_pct"] = round(100 * (r.get("doorgeklikt") or 0) / g, 1) if g else 0
-    genoeg = len(rijen) >= 2 and all((r.get("gemaild") or 0) >= MINIMUM_MAILS_PER_VERSIE
-                                      for r in rijen)
+        r["mens_pct"] = round(100 * (r.get("mensen") or 0) / g, 1) if g else 0
+    # 1 oktober: vergelijken op wat mensen doen. Eerst klant, dan naar de
+    # prijzen, dan echte mensen. "Link geklikt" telt niet meer mee: dat is
+    # vooral mailbeveiliging. En alleen de versies met genoeg mails tellen; een
+    # kleine versie (d past maar bij een paar winkels) hield het oordeel eerst
+    # voor altijd tegen.
+    def _score(r):
+        return ((r.get("klant") or 0), r["door_pct"], r["mens_pct"])
+    groot = [r for r in rijen if (r.get("gemaild") or 0) >= MINIMUM_MAILS_PER_VERSIE]
     oordeel = None
-    if len(rijen) >= 2 and not genoeg:
+    if len(rijen) >= 2 and len(groot) < 2:
         oordeel = (f"Nog geen winnaar: pas vanaf {MINIMUM_MAILS_PER_VERSIE} mails per versie "
                    "is een verschil meer dan toeval.")
-    elif genoeg:
-        beste = max(rijen, key=lambda r: ((r.get("klant") or 0), r["door_pct"], r["klik_pct"]))
-        slechtste = min(rijen, key=lambda r: ((r.get("klant") or 0), r["door_pct"], r["klik_pct"]))
-        if (beste.get("klant"), beste["door_pct"], beste["klik_pct"]) == \
-                (slechtste.get("klant"), slechtste["door_pct"], slechtste["klik_pct"]):
+    elif len(groot) >= 2:
+        beste = max(groot, key=_score)
+        slechtste = min(groot, key=_score)
+        if _score(beste) == _score(slechtste):
             oordeel = "Gelijkspel. Laat ze allebei lopen."
         elif beste["variant"] == "d":
             # Versie d past alleen bij een deel van de winkels (stap 225). Alleen
             # "d" zou de rest op versie a zetten; houd de beste van de andere erbij.
-            rest = [r for r in rijen if r["variant"] != "d"]
-            tweede = max(rest, key=lambda r: ((r.get("klant") or 0), r["door_pct"], r["klik_pct"]))["variant"] \
-                if rest else "a"
+            rest = [r for r in groot if r["variant"] != "d"]
+            tweede = max(rest, key=_score)["variant"] if rest else "a"
             oordeel = (f"Versie d wint bij de winkels waar hij past. Zet in Render MAIL_VARIANTEN op "
                        f"\"d,{tweede}\": d voor wie vaak genoemd en zelden aangeraden wordt, {tweede} voor de rest.")
         else:
@@ -9576,8 +9581,22 @@ def admin_kosten():
         print(f"Kostenpagina: {hersteld} aanroepen alsnog van een prijs voorzien.")
 
     overzicht = db.kostenoverzicht(dagen)
+    # 1 oktober: per agent, vandaag en de laatste week naast elkaar.
+    vandaag_r = kosten.per_agent(1)
+    week_r = kosten.per_agent(7)
+    rijen = {}
+    for r in week_r:
+        rijen[r["soort"]] = {"naam": r["naam"], "eigen_agent": r["eigen_agent"], "vandaag": 0.0, "week": r["kosten"]}
+    for r in vandaag_r:
+        rijen.setdefault(r["soort"], {"naam": r["naam"], "eigen_agent": r["eigen_agent"], "week": r["kosten"]})
+        rijen[r["soort"]]["vandaag"] = r["kosten"]
     return render_template(
         "admin_kosten.html",
+        per_agent_vandaag=vandaag_r,
+        per_agent_week=week_r,
+        per_agent_rijen=sorted(rijen.values(), key=lambda r: (-r["vandaag"], -r["week"])),
+        vandaag_totaal=sum(r["kosten"] for r in vandaag_r),
+        eigen_rem=kosten.mag_eigen_agent(),
         dagen=dagen,
         hersteld=hersteld,
         # Welk model er precies onbekend is. Zonder die naam weet je niet wat je

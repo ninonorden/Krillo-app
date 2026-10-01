@@ -864,6 +864,27 @@ def mag_nog_een_poging(webshop_url):
     return meetpogingen(webshop_url) < MAX_MEETPOGINGEN
 
 
+# 1 OKTOBER: NIET MEER ZOEKEN DAN ER GEMAILD KAN WORDEN. Nino: "zorg dat er
+# niet meer gemaild wordt dan gezocht, maar wel de meeste winkels mogelijk."
+# Het mailen wordt begrensd door het domein (opbouw naar 40 per dag), niet door
+# geld. Het zoeken kost wel geld. Ligt er al voor meer dan VOORRAAD_DAGEN dagen
+# aan winkels klaar, dan slaat het betaalde zoeken een nacht over.
+VOORRAAD_DAGEN = int(os.environ.get("VOORRAAD_DAGEN", "10"))
+
+
+def voorraad_genoeg():
+    """{"genoeg": bool, "klaar": n, "per_dag": n, "dagen": x}."""
+    klaar = _klaar_voor_post()
+    try:
+        per_dag = int(instellingen()["per_dag"] or 0)
+    except Exception:
+        per_dag = 0
+    if klaar is None or per_dag <= 0:
+        return {"genoeg": False, "klaar": klaar, "per_dag": per_dag, "dagen": None}
+    return {"genoeg": klaar >= VOORRAAD_DAGEN * per_dag, "klaar": klaar, "per_dag": per_dag,
+            "dagen": round(klaar / per_dag, 1)}
+
+
 def _klaar_voor_post():
     try:
         delen = db.adres_uitsplitsing()

@@ -299,6 +299,14 @@ def verzamel(basis_url):
         gegevens["bouwlijst"] = len(voorstellen.bouwlijst())
     except Exception as e:
         print(f"Ochtendbericht, dagtaken mislukt: {e}")
+    # Kosten per agent (1 oktober): de laatste 7 dagen, duurste vijf. Zo zie je
+    # welke agent de dagpot opmaakt en of hij dat waard is.
+    try:
+        import kosten
+        gegevens["kosten_agents"] = kosten.per_agent(7)[:5]
+        gegevens["dagpot"] = kosten.GRENS_TOTAAL_DAG_EURO
+    except Exception as e:
+        print(f"Ochtendbericht, kosten per agent mislukt: {e}")
     # De vrijdagscore (1 oktober): op vrijdag wat elke agent die week opleverde.
     try:
         from datetime import datetime as _dt
@@ -379,6 +387,14 @@ def tekst(gegevens, extra_regels=None):
         stuk.append(f"<tr><td>Winkels klaar voor de koude mail</td><td style='text-align:right;"
                     f"font-weight:700'>{gegevens['klaar_voor_post']}</td></tr>")
     stuk.append("</table>")
+    if gegevens.get("kosten_agents"):
+        stuk.append("<h2 style='font-size:17px;margin:0 0 8px'>Waar het geld heen ging (laatste 7 dagen)</h2>"
+                    f"<p style='margin:0 0 6px;color:#666'>Dagpot: {gegevens.get('dagpot', 0):.2f} euro. "
+                    "Gemiddeld per dag:</p><table cellpadding='4' style='border-collapse:collapse;margin-bottom:18px'>")
+        for r in gegevens["kosten_agents"]:
+            stuk.append(f"<tr><td>{escape(r['naam'])}</td><td style='text-align:right;font-weight:700'>"
+                        f"{r['kosten'] / 7:.2f} euro</td></tr>")
+        stuk.append("</table>")
     if extra_regels:
         stuk.append("<h2 style='font-size:17px;margin:0 0 8px'>De benadering</h2>")
         stuk.extend(f"<p style='margin:0 0 8px'>{escape(r)}</p>" for r in extra_regels)

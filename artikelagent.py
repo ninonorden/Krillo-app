@@ -154,6 +154,11 @@ def _vraag_model(prompt):
     rem = kosten.mag_doorgaan(voorrang=_voorrang[0])
     if not rem["mag"]:
         raise RuntimeError(rem["reden"])
+    # De wekelijkse ronde slaat over op een goedkope dag; de knop niet.
+    if not _voorrang[0]:
+        eigen = kosten.mag_eigen_agent()
+        if not eigen["mag"]:
+            raise RuntimeError(eigen["reden"])
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     antwoord = client.messages.create(model=MODEL, max_tokens=4000, messages=[{"role": "user", "content": prompt}])
     try:
