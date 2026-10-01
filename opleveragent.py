@@ -24,6 +24,18 @@ HOE.
 import db
 
 RUST_UREN = 2
+# Nooit oude wijzigingen als nieuws sturen (1 oktober: de eerste ronde stuurde
+# wijzigingen van weken terug). Ouder dan dit gaat niet meer vanzelf.
+TERUG_DAGEN = 7
+
+
+def _recent(moment):
+    from datetime import datetime, timedelta, timezone
+    if moment is None:
+        return False
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment > datetime.now(timezone.utc) - timedelta(days=TERUG_DAGEN)
 MOTOREN = ("shopify:", "wp:")
 
 
@@ -60,12 +72,16 @@ def te_versturen():
          WHERE (w.taak_id LIKE 'shopify:%%' OR w.taak_id LIKE 'wp:%%')
       GROUP BY w.webshop_url, o.verstuurd_op
         HAVING max(w.gedaan_op) < now() - interval '{int(RUST_UREN)} hours'
+           AND max(w.gedaan_op) > now() - interval '{int(TERUG_DAGEN)} days'
            AND (o.verstuurd_op IS NULL OR max(w.gedaan_op) > o.verstuurd_op)""")
     uit = []
     for r in rijen:
         url = r["webshop_url"]
         klant = db.klant_bij_url(url) or {}
-        if klant.get("opgezegd_op"):
+        # 1 oktober: de eerste ronde stuurde ook naar Nino's eigen proefwinkels op
+        # Shopify (krill-test, krillo-demo), met wijzigingen van weken geleden.
+        # Alleen echte, lopende klanten; testklanten niet.
+        if klant.get("opgezegd_op") or klant.get("is_test"):
             continue
         email = klant.get("email")
         if not email:
@@ -75,9 +91,11 @@ def te_versturen():
                     break
         if not email:
             continue
+        grens = r["verstuurd_op"]
         nieuw = [dict(w) for w in db.get_wijzigingen(url)
                  if (w.get("taak_id") or "").startswith(MOTOREN)
-                 and (r["verstuurd_op"] is None or w["gedaan_op"] > r["verstuurd_op"])]
+                 and (grens is None or w["gedaan_op"] > grens)
+                 and _recent(w["gedaan_op"])]
         if nieuw:
             uit.append({"webshop_url": url, "email": email, "wijzigingen": nieuw,
                         "token": klant.get("klant_token")})

@@ -239,8 +239,8 @@ def stap_landen_vullen():
         ouders = {o for _, _, o in categorieen.CATEGORIEEN if o}
         per_land = {}
         for cat, land in db.klant_categorieen():
-            if cat in ouders:
-                continue   # een bovencategorie wordt in zijn kinderen gemeten
+            if cat in ouders or cat in categorieen.NIET_MEETBAAR:
+                continue   # een bovencategorie wordt in zijn kinderen gemeten; overig nooit
             per_land.setdefault(land, []).append((cat, categorieen.naam_van(cat)))
         for land, lijst in per_land.items():
             verslag[f"klanten_{land}"] = winkelvinder.vul_land(
@@ -285,7 +285,7 @@ def nog_te_vullen(gemeten):
     bovencategorie die in kleinere stukken gemeten wordt."""
     ouders = {ouder for _, _, ouder in categorieen.CATEGORIEEN if ouder}
     return [(slug, naam) for slug, naam, _ in categorieen.CATEGORIEEN
-            if slug not in gemeten and slug not in ouders]
+            if slug not in gemeten and slug not in ouders and slug not in categorieen.NIET_MEETBAAR]
 
 
 def stap_herberekenen():

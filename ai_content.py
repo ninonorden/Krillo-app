@@ -235,7 +235,7 @@ Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
 """
 
     try:
-        rem = kosten.mag_doorgaan(webshop_url=webshop_url)
+        rem = kosten.mag_doorgaan(webshop_url=webshop_url, voorrang=True)
         if not rem["mag"]:
             print(f"Taakoplossing geblokkeerd door de kostenrem: {rem['reden']}")
             return {"gelukt": False, "fout": f"Kostenrem: {rem['reden']}"}
@@ -337,7 +337,7 @@ Antwoord ALLEEN met geldige JSON, in dit exacte formaat, niets ervoor of erna:
 """
 
     try:
-        rem = kosten.mag_doorgaan(webshop_url=webshop_url)
+        rem = kosten.mag_doorgaan(webshop_url=webshop_url, voorrang=True)
         if not rem["mag"]:
             print(f"AI-aanroep geblokkeerd door de kostenrem: {rem['reden']}")
             return None

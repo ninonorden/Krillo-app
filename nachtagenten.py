@@ -104,16 +104,23 @@ def waarom_niemand(categorie, land, antwoorden=None, lijst=None):
     3. er zijn geen antwoorden: de meting liep niet goed.
     antwoorden en lijst zijn er voor de test."""
     import json
+    algemeen = False
     if antwoorden is None:
-        ronde = _sql("""SELECT id FROM categorie_rondes WHERE categorie = %s AND lower(coalesce(land, '')) = %s
-                          AND afgerond_op IS NOT NULL ORDER BY id DESC LIMIT 1""", (categorie, land.lower()))
-        if not ronde:
+        # 1 oktober (wijn-drank be): zoek dezelfde ronde als de ranglijst zelf.
+        # Een land zonder eigen meting gebruikt de algemene ronde (land leeg);
+        # hier stond "land = be", en dan kwam er "(Geen afgeronde meting
+        # gevonden.)" terwijl de ranglijst er gewoon was.
+        lijst_ronde = (db.ranglijst_per_land(categorie, land) or {}).get("ronde")
+        if not lijst_ronde:
             return "(Geen afgeronde meting gevonden.)"
+        ronde = _sql("SELECT id, land FROM categorie_rondes WHERE id = %s", (lijst_ronde,)) or {"id": lijst_ronde}
+        algemeen = not ronde.get("land") and land.lower() != "nl"
         antwoorden = _sql("""SELECT winkel_kon_genoemd, genoemde_winkels, antwoord FROM categorie_antwoorden
                               WHERE ronde = %s""", (ronde["id"],), alles=True) or []
     if lijst is None:
         lijst = {_kaal(r["webshop_url"]) for r in _sql(
-            "SELECT webshop_url FROM benadering WHERE categorie = %s", (categorie,), alles=True) or []}
+            "SELECT webshop_url FROM benadering WHERE categorie = %s AND lower(coalesce(land, 'nl')) = %s",
+            (categorie, land.lower()), alles=True) or []}
     if not antwoorden:
         return "Oorzaak: er zijn geen antwoorden bewaard, de meting liep niet goed. Opnieuw meten."
     namen, zonder, leeg = {}, 0, 0
@@ -143,6 +150,12 @@ def waarom_niemand(categorie, land, antwoorden=None, lijst=None):
                 f"(\"waar bestel ik ... online\"), of haal de categorie uit dit land.")
     top = sorted(namen.items(), key=lambda kv: -kv[1])[:5]
     buiten = [n for n, _ in top if _kaal(n) not in lijst]
+    if algemeen:
+        return (f"Oorzaak: {land.upper()} heeft voor deze categorie nog geen eigen meting met eigen vragen. "
+                f"In de algemene meting noemt AI winkels uit een ander land"
+                + (f" (het vaakst: {', '.join(n for n, _ in top[:3])})" if top else "") +
+                f". De ranglijst staat daarom niet openbaar, en een eigen meting voor {land.upper()} volgt zodra "
+                f"er genoeg winkels van dat land in zitten. Niets voor jou te doen.")
     if buiten:
         return (f"Oorzaak: de assistenten noemden wel winkels, maar niet die van onze lijst. Het vaakst: "
                 f"{', '.join(buiten)}. Die komen bij de volgende meting vanzelf op de lijst; tot dan klopt "
@@ -204,7 +217,17 @@ def concurrenten(haal=None, vandaag=None):
         if not re.search(r"\$\d", tekst):
             continue
         weg = [b for b in bedragen if b not in tekst]
-        if weg:
+        # 1 oktober: weer vals alarm voor Otterly ($29, $189, $489) en AthenaHQ
+        # ($295). Met de hand nagekeken: de bedragen staan er nog precies zo. Die
+        # pagina's zetten de prijzen pas in de browser neer (of tonen eerst de
+        # jaarprijs); de losse $ die wij zagen was iets anders ("$25 free credit").
+        # Daarom: is ALLES wat wij noemen weg, dan is de pagina waarschijnlijk niet
+        # te lezen, en dat is "niet zeker", geen taak voor Nino. Is een DEEL weg,
+        # dan is er echt iets veranderd.
+        if weg and len(weg) == len(bedragen):
+            uit.append(f"Niet zeker: {t['naam']} toont zijn prijzen niet in de pagina zelf ({t['bron']}); "
+                       f"met de hand nakijken als je toch op /compare bent")
+        elif weg:
             uit.append(f"{t['naam']}: {', '.join(weg)} staat niet meer op {t['bron']}. /compare/{slug} nakijken")
     return uit
 

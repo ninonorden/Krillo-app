@@ -493,7 +493,19 @@ def _veilig(tekst, maxlengte=1200):
     kort = kort[:maxlengte]
     veilig = (kort.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
               .replace('"', "&quot;").replace("\n", "<br>"))
-    return veilig + ("<br>[ingekort]" if afgekapt else "")
+    return veilig + ("<br>[shortened]" if afgekapt else "")
+
+
+def _zonder_html(tekst):
+    """HTML uit een producttekst: koppen en alinea's worden regels, de rest valt weg."""
+    import html as _h
+    import re as _re
+    if not tekst:
+        return tekst
+    t = _re.sub(r"(?i)<\s*(br|/p|/h\d|/li)\s*/?>", "\n", str(tekst))
+    t = _re.sub(r"<[^>]+>", "", t)
+    t = _h.unescape(t)
+    return _re.sub(r"\n{3,}", "\n\n", t).strip()
 
 
 def send_oplevering(to_email, webshop_url, wijzigingen, monitoring_url=None):
@@ -509,8 +521,10 @@ def send_oplevering(to_email, webshop_url, wijzigingen, monitoring_url=None):
 
     blokken = []
     for i, w in enumerate(wijzigingen, start=1):
-        oud = _veilig(w.get("oude_waarde"))
-        nieuw = _veilig(w.get("nieuwe_waarde"))
+        # 1 oktober: productteksten staan als HTML in de winkel ("<p>...</p>"), en
+        # die tags stonden letterlijk in de mail. De klant wil de tekst lezen.
+        oud = _veilig(_zonder_html(w.get("oude_waarde")))
+        nieuw = _veilig(_zonder_html(w.get("nieuwe_waarde")))
         blokken.append(f"""
         <div style="border:1px solid {LIJN}; border-radius:10px; padding:16px 18px; margin-bottom:14px;">
           <div style="font-weight:600; font-size:15px; margin-bottom:4px;">{i}. {_veilig(w.get('wat'), 200)}</div>

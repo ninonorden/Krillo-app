@@ -97,10 +97,10 @@ TEKSTEN = {
                                 "gekomen, dus we laten liever niets zien dan een cijfer waar "
                                 "je niets aan hebt. We proberen het bij de volgende ronde "
                                 "opnieuw. Je vorige metingen staan er nog gewoon bij."),
-        "eerste_kop": "De eerste meting loopt nog",
-        "eerste_tekst": ("We stellen nu koopvragen aan ChatGPT en Gemini om te zien "
-                         "of jouw winkel genoemd wordt. Zodra dat klaar is staat hier wat "
-                         "je kan doen. Reken op ongeveer een kwartier."),
+        "eerste_kop": "Je uitgeschreven verbeteringen komen eraan",
+        "eerste_tekst": ("We scannen je site en schrijven de verbeteringen ervoor uit, klaar om over te "
+                         "nemen. Dat loopt op de achtergrond en duurt hooguit een dag. Begin intussen met "
+                         "de vragen om eerst te winnen bovenaan deze pagina."),
         "nognietgemeten_kop": "Er is nog niet gemeten",
         "nognietgemeten_tekst": ("Bij een eenmalige opdracht meten we niet doorlopend. Wil "
                                  "je elke maand weten waar je staat, dan doen Watch en Fix dat."),
@@ -388,10 +388,13 @@ TEKSTEN = {
                                 "models, so we would rather show you nothing than a number "
                                 "that means nothing. We will try again next round. Your "
                                 "earlier measurements are still there."),
-        "eerste_kop": "The first measurement is still running",
-        "eerste_tekst": ("We are now asking ChatGPT and Gemini buying questions to see "
-                         "whether your store gets mentioned. As soon as that is done you "
-                         "will see what you can do here. Expect about fifteen minutes."),
+        # 1 oktober: hier stond "the first measurement is still running ... about
+        # fifteen minutes", ook als er al lang gemeten was. De geschreven teksten
+        # komen uit de scan van de site; die staan er nog niet. Dat zeggen we nu.
+        "eerste_kop": "Your written fixes are on their way",
+        "eerste_tekst": ("We scan your site and write the fixes for it, ready to copy. That runs in the "
+                         "background and takes up to a day. Until then, start with the questions to win "
+                         "at the top of this page."),
         "nognietgemeten_kop": "Nothing measured yet",
         "nognietgemeten_tekst": ("With a one-off job we do not keep measuring. Want to know "
                                  "every month where you stand? That is what Watch and Fix do."),

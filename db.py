@@ -4925,6 +4925,39 @@ def zet_overgeslagen(webshop_url):
         conn.close()
 
 
+def d_kandidaten(limiet=8):
+    """Winkels waar mailversie d bij past (1 oktober): in de nieuwste meting van
+    hun categorie minstens 3 keer genoemd en in hoogstens een derde aangeraden.
+    Voor het lijstje bij de proefmail, zodat je d kunt bekijken."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT u.webshop_url, u.categorie, u.genoemd, u.aanbevolen, u.telbaar
+                      FROM categorie_uitkomsten u
+                      JOIN benadering b ON b.webshop_url = u.webshop_url
+                     WHERE u.ronde IN (SELECT max(r.id) FROM categorie_rondes r
+                                        WHERE r.afgerond_op IS NOT NULL GROUP BY r.categorie, r.land)
+                       AND u.genoemd >= 3 AND u.aanbevolen * 3 <= u.genoemd
+                       AND NOT b.afgemeld AND coalesce(b.soort, 'winkel') = 'winkel'
+                  ORDER BY u.genoemd DESC, u.aanbevolen
+                     LIMIT %s""", (int(limiet),))
+                gezien, uit = set(), []
+                for r in cur.fetchall():
+                    if r["webshop_url"] not in gezien:
+                        gezien.add(r["webshop_url"])
+                        uit.append(dict(r))
+                return uit
+    except Exception as e:
+        print(f"Kandidaten voor versie d ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def klant_categorieen():
     """[(categorie, land)] van lopende, betalende klanten (stap 80, 1 oktober).
 
@@ -5804,8 +5837,13 @@ def alle_benaderingen_kaal(limiet=None):
     try:
         with conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # 1 oktober: de NIEUWSTE winkels eerst. Hier stond alleen
+                # "ORDER BY webshop_url" met een limiet van 200: elke nacht
+                # dezelfde 200 winkels van a tot b, en de 287 nieuwe winkels per
+                # dag werden nooit op merk of keten nagekeken (soort staat
+                # standaard op winkel, dus een merk bleef dan in de ranglijst).
                 vraag = ("SELECT webshop_url, naam, land, soort, hoort_bij "
-                         "FROM benadering ORDER BY webshop_url")
+                         "FROM benadering ORDER BY toegevoegd_op DESC NULLS LAST, webshop_url")
                 if limiet:
                     vraag += " LIMIT %s"
                     cur.execute(vraag, (limiet,))

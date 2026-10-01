@@ -14,7 +14,7 @@ REGELS DIE NOOIT LOSSEN
 - Bijwerken: pas GEKEKEN aan en loop de bedragen na. test_vergelijkingen
   waarschuwt als een pagina ouder is dan 120 dagen.
 """
-GEKEKEN = "2026-09-28"
+GEKEKEN = "2026-10-01"  # Otterly en AthenaHQ met de hand nagekeken: ongewijzigd
 
 KRILLO = {
     "wat": "Measures every month whether ChatGPT and Gemini recommend your store, in a public ranking per "

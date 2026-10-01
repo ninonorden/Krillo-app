@@ -192,6 +192,14 @@ NAMEN_EN = {
 }
 
 
+# 1 oktober: "overig" is de bak voor twijfelgevallen en doet niet mee aan de
+# index. Het ochtendbericht noemde hem toch als "het dichtst bij 10 winkels", en
+# de winkelvinder zocht er 's nachts op ("overig, doet niet mee aan de index
+# webshop"), wat precies de rommel opleverde die de categoriecheck daarna weer
+# moest weghalen.
+NIET_MEETBAAR = {"overig"}
+
+
 def familie(slug):
     """De categorie zelf, zijn ouder en zijn kinderen, in die volgorde.
 

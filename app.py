@@ -4045,6 +4045,17 @@ def _shopify_abonnees():
             print(f"Abonnement nakijken mislukt voor {rij['winkel']}: {e}")
             continue
         if not stand.get("actief"):
+            if stand.get("fout") and "404" in str(stand["fout"]) and "Not Found" in str(stand["fout"]):
+                # 1 oktober (krillo-demo.myshopify.com): Shopify kent de winkel
+                # niet meer. Een gesloten proefwinkel of een app die weg is. Dan
+                # is er niets na te kijken en elke week dezelfde melding is ruis:
+                # op inactief, en een keer melden.
+                db.shopify_verwijderd(rij["winkel"])
+                _meld_aan_beheer(
+                    "Shopify-winkel bestaat niet meer",
+                    f"Shopify kent {rij['winkel']} niet meer (404). Waarschijnlijk een gesloten proefwinkel of "
+                    f"is de app verwijderd. De winkel staat nu op inactief; je krijgt hier geen meldingen meer over.")
+                continue
             if stand.get("fout"):
                 # Wij WETEN het niet. Deze winkel wordt deze week overgeslagen
                 # terwijl op zijn scherm staat dat hij elke week gemeten wordt.
@@ -6896,7 +6907,7 @@ def admin_onderzoeksmail():
                               "vaak genoemd en zelden aangeraden worden.")
                            + " Er is niets vastgelegd." if verstuurd else
                            f"De proefmail is NIET verstuurd. {fout or ''}")
-                return render_template("admin_onderzoeksmail.html", regels=[],
+                return render_template("admin_onderzoeksmail.html", regels=[], d_kandidaten=db.d_kandidaten(),
                                        melding=melding, basis=get_base_url(),
                                        sleutel=admin_key, alleen_proef=True)
             db.zet_contact_email(webshop_url, email)
@@ -6947,6 +6958,7 @@ def admin_onderzoeksmail():
         melding=melding,
         basis=get_base_url(),
         sleutel=admin_key,
+        d_kandidaten=db.d_kandidaten(),
     )
 
 
@@ -7155,6 +7167,8 @@ def openbare_categorie(land, slug):
         embed=embed_code(land, slug, basis_url),
         # Stap 187: de kaart genoemd tegen aanbevolen.
         kaart=_categoriekaart_svg(lijst["rijen"], lijst["telbaar"]),
+        # Stap 178: waar AI kopers naartoe stuurt.
+        bronnen=_bronnen_van_ronde(lijst["ronde"]),
     )
 
 
@@ -7253,6 +7267,19 @@ def openbare_winkel(land, slug, winkel):
         maand=(rij.get("gemeten_op").strftime("%B %Y") if rij.get("gemeten_op") else None),
         imago=_imago(lijst["ronde"], rij["webshop_url"], naam),
         modellen=_assistenten(_bewaard(("modellen", lijst["ronde"]), db.modellen_van_ronde, lijst["ronde"])))
+
+
+def _bronnen_van_ronde(ronde):
+    """Stap 178. Bewaard per ronde: de uitkomst is klein, de antwoorden niet."""
+    if not ronde:
+        return []
+    try:
+        import bronnenkaart
+        return _bewaard(("bronnen", ronde),
+                        lambda: bronnenkaart.bronnen(db.antwoorden_met_tekst_van_ronde(ronde)))
+    except Exception as e:
+        print(f"Bronnen mislukt voor ronde {ronde}: {e}")
+        return []
 
 
 def _imago(ronde, webshop_url, naam):
@@ -7400,6 +7427,8 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
 
     werkblok = _werkblok(webshop_url, taal, klant_token=klant_token, beheer=beheer) if werk else None
     gegevens = {}
+    if not beeld:
+        gegevens["geen_plek"] = _geen_plek_reden(webshop_url)
     if beeld:
         winkelnaam = beeld.get("naam")
         if pagina in ("overzicht", "vragen"):
@@ -7420,6 +7449,17 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                                           for m in v["per_model"]]
                         v["slot"] = True
             gegevens["balken"] = dp.balken_per_assistent(gegevens["vragen"]["per_assistent"])
+        if pagina == "verbeteringen":
+            # 1 oktober: per verloren vraag wat je concreet doet (vraagaanpak.py).
+            try:
+                import vraagaanpak
+                vo = dp.vragen_overzicht(beeld["ronde"], webshop_url, winkelnaam)
+                gekozen_lijst = db.gekozen_vragen(webshop_url) if klant_token else []
+                gegevens["aanpak"] = vraagaanpak.voor_dashboard(
+                    vo, gekozen_lijst, sitetaal.landnaam(beeld.get("land"), taal) if beeld.get("land") else None,
+                    en=(taal != "nl"), maximaal=(2 if proef else 3))
+            except Exception as e:
+                print(f"Aanpak per vraag mislukt voor {webshop_url}: {e}")
         if pagina == "overzicht":
             eigen = [{"naam": winkelnaam, "jij": True,
                       "punten": [(r.get("afgerond_op"), r["positie"]) for r in beeld.get("verloop") or []]}]
@@ -7478,6 +7518,8 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             except Exception as e:
                 print(f"Kaart voor het dashboard mislukt: {e}")
             gegevens["imago"] = _imago(beeld["ronde"], webshop_url, winkelnaam)
+            # Stap 178 (1 oktober): waar AI kopers in deze categorie naartoe stuurt.
+            gegevens["bronnen"] = _bronnen_van_ronde(beeld["ronde"])
             buren = dp.buren_verloop(beeld)
             gegevens["grafiek_buren"] = dp.lijngrafiek(buren, breedte=1000, hoogte=280, taal=taal)
             anderen = [b for b in buren if not b.get("jij")]
@@ -7510,6 +7552,36 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         basis_url=get_base_url().rstrip("/"),
         **dict({"top": []}, **gegevens),
     )
+
+
+def _geen_plek_reden(webshop_url):
+    """Waarom een winkel (nog) geen plek heeft, in een zin die klopt (1 oktober).
+
+    Nino zag bij Loods 5 "Your category has not been measured yet", terwijl
+    meubels wel gemeten is. Er zijn drie verschillende redenen, elk met een
+    ander verhaal: geen categorie, wel een categorie maar die is nog niet
+    gemeten, of de categorie is gemeten maar deze winkel zat er toen nog niet in."""
+    try:
+        winkel = db.winkel_kort(webshop_url) or {}
+        cat = winkel.get("categorie")
+        if not cat or cat in categorieen.NIET_MEETBAAR:
+            return {"soort": "geen_categorie"}
+        naam = categorieen.naam_en(cat)
+        for probeer in categorieen.familie(cat):
+            lijst = db.ranglijst_per_land(probeer, (winkel.get("land") or "").lower() or None, limiet=5)
+            if lijst and lijst.get("ronde"):
+                rij = (lijst.get("rijen") or [{}])[0]
+                gemeten = rij.get("gemeten_op")
+                return {"soort": "niet_in_meting", "categorie": naam,
+                        "gemeten": gemeten.strftime("%-d %B") if hasattr(gemeten, "strftime") else None,
+                        "volgende": (gemeten + timedelta(days=30)).strftime("%-d %B")
+                        if hasattr(gemeten, "strftime") else None}
+        aantal = (db.winkels_per_categorie_in_land((winkel.get("land") or "nl").lower()) or {}).get(cat, 0)
+        return {"soort": "niet_gemeten", "categorie": naam, "aantal": aantal,
+                "nodig": categorieen.MINIMUM_VOOR_INDEX}
+    except Exception as e:
+        print(f"Reden zonder plek mislukt voor {webshop_url}: {e}")
+        return {"soort": "onbekend"}
 
 
 def _doorverwijzing_voor(webshop_url, pagina, werkblok, proef):
@@ -7566,8 +7638,12 @@ def _plan_uitleg(webshop_url, werkblok, taal="en"):
                    "Elke wijziging staat erbij met de oude tekst, en alles kan terug",
                    "Bij de volgende maandmeting zie je het verschil"])
     else:
-        naam = "Krillo"
-        punten = []
+        # 1 oktober: hier stond "Krillo" als pakketnaam. Dat zag Nino in de
+        # beheerweergave van een winkel die (nog) geen klant is. Een echte klant
+        # heeft altijd Watch of Fix; zonder pakket zeggen we dat gewoon.
+        naam = "No plan yet" if en else "Nog geen pakket"
+        punten = (["This is a preview of the dashboard. A customer sees Watch or Fix here."] if en else
+                  ["Dit is een voorbeeld van het dashboard. Een klant ziet hier Watch of Fix."])
     if via_shopify:
         betaling = ("You pay through your Shopify invoice. You change or cancel your plan in "
                     "Shopify, under the Krillo app." if en else
@@ -7834,6 +7910,33 @@ def _voorbeeld_kandidaten(maximaal=3):
     return schoon[:maximaal]
 
 
+@app.route("/admin/rapport.pdf")
+def admin_rapport_pdf():
+    """Het maandrapport van een winkel naar keuze bekijken (1 oktober), zonder
+    dat die winkel klant hoeft te zijn. Precies dezelfde PDF als een klant krijgt."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return redirect("/admin/inloggen")
+    url = scan_engine.normalize_url((request.args.get("url") or "").strip())
+    beeld = klantbeeld.bouw(url, max_vragen=5) if url else None
+    if not beeld:
+        return ("Deze winkel staat (nog) niet in een ranglijst, dus er is geen rapport. "
+                "Probeer een winkel uit /index."), 404
+    return _rapport_pdf_antwoord(url, beeld)
+
+
+def _rapport_pdf_antwoord(url, beeld):
+    import klantrapport
+    maand = beeld.get("gemeten_op").strftime("%B %Y") if hasattr(beeld.get("gemeten_op"), "strftime") else ""
+    data = klantrapport.pdf(beeld, categorieen.naam_en(beeld["categorie"]),
+                            sitetaal.landnaam(beeld.get("land"), "en") if beeld.get("land") else "",
+                            imago=_imago(beeld["ronde"], url, beeld.get("naam")), maand=maand)
+    naam = _winkel_slug(url).replace(".", "-")
+    return Response(data, mimetype="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="krillo-{naam}.pdf"',
+                             "Cache-Control": "private, max-age=3600"})
+
+
 @app.route("/mijn/<klant_token>/report.pdf")
 def klant_rapport_pdf(klant_token):
     """Stap 184: het maandrapport als PDF van een pagina, om door te sturen."""
@@ -7847,15 +7950,7 @@ def klant_rapport_pdf(klant_token):
         return render_template("fout.html", titel="No report yet",
                                bericht="Your category has not been measured yet. The report is here after the "
                                        "first measurement."), 404
-    import klantrapport
-    maand = beeld.get("gemeten_op").strftime("%B %Y") if hasattr(beeld.get("gemeten_op"), "strftime") else ""
-    data = klantrapport.pdf(beeld, categorieen.naam_en(beeld["categorie"]),
-                            sitetaal.landnaam(beeld.get("land"), "en") if beeld.get("land") else "",
-                            imago=_imago(beeld["ronde"], url, beeld.get("naam")), maand=maand)
-    naam = _winkel_slug(url).replace(".", "-")
-    return Response(data, mimetype="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="krillo-{naam}.pdf"',
-                             "Cache-Control": "private, max-age=3600"})
+    return _rapport_pdf_antwoord(url, beeld)
 
 
 @app.route("/mijn/<klant_token>")
@@ -8215,7 +8310,16 @@ def admin_voorbeeld():
 
     webshop_url = scan_engine.normalize_url((request.args.get("url") or "").strip())
     if not webshop_url:
-        return "Geef een webshop op met &url=...", 400
+        # 1 oktober: hier stond alleen "Geef een webshop op met &url=...". Nu een
+        # invulveld, plus de knop voor het maandrapport (stap 184).
+        return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+                f"<title>Klantpagina bekijken | Krillo</title><body style='font-family:Arial,sans-serif;"
+                f"max-width:640px;margin:40px auto;padding:0 16px;line-height:1.5'>"
+                f"<h1>Klantpagina bekijken</h1><p>Typ een winkel die in een ranglijst staat. Je ziet zijn "
+                f"dashboard zoals een klant het ziet, en je kunt zijn maandrapport (PDF) openen.</p>"
+                f"<form method='get'><input name='url' placeholder='bijvoorbeeld sounds.nl' size='30' required> "
+                f"<button>Dashboard</button> <button formaction='/admin/rapport.pdf'>Maandrapport (PDF)</button>"
+                f"</form></body>")
 
     rapporten = db.get_rapporten_voor_webshop(webshop_url)
     laatste = rapporten[0] if rapporten else None

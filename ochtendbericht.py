@@ -124,11 +124,15 @@ def te_doen(basis_url):
         na = json.loads(db.get_instelling("nachtagenten") or "{}")
     except Exception:
         na = {}
-    if na.get("kwaliteit"):
-        uit.append((f"De kwaliteitsagent vond {len(na['kwaliteit'])} ding(en) in de index: "
-                    + "; ".join(na["kwaliteit"][:3]), f"{basis_url}/admin/controle"))
-    if na.get("concurrenten"):
-        uit.append(("De concurrentieagent: " + "; ".join(na["concurrenten"][:2]), f"{basis_url}/compare"))
+    # 1 oktober: wat de site zelf al afhandelt ("Niets voor jou te doen") hoort
+    # niet bij "wat jij vandaag moet doen". Het staat wel op /admin/controle.
+    kwaliteit = [k for k in na.get("kwaliteit") or [] if "Niets voor jou te doen" not in k]
+    if kwaliteit:
+        uit.append((f"De kwaliteitsagent vond {len(kwaliteit)} ding(en) in de index: "
+                    + "; ".join(kwaliteit[:3]), f"{basis_url}/admin/controle"))
+    zeker = [c for c in na.get("concurrenten") or [] if not c.startswith("Niet zeker")]
+    if zeker:
+        uit.append(("De concurrentieagent: " + "; ".join(zeker[:2]), f"{basis_url}/compare"))
     # Stap 38: mails die de controleagent tegenhield (laatste 24 uur).
     try:
         from datetime import datetime as _dt
@@ -178,13 +182,19 @@ def index_groei():
     import markten
     regels = []
     ouders = {ouder for _, _, ouder in categorieen.CATEGORIEEN if ouder}
-    meetbaar = [slug for slug, _, _ in categorieen.CATEGORIEEN if slug not in ouders]
+    meetbaar = [slug for slug, _, _ in categorieen.CATEGORIEEN
+                if slug not in ouders and slug not in categorieen.NIET_MEETBAAR]
     for land in markten.index_landen():
         online = len(db.categorieen_per_land(land, categorieen.MINIMUM_VOOR_INDEX))
         regels.append((f"Ranglijsten openbaar in {land.upper()} (van {len(meetbaar)} categorieen)", online))
     per = db.winkels_per_categorie_in_land("nl") or {}
     gemeten = set(db.gemeten_categorieen())
-    wachten = sorted((per.get(s, 0), s) for s in meetbaar if s not in gemeten)
+    # 1 oktober: "wachten op genoeg winkels" noemde kleding-heren met 19 winkels.
+    # Die wacht niet op winkels maar op de nachtmeting. Nu twee regels.
+    nog_niet = sorted((per.get(s, 0), s) for s in meetbaar if s not in gemeten)
+    klaar = [(n, s) for n, s in nog_niet if n >= categorieen.MINIMUM_VOOR_INDEX]
+    wachten = [(n, s) for n, s in nog_niet if n < categorieen.MINIMUM_VOOR_INDEX]
+    regels.append(("Klaar om te meten (10 of meer winkels, de nacht meet er een paar per keer)", len(klaar)))
     regels.append(("Categorieen die nog op genoeg winkels wachten (10 nodig)", len(wachten)))
     if wachten:
         regels.append(("Het dichtst bij (winkels nu)", ", ".join(f"{s} {n}" for n, s in wachten[::-1][:4])))
@@ -236,13 +246,17 @@ def verzamel(basis_url):
     # winkelvinder daar rommel aan en passen we de zoekwoorden aan.
     try:
         import categoriecheck
+        import categorieen
         g = categoriecheck.gecorrigeerd()
         if g is not None:
             gisteren.append(("Categoriecheck: nagekeken / verplaatst / uit de index",
                              f"{g['bekeken']} / {g['verplaatst']} / {g['eruit']}"))
-            if g["rommel"]:
+            # "overig" is de bak voor twijfelgevallen: daar uit gehaald worden is
+            # juist goed (de winkel krijgt een echte categorie), dus geen fout.
+            rommel = [r for r in g["rommel"] if r[0] not in categorieen.NIET_MEETBAAR]
+            if rommel:
                 gisteren.append(("Categorieen met veel fouten (7 dagen, fout van nagekeken)",
-                                 ", ".join(f"{c} {f} van {n}" for c, f, n in g["rommel"][:4])))
+                                 ", ".join(f"{c} {f} van {n}" for c, f, n in rommel[:4])))
     except Exception as e:
         print(f"Ochtendbericht, gecorrigeerd mislukt: {e}")
     try:
@@ -258,7 +272,7 @@ def tekst(gegevens, extra_regels=None):
     doen = gegevens["te_doen"]
     telling = dict(gegevens["gisteren"])
     mails = telling.get("Koude mails verstuurd")
-    klikken = telling.get("Mensen die hun Krillo-pagina openden")
+    klikken = telling.get("Hun Krillo-pagina geopend (ook door mailbeveiliging)")
     onderwerp = (f"Krillo ochtend: {len(doen) or 'niets'} voor jou, "
                  f"{mails if mails is not None else '?'} mails, "
                  f"{klikken if klikken is not None else '?'} bekeken")

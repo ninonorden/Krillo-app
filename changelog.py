@@ -11,6 +11,11 @@ Deze lijst wordt ook getest (test_changelog.py): elke link erin moet laden.
 
 # (datum, titel, tekst, link of None). Nieuwste eerst.
 REGELS = [
+    # Nino liep op 1 oktober de proefwinkel op TasteWP na: alle wijzigingen stonden erin.
+    ("2026-10-01", "Fix for WooCommerce and WordPress",
+     "Fix now works for WooCommerce and WordPress stores as well: you connect your store with an application "
+     "password you can revoke any time, we write the missing product texts, image descriptions and a questions "
+     "page, and put them live. Every change can be undone.", "/#pricing"),
     ("2026-10-01", "Switch from Watch to Fix with one click",
      "On the Plan page of your dashboard: Switch to Fix. Your existing plan is changed, so there is no second "
      "payment. Fix starts the same day, and the new price applies from your next payment.", None),
@@ -45,8 +50,6 @@ REGELS = [
      "Many small stores and dropshippers use the product text of their supplier. If a dozen stores have the same "
      "words, AI has no reason to pick yours. The new free check searches a sentence from each of your first "
      "products and shows where else it appears word for word.", "/tools/supplier-text-check"),
-    # "Fix for WooCommerce and WordPress" komt erbij zodra Nino de proefwinkel
-    # op TasteWP heeft nagelopen (1 oktober). Niet eerder: alleen wat echt werkt.
     ("2026-09-30", "English addresses for every page",
      "How we measure, About, Terms, Withdrawal and Articles now have English web addresses. The old addresses "
      "keep working and forward to the new ones.", "/how-we-measure"),
