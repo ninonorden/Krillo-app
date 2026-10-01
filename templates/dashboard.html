@@ -815,6 +815,34 @@
       {% endfor %}
     </div>
     {% endif %}
+    {# Stap 255 (1 oktober): AI-gereedheid per pagina, uit de wekelijkse scan.
+       Alleen pagina's met iets te doen; hoogstens drie acties per pagina. #}
+    {% if pagina == 'verbeteringen' and paginacheck is defined and paginacheck %}
+    {% set te_doen = paginacheck.paginas | selectattr('acties') | list %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'PER PAGINA: KAN AI HEM LEZEN?' if taal == 'nl' else 'PER PAGE: CAN AI READ IT?' }}
+        <span class="uitleg">{{ paginacheck.paginas | length }} {{ "pagina's nagekeken" if taal == 'nl' else 'pages checked' }}</span></div>
+      {% if te_doen %}
+      {% for p in te_doen %}
+      <div class="binnen" style="{{ 'border-top:1px solid var(--lijnz);' if not loop.first }}">
+        <div style="font-family:var(--mono); font-size:13px;">{{ p.pad }}</div>
+        <ul style="margin:4px 0 0; padding-left:18px; font-size:14.5px; line-height:1.55;">{% for a in p.acties %}<li>{{ a }}</li>{% endfor %}</ul>
+        {% if p.voorstel %}
+        {# Stap 254: kant-en-klare tekst voor deze pagina, uit wat er al op staat. #}
+        <details style="margin-top:6px; font-size:14px;"><summary>{{ 'Kant-en-klare tekst voor deze pagina' if taal == 'nl' else 'Ready-made text for this page' }}</summary>
+          <div style="margin:6px 0 0; line-height:1.55;">
+            <div><span class="klein">{{ 'Titel' if taal == 'nl' else 'Title' }}:</span> {{ p.voorstel.titel }}</div>
+            {% if p.voorstel.omschrijving %}<div><span class="klein">{{ 'Omschrijving' if taal == 'nl' else 'Description' }}:</span> {{ p.voorstel.omschrijving }}</div>{% endif %}
+            <div><span class="klein">{{ 'Eerste alinea' if taal == 'nl' else 'First paragraph' }}:</span> {{ p.voorstel.alinea }}</div>
+          </div></details>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="binnen">{{ "Alle nagekeken pagina's zijn goed te lezen voor AI." if taal == 'nl' else 'Every page we checked is easy for AI to read.' }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
     {% if pagina == 'verbeteringen' and gekozen %}
     {# De vragen die de klant zelf op zijn lijst zette (30 september). #}
     <div class="kaartblok">
