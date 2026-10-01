@@ -14,7 +14,7 @@
 {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":{{ kruimels | tojson }}}
 </script>
 <style>
-  .cijfers{display:flex; gap:40px; flex-wrap:wrap; margin:26px 0 8px;}
+  .cijfers{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:24px 32px; margin:26px 0 8px;}
   .groot{font-family:var(--disp); font-size:48px; font-weight:700; letter-spacing:-0.02em; line-height:1;}
   .klein{font-size:13px; color:var(--ink-grijs); margin-top:6px;}
   table.buren{width:100%; border-collapse:collapse; margin:12px 0; font-size:15px;}
@@ -65,7 +65,7 @@
   {% endif %}
   {% for c in imago.citaten %}
   <blockquote style="border-left:3px solid #1B3FE0; margin:12px 0; padding:4px 14px;">
-    <p style="margin:0 0 4px;">&ldquo;{{ c.zin }}&rdquo;</p>
+    <p style="margin:0 0 4px;">&ldquo;{% if c.zin[:1].islower() %}&hellip;{% endif %}{{ c.zin }}&rdquo;</p>
     <p class="klein" style="margin:0;">{{ c.assistent }}, asked: {{ c.vraag }}</p>
   </blockquote>
   {% endfor %}

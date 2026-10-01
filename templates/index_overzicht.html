@@ -61,6 +61,7 @@
     {% for c in categorieen_lijst %}
     <a class="kaart" href="/index/{{ land or 'nl' }}/{{ c.categorie }}">
       <div class="naam">{{ c.naam }}</div>
+      {% if naam_en(c.categorie) | lower != c.naam | lower %}<div class="bij" style="margin-top:-2px;">{{ naam_en(c.categorie) }}</div>{% endif %}
       <div class="bij">{{ c.genoemd }} {{ t.van_de }} {{ c.winkels }} {{ t.winkels_genoemd }}
         &middot; {{ c.telbaar or 0 }} {{ t.koopvragen }}</div>
     </a>

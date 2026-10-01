@@ -46,6 +46,9 @@
   </div>
 
   <h1>{{ naam }}</h1>
+  {# 1 oktober (sitecontrole): de naam blijft in de taal van het land (zo zoeken
+     kopers daar), maar een Engelse bezoeker moet weten wat "Speelgoed" is. #}
+  {% if naam_en and naam_en | lower != naam | lower %}<p style="margin:-6px 0 10px; font-size:18px; color:#6E7079;">{{ naam_en }}</p>{% endif %}
   <p class="inleiding">
     {{ telbaar }} {{ t.koopvragen }} &middot; {{ landnaam }} &middot;
     {{ modellen | length }} {{ t.assistenten }}
@@ -143,8 +146,8 @@
   <h2 style="margin-top:44px;">Named is not recommended</h2>
   <p style="margin-bottom:12px;">Each dot is a store. Further right: named in more buying questions. Higher: recommended
      more often. Stores low on the right are known to AI but rarely the tip. That gap is what most stores can close.</p>
-  <div class="blok" style="padding:12px">{{ kaart | safe }}</div>
-  <p style="font-size:13px; margin-top:6px; opacity:.75;"><a href="/index/{{ land }}/{{ slug }}/map.png">Download this map as an image</a></p>
+  <div class="blok" style="padding:12px"><div style="max-width:720px; margin:0 auto;">{{ kaart | safe }}</div></div>
+  <p style="font-size:13px; margin-top:6px; opacity:.75;"><a href="/index/{{ land }}/{{ slug }}/map.png" rel="nofollow">Download this map as an image</a></p>
   {% endif %}
   {% else %}
   <div class="leeg">{{ t.niemand_genoemd }}</div>

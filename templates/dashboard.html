@@ -88,6 +88,8 @@
         <span class="chip verberg-mobiel">{{ beeld.telbaar }} {{ 'koopvragen' if taal == 'nl' else 'buying questions' }}</span>
         {% if modellen %}<span class="chip">{{ modellen | join(', ') }}</span>{% endif %}
         <span class="chip">{{ landnaam }}</span>
+        {# Stap 184 (1 oktober): het maandrapport om door te sturen, alleen voor de klant zelf. #}
+        {% if request.path.startswith('/mijn/') %}<a class="chip" href="{{ (link_van.overzicht or '').split('?') | first }}/report.pdf" target="_blank">{{ 'Rapport (PDF)' if taal == 'nl' else 'Report (PDF)' }}</a>{% endif %}
         {% endif %}
         {% if proef %}
         <a class="kopknop" href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Start gratis proef' if taal == 'nl' else 'Start free trial' }}</a>
@@ -518,6 +520,35 @@
         </tbody>
       </table>
     </div>
+
+    {# 1 oktober: stap 187 en 179 ook voor de klant zelf. #}
+    {% if kaart %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'GENOEMD TEGENOVER AANGERADEN' if taal == 'nl' else 'NAMED AGAINST RECOMMENDED' }}</div>
+      <div style="padding:4px 16px 16px;">
+      <p class="klein" style="margin:0 0 10px;">{{ 'Elke stip is een winkel. Rechts: vaker genoemd. Hoger: vaker aangeraden. Rechtsonder kent AI je wel, maar is de tip voor een ander.' if taal == 'nl'
+         else 'Each dot is a store. Further right: named more often. Higher: recommended more often. Low on the right, AI knows you but the tip goes to someone else.' }}</p>
+      <div style="max-width:720px;">{{ kaart | safe }}</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if imago and (imago.kenmerken or imago.citaten) %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'WAT AI OVER JE ZEGT' if taal == 'nl' else 'WHAT AI SAYS ABOUT YOU' }}</div>
+      <div style="padding:4px 16px 16px;">
+      {% if imago.kenmerken %}<p style="margin:0 0 10px;">{{ 'AI noemt bij jou:' if taal == 'nl' else 'When AI names you, it mentions:' }}
+        {% for label, n in imago.kenmerken[:5] %}<strong>{{ label | lower }}</strong> ({{ n }}x){{ ', ' if not loop.last else '.' }}{% endfor %}</p>{% endif %}
+      {% for c in imago.citaten %}
+      <blockquote style="border-left:3px solid #1B3FE0; margin:10px 0; padding:2px 12px;">
+        <div>&ldquo;{% if c.zin[:1].islower() %}&hellip;{% endif %}{{ c.zin }}&rdquo;</div>
+        <div class="klein">{{ c.assistent }} &middot; {{ c.vraag }}</div>
+      </blockquote>
+      {% endfor %}
+      <p class="klein" style="margin:8px 0 0;">{{ 'Wat ontbreekt in dit lijstje, is waar je tekst iets mist. Bij Verbeteringen staat wat je eraan doet.' if taal == 'nl'
+         else 'What is missing from this list is what your texts do not say yet. Fixes shows what to do about it.' }}</p>
+      </div>
+    </div>
+    {% endif %}
     {% endif %}
 
     {# ================================================================ VRAGEN #}
@@ -794,7 +825,28 @@
           <li>{{ 'Op Shopify: nieuwe producten elke week aangevuld' if taal == 'nl' else 'On Shopify: new products filled in every week' }}</li>
           <li>{{ 'Elke wijziging met de oude tekst, alles kan terug' if taal == 'nl' else 'Every change with the old text, all can be undone' }}</li>
         </ul>
+        {% if werkblok.shopify_beheer or not request.path.startswith('/mijn/') %}
         <a class="knop-rand" href="mailto:hello@krilloai.com?subject=Switch%20to%20Fix%20for%20{{ winkelnaam|urlencode }}">{{ 'Overstappen naar Fix' if taal == 'nl' else 'Switch to Fix' }}</a>
+        {% else %}
+        {# Stap 130 (1 oktober): zelf overstappen, zonder mail. #}
+        <p class="klein" style="margin:0 0 10px;">{{ ('Fix begint vandaag. Je volgende betaling wordt €' ~ prijzen.fix ~ ' in plaats van €' ~ prijzen.watch ~ '; voor de rest van deze periode betaal je niets extra.') if taal == 'nl'
+           else ('Fix starts today. Your next payment becomes €' ~ prijzen.fix ~ ' instead of €' ~ prijzen.watch ~ '; for the rest of this period you pay nothing extra.') }}</p>
+        <button class="knop-rand" id="naarfix" type="button" style="cursor:pointer;">{{ 'Overstappen naar Fix' if taal == 'nl' else 'Switch to Fix' }}</button>
+        <p class="klein" id="naarfix-uit" style="margin:8px 0 0;"></p>
+        <script>
+          document.getElementById('naarfix').addEventListener('click', function(){
+            var knop = this, uit = document.getElementById('naarfix-uit');
+            if (!confirm({{ ('Overstappen naar Fix? Je volgende betaling wordt €' ~ prijzen.fix ~ '.') | tojson if taal == 'nl' else ('Switch to Fix? Your next payment becomes €' ~ prijzen.fix ~ '.') | tojson }})) return;
+            knop.disabled = true;
+            fetch('/api/naar-fix/' + {{ ((link_van.overzicht or '').split('?') | first).replace('/mijn/', '') | tojson }}, {method:'POST'})
+              .then(function(r){ return r.json(); })
+              .then(function(d){
+                if (d.ok) { uit.textContent = {{ 'Gelukt. Je krijgt een mail over de toegang tot je winkel.' | tojson if taal == 'nl' else 'Done. You get an email about access to your store.' | tojson }}; knop.style.display = 'none'; }
+                else { uit.textContent = d.error || 'Something went wrong.'; knop.disabled = false; }
+              }).catch(function(){ uit.textContent = 'Something went wrong. Email hello@krilloai.com.'; knop.disabled = false; });
+          });
+        </script>
+        {% endif %}
         {% else %}
         <div class="kaartkop">{{ 'HULP NODIG' if taal == 'nl' else 'NEED HELP' }}</div>
         <p style="margin:0 0 10px; font-size:15px;">{{ 'Vragen over je plek, een wijziging die terug moet, of je factuur? Mail ons, we antwoorden binnen een werkdag.' if taal == 'nl'
@@ -828,12 +880,11 @@
       </div>
       <p>
         {% if taal == 'nl' %}De oplossingen voor de vragen hierboven schrijven wij, en met
-        Fix zetten we ze ook in je winkel: op Shopify via onze app, op andere platformen
-        met de hand zodra je ons toegang geeft. De oude tekst blijft bewaard, en bij de
+        Fix zetten we ze ook in je winkel, met toegang die je ons geeft en altijd weer
+        kunt intrekken. De oude tekst blijft bewaard, en bij de
         volgende maandmeting zie je het verschil.
         {% else %}We write the fixes for the questions above, and with Fix we also make
-        them in your store: on Shopify through our app, on other platforms by hand once you
-        give us access. The old text is kept, and at the next monthly measurement you see
+        them in your store, with access you give us and can take back any time. The old text is kept, and at the next monthly measurement you see
         the difference.{% endif %}
       </p>
       <a class="knop vol" href="/#pricing">
