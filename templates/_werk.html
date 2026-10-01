@@ -221,6 +221,10 @@
     <strong>{{ wt.details_kop }}</strong>
     <span>{{ wt.details_tekst }}</span>
   </a>
+  {# 1 oktober: de dertien controles als PDF, op volgorde, om door te geven. #}
+  {% if klant_token and not beheer %}
+  <p style="margin:8px 0 0; font-size:13px;"><a href="/mijn/{{ klant_token }}/checks.pdf">{{ 'De technische controles voor je webdesigner (PDF)' if taal == 'nl' else 'Technical checks for your web designer (PDF)' }}</a></p>
+  {% endif %}
 
   {% endif %}
 

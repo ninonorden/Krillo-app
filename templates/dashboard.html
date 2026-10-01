@@ -149,8 +149,10 @@
           {% if taal == 'nl' %}We zetten je winkel nu in de ranglijst van deze maand{% if geen_plek.categorie %} ({{ geen_plek.categorie }}){% endif %}, uit de antwoorden die AI deze maand al gaf. Ververs deze pagina over een paar minuten: dan staan hier je plek en de vragen waarbij AI een ander noemt.
           {% else %}We are adding your store to this month's ranking{% if geen_plek.categorie %} ({{ geen_plek.categorie }}){% endif %} now, from the answers AI already gave this month. Refresh this page in a few minutes: your position and the questions where AI names someone else will be here.{% endif %}
         {% elif geen_plek and geen_plek.soort == 'niet_in_meting' %}
-          {% if taal == 'nl' %}Je categorie ({{ geen_plek.categorie }}) is gemeten{% if geen_plek.gemeten %} op {{ geen_plek.gemeten }}{% endif %}, maar je winkel zat toen nog niet in de meting. Bij de volgende meting{% if geen_plek.volgende %} (rond {{ geen_plek.volgende }}){% endif %} doe je mee, en dan staat je plek hier.
-          {% else %}Your category ({{ geen_plek.categorie }}) was measured{% if geen_plek.gemeten %} on {{ geen_plek.gemeten }}{% endif %}, but your store was not in that measurement yet. You are in the next one{% if geen_plek.volgende %} (around {{ geen_plek.volgende }}){% endif %}, and your position appears here.{% endif %}
+          {# 1 oktober: geen "bij de volgende meting" meer; een klant wordt meteen
+             geplaatst (_plaats_in_ranglijst). Zie je dit toch, dan lukte dat niet. #}
+          {% if taal == 'nl' %}Je categorie ({{ geen_plek.categorie }}) is gemeten{% if geen_plek.gemeten %} op {{ geen_plek.gemeten }}{% endif %}, voordat je winkel erin stond. We zetten je erin uit de antwoorden die er al zijn. Staat je plek hier niet binnen het uur, mail dan hello@krilloai.com en we regelen het.
+          {% else %}Your category ({{ geen_plek.categorie }}) was measured{% if geen_plek.gemeten %} on {{ geen_plek.gemeten }}{% endif %}, before your store was in it. We add you from the answers we already have. Not here within the hour? Email hello@krilloai.com and we sort it out.{% endif %}
         {% elif geen_plek and geen_plek.soort == 'niet_gemeten' and geen_plek.wordt_gemeten %}
           {# 1 oktober: een betalende klant in een categorie die nog nooit gemeten
              is, krijgt zijn categorie meteen gemeten (klantmeetrij). #}
@@ -321,7 +323,8 @@
         </div>
         <div class="d8-antwoord">
           <span class="d8-mono" data-l="wie">{% if v0 and v0.per_model %}{{ (v0.per_model | first).assistent | upper }} {{ 'ANTWOORDDE' if nl else 'ANSWERED' }}{% endif %}{% if beeld.gemeten_op %} &middot; {{ beeld.gemeten_op.strftime('%-d %b') | upper }}{% endif %}</span>
-          <div class="d8-fragment" data-l="fragment">{% if v0 and v0.per_model and (v0.per_model | first).fragment %}{{ (v0.per_model | first).fragment }}{% endif %}</div>
+          {# lang: het antwoord staat in de taal van de markt, niet van de pagina (1 oktober). #}
+          <div class="d8-fragment" data-l="fragment" lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{% if v0 and v0.per_model and (v0.per_model | first).fragment %}{{ (v0.per_model | first).fragment }}{% endif %}</div>
           <div class="d8-sleutel"><span><i class="jij"></i>{{ 'Jij' if nl else 'You' }}</span><span><i></i>{{ 'Andere winkels' if nl else 'Other stores' }}</span></div>
         </div>
         <div class="d8-ladedeel">
@@ -639,6 +642,19 @@
       </div>
     </div>
 
+    {# 1 oktober: open plekken. Vragen die je verliest waar AI weinig winkels
+       noemt: daar schrijf je eerst over. Geen zoekvolumes (die bestaan niet
+       betrouwbaar voor AI); wel hoeveel winkels AI noemt. #}
+    {% if open_plekken is defined and open_plekken %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'OPEN PLEKKEN: HIER NOEMT AI WEINIG WINKELS' if taal == 'nl' else 'OPEN SPOTS: AI NAMES FEW STORES HERE' }}</div>
+      <p style="margin:0 0 8px; font-size:14px;">{{ 'Schrijf hier eerst over: weinig concurrentie, dus de snelste winst.' if taal == 'nl' else 'Write about these first: little competition, so the quickest win.' }}</p>
+      <ul style="margin:0 16px 4px; padding-left:18px; font-size:14px; line-height:1.7;">
+        {% for o in open_plekken %}<li><span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ o.vraag }}</span> <span style="font-family:var(--mono); font-size:12px; color:var(--zacht, #6E7079);">{% if o.aantal == 0 %}{{ 'nog niemand genoemd' if taal == 'nl' else 'no store named yet' }}{% else %}{{ o.namen | join(', ') }}{% endif %}</span></li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
     <div class="vragenblok" id="vragen">
       <div class="vragenkop">
         <div class="titel">{{ 'Alle koopvragen' if taal == 'nl' else 'All buying questions' }}</div>
@@ -680,7 +696,7 @@
             {% else %}{{ 'noemde je winkel niet' if taal == 'nl' else 'did not name your store' }}.{% endif %}
             {% if m.anderen %}{{ 'Wel genoemd:' if taal == 'nl' else 'Named:' }} {% for c in m.anderen %}<strong>{{ c }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
           </div>
-          {% if m.fragment %}<blockquote>{{ m.fragment }}</blockquote>{% endif %}
+          {% if m.fragment %}<blockquote lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ m.fragment }}</blockquote>{% endif %}
         </div>
         {% endfor %}
         {% endif %}
