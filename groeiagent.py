@@ -61,7 +61,7 @@ def feiten():
     import verkoopagent as va
     f = {
         "verkoop_concepten": _tel("SELECT count(*) FROM benadering WHERE opvolg_stand = 'concept'"),
-        "verkoop_oudste_uren": _tel("SELECT extract(epoch FROM now() - min(bekeken_op)) / 3600 "
+        "verkoop_oudste_uren": _tel("SELECT extract(epoch FROM now() - min(doorgeklikt_op)) / 3600 "
                                     "FROM benadering WHERE opvolg_stand = 'concept'"),
         "verkoop_zelf": va.zelf_versturen(),
         "bureaus_klaar": _tel("""SELECT count(*) FROM bureaus b WHERE b.stand = 'nieuw' AND b.email IS NOT NULL
@@ -101,9 +101,9 @@ def kansen(f):
         uit.append({
             "soort": "actie", "actie": "verkoop_zelf",
             "titel": "Laat de verkoopagent zijn opvolgingen zelf versturen",
-            "waarom": (f"{n} winkel(s) die hun Krillo-pagina bekeken wachten op een opvolging"
+            "waarom": (f"{n} winkel(s) die doorklikten naar de prijzen wachten op een opvolging"
                        + (f", de oudste al {int(uren)} uur" if uren else "")
-                       + ". Wie net keek is het warmst; elke dag wachten maakt dat minder. De tekst is een vast "
+                       + ". Wie net naar de prijzen keek is het warmst; elke dag wachten maakt dat minder. De tekst is een vast "
                          "sjabloon met zijn eigen cijfers, gaat langs de controleagent, hoogstens twee per winkel, "
                          "alleen binnen kantooruren. Terugzetten kan op /admin/verkoop."),
         })

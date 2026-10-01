@@ -161,6 +161,14 @@ def te_doen(basis_url):
         kb = json.loads(db.get_instelling("klantblik") or "{}")
     except Exception:
         kb = {}
+    # 1 oktober: de proefaankoop (een nepklant koopt Watch door de echte code).
+    try:
+        pa = json.loads(db.get_instelling("proefaankoop") or "{}")
+    except Exception:
+        pa = {}
+    if pa.get("fout"):
+        uit.append((f"De proefaankoop vond {len(pa['fout'])} fout(en) in de klantreis na betalen: "
+                    + "; ".join(pa["fout"][:2]) + ". Geef het aan Claude", f"{basis_url}/admin/klantblik"))
     if kb.get("fout"):
         uit.append((f"De klantblik vond {len(kb['fout'])} fout(en) die een klant ziet, bijvoorbeeld: "
                     + "; ".join(f["tekst"] for f in kb["fout"][:2]) + ". Geef de lijst aan Claude",

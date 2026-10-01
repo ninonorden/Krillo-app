@@ -29,9 +29,11 @@ REGELS DIE NOOIT LOSSEN
 import hashlib
 import json
 import secrets
+import time
 
 import db
 
+_laatst_bijgewerkt = 0.0
 SOORTEN = ("actie", "taak", "bouwen")
 NEE_DAGEN = 30
 
@@ -42,6 +44,25 @@ NEE_DAGEN = 30
 AL_GEDAAN = {
     "gids:saashub": "Nino, 1 oktober 2026: al aangemeld bij SaaSHub",
 }
+
+# Zelfde, maar op het begin van de titel (voorstellen van de leeragent hebben
+# geen vaste sleutel). (begin van de titel, nieuwe stand, wat er gebeurde).
+OP_TITEL = [
+    ("Stuur de persoonlijke opvolging alleen als iemand heeft doorgeklikt", "gebouwd",
+     "1 okt: de verkoopagent volgt alleen nog wie doorklikte naar de prijzen"),
+    ("Voeg aan de opvolging na een gratis check een tweede alinea toe", "gebouwd",
+     "1 okt: de opvolging zegt wat we in het menu van de winkel (niet) vonden voor die vraag"),
+    ("AI-zoekvragen onderzoeker", "gebouwd",
+     "1 okt: Open spots op de pagina Questions (zonder zoekvolumes: daar is geen betrouwbare bron voor)"),
+    ("Voeg een eenvoudige AI-zoekvragenresearcher toe aan het dashboard", "gebouwd",
+     "1 okt: Open spots in het dashboard; de koude mail houdt de vraag die bij het assortiment past"),
+    ("Ingebouwde lijst van veelgestelde koopvragen per categorie", "gebouwd",
+     "1 okt: Open spots en alle koopvragen van de categorie; echte gesprekken van gebruikers hebben we niet"),
+    ("Maak van de wekelijkse 13-punten scan een exporteerbaar rapport", "gebouwd",
+     "1 okt: de dertien controles als PDF op volgorde, link op Fixes"),
+    ("Voeg aan de gratis check een aparte regel toe voor ChatGPT-advertenties", "niet mogelijk",
+     "Advertenties staan niet in de antwoorden die wij via de API krijgen; tonen zou gokken zijn"),
+]
 
 GEBOUWD = {
     "uitbreiding:198": "1 oktober 2026: wekelijkse snelmeting (snelmeting.py, dashboard, /admin/snelmeting)",
@@ -81,6 +102,15 @@ def maak_tabel():
                 aangemaakt_op TIMESTAMPTZ NOT NULL DEFAULT now(),
                 besloten_op TIMESTAMPTZ)""")
     _sql("CREATE INDEX IF NOT EXISTS voorstellen_sleutel ON voorstellen (sleutel)")
+    # De lijsten hieronder nalopen hoeft niet bij elke aanroep: hooguit eens per
+    # tien minuten per proces (tests zetten _laatst_bijgewerkt op 0).
+    global _laatst_bijgewerkt
+    if time.time() - _laatst_bijgewerkt < 600:
+        return
+    _laatst_bijgewerkt = time.time()
+    for begin, stand, wat in OP_TITEL:
+        _sql("""UPDATE voorstellen SET stand = %s, uitkomst = %s, besloten_op = coalesce(besloten_op, now())
+                WHERE titel LIKE %s AND stand IN ('open', 'akkoord')""", (stand, wat, begin + "%"))
     for sleutel, wat in AL_GEDAAN.items():
         _sql("""UPDATE voorstellen SET stand = 'gedaan', uitkomst = %s, besloten_op = coalesce(besloten_op, now())
                 WHERE sleutel = %s AND stand IN ('open', 'akkoord')""", (wat, sleutel))
@@ -105,6 +135,8 @@ def stel_voor(bron, soort, titel, waarom=None, actie=None, sleutel=None, minuten
     maak_tabel()
     sleutel = sleutel or (f"actie:{actie}" if soort == "actie" else sleutel_van(titel))
     if sleutel in GEBOUWD or sleutel in AL_GEDAAN:
+        return None
+    if any(titel.strip().startswith(begin) for begin, _, _ in OP_TITEL):
         return None
     bestaand = _sql(f"""SELECT id FROM voorstellen WHERE sleutel = %s
                           AND (stand IN ('open', 'akkoord')

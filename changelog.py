@@ -11,6 +11,16 @@ Deze lijst wordt ook getest (test_changelog.py): elke link erin moet laden.
 
 # (datum, titel, tekst, link of None). Nieuwste eerst.
 REGELS = [
+    # 1 oktober, laat: wat er voor klanten veranderde. Kort; de details staan in het dashboard.
+    ("2026-10-01", "Every week: your five key questions checked again",
+     "Besides the monthly ranking, we now ask your five most important buying questions again every week. Your "
+     "overview shows the result next to last week, so you see within a week whether a change works.", None),
+    ("2026-10-01", "Your rank within the hour after you start",
+     "New customers are added to this month's ranking of their category right away. Is your category new to us, "
+     "we measure it for you first. Either way you get an email when your rank is in.", None),
+    ("2026-10-01", "Open spots and a PDF for your web designer",
+     "The Questions page now shows where AI names few stores: the quickest questions to win. And the thirteen "
+     "technical checks come as a one page PDF, in the order to fix them.", None),
     # Nino liep op 1 oktober de proefwinkel op TasteWP na: alle wijzigingen stonden erin.
     ("2026-10-01", "Fix for WooCommerce and WordPress",
      "Fix now works for WooCommerce and WordPress stores as well: you connect your store with an application "

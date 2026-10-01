@@ -97,3 +97,54 @@ def voor_dashboard(vragen_overzicht, gekozen=None, landnaam=None, en=True, maxim
                     anderen.append(n)
         uit.append(aanpak(v["vraag"], anderen, landnaam, en))
     return uit
+
+
+def _stam(woord):
+    return woord[:5].lower()
+
+
+def wat_ontbreekt(webshop_url, vraag, haal=None):
+    """Een zin over wat er op de winkel ontbreekt voor deze vraag (1 oktober).
+
+    Voorstel van de leeragent, akkoord Nino: in de opvolging na de gratis check
+    een alinea die precies zegt welke pagina of tekst ontbreekt, zodat de
+    eigenaar meteen ziet wat Watch of Fix aanpakt.
+
+    EERLIJK: we zeggen alleen wat we echt nakeken. We halen de homepage op en
+    kijken of er in het menu een link is die over het onderwerp gaat. Dus "we
+    vonden geen pagina over X in je menu", nooit "je hebt geen pagina over X".
+    Lukt het ophalen niet, dan geen zin (None) in plaats van een gok.
+
+    haal: alleen voor de test (geeft de html van de homepage of None)."""
+    import scan_engine
+    from bs4 import BeautifulSoup
+    o = onderwerp(vraag)
+    sleutels = {_stam(w) for w in re.findall(r"[\w'-]+", o) if len(w) >= 4 and w not in ("en", "and")}
+    if not sleutels:
+        return None
+    try:
+        if haal:
+            html = haal(webshop_url)
+        else:
+            resp = scan_engine.fetch(webshop_url, pogingen=1)
+            html = resp.text if resp is not None else None
+    except Exception:
+        html = None
+    if not html:
+        return None
+    naam = (webshop_url or "").replace("https://", "").replace("http://", "").replace("www.", "").strip("/")
+    treffer = None
+    for a in BeautifulSoup(html, "html.parser").find_all("a"):
+        tekst = " ".join(a.get_text(" ").split())
+        if not tekst or len(tekst) > 60:
+            continue
+        woorden = {_stam(w) for w in re.findall(r"[\w'-]+", tekst) if len(w) >= 4}
+        if woorden & sleutels:
+            treffer = tekst
+            break
+    if treffer:
+        return (f"Your menu has a page called “{treffer}”, but AI does not use it for this question yet. "
+                f"What it misses: the words “{o}” in its title and first sentence, and a few short "
+                f"questions and answers. With Watch you get that text written out; with Fix we put it in your store.")
+    return (f"We could not find a page about “{o}” in the menu of {naam}. AI needs one clear page "
+            f"to point to. With Watch you get that page written out; with Fix we put it in your store.")

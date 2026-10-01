@@ -75,7 +75,9 @@ def uitleg_in_het_engels(check):
     cid, status = check.get("id"), check.get("status")
     if status == "onbekend":
         return NIET_GEMETEN
-    if status == "goed":
+    # 1 oktober: de scan zegt "ok" (status_from_score), niet "goed". Een goed
+    # punt kreeg daardoor de uitleg van een probleem. Allebei goedrekenen.
+    if status in ("goed", "ok"):
         return GOED.get(cid) or "This point is fine."
     return (verklaring.BLOKKADES_EN.get(cid) or verklaring.BELEMMERINGEN_EN.get(cid)
             or "This point can be better.")

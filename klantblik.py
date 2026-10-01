@@ -67,6 +67,23 @@ MAANDEN = {m: i for i, m in enumerate(
 MAANDEN.update({m: i for i, m in enumerate(
     "januari februari maart april mei juni juli augustus september oktober november december".split(), 1)})
 
+# VEROUDERD (1 oktober). Nino: "verzeker dat alles wat veranderd en gebouwd
+# wordt ook veranderd wordt in de website zelf". Elke keer dat iets verandert
+# waardoor een zin niet meer waar is, komt die zin hier. Staat hij daarna nog
+# ergens op de site, in het dashboard of in een mail van de proefaankoop, dan is
+# dat een fout in het ochtendbericht. En test_site_actueel kijkt bij elke zip in
+# alle sjablonen en teksten. Zo blijft een oude belofte niet stil staan.
+VEROUDERD = [
+    "fifteen minutes",          # 1 okt: de eerste meting en de welkomstmail gaan niet zo
+    "ongeveer een kwartier",
+    "a few days",               # 1 okt: een betalende klant krijgt zijn plek binnen het uur
+    "takes up to a day",        # 1 okt: de teksten komen meestal binnen het uur
+    "hooguit een dag",
+    "You are in the next one",  # 1 okt: niemand wacht meer een maand op zijn plek
+    "Bij de volgende meting",
+    "Lost your link?",          # 29 sep: heet nu Log in
+]
+
 RESTEN = [
     (re.compile(r"\{\{|\}\}|\{%|%\}"), "resten van het sjabloon ({{ of {%)"),
     (re.compile(r"\bNone\b(?! of\b)"), "het woord None (een lege waarde)"),
@@ -186,13 +203,19 @@ def keur(pad, bron, soort="text/html", vandaag=None, toegestaan=None):
     for patroon, wat in RESTEN:
         if patroon.search(tekst):
             uit.append(("fout", wat))
+    for zin in VEROUDERD:
+        if zin.lower() in tekst.lower():
+            uit.append(("fout", f"een verouderde zin staat er nog: \u201c{zin}\u201d"))
     for b in voorbije_beloftes(tekst, vandaag)[:2]:
         uit.append(("fout", f"een datum die al voorbij is maar als toekomst staat: \"{b}\""))
     if pad.split("?")[0] in PRIJSPAGINAS or re.match(r"^/mijn/[^/]+/plan$", pad):
         for b in vreemde_bedragen(tekst, toegestaan):
             uit.append(("fout", f"het bedrag {b} is geen prijs van Krillo"))
     if _taal(bron) == "en":
-        for z in nederlandse_zinnen(tekst)[:2]:
+        # Stukken met een eigen taal (lang="nl" om een AI-antwoord) zijn met
+        # opzet in die taal; die tellen niet mee.
+        eigen = re.sub(r"(?is)<(\w+)[^>]*\blang=[\"'](?!en\b)[a-z]{2,3}[\"'][^>]*>.*?</\1>", " ", bron or "")
+        for z in nederlandse_zinnen(zichtbare_tekst(eigen))[:2]:
             uit.append(("fout", f"Nederlands op een Engelse pagina: \"{z}\""))
     if "—" in tekst:
         i = tekst.index("—")

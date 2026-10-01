@@ -467,7 +467,15 @@ def _zet_terugkeerlink_met_kenmerk(client, payment, base_url, soort):
         print(f"Terugkeerlink met kenmerk zetten mislukt voor {payment.id}: {e}")
 
 
+# Betalingen die niet bij Mollie bestaan: alleen de proefaankoop van de nacht
+# (proefaankoop.py) zet hier een tijdelijke, met een kenmerk dat begint met
+# tr_proefaankoop_. Een echte betaling komt hier nooit in.
+NEPBETALINGEN = {}
+
+
 def get_payment_status(payment_id):
+    if payment_id in NEPBETALINGEN and str(payment_id).startswith("tr_proefaankoop_"):
+        return NEPBETALINGEN[payment_id]
     client = get_mollie_client()
     if client is None:
         return None

@@ -2109,6 +2109,13 @@ def admin_klantblik():
                 f"<li style='margin-bottom:6px'>{_e(f['tekst'])} <span style='color:#666'>(op {f['aantal']} "
                 f"pagina's: " + ", ".join(f"<a href='{_e(p)}'>{_e(p[:60])}</a>" for p in f["paginas"][:4])
                 + ")</span></li>" for f in rijen) + "</ul>")
+        import proefaankoop
+        pa = proefaankoop.laatste()
+        if pa.get("op"):
+            stuk.append(f"<h2>Proefaankoop ({_e(pa['op'])})</h2><p>Een nepklant koopt elke ochtend Watch, door de "
+                        f"echte code (zonder factuur, abonnement of mail naar buiten).</p><ul>"
+                        + "".join(f"<li style='color:#B42318'>{_e(f)}</li>" for f in pa.get("fout") or [])
+                        + "".join(f"<li>{_e(g)}</li>" for g in pa.get("goed") or []) + "</ul>")
         tekst = klantblik.tekst_voor_claude(uit)
         if tekst:
             stuk.append("<h2>Voor Claude</h2><textarea readonly rows='10' style='width:100%;font-family:monospace;"
@@ -3727,6 +3734,10 @@ def _verwerk_betaling(payment_id, base_url):
 
         metadata = status.get("metadata") or {}
         payment_type = metadata.get("type")
+        # 1 oktober: de proefaankoop van de nacht (proefaankoop.py) loopt deze
+        # zelfde weg, maar zonder factuur, abonnement, scan, melding of meting.
+        # Alleen bij een kenmerk dat met tr_proefaankoop_ begint EN dat vlagje.
+        proefaankoop = bool(metadata.get("proefaankoop")) and str(payment_id).startswith("tr_proefaankoop_")
         if status.get("subscription_id") and not payment_type:
             # Maandbetaling gelukt: een factuur, zodat een klant vanaf maand
             # twee ook een factuur krijgt. Verder niets; het werk loopt al.
@@ -3771,7 +3782,7 @@ def _verwerk_betaling(payment_id, base_url):
                 omschrijving = f"Krillo {pakketnaam}, {eerste}, for {webshop_url}"
             bedrag = status.get("bedrag")
             # Stap 167: voor de cent van de gratis proef geen factuur.
-            if bedrag is not None and not metadata.get("proef"):
+            if bedrag is not None and not metadata.get("proef") and not proefaankoop:
                 factuurnummer = db.maak_factuur(payment_id, email, bedrijfsnaam,
                                                 omschrijving, bedrag, bron=bron)
                 if factuurnummer and factuurnummer.get("nieuw"):
@@ -3884,7 +3895,7 @@ def _verwerk_betaling(payment_id, base_url):
 
         elif payment_type == "monitoring_first_payment":
             customer_id = metadata.get("customer_id")
-            if customer_id:
+            if customer_id and not proefaankoop:
                 # Het antwoord WEL nakijken. Ging dit mis, dan heeft de klant de
                 # eerste maand betaald maar wordt er daarna nooit meer
                 # geincasseerd, en valt hij stilletjes uit de dienst.
@@ -3934,15 +3945,18 @@ def _verwerk_betaling(payment_id, base_url):
                 # de herkansing waar de claim op rekende kwam nooit. De positie
                 # komt uit de index en heeft de scan niet nodig; de scan is een
                 # extra en mag nu mislukken.
-                scan_result = _scan_met_herkansing(webshop_url)
+                scan_result = ({"error": "proefaankoop"} if proefaankoop
+                               else _scan_met_herkansing(webshop_url))
                 scan_gelukt = "error" not in scan_result
-                if not scan_gelukt:
+                if not scan_gelukt and not proefaankoop:
                     _meld_aan_beheer(
                         "Scan mislukt bij een nieuwe klant",
                         f"{webshop_url} heeft betaald. De klant is wel aangemaakt en "
                         f"gemaild, maar zijn site kon niet gescand worden: "
                         f"{scan_result.get('error')}. De positie komt uit de index; "
                         f"de dertien controlepunten volgen bij de wekelijkse scan.")
+                    scan_result = {"score": 0, "checks": []}
+                if proefaankoop:
                     scan_result = {"score": 0, "checks": []}
                 # (Het blok hieronder stond eerst in een else na de scan.)
                 if webshop_url:
@@ -4031,6 +4045,10 @@ def _verwerk_betaling(payment_id, base_url):
                         db.zet_klant_test(webshop_url)
                     elif metadata.get("doorverwijzer"):
                         _leg_doorverwijzing_vast(metadata, webshop_url, payment_id)
+                    if proefaankoop:
+                        # Geen bericht aan Nino, geen plek in de index en geen
+                        # meting: dit is de nachtelijke proef, geen klant.
+                        return
                     _meld_nieuwe_klant(
                         ("TEST, geen echt geld: " if status.get("mode") == "test" else "")
                         + ("Gratis proef Watch (14 dagen, daarna 49 euro per maand)" if metadata.get("proef") else "Abonnement"),
@@ -5110,9 +5128,17 @@ def _persoonlijke_opvolging(lead):
     if not beeld or not beeld.get("positie"):
         return None, None, False
     afmeld, pagina = _afmeldlink(url)
-    concept = va.maak_concept({"webshop_url": url}, beeld, va._vraag_voor(url, beeld), link_url=pagina,
+    vraag = va._vraag_voor(url, beeld)
+    ontbreekt = None
+    if vraag and vraag.get("concurrenten"):
+        try:
+            import vraagaanpak
+            ontbreekt = vraagaanpak.wat_ontbreekt(url, vraag["vraag"])
+        except Exception as e:
+            print(f"Wat ontbreekt nakijken mislukt voor {url}: {e}")
+    concept = va.maak_concept({"webshop_url": url}, beeld, vraag, link_url=pagina,
                               nummer=1, categorienaam=categorieen.naam_en(beeld["categorie"]),
-                              versie=va.kies_versie(url), aanleiding="check")
+                              versie=va.kies_versie(url), aanleiding="check", ontbreekt=ontbreekt)
     if not concept:
         return None, None, False
     gelukt = emailing.send_opvolging(lead["email"], concept["onderwerp"], concept["alineas"],
@@ -5668,6 +5694,13 @@ def _wachtklok_tik(nu=None):
                 klantblik.draai(app)
             except Exception as e:
                 print(f"Klantblik mislukt: {e}")
+            # 1 oktober: daarna de proefaankoop (een nepklant koopt Watch, door de
+            # echte code). Na de klantblik, op dezelfde draad: nooit tegelijk.
+            try:
+                import proefaankoop
+                proefaankoop.ronde(app, get_base_url().rstrip("/"))
+            except Exception as e:
+                print(f"Proefaankoop mislukt: {e}")
         threading.Thread(target=_klantblik, daemon=True).start()
         gedaan.append("klantblik")
     # 1 oktober: de groeiagent kijkt elke vier uur overdag waar de klantenstroom
@@ -7760,6 +7793,8 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                                           for m in v["per_model"]]
                         v["slot"] = True
             gegevens["balken"] = dp.balken_per_assistent(gegevens["vragen"]["per_assistent"])
+            # 1 oktober: de vragen met de minste concurrentie, om eerst over te schrijven.
+            gegevens["open_plekken"] = [] if proef else dp.open_plekken(gegevens["vragen"])
         if pagina == "verbeteringen":
             # 1 oktober: per verloren vraag wat je concreet doet (vraagaanpak.py).
             try:
@@ -8098,10 +8133,12 @@ def _plan_uitleg(webshop_url, werkblok, taal="en"):
         naam = "Watch"
         punten = (["Your rank in the index every month, in your category and country",
                    "Every buying question you lose, with the store named instead",
+                   "Every week your five key questions checked again",
                    "Every fix written out, ready to copy into your store yourself",
                    "Cancel any time, from this page"] if en else
                   ["Elke maand je plek in de index, in je categorie en land",
                    "Elke koopvraag die je verliest, met de winkel die wel genoemd werd",
+                   "Elke week je vijf belangrijkste vragen opnieuw gemeten",
                    "Elke verbetering uitgeschreven, klaar om zelf over te nemen",
                    "Elke maand opzegbaar, vanaf deze pagina"])
     elif pakket:
@@ -8428,6 +8465,29 @@ def klant_rapport_pdf(klant_token):
                                bericht="Your category has not been measured yet. The report is here after the "
                                        "first measurement."), 404
     return _rapport_pdf_antwoord(url, beeld)
+
+
+@app.route("/mijn/<klant_token>/checks.pdf")
+def klant_checks_pdf(klant_token):
+    """1 oktober: de dertien controles op volgorde van wat eerst moet, als PDF om
+    door te geven aan een webdesigner of SEO-partij."""
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return render_template("fout.html", titel="This link no longer works",
+                               bericht="Ask for a new one on /get-my-link and we will email it again."), 404
+    url = klant["webshop_url"]
+    rapporten = db.get_rapporten_voor_webshop(url) or []
+    laatste = rapporten[0] if rapporten else None
+    if not laatste or not laatste.get("checks"):
+        return render_template("fout.html", titel="No checks yet",
+                               bericht="The first technical check runs within a week of your start."), 404
+    import klantrapport
+    datum = laatste.get("aangemaakt_op").strftime("%d %b %Y") if hasattr(laatste.get("aangemaakt_op"), "strftime") else ""
+    data = klantrapport.scan_pdf(url, laatste["checks"], datum)
+    naam = _winkel_slug(url).replace(".", "-")
+    return Response(data, mimetype="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="krillo-checks-{naam}.pdf"',
+                             "Cache-Control": "private, max-age=3600"})
 
 
 @app.route("/mijn/<klant_token>")

@@ -58,10 +58,26 @@ def _genoemde(rij):
     return g
 
 
+def zonder_opmaak(tekst):
+    """De opmaak van een AI-antwoord eruit, de woorden blijven (1 oktober).
+
+    De klantblik vond op /demo/questions "- **Kunstveiling.nl** — groot
+    Nederlands": sterretjes, een opsommingsteken en een lang streepje, zo op het
+    scherm. Nu: geen sterretjes of codetekens, opsommingstekens aan het begin
+    van een regel weg, en een gedachtestreepje wordt een komma."""
+    t = tekst or ""
+    t = re.sub(r"\*\*|__|`", "", t)
+    t = re.sub(r"(?<!\w)\*(?=\S)|(?<=\S)\*(?!\w)", "", t)
+    t = re.sub(r"(?m)^\s*(#+|[-*\u2022]|\d+[.)])\s+", "", t)
+    t = re.sub(r"\s*[\u2013\u2014]\s*", ", ", t)
+    return t
+
+
 def _fragment(tekst, webshop_url, winkelnaam=None, lengte=260):
     """De zin uit het antwoord waarin de winkel staat, anders het begin.
 
     Dit is het bewijs: de klant ziet wat de assistent echt zei."""
+    tekst = zonder_opmaak(tekst)
     tekst = re.sub(r"\s+", " ", (tekst or "")).strip()
     if not tekst:
         return ""
@@ -124,6 +140,32 @@ def vragen_overzicht(ronde, webshop_url, winkelnaam=None, antwoorden=None):
     return {"vragen": vragen, "gewonnen": gewonnen, "verloren": len(vragen) - gewonnen,
             "totaal": len(vragen), "labels": vraaglabels.telling(vragen), "per_assistent": sorted(per_assistent.values(),
                                                            key=lambda a: a["naam"])}
+
+
+def open_plekken(vragen_overzicht, maximaal=5, hooguit=2):
+    """Koopvragen die je verliest maar waar AI weinig winkels noemt (1 oktober).
+
+    Drie voorstellen van de agents (een "zoekvragenonderzoeker", "veelgestelde
+    koopvragen per categorie") kwamen op hetzelfde neer: laat zien over welke
+    vragen een winkel moet schrijven. Wat wij echt weten: de koopvragen van de
+    categorie (gemaakt zoals kopers ze stellen) en hoeveel winkels AI per vraag
+    noemt. Een vraag waar AI geen of maar een of twee winkels noemt is het
+    makkelijkst te winnen: daar is nog weinig concurrentie.
+    Wat wij NIET hebben en dus niet tonen: hoe vaak een vraag gesteld wordt
+    (zoekvolumes). Daar is voor AI-assistenten geen betrouwbare bron voor."""
+    uit = []
+    for v in (vragen_overzicht or {}).get("vragen", []):
+        if v.get("gewonnen"):
+            continue
+        namen = []
+        for m in v.get("per_model") or []:
+            for n in m.get("anderen") or []:
+                if n not in namen:
+                    namen.append(n)
+        if len(namen) <= hooguit:
+            uit.append({"vraag": v["vraag"], "aantal": len(namen), "namen": namen})
+    uit.sort(key=lambda x: x["aantal"])
+    return uit[:maximaal]
 
 
 def buren_verloop(beeld, maximaal=3):

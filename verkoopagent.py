@@ -5,10 +5,10 @@ openden 24 hun pagina en ging er 1 naar de prijzen. Die 24 zijn de warmste
 mensen die er zijn, en ze hoorden daarna niets meer. Deze agent volgt ze op.
 
 WAT HIJ DOET
-1. Zoekt winkels die hun pagina bekeken (bekeken_op), nog geen klant zijn,
-   niet afgemeld en geen bounce hebben, en nog geen twee opvolgingen kregen.
-   Eerste opvolging vanaf 2 uur na het bekijken (niet terwijl hij kijkt), de
-   tweede 4 dagen na de eerste, en alleen als hij niet doorklikte naar de prijzen.
+1. Zoekt winkels die doorklikten naar de prijzen (doorgeklikt_op, sinds 1
+   oktober; daarvoor: wie de pagina bekeek), nog geen klant zijn, niet
+   afgemeld en geen bounce hebben, en nog geen twee opvolgingen kregen.
+   Eerste opvolging vanaf 2 uur na de klik, de tweede 4 dagen na de eerste.
 2. Schrijft een KORT, persoonlijk briefje: de ene vraag die hij verliest en
    die bij zijn winkel past (dezelfde keuze als de koude mail, vraagkeuze.py),
    wie daar wel genoemd werd, zijn plek, en wat eraan te doen is. Met een link
@@ -64,13 +64,11 @@ def warme_winkels(limiet=50, nu=None):
         SELECT b.webshop_url, b.naam, b.email, b.bekeken_op, b.doorgeklikt_op,
                b.opvolg_aantal, b.opvolg_op, b.opvolg_stand
           FROM benadering b
-         WHERE b.bekeken_op IS NOT NULL
-           -- 29 september: alleen wie er als MENS was (scrollen, tikken, muis).
-           -- Mailbeveiliging opent elke link om hem te controleren, en die kreeg
-           -- anders een opvolgmail. Openingen van voor de menstelling
-           -- aanstond tellen zoals vroeger, anders valt iedereen van toen weg.
-           AND (b.mens_op IS NOT NULL
-                OR b.bekeken_op < coalesce((SELECT min(gezien_op) FROM bezoek_mensen), now()))
+         -- 1 oktober (voorstel van de leeragent, akkoord Nino): alleen wie
+         -- DOORKLIKTE naar de prijzen. Van 64 geregistreerde openingen waren er 2
+         -- van een echt mens; de rest was mailbeveiliging. Een klik naar de
+         -- prijzen doet een scanner niet, een mens met interesse wel.
+         WHERE b.doorgeklikt_op IS NOT NULL
            AND b.email IS NOT NULL
            AND NOT b.afgemeld
            AND b.bounce_op IS NULL
@@ -80,10 +78,12 @@ def warme_winkels(limiet=50, nu=None):
            AND (b.opvolg_stand IS NULL OR b.opvolg_stand NOT IN ('concept'))
            AND NOT EXISTS (SELECT 1 FROM klanten k WHERE k.webshop_url = b.webshop_url)
            AND (
-                (b.opvolg_aantal = 0 AND b.bekeken_op < %s)
-             OR (b.opvolg_aantal = 1 AND b.opvolg_op < %s AND b.doorgeklikt_op IS NULL)
+                (b.opvolg_aantal = 0 AND b.doorgeklikt_op < %s)
+             -- De tweede: vier dagen na de eerste, als hij nog geen klant is
+             -- (dat staat hierboven al: NOT EXISTS klanten).
+             OR (b.opvolg_aantal = 1 AND b.opvolg_op < %s)
            )
-      ORDER BY b.bekeken_op DESC
+      ORDER BY b.doorgeklikt_op DESC
          LIMIT %s""",
         (MAX_OPVOLGINGEN, nu - timedelta(hours=EERSTE_NA_UUR),
          nu - timedelta(days=TWEEDE_NA_DAGEN), limiet), alles=True) or []
@@ -222,7 +222,7 @@ def kies_winnaar():
 
 
 def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam=None, versie="a",
-                 aanleiding="pagina"):
+                 aanleiding="pagina", ontbreekt=None):
     """Het briefje, als onderwerp plus alinea's. Geeft None als er niets eerlijks
     te zeggen valt (geen plek in de index)."""
     if not beeld or not beeld.get("positie"):
@@ -255,6 +255,9 @@ def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam
     if vraag and vraag.get("concurrenten"):
         wie = " and ".join(vraag["concurrenten"][:2])
         alineas.append(f"When shoppers ask AI <strong>\"{vraag['vraag']}\"</strong>, it names {wie}, not you.")
+        # 1 oktober: wat er op zijn winkel ontbreekt voor die vraag (vraagaanpak.wat_ontbreekt).
+        if ontbreekt:
+            alineas.append(ontbreekt)
     alineas.append(f"You are #{positie} of {van} in {cat}."
                    + (f" The stores just above you are {' and '.join(boven)}." if boven and positie > 1 else ""))
     if positie == 1:

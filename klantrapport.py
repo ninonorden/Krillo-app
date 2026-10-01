@@ -111,3 +111,75 @@ def pdf(beeld, categorienaam, landnaam, imago=None, maand=""):
     uit = io.BytesIO()
     im.save(uit, "PDF", resolution=150)
     return uit.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# 1 oktober (voorstel van de leeragent, akkoord Nino): de dertien controles van
+# de wekelijkse scan als een pagina om door te geven aan een webdesigner of
+# SEO-partij, op volgorde van wat het eerst moet. Engels, zoals de rest.
+# ---------------------------------------------------------------------------
+_IMPACT = {"hoog": 0, "middel": 1, "laag": 2}
+_STAND = {"probleem": 0, "deels": 1, "ok": 2, "goed": 2, "onbekend": 3}
+
+
+def prioriteit(check):
+    """(volgorde, label). Eerst wat kapot is en veel uitmaakt."""
+    stand, impact = check.get("status"), _IMPACT.get(check.get("impact"), 1)
+    if stand == "probleem":
+        return (0 + impact, "DO FIRST" if impact == 0 else "DO NEXT")
+    if stand == "deels":
+        return (3 + impact, "DO NEXT" if impact == 0 else "WHEN YOU CAN")
+    if stand == "onbekend":
+        return (9, "NOT MEASURED")
+    return (6 + impact, "FINE")
+
+
+def scan_pdf(webshop_url, checks, datum=""):
+    """De controles als PDF van een pagina. checks: de lijst uit de laatste scan."""
+    from PIL import Image, ImageDraw
+    import checktaal
+    import linkedinagent as la
+    im = Image.new("RGB", (W, H), la.WIT)
+    d = ImageDraw.Draw(im)
+    f = la._font
+    mono = lambda n: f("IBMPlexMono-Medium.ttf", n)  # noqa: E731
+    bold = lambda n: f("SpaceGrotesk-Bold.ttf", n)  # noqa: E731
+    med = lambda n: f("SpaceGrotesk-Medium.ttf", n)  # noqa: E731
+    L, R = 90, W - 90
+    d.rectangle((0, 0, W, 10), fill=la.BLAUW)
+    d.text((L, 90), "KRILLO", font=bold(34), fill=la.INKT, anchor="ls")
+    d.text((R, 90), f"TECHNICAL CHECKS{(' · ' + datum.upper()) if datum else ''}", font=mono(18),
+           fill=la.GRIJS, anchor="rs")
+    y = 180
+    d.text((L, y), _winkel(webshop_url), font=bold(52), fill=la.INKT, anchor="ls")
+    y += 44
+    d.text((L, y), "What AI needs to read your store, in the order to fix it. For your web designer.",
+           font=med(22), fill=la.GRIJS, anchor="ls")
+    vertaald = checktaal.naar_het_engels({"checks": list(checks or [])})["checks"]
+    rijen = sorted(vertaald, key=lambda c: prioriteit(c)[0])
+    y += 40
+    for c in rijen:
+        if y > H - 190:
+            break
+        label = prioriteit(c)[1]
+        kleur = la.BLAUW if label in ("DO FIRST", "DO NEXT") else la.GRIJS
+        y += 46
+        d.text((L, y), label, font=mono(16), fill=kleur, anchor="ls")
+        regels = la._regels_passend(d, c.get("titel") or "", bold(23), R - L - 200)[:2]
+        for i, regel in enumerate(regels):
+            d.text((L + 200, y + i * 30), regel, font=bold(23), fill=la.INKT, anchor="ls")
+        y += 30 * len(regels)
+        if label != "FINE":
+            for regel in la._regels_passend(d, c.get("uitleg") or "", med(19), R - L - 200)[:3]:
+                d.text((L + 200, y), regel, font=med(19), fill=la.GRIJS, anchor="ls")
+                y += 25
+    d.line((L, H - 150, R, H - 150), fill=la.LIJN, width=2)
+    uitleg = ("Checked by Krillo every week on your homepage and a few product pages. The fixes are written out "
+              "on your dashboard, ready to copy. krilloai.com")
+    yy = H - 110
+    for regel in la._regels_passend(d, uitleg, med(19), R - L)[:3]:
+        d.text((L, yy), regel, font=med(19), fill=la.GRIJS, anchor="ls")
+        yy += 26
+    uit = io.BytesIO()
+    im.save(uit, "PDF", resolution=150)
+    return uit.getvalue()

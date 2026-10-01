@@ -27,6 +27,20 @@ def _get_api_key():
     return os.environ.get("BREVO_API_KEY")
 
 
+import threading as _threading
+
+# De proefaankoop van de nacht (proefaankoop.py, 1 oktober). Die laat de echte
+# betaalafhandeling lopen, maar de mails mogen nergens heen: ze worden op DEZE
+# draad opgevangen om na te lezen. Alleen op die draad: een mail die tegelijk
+# op een andere draad uitgaat (een bericht na een nachtmeting) gaat gewoon weg.
+_opvang = _threading.local()
+
+
+def vang_op(lijst):
+    """Vanaf nu op deze draad geen mail versturen maar in lijst zetten; None stopt het."""
+    _opvang.lijst = lijst
+
+
 def send_email(to_email, subject, html_body, koppen=None):
     """Verstuurt een e-mail via de Brevo API. Geeft True/False terug, faalt
     nooit hard (een mislukte e-mail mag de rest van de afhandeling niet
@@ -34,6 +48,10 @@ def send_email(to_email, subject, html_body, koppen=None):
 
     Met 'koppen' kan je extra mailkoppen meegeven, bijvoorbeeld de afmeldkop
     waar Gmail en Outlook hun eigen knop 'Afmelden' van maken."""
+    lijst = getattr(_opvang, "lijst", None)
+    if lijst is not None:
+        lijst.append({"aan": to_email, "onderwerp": subject, "html": html_body})
+        return True
     api_key = _get_api_key()
     if not api_key:
         print("E-mail niet verstuurd: BREVO_API_KEY ontbreekt nog.")
