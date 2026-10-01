@@ -66,6 +66,16 @@
   .v2 .kaartkop .rechts{margin-left:auto; font-size:12px; font-weight:400; color:var(--grijs1); text-decoration:none;}
   .v2 .kaartkop .rechts:hover{color:var(--blauw);}
   .v2 .binnen{padding:12px 16px;}
+  /* 1 oktober (Nino: "spacing bij plan niet goed"): tekst die rechtstreeks in een
+     kaart staat raakte de rand. Alles behalve de kop en tabellen krijgt nu ruimte. */
+  /* Padding voor alinea's: veel staan met een inline margin, en die wint van een marge hier. */
+  .v2 .kaartblok > p{padding-left:16px; padding-right:16px;}
+  .v2 .kaartblok > ul, .v2 .kaartblok > .plannaam, .v2 .kaartblok > .drie,
+  .v2 .kaartblok > a.knop-rand, .v2 .kaartblok > a.knop-vol, .v2 .kaartblok > button{margin-left:16px; margin-right:16px;}
+  .v2 .kaartblok > .kaartkop + p{padding-top:14px;}
+  .v2 .kaartblok > .plannaam, .v2 .kaartblok > .drie{margin-top:14px;}
+  .v2 .kaartblok > :last-child:not(.kaartkop):not(table):not(.tabel){margin-bottom:16px;}
+  .v2 .kaartblok > a.knop-rand, .v2 .kaartblok > a.knop-vol, .v2 .kaartblok > button{display:inline-block;}
 
   /* De cijferstrook: vier vakken in een kader, zoals bij Stripe en Peec. */
   .v2 .kpis{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); border:1px solid var(--lijnv);

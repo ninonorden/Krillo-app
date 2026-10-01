@@ -66,6 +66,13 @@
       <input type="email" name="email" placeholder="jouw eigen mailadres">
       <button type="submit" name="actie" value="proef">Proefmail sturen</button>
     </form>
+    {% if d_kandidaten %}
+    <div style="font-size:13px; margin-top:10px;">Winkels waar <strong>versie d</strong> past (vaak genoemd,
+      zelden aangeraden). Typ er een hierboven in om ook [TEST d] te krijgen:
+      {% for d in d_kandidaten %}<br><code>{{ d.webshop_url | replace('https://','') | replace('www.','') }}</code>
+        &middot; {{ d.categorie }} &middot; genoemd {{ d.genoemd }} van {{ d.telbaar }}, aangeraden {{ d.aanbevolen }}{% endfor %}
+    </div>
+    {% endif %}
   </div>
   {% if alleen_proef %}<p><a href="/admin/onderzoeksmail">Terug naar de hele lijst</a></p>{% endif %}
 

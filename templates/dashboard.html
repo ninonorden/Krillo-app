@@ -90,6 +90,7 @@
         <span class="chip">{{ landnaam }}</span>
         {# Stap 184 (1 oktober): het maandrapport om door te sturen, alleen voor de klant zelf. #}
         {% if request.path.startswith('/mijn/') %}<a class="chip" href="{{ (link_van.overzicht or '').split('?') | first }}/report.pdf" target="_blank">{{ 'Rapport (PDF)' if taal == 'nl' else 'Report (PDF)' }}</a>{% endif %}
+        {% if request.path.startswith('/admin/voorbeeld') and beeld %}<a class="chip" href="/admin/rapport.pdf?url={{ beeld.webshop_url | urlencode }}" target="_blank">Maandrapport (PDF)</a>{% endif %}
         {% endif %}
         {% if proef %}
         <a class="kopknop" href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Start gratis proef' if taal == 'nl' else 'Start free trial' }}</a>
@@ -142,6 +143,15 @@
       <div class="kaartkop">{{ 'JOUW POSITIE' if taal == 'nl' else 'YOUR POSITION' }}</div>
       <p style="margin:0; font-size:15px;">
         {% if buiten_markt %}{{ (werkblok.wt.buiten_markt | replace('{landen}', index_landen_nl if taal == 'nl' else index_landen_en)) if werkblok else '' }}
+        {% elif geen_plek and geen_plek.soort == 'niet_in_meting' %}
+          {% if taal == 'nl' %}Je categorie ({{ geen_plek.categorie }}) is gemeten{% if geen_plek.gemeten %} op {{ geen_plek.gemeten }}{% endif %}, maar je winkel zat toen nog niet in de meting. Bij de volgende meting{% if geen_plek.volgende %} (rond {{ geen_plek.volgende }}){% endif %} doe je mee, en dan staat je plek hier.
+          {% else %}Your category ({{ geen_plek.categorie }}) was measured{% if geen_plek.gemeten %} on {{ geen_plek.gemeten }}{% endif %}, but your store was not in that measurement yet. You are in the next one{% if geen_plek.volgende %} (around {{ geen_plek.volgende }}){% endif %}, and your position appears here.{% endif %}
+        {% elif geen_plek and geen_plek.soort == 'niet_gemeten' %}
+          {% if taal == 'nl' %}Je categorie ({{ geen_plek.categorie }}) is nog niet gemeten: we meten vanaf {{ geen_plek.nodig }} winkels en hebben er nu {{ geen_plek.aantal }}. We zoeken er elke nacht bij; daarna verschijnt je plek hier en krijg je bericht.
+          {% else %}Your category ({{ geen_plek.categorie }}) has not been measured yet: we measure from {{ geen_plek.nodig }} stores and have {{ geen_plek.aantal }} now. We add stores every night; then your position appears here and we let you know.{% endif %}
+        {% elif geen_plek and geen_plek.soort == 'geen_categorie' %}
+          {% if taal == 'nl' %}We hebben je winkel nog niet in een categorie geplaatst. Dat gebeurt binnen een nacht; daarna zie je hier wanneer je categorie gemeten wordt.
+          {% else %}We have not placed your store in a category yet. That happens within a night; then you see here when your category is measured.{% endif %}
         {% elif taal == 'nl' %}Je categorie is nog niet gemeten. Zodra hij aan de beurt is
         verschijnt je positie hier, en krijg je bericht.
         {% else %}Your category has not been measured yet. As soon as it comes up, your
@@ -301,7 +311,7 @@
       "antwoordde": ('ANTWOORDDE' if nl else 'ANSWERED'),
       "aangeraden": ('AANGERADEN' if nl else 'RECOMMENDED'), "genoemd": ('GENOEMD' if nl else 'NAMED'),
       "gewonnen": ('Je wordt hier genoemd. Houd de pagina die AI citeert actueel, en kijk of je ook als eerste aangeraden kan worden.' if nl else 'You are named here. Keep the page AI quotes up to date, and aim to be the store it advises first.'),
-      "verloren": ('Nu genoemd: {w}. Wat zij wel hebben en jij niet, staat bij je verbeteringen. Zet deze vraag op je lijst, dan staat hij bovenaan je verbeteringen.' if nl else 'Named now: {w}. What they have and you do not is in your fixes. Add this question to your list and it stays on top of your fixes.'),
+      "verloren": ('Nu genoemd: {w}. Bij Verbeteringen staat stap voor stap hoe je deze vraag wint. Zet hem op je lijst, dan staat hij daar bovenaan.' if nl else 'Named now: {w}. Your Fixes page shows step by step how to win this question. Add it to your list and it stays on top there.'),
       "leeg": ('Nog geen enkele winkel genoemd: de plek is vrij. Een duidelijke pagina over dit onderwerp maakt de kans groot dat jij de eerste bent.' if nl else 'No store is named yet: the spot is open. A clear page on this topic gives you a good chance to be the first.'),
       "toevoegen": ('Zet op mijn lijst' if nl else 'Add to my fixes'),
       "toegevoegd": ('Op je lijst &#10003;' if nl else 'Added to your fixes &#10003;'),
@@ -532,6 +542,23 @@
       </div>
     </div>
     {% endif %}
+    {# Stap 178 (1 oktober): waar AI kopers naartoe stuurt, uit de antwoorden zelf. #}
+    {% if bronnen %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'WAAR AI KOPERS NAARTOE STUURT' if taal == 'nl' else 'WHERE AI SENDS SHOPPERS' }}</div>
+      <div style="padding:4px 16px 16px;">
+      <p class="klein" style="margin:0 0 10px;">{{ 'Sites die ChatGPT en Gemini noemen in hun antwoorden in jouw categorie, en in hoeveel antwoorden. Daar moet je staan.' if taal == 'nl'
+         else 'Sites ChatGPT and Gemini mention in their answers in your category, and in how many answers. These are the places to be.' }}</p>
+      <table class="lijst" style="width:100%">
+      {% for b in bronnen %}
+      <tr><td><strong>{{ b.naam }}</strong><br><span class="klein">{{ b.soort_en }}</span></td>
+        <td class="r" style="white-space:nowrap">{{ b.aantal }} of {{ b.van }}</td>
+        <td class="klein">{{ b.advies }}</td></tr>
+      {% endfor %}
+      </table>
+      </div>
+    </div>
+    {% endif %}
     {% if imago and (imago.kenmerken or imago.citaten) %}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'WAT AI OVER JE ZEGT' if taal == 'nl' else 'WHAT AI SAYS ABOUT YOU' }}</div>
@@ -653,6 +680,22 @@
     {# 30 september: Verbeteringen en Abonnement waren in het voorbeeld precies
        gelijk. Nu: Verbeteringen laat zien wat we zouden doen, Abonnement de
        pakketten. #}
+    {# 1 oktober: per verloren vraag wat je concreet doet (vraagaanpak.py). #}
+    {% if pagina == 'verbeteringen' and aanpak %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'VRAGEN OM EERST TE WINNEN' if taal == 'nl' else 'QUESTIONS TO WIN FIRST' }}
+        <span class="uitleg">{{ 'uit je laatste meting, je eigen lijst eerst' if taal == 'nl' else 'from your last measurement, your own list first' }}</span></div>
+      {% for a in aanpak %}
+      <div class="binnen" style="{{ 'border-top:1px solid var(--lijnz);' if not loop.first }}">
+        <div style="font-weight:600; font-size:15.5px;">&ldquo;{{ a.vraag[:1] | upper }}{{ a.vraag[1:] }}&rdquo;</div>
+        {% if a.anderen %}<div class="klein" style="margin:2px 0 8px;">{{ 'AI noemt nu' if taal == 'nl' else 'AI names now' }}: {{ a.anderen | join(', ') }}</div>{% endif %}
+        <ol style="margin:6px 0 0; padding-left:20px; font-size:14.5px; line-height:1.55;">
+          {% for st in a.stappen %}<li style="margin-bottom:4px;">{{ st }}</li>{% endfor %}
+        </ol>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% if pagina == 'verbeteringen' %}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'WAT WE VOOR JE ZOUDEN DOEN' if taal == 'nl' else 'WHAT WE WOULD DO FOR YOU' }}</div>
@@ -700,6 +743,22 @@
 
     {# Verbeteringen: drie tegels bovenaan, ANDERS per pakket (28 september).
        Watch: wat klaarstaat om zelf te doen. Fix: wat wij deden en wat nog komt. #}
+    {# 1 oktober: per verloren vraag wat je concreet doet (vraagaanpak.py). #}
+    {% if pagina == 'verbeteringen' and aanpak %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'VRAGEN OM EERST TE WINNEN' if taal == 'nl' else 'QUESTIONS TO WIN FIRST' }}
+        <span class="uitleg">{{ 'uit je laatste meting, je eigen lijst eerst' if taal == 'nl' else 'from your last measurement, your own list first' }}</span></div>
+      {% for a in aanpak %}
+      <div class="binnen" style="{{ 'border-top:1px solid var(--lijnz);' if not loop.first }}">
+        <div style="font-weight:600; font-size:15.5px;">&ldquo;{{ a.vraag[:1] | upper }}{{ a.vraag[1:] }}&rdquo;</div>
+        {% if a.anderen %}<div class="klein" style="margin:2px 0 8px;">{{ 'AI noemt nu' if taal == 'nl' else 'AI names now' }}: {{ a.anderen | join(', ') }}</div>{% endif %}
+        <ol style="margin:6px 0 0; padding-left:20px; font-size:14.5px; line-height:1.55;">
+          {% for st in a.stappen %}<li style="margin-bottom:4px;">{{ st }}</li>{% endfor %}
+        </ol>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% if pagina == 'verbeteringen' and gekozen %}
     {# De vragen die de klant zelf op zijn lijst zette (30 september). #}
     <div class="kaartblok">

@@ -153,6 +153,21 @@
   <div class="leeg">{{ t.niemand_genoemd }}</div>
   {% endif %}
 
+  {% if bronnen %}
+  {# Stap 178 (1 oktober): waar AI kopers naartoe stuurt in deze categorie. #}
+  <h2 style="margin-top:44px;">Where AI sends shoppers</h2>
+  <p style="margin-bottom:12px;">Review sites, comparison sites, marketplaces and communities that ChatGPT and Gemini
+     mention in their answers in this category. Stores that are present and well reviewed there are easier for AI to recommend.</p>
+  <style>.bron td{padding:8px 6px; border-top:1px solid #EEE; vertical-align:top;} .bron .klein{font-size:13px; color:#6E7079;}</style>
+  <div class="blok"><table class="bron" style="width:100%; border-collapse:collapse">
+      {% for b in bronnen %}
+      <tr><td><strong>{{ b.naam }}</strong><br><span class="klein">{{ b.soort_en }}</span></td>
+        <td style="text-align:right; white-space:nowrap">{{ b.aantal }} of {{ b.van }}</td>
+        <td class="klein">{{ b.advies }}</td></tr>
+      {% endfor %}
+  </table></div>
+  {% endif %}
+
   {% if vragen %}
   <h2 style="margin-top:44px;">{{ t.vragen_kop }}</h2>
   <p style="margin-bottom:16px;">{{ t.vragen_uitleg }}</p>
