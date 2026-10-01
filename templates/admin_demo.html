@@ -77,7 +77,6 @@
   </p>
 
   <form class="starter" method="post" action="/admin/demo">
-    <input type="hidden" name="key" value="{{ sleutel }}">
     <input type="hidden" name="start" value="ja">
     <textarea name="url" rows="3" required
       placeholder="dille-kamille.nl&#10;flinders.nl&#10;bax-shop.nl&#10;&#10;Eén per regel, of gescheiden door een komma."></textarea>
@@ -130,11 +129,11 @@
         {% endif %}
       </td>
       <td>
-        <a href="/admin/voorbeeld?key={{ sleutel }}&url={{ w.webshop_url }}">klantweergave</a>
+        <a href="/admin/voorbeeld?url={{ w.webshop_url }}">klantweergave</a>
         &nbsp;·&nbsp;
-        <a href="/admin/beoordelingen?key={{ sleutel }}&url={{ w.webshop_url }}">details</a>
+        <a href="/admin/beoordelingen?url={{ w.webshop_url }}">details</a>
         &nbsp;·&nbsp;
-        <a href="/admin/demo?key={{ sleutel }}&url={{ w.webshop_url }}&start=ja&opnieuw=ja">opnieuw</a>
+        <a href="/admin/demo?url={{ w.webshop_url }}&start=ja&opnieuw=ja">opnieuw</a>
       </td>
     </tr>
     {% endfor %}
@@ -142,10 +141,10 @@
   {% endif %}
 
   <div class="acties">
-    <a class="knop" href="/admin/benchmark?key={{ sleutel }}">Naar de benchmark</a>
-    <a class="knop" href="/admin/kosten?key={{ sleutel }}">Naar de kosten</a>
-    <a class="knop" href="/admin/bezoekers?key={{ sleutel }}">Naar de bezoekers</a>
-    <a class="knop" href="/admin/modellen?key={{ sleutel }}">Naar de modellen</a>
+    <a class="knop" href="/admin/benchmark">Naar de benchmark</a>
+    <a class="knop" href="/admin/kosten">Naar de kosten</a>
+    <a class="knop" href="/admin/bezoekers">Naar de bezoekers</a>
+    <a class="knop" href="/admin/modellen">Naar de modellen</a>
   </div>
 
   <div class="voetnoot">

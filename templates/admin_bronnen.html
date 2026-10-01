@@ -156,7 +156,7 @@
       Beoordeel eerst, dat duurt ongeveer een halve minuut per tien antwoorden.
       {% endif %}
       <div style="margin-top:10px;">
-        <a class="knop vol" href="/admin/beoordelingen?key={{ sleutel }}&url={{ webshop_url }}&start=ja">Nu beoordelen</a>
+        <a class="knop vol" href="/admin/beoordelingen?url={{ webshop_url }}&start=ja">Nu beoordelen</a>
       </div>
     </div>
     {% endif %}
@@ -235,11 +235,11 @@
 
   <div class="acties">
     {% if webshop_url %}
-    <a class="knop vol" href="/admin/bronnen?key={{ sleutel }}&url={{ webshop_url }}&start=ja">Opnieuw zoeken</a>
-    <a class="knop" href="/admin/bronnen?key={{ sleutel }}&url={{ webshop_url }}&proef=ja">Zoekmachine testen</a>
-    <a class="knop" href="/admin/beoordelingen?key={{ sleutel }}&url={{ webshop_url }}">Beoordelingen</a>
+    <a class="knop vol" href="/admin/bronnen?url={{ webshop_url }}&start=ja">Opnieuw zoeken</a>
+    <a class="knop" href="/admin/bronnen?url={{ webshop_url }}&proef=ja">Zoekmachine testen</a>
+    <a class="knop" href="/admin/beoordelingen?url={{ webshop_url }}">Beoordelingen</a>
     {% endif %}
-    <a class="knop" href="/admin/kosten?key={{ sleutel }}">Kosten</a>
+    <a class="knop" href="/admin/kosten">Kosten</a>
   </div>
 
   <div class="voetnoot">

@@ -50,10 +50,10 @@
 
   {% if not webshop_url %}
   <div class="leeg">Open deze pagina vanuit
-    <a href="/admin/werkbriefje?key={{ sleutel }}">het werkbriefje</a>.</div>
+    <a href="/admin/werkbriefje">het werkbriefje</a>.</div>
   {% elif not wijzigingen %}
   <div class="leeg">Er is voor deze winkel nog niets vastgelegd. Ga eerst naar
-    <a href="/admin/werkbriefje?key={{ sleutel }}&url={{ webshop_url }}">het werkbriefje</a>.</div>
+    <a href="/admin/werkbriefje?url={{ webshop_url }}">het werkbriefje</a>.</div>
   {% else %}
 
   {% if uitvoering %}
@@ -90,7 +90,7 @@
   {% endfor %}
 
   <div class="voet">
-    <form method="post" action="/admin/oplevering?key={{ sleutel }}&url={{ webshop_url }}">
+    <form method="post" action="/admin/oplevering?url={{ webshop_url }}">
       <button type="submit">Versturen naar de klant</button>
     </form>
     <p style="font-size:13px; color:var(--ink-soft); margin-top:12px;">
@@ -99,7 +99,7 @@
       geldt maar niets gekregen heeft.
     </p>
     <p style="font-size:13px; margin-top:10px;">
-      <a href="/admin/werkbriefje?key={{ sleutel }}&url={{ webshop_url }}">Terug naar het werkbriefje</a>
+      <a href="/admin/werkbriefje?url={{ webshop_url }}">Terug naar het werkbriefje</a>
     </p>
   </div>
 

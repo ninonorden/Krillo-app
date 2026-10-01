@@ -91,7 +91,7 @@
 
   {% if not regels %}
   <div class="leeg">Er zijn nog geen winkels gemeten. Draai eerst de benchmark via
-    <a href="/admin/demo?key={{ sleutel }}">de demopagina</a>.</div>
+    <a href="/admin/demo">de demopagina</a>.</div>
   {% endif %}
 
   {% for r in regels %}
@@ -108,7 +108,7 @@
     {% if r.afgemeld %}
       <div class="afgemeld">Deze winkel heeft zich afgemeld. Hier gaat geen post meer heen.</div>
     {% else %}
-    <form method="post" action="/admin/onderzoeksmail?key={{ sleutel }}">
+    <form method="post" action="/admin/onderzoeksmail">
       <input type="hidden" name="url" value="{{ r.webshop_url }}">
       <input type="email" name="email" placeholder="mailadres van de eigenaar"
              value="{{ r.email or '' }}">

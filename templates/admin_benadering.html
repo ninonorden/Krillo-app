@@ -271,7 +271,7 @@
       Een winkel die er al op staat blijft staan zoals hij staat. Je kunt de lijst dus
       gerust twee keer plakken zonder dat iemand twee keer post krijgt.
     </div>
-    <form method="post" action="/admin/benadering?key={{ sleutel }}">
+    <form method="post" action="/admin/benadering">
       <input type="hidden" name="actie" value="lijst">
       <textarea name="lijst" placeholder="voorbeeldwinkel.nl ; Voorbeeld ; NL ; wonen en interieur"></textarea>
       <button type="submit">Toevoegen aan de lijst</button>
@@ -293,7 +293,7 @@
       meting per winkel kost alleen geld.<br><br>
       Er gaat sowieso alleen post uit tussen 8:00 en 20:00.
     </div>
-    <form method="post" action="/admin/benadering?key={{ sleutel }}">
+    <form method="post" action="/admin/benadering">
       <input type="hidden" name="actie" value="instellingen">
       <label><input type="radio" name="aan" value="ja" {% if instellingen.aan %}checked{% endif %}> Aan</label>
       <label><input type="radio" name="aan" value="nee" {% if not instellingen.aan %}checked{% endif %}> Uit</label>
@@ -317,7 +317,7 @@
       Normaal doet de server dit zelf elk uur. Deze knop is om te kijken of het werkt,
       of om niet te hoeven wachten. Hij houdt zich aan dezelfde rem.
     </div>
-    <form method="post" action="/admin/benadering?key={{ sleutel }}">
+    <form method="post" action="/admin/benadering">
       <input type="hidden" name="actie" value="ronde">
       <button type="submit" class="licht">Draai nu een ronde</button>
     </form>
@@ -332,7 +332,7 @@
       krijgt. Kost ongeveer 75 cent. De uitkomst komt bovenaan in het logboek te
       staan, ook als er iets misgaat.
     </div>
-    <form method="post" action="/admin/benadering?key={{ sleutel }}">
+    <form method="post" action="/admin/benadering">
       <input type="hidden" name="actie" value="nu">
       <input type="text" name="url" placeholder="voorbeeldwinkel.nl" style="min-width:260px;">
       <button type="submit">Meet en mail deze winkel</button>
@@ -356,7 +356,7 @@
           <td class="klein">{{ r.gemaild_op.strftime('%d-%m %H:%M') if r.gemaild_op else '' }}</td>
           <td class="klein">{{ (r.notitie or '')[:90] }}</td>
           <td>
-            <form method="post" action="/admin/benadering?key={{ sleutel }}" style="margin:0;">
+            <form method="post" action="/admin/benadering" style="margin:0;">
               <input type="hidden" name="actie" value="stand">
               <input type="hidden" name="url" value="{{ r.webshop_url }}">
               <select name="stand" onchange="this.form.submit()" style="font-size:12px; padding:3px;">

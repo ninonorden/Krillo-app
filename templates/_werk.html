@@ -217,7 +217,7 @@
     </div>
   {% endif %}
 
-  <a class="werk-details" href="{% if beheer %}/admin/voorbeeld?key={{ beheer.sleutel }}&url={{ webshop_url }}&details=ja{% else %}/monitoring/{{ klant_token }}/details{% endif %}">
+  <a class="werk-details" href="{% if beheer %}/admin/voorbeeld?url={{ webshop_url }}&details=ja{% else %}/monitoring/{{ klant_token }}/details{% endif %}">
     <strong>{{ wt.details_kop }}</strong>
     <span>{{ wt.details_tekst }}</span>
   </a>
@@ -238,8 +238,8 @@
         Taken zonder tekst: <strong>{{ beheer.taakstand.zonder_tekst|length }}</strong>{% if beheer.taakstand.zonder_tekst %} ({{ beheer.taakstand.zonder_tekst|join(', ') }}){% endif %}<br>
         Deze maand uitgegeven aan deze winkel: <strong>{{ '%.2f'|format(beheer.taakstand.uitgegeven) }}</strong> van {{ '%.2f'|format(beheer.taakstand.grens) }} euro
       </p>
-      <p><a href="/admin/oplossingen?key={{ beheer.sleutel }}&url={{ webshop_url }}">Teksten laten schrijven</a>
-         &middot; <a href="/admin/oplossingen?key={{ beheer.sleutel }}&url={{ webshop_url }}&opnieuw=ja">opnieuw, ook de bestaande</a></p>
+      <p><a href="/admin/oplossingen?url={{ webshop_url }}">Teksten laten schrijven</a>
+         &middot; <a href="/admin/oplossingen?url={{ webshop_url }}&opnieuw=ja">opnieuw, ook de bestaande</a></p>
       {% if beheer.taakstand.rem_dicht %}
       <p><strong>De kostenrem voor deze winkel staat dicht.</strong> Zet GRENS_PER_KLANT_MAAND_EURO tijdelijk hoger in Render, of test op een andere winkel.</p>
       {% endif %}

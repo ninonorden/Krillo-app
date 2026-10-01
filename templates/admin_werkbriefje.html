@@ -73,17 +73,16 @@
   {% if melding %}<div class="melding">{{ melding }}</div>{% endif %}
 
   <form class="zoek" method="get" action="/admin/werkbriefje">
-    <input type="hidden" name="key" value="{{ sleutel }}">
     <input type="text" name="url" value="{{ webshop_url }}" placeholder="jouwwebshop.nl">
     <button type="submit">Ophalen</button>
     {% if webshop_url %}
-    <a href="/admin/oplevering?key={{ sleutel }}&url={{ webshop_url }}"><button type="button" class="licht">Naar de oplevering</button></a>
+    <a href="/admin/oplevering?url={{ webshop_url }}"><button type="button" class="licht">Naar de oplevering</button></a>
     {% endif %}
   </form>
 
   {% if not webshop_url %}
   <div class="leeg">Vul een webshop-adres in. Je vindt de openstaande opdrachten op
-    <a href="/admin/uitvoeringen?key={{ sleutel }}">de werklijst</a>.</div>
+    <a href="/admin/uitvoeringen">de werklijst</a>.</div>
   {% else %}
 
   {% if uitvoering %}
@@ -116,7 +115,7 @@
 
   {% if not plan or not plan.acties %}
   <div class="leeg">Voor deze winkel staat er nu geen actieplan klaar. Draai eerst een
-    meting, of kijk op <a href="/admin/metingen?key={{ sleutel }}">de metingen</a>.</div>
+    meting, of kijk op <a href="/admin/metingen">de metingen</a>.</div>
   {% endif %}
 
   {% for a in (plan.acties if plan else []) %}
@@ -148,7 +147,7 @@
 
 {{ a.hoe }}{% endif %}</div>
 
-    <form method="post" action="/admin/werkbriefje?key={{ sleutel }}&url={{ webshop_url }}">
+    <form method="post" action="/admin/werkbriefje?url={{ webshop_url }}">
       <input type="hidden" name="taak_id" value="{{ a.id }}">
       <input type="hidden" name="wat" value="{{ a.titel }}">
       <input type="hidden" name="waar" value="{{ a.waar or '' }}">
@@ -174,7 +173,7 @@
   <div class="voet">
     <strong>{{ wijzigingen|length }} wijziging(en) vastgelegd.</strong>
     Klaar met het werk? Ga dan naar
-    <a href="/admin/oplevering?key={{ sleutel }}&url={{ webshop_url }}">de oplevering</a>
+    <a href="/admin/oplevering?url={{ webshop_url }}">de oplevering</a>
     om het overzicht te lezen en naar de klant te sturen.
   </div>
   {% endif %}

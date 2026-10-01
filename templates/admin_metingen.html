@@ -89,7 +89,7 @@
       <tr>
         <td>{{ w.webshop_url }}</td>
         <td>{{ w.actieve_vragen }}</td>
-        <td><a href="?key={{ sleutel }}&url={{ w.webshop_url }}">bekijken</a></td>
+        <td><a href="?url={{ w.webshop_url }}">bekijken</a></td>
       </tr>
       {% endfor %}
     </table>
@@ -119,7 +119,7 @@
       <td>{{ r.gelukt }}</td>
       <td>{{ r.mislukt }}</td>
       <td>{{ r.modellen }}</td>
-      <td><a href="?key={{ sleutel }}&url={{ webshop_url }}&meting={{ r.meting_id }}">bekijken</a></td>
+      <td><a href="?url={{ webshop_url }}&meting={{ r.meting_id }}">bekijken</a></td>
     </tr>
     {% endfor %}
   </table>
@@ -158,11 +158,11 @@
   {% endif %}
 
   <div class="acties">
-    <a class="knop vol" href="?key={{ sleutel }}&url={{ webshop_url }}&start=ja">Nu meten</a>
-    <a class="knop" href="/admin/koopvragen?key={{ sleutel }}&url={{ webshop_url }}">Naar de koopvragen</a>
-    <a class="knop" href="/admin/kosten?key={{ sleutel }}">Naar de kosten</a>
-    <a class="knop" href="/admin/beoordelingen?key={{ sleutel }}&url={{ webshop_url }}">Antwoorden beoordelen</a>
-    <a class="knop" href="/admin/modellen?key={{ sleutel }}">Controleer de modellen</a>
+    <a class="knop vol" href="?url={{ webshop_url }}&start=ja">Nu meten</a>
+    <a class="knop" href="/admin/koopvragen?url={{ webshop_url }}">Naar de koopvragen</a>
+    <a class="knop" href="/admin/kosten">Naar de kosten</a>
+    <a class="knop" href="/admin/beoordelingen?url={{ webshop_url }}">Antwoorden beoordelen</a>
+    <a class="knop" href="/admin/modellen">Controleer de modellen</a>
   </div>
 
   <div class="voetnoot">
