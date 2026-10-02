@@ -10189,7 +10189,8 @@ def admin_controle():
         afgekeurd = json.loads(db.get_instelling("tekstkeuring_afgekeurd") or "[]")
     except Exception:
         na, afgekeurd = {}, []
-    datum = escape(na.get("datum") or "nog nooit")
+    # str(): een Markup erbij optellen escapet de rest van de pagina (2 okt, zo gezien).
+    datum = str(escape(na.get("datum") or "nog nooit"))
     rijen += ("<h2>Kwaliteit van de index</h2><p>Laatst gedraaid: " + datum + ". "
               + ("<b>Gestart; ververs over een paar minuten.</b>" if index_bezig else "")
               + "</p><form method='post'><input type='hidden' name='actie' value='index'>"
