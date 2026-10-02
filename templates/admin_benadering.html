@@ -140,6 +140,9 @@
       <b>De dagpot voor eigen metingen.</b>
       Vandaag {{ '%.2f'|format(dagpot.besteed) }} euro gebruikt van
       {{ '%.2f'|format(dagpot.grens) }} euro.
+      {# 2 oktober: wat de site ECHT uit Render leest. Nino zette 7 en zag 5. #}
+      <span style="color:#6E7079;">(Render: GRENS_TOTAAL_DAG_EURO = {{ dagpot.totaal_grens }},
+      DEEL_VOOR_BENADERING = {{ dagpot.deel }})</span>
       {% if dagpot.past_nog is not none %}
         Daar passen nu nog <b>{{ dagpot.past_nog }}</b> metingen in.
         {% if dagpot.past_nog == 0 %}
