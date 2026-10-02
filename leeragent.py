@@ -350,7 +350,7 @@ def draai(client=None):
     # Goedkope dag of eigen deel op: een dag overslaan. Het onderwerp blijft
     # aan de beurt, dus morgen gaat hij gewoon verder.
     import kosten
-    rem = kosten.mag_eigen_agent()
+    rem = kosten.mag_eigen_agent("leeragent")
     if not rem["mag"]:
         print(f"Leeragent overgeslagen: {rem['reden']}")
         return {"overgeslagen": True, "reden": rem["reden"]}

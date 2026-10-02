@@ -388,11 +388,35 @@ def _eigen_agents_vandaag():
         return 0.0
 
 
-def mag_eigen_agent():
+# 2 oktober, akkoord Nino: een weekgrens per agent. Zo spreidt een dure agent
+# zijn werk over de week, en loopt de pot op geen enkele dag ineens leeg.
+WEEKGRENS_EURO = {
+    "leeragent": float(os.environ.get("WEEKGRENS_LEERAGENT", "3.00")),
+    "lijstjesagent": float(os.environ.get("WEEKGRENS_LIJSTJESAGENT", "1.00")),
+    "artikel": float(os.environ.get("WEEKGRENS_ARTIKEL", "2.00")),
+}
+
+
+def week_van(agent):
+    """Wat deze eigen agent de laatste 7 dagen uitgaf."""
+    try:
+        return sum(r["kosten"] for r in per_agent(7) if str(r["soort"] or "").startswith(agent))
+    except Exception as e:
+        print(f"Weekkosten {agent} ophalen mislukt: {e}")
+        return 0.0
+
+
+def mag_eigen_agent(agent=None):
     """Of een eigen agent (leeragent, lijstjesagent, artikelagent) vandaag mag.
 
-    Nee op een goedkope dag (pot voor 80 procent op), en nee als de eigen
-    agents hun eigen deel al op hebben."""
+    Nee op een goedkope dag (pot voor 80 procent op), nee als de eigen
+    agents hun eigen deel al op hebben, en nee als deze agent zijn weekgrens
+    (WEEKGRENS_EURO) heeft bereikt."""
+    if agent in WEEKGRENS_EURO:
+        week = week_van(agent)
+        if week >= WEEKGRENS_EURO[agent]:
+            return {"mag": False, "reden": (f"Weekgrens: {naam_van(agent)} gaf de laatste 7 dagen al "
+                                            f"{week:.2f} van {WEEKGRENS_EURO[agent]:.2f} euro uit.")}
     try:
         totaal = _met_onbekend(db.kosten_vandaag())
     except Exception as e:

@@ -156,7 +156,7 @@ def _vraag_model(prompt):
         raise RuntimeError(rem["reden"])
     # De wekelijkse ronde slaat over op een goedkope dag; de knop niet.
     if not _voorrang[0]:
-        eigen = kosten.mag_eigen_agent()
+        eigen = kosten.mag_eigen_agent("artikel")
         if not eigen["mag"]:
             raise RuntimeError(eigen["reden"])
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])

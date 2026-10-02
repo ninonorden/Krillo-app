@@ -137,7 +137,7 @@ def zoek(client=None):
         return {"overgeslagen": True}
     # Goedkope dag: overslaan zonder de zoekdatum te zetten, dus morgen opnieuw.
     import kosten
-    rem = kosten.mag_eigen_agent()
+    rem = kosten.mag_eigen_agent("lijstjesagent")
     if not rem["mag"]:
         return {"overgeslagen": True, "reden": rem["reden"]}
     db.zet_instelling(ZOEKSLEUTEL, datetime.now(timezone.utc).isoformat())

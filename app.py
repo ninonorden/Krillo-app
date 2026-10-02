@@ -9597,6 +9597,8 @@ def admin_kosten():
         per_agent_rijen=sorted(rijen.values(), key=lambda r: (-r["vandaag"], -r["week"])),
         vandaag_totaal=sum(r["kosten"] for r in vandaag_r),
         eigen_rem=kosten.mag_eigen_agent(),
+        weekgrenzen=[{"naam": kosten.naam_van(a) if a != "leeragent" else "Leeragent",
+                      "week": kosten.week_van(a), "grens": g} for a, g in kosten.WEEKGRENS_EURO.items()],
         dagen=dagen,
         hersteld=hersteld,
         # Welk model er precies onbekend is. Zonder die naam weet je niet wat je
