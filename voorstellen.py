@@ -48,6 +48,8 @@ AL_GEDAAN = {
 # Zelfde, maar op het begin van de titel (voorstellen van de leeragent hebben
 # geen vaste sleutel). (begin van de titel, nieuwe stand, wat er gebeurde).
 OP_TITEL = [
+    ("Eigen vragen: Watch vijf", "gebouwd",
+     "2 okt: eigen vragen op de pagina Questions, meteen gemeten en daarna elke week, buiten de index"),
     ("Crawlbaarheidscheck per pagina", "gebouwd",
      "2 okt: per pagina per AI-robot (OAI-SearchBot, GPTBot, PerplexityBot, Googlebot) op Fixes"),
     ("Per-product AI-zichtbaarheidskaart", "gebouwd",
@@ -78,6 +80,7 @@ OP_TITEL = [
 
 GEBOUWD = {
     "uitbreiding:198": "1 oktober 2026: wekelijkse snelmeting (snelmeting.py, dashboard, /admin/snelmeting)",
+    "uitbreiding:180": "2 oktober 2026: eigen vragen (eigenvragen.py, pagina Questions)",
 }
 
 

@@ -11,6 +11,10 @@ Deze lijst wordt ook getest (test_changelog.py): elke link erin moet laden.
 
 # (datum, titel, tekst, link of None). Nieuwste eerst.
 REGELS = [
+    ("2026-10-02", "Your own questions",
+     "Add the questions you care about yourself: five with Watch, fifteen with Fix. We ask them to ChatGPT and "
+     "Gemini every week, only for you. Your rank in the index still comes from the same questions for every store.",
+     None),
     # 2 oktober: vier goedgekeurde voorstellen uit de leeragent.
     ("2026-10-02", "Which AI robots can read each page",
      "Your Fixes page now shows, per page, whether ChatGPT search, Perplexity, Google and OpenAI's training "
@@ -102,6 +106,7 @@ REGELS = [
 # De grootste veranderingen: alleen die gaan in het maandelijkse klantnieuws
 # (klantnieuws.py). Nino, 1 oktober: "alleen de grootste veranderingen".
 GROOT = {
+    "Your own questions",
     "Which AI robots can read each page", "Your products in AI answers", "llms.txt for Shopify and WordPress",
     "Every week: your five key questions checked again",
     "Your rank within the hour after you start",

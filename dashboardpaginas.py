@@ -70,6 +70,19 @@ def zonder_opmaak(tekst):
     t = re.sub(r"(?<!\w)\*(?=\S)|(?<=\S)\*(?!\w)", "", t)
     t = re.sub(r"(?m)^\s*(#+|[-*\u2022]|\d+[.)])\s+", "", t)
     t = re.sub(r"\s*[\u2013\u2014]\s*", ", ", t)
+    # 2 oktober (Nino, Partywinkel.nl): een tabel in het antwoord stond er als
+    # "| Waar | Vaak het goedkoopst voor | |---|---|". Scheidingsregels weg, en
+    # elke rij wordt een gewone zin: cellen met een komma, de rij met een punt.
+    sep = r"[ \t]*\|?[ \t]*:?-{2,}:?[ \t]*(?:\|[ \t]*:?-{2,}:?[ \t]*)*\|?[ \t]*"
+    # De kopregel (vlak boven de scheidingsregel) en de scheidingsregel samen weg.
+    t = re.sub(r"(?m)^[ \t]*\|[^\n]*\|[ \t]*\n" + sep + r"$", "", t)
+    t = re.sub(r"(?m)^" + sep + r"$", "", t)
+
+    def _rij(m):
+        cellen = [c.strip() for c in m.group(0).strip().strip("|").split("|") if c.strip()]
+        return ", ".join(cellen) + "." if cellen else ""
+    t = re.sub(r"(?m)^[ \t]*\|[^\n]*\|[ \t]*$", _rij, t)
+    t = re.sub(r"\s*\|\s*", ", ", t)
     return t
 
 
@@ -174,7 +187,7 @@ def buren_verloop(beeld, maximaal=3):
         return []
     reeksen = [{"naam": beeld.get("naam") or beeld["webshop_url"], "jij": True,
                 "punten": [(r.get("afgerond_op"), r["positie"]) for r in beeld.get("verloop") or []]}]
-    for b in (beeld.get("boven_mij") or [])[-maximaal:]:
+    for b in (beeld.get("achter_mij") if beeld.get("boven_is_achter") else beeld.get("boven_mij") or [])[-maximaal:]:
         try:
             verloop = db.positieverloop(b["webshop_url"], beeld["categorie"], beeld.get("land"))
         except Exception:
@@ -352,7 +365,9 @@ def grafiek_reeksen(beeld, maximaal=3):
     datums = [r.get("afgerond_op") for r in eigen]
     reeksen = [{"naam": beeld.get("naam") or beeld["webshop_url"].replace("https://", ""),
                 "kleur": KLEUR_JIJ, "jij": True, "punten": [_punt(r) for r in eigen]}]
-    for i, b in enumerate((beeld.get("boven_mij") or [])[-maximaal:]):
+    # 2 oktober: op 1 staat niemand boven je; dan de winkels vlak achter je.
+    lijst = beeld.get("achter_mij") if beeld.get("boven_is_achter") else beeld.get("boven_mij")
+    for i, b in enumerate((lijst or [])[-maximaal:]):
         try:
             verloop = db.positieverloop(b["webshop_url"], beeld["categorie"], beeld.get("land"))
         except Exception:

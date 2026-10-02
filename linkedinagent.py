@@ -634,3 +634,139 @@ def suggesties(vandaag=None, ranglijst=None, categorieen_per_land=None, landen=N
     woorden = [UITNODIG_WOORDEN[(start + i) % len(UITNODIG_WOORDEN)] for i in range(UITNODIG_PER_DAG)]
     return {"volgen": [{"naam": n, "waarom": waarom.get(n, ""), "link": _zoeklink(n)} for n in namen],
             "uitnodigen": woorden}
+
+
+# ---------------------------------------------------------------------------
+# DE DAGELIJKSE GROEIROUTINE (2 oktober 2026, Nino).
+#
+# Nino stuurde een draad van mensen met meer dan 10.000 volgers. De kern, in
+# zijn eigen woorden: geen willekeurige connecties, en dan vijf dingen:
+# 1. profiel optimaliseren met woorden waarop gezocht wordt;
+# 2. twee of drie onderwerpen kiezen;
+# 3. consequent waardevolle posts (dat doet de agent al: drie per week);
+# 4. twintig mensen uit de branche kiezen en elke dag op hun posts reageren;
+# 5. elke dag vijf nieuwe, passende mensen connecten, en iets toevoegen.
+# De draad zelf konden wij niet openen (Reddit weigert ons), dus dit zijn de
+# punten die Nino eruit haalde.
+#
+# EERLIJK OVER WAT KAN: een bedrijfspagina kan niet connecten; dat gaat via het
+# eigen profiel van Nino (net als het uitnodigen, dat al van zijn naam komt).
+# Reageren kan als Krillo of als Nino; als persoon werkt het beter. LinkedIn
+# laat ons geen mensen opzoeken via een koppeling: de agent geeft daarom
+# zoeklinks met de juiste woorden, en Nino bewaart zijn twintig mensen hier.
+# Niets wordt automatisch verstuurd: dat mag niet en kost het account.
+# ---------------------------------------------------------------------------
+EXPERTS_SLEUTEL = "linkedin_experts"
+PROFIEL_SLEUTEL = "linkedin_profiel_gedaan"
+EXPERTS_MAX = 20
+REAGEREN_PER_DAG = 3
+CONNECTEN_PER_DAG = 5
+
+ONDERWERPEN = [
+    ("AI-zichtbaarheid van webshops", "Wie ChatGPT en Gemini noemen als iemand vraagt waar hij iets koopt, en waarom."),
+    ("De Krillo Index in cijfers", "Elke maand echte metingen per categorie: wie stijgt, wie zakt, waar niemand genoemd wordt."),
+    ("Kleine fixes die werken", "Eén concrete verbetering per post: robots.txt, producttekst, productgegevens, reviews."),
+]
+
+# Zoekwoorden om de twintig experts te vinden (mensen, niet bedrijven).
+EXPERT_ZOEKWOORDEN = ["AI search ecommerce", "generative engine optimization", "GEO SEO", "ecommerce Nederland",
+                      "Shopify expert Nederland", "WooCommerce specialist", "e-commerce consultant",
+                      "conversie optimalisatie webshop", "Thuiswinkel", "retail tech"]
+# Zoekwoorden voor de vijf connecties per dag: wie een webshop heeft of runt.
+CONNECT_ZOEKWOORDEN = ["eigenaar webshop", "founder webshop", "e-commerce manager", "webshop owner",
+                       "Shopify store owner Nederland", "online marketing webshop", "head of ecommerce",
+                       "oprichter webwinkel", "ecommerce lead Belgie", "marketing manager webshop"]
+
+PROFIEL_TAKEN = [
+    "Kopregel van je profiel (Headline) met zoekwoorden, bijvoorbeeld: \"Founder Krillo | AI visibility for "
+    "webshops | ChatGPT, Gemini, GEO\".",
+    "Info (About): drie zinnen. Wat Krillo meet, voor wie, en een cijfer uit de index. Woorden waarop gezocht "
+    "wordt: AI search, GEO, ecommerce, webshop, Shopify, WooCommerce.",
+    "Bij Ervaring: Krillo met de bedrijfspagina gekoppeld, zodat je profiel en de pagina elkaar versterken.",
+    "Bedrijfspagina Krillo: bij Over dezelfde zoekwoorden, en de website krilloai.com.",
+]
+
+CONNECT_NOTITIE = ("Hi {naam}, I measure which webshops ChatGPT and Gemini recommend (the Krillo Index). "
+                   "I saw you work on {wat}, so I thought it is nice to be connected. No sales pitch.")
+
+
+def _zoek_mensen(woorden):
+    return _zoeklink(woorden, soort="people")
+
+
+def experts():
+    import json
+    try:
+        lijst = json.loads(db.get_instelling(EXPERTS_SLEUTEL) or "[]")
+    except ValueError:
+        lijst = []
+    return [e for e in lijst if e.get("naam")][:EXPERTS_MAX]
+
+
+def bewaar_experts(tekst):
+    """Een per regel: "Naam | link" (de link mag weg). Hoogstens twintig."""
+    import json
+    lijst = []
+    for regel in (tekst or "").splitlines():
+        delen = [d.strip() for d in regel.split("|")]
+        if not delen or not delen[0]:
+            continue
+        link = delen[1] if len(delen) > 1 and delen[1].startswith("https://") else ""
+        lijst.append({"naam": delen[0][:80], "link": link[:300]})
+    lijst = lijst[:EXPERTS_MAX]
+    db.zet_instelling(EXPERTS_SLEUTEL, json.dumps(lijst))
+    return lijst
+
+
+def index_feit(categorieen=None, ranglijst=None, land=LAND):
+    """Een echt cijfer uit de index om in een reactie te gebruiken. Een reactie
+    met een cijfer voegt iets toe; "great post!" niet."""
+    try:
+        categorieen = categorieen if categorieen is not None else db.categorieen_per_land(land) or []
+        ranglijst = ranglijst or (lambda slug, l, *a: db.ranglijst_per_land(slug, l, 1000))
+        totaal, nooit = cijfer(categorieen, ranglijst, land)
+    except Exception:
+        return None
+    if not totaal:
+        return None
+    procent = round(100 * nooit / totaal)
+    return (f"In our measurements {procent}% of {totaal} webshops in "
+            f"{'the Netherlands' if land == 'nl' else land.upper()} were not named by ChatGPT or Gemini in a single "
+            f"buying question.")
+
+
+def dag_routine(vandaag=None, categorieen=None, ranglijst=None):
+    """De taken van vandaag, met de tactiek erbij. Ongeveer 15 minuten."""
+    vandaag = vandaag or date.today()
+    n = vandaag.toordinal()
+    lijst = experts()
+    if lijst:
+        start = (n * REAGEREN_PER_DAG) % len(lijst)
+        reageren = [lijst[(start + i) % len(lijst)] for i in range(min(REAGEREN_PER_DAG, len(lijst)))]
+    else:
+        reageren = []
+    zoek_expert = EXPERT_ZOEKWOORDEN[n % len(EXPERT_ZOEKWOORDEN)]
+    zoek_connect = CONNECT_ZOEKWOORDEN[n % len(CONNECT_ZOEKWOORDEN)]
+    onderwerp = ONDERWERPEN[n % len(ONDERWERPEN)]
+    profiel_klaar = (db.get_instelling(PROFIEL_SLEUTEL) or "") == "ja"
+    return {
+        "reageren": reageren,
+        "experts_aantal": len(lijst),
+        "experts_zoek": {"woorden": zoek_expert, "link": _zoek_mensen(zoek_expert)},
+        "connecten": {"aantal": CONNECTEN_PER_DAG, "woorden": zoek_connect, "link": _zoek_mensen(zoek_connect),
+                      "notitie": CONNECT_NOTITIE},
+        "feit": index_feit(categorieen, ranglijst),
+        "onderwerp": {"naam": onderwerp[0], "uitleg": onderwerp[1]},
+        "profiel": [] if profiel_klaar else PROFIEL_TAKEN,
+    }
+
+
+def routine_taak():
+    """Een regel voor de dagtaken in het ochtendbericht."""
+    r = dag_routine()
+    if r["experts_aantal"] < EXPERTS_MAX:
+        return (f"LinkedIn (15 min): zoek {min(5, EXPERTS_MAX - r['experts_aantal'])} experts voor je lijst van 20 "
+                f"(zoek op \"{r['experts_zoek']['woorden']}\"), reageer op 3 posts, connect met 5 mensen.", 15)
+    namen = ", ".join(e["naam"] for e in r["reageren"])
+    return (f"LinkedIn (15 min): reageer met iets dat toevoegt op een post van {namen}, en connect met 5 mensen "
+            f"(zoek op \"{r['connecten']['woorden']}\").", 15)

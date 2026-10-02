@@ -326,6 +326,15 @@ def dagtaken(basis_url, te_doen=None, nu=None):
     for t in voorstellen.lopende_taken()[:3]:
         taken.append({"tekst": t["titel"], "minuten": t.get("minuten") or 20,
                       "link": f"{basis_url}/v/{t['token']}", "gedaan": True})
+    # 2 oktober (Nino): elke werkdag de LinkedIn-groeiroutine, met de tactiek
+    # uitgeschreven op /admin/linkedin.
+    if nu.weekday() < 5:
+        try:
+            import linkedinagent
+            tekst, minuten = linkedinagent.routine_taak()
+            taken.append({"tekst": tekst, "minuten": minuten, "link": f"{basis_url}/admin/linkedin#routine"})
+        except Exception as e:
+            print(f"LinkedIn-routine voor de dagtaken mislukt: {e}")
     ritme = DAGRITME.get(nu.weekday())
     if ritme and not any(t.get("gedaan") for t in taken):
         tekst, minuten, link = ritme

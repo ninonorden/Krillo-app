@@ -1330,6 +1330,15 @@ def admin_linkedin():
     import linkedinagent
     basis = get_base_url().rstrip("/")
     melding = ""
+    if request.method == "POST" and request.form.get("actie") in ("experts", "profiel_klaar"):
+        # 2 oktober: de groeiroutine (linkedinagent.dag_routine).
+        if request.form.get("actie") == "experts":
+            n = len(linkedinagent.bewaar_experts(request.form.get("experts")))
+            melding_r = f"{n} van de {linkedinagent.EXPERTS_MAX} experts bewaard."
+        else:
+            db.zet_instelling(linkedinagent.PROFIEL_SLEUTEL, "ja")
+            melding_r = "Profiel staat op gedaan."
+        return redirect("/admin/linkedin?m=" + quote(melding_r) + "#routine")
     if request.method == "POST":
         actie = request.form.get("actie")
         post_id = int(request.form.get("id") or 0)
@@ -1431,6 +1440,48 @@ def admin_linkedin():
         f"zoekveld en kies de mensen die echt een webshop hebben of voor webshops werken: "
         f"<b>{escape(', '.join(sug['uitnodigen']))}</b>. Je hebt 50 uitnodigingen per maand: een paar goede per "
         "dag werkt beter dan alles in een keer. Let op: de uitnodiging komt van jouw eigen naam.</p></div>")
+    # 2 oktober: de dagelijkse groeiroutine, met de tactiek uitgeschreven.
+    try:
+        r = linkedinagent.dag_routine()
+    except Exception as e:
+        print(f"LinkedIn-routine mislukt: {e}")
+        r = None
+    routine_html = ""
+    if r:
+        reageer = "".join(
+            (f"<li><a href='{escape(x['link'])}' target='_blank'>{escape(x['naam'])}</a></li>" if x.get("link")
+             else f"<li>{escape(x['naam'])}</li>") for x in r["reageren"])
+        profiel = ("<h3>Een keer: je profiel vindbaar maken</h3><ol>" + "".join(f"<li>{escape(t)}</li>" for t in r["profiel"])
+                   + "</ol><form method='post'><button name='actie' value='profiel_klaar'>Gedaan</button></form>"
+                   if r["profiel"] else "")
+        lijst_tekst = "\n".join(f"{x['naam']} | {x['link']}" if x.get("link") else x["naam"]
+                                for x in linkedinagent.experts())
+        routine_html = (
+            "<div id='routine' style='border:2px solid #1B3FE0;border-radius:10px;padding:14px 18px;margin:18px 0'>"
+            "<h2 style='margin-top:0'>Vandaag: de groeiroutine (15 minuten)</h2>"
+            "<p style='color:#52525B'>Geen willekeurige connecties. Wel: elke dag reageren bij dezelfde twintig "
+            "mensen uit de branche, en vijf nieuwe mensen die echt een webshop hebben of runnen.</p>"
+            f"<p><b>Onderwerp van vandaag</b> (voor je reacties en je eigen post): {escape(r['onderwerp']['naam'])}. "
+            f"{escape(r['onderwerp']['uitleg'])}</p>"
+            "<h3>1. Reageer op 3 posts van je experts (5 min)</h3>"
+            + (f"<ul>{reageer}</ul>" if reageer else "<p>Je lijst is nog leeg. Zie stap 3.</p>")
+            + "<p>Hoe: open hun laatste post en voeg iets toe, geen \"great post\". Een eigen ervaring, een vraag "
+              "terug, of een cijfer"
+            + (f". Cijfer van vandaag: <i>{escape(r['feit'])}</i>" if r["feit"] else "")
+            + ". Twee of drie zinnen, binnen het uur na hun post werkt het best.</p>"
+            f"<h3>2. Connect met {r['connecten']['aantal']} mensen (5 min)</h3>"
+            f"<p><a href='{escape(r['connecten']['link'])}' target='_blank'>Zoek op \"{escape(r['connecten']['woorden'])}\"</a>, "
+            "kies alleen mensen met een webshop of die er een runnen, en stuur een korte notitie. Voorbeeld:</p>"
+            f"<p style='background:#F4F4F5;padding:8px 12px;border-radius:8px'>{escape(r['connecten']['notitie'])}</p>"
+            "<p>Na het accepteren: niets verkopen. Like of reageer een keer op iets van hen; de Krillo-posts zien "
+            "ze vanzelf.</p>"
+            f"<h3>3. Je twintig experts ({r['experts_aantal']} van {linkedinagent.EXPERTS_MAX})</h3>"
+            f"<p>Mensen die over e-commerce, AI-zoeken of webshops posten, met publiek dat jouw klant is. "
+            f"<a href='{escape(r['experts_zoek']['link'])}' target='_blank'>Zoek op \"{escape(r['experts_zoek']['woorden'])}\"</a> "
+            "en kies wie vaak post en reacties krijgt. Een per regel: Naam | link naar profiel.</p>"
+            "<form method='post'><textarea name='experts' rows='6' style='width:100%;font:14px system-ui'>"
+            f"{escape(lijst_tekst)}</textarea><button name='actie' value='experts'>Bewaar lijst</button></form>"
+            f"{profiel}</div>")
     beste_html = ("<p><b>Wat werkt:</b> " + ", ".join(
         f"{escape(r['soort'])} gemiddeld {int(r['gem'])} weergaven ({r['n']} posts)" for r in beste) + "</p>"
         if beste else "<p><b>Wat werkt:</b> vul na een paar dagen bij elke geplaatste post de weergaven in. "
@@ -1446,7 +1497,7 @@ def admin_linkedin():
             f"niet in de post: posts met een link naar buiten krijgen minder bereik.</li>"
             f"<li>Kopieer de link van je post, plak hem hieronder en klik <b>Geplaatst</b>.</li>"
             f"<li>Na een dag of drie: de weergaven en reacties invullen.</li></ol>"
-            f"<p>Beste moment: tussen 8:00 en 9:30.</p>{beste_html}{suggestie_html}"
+            f"<p>Beste moment: tussen 8:00 en 9:30.</p>{routine_html}{beste_html}{suggestie_html}"
             f"<p><b>Maandrapport:</b> <a href='/admin/linkedin/rapport.pdf'>Download de PDF</a> en plaats hem na de "
             f"maandmeting als document (Start a post, het documenticoon, titel: Krillo Index {datetime.now():%B %Y}). "
             f"Mensen bladeren erdoorheen, en dat geeft meer bereik dan een gewone post.</p>"
@@ -4501,6 +4552,12 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                     import snelmeting
                     v = snelmeting.meet(c["webshop_url"])
                     print(f"Snelmeting {c['webshop_url']}: {v}")
+                    # 2 oktober (stap 180): de eigen vragen van de klant mee.
+                    try:
+                        import eigenvragen
+                        print(f"Eigen vragen {c['webshop_url']}: {eigenvragen.meet(c['webshop_url'])}")
+                    except Exception as e:
+                        print(f"Eigen vragen mislukt voor {c['webshop_url']}: {e}")
                     # 2 oktober (goedgekeurd, als test): de weekmail met de uitkomst.
                     if v.get("gemeten"):
                         import weekmail
@@ -5596,7 +5653,6 @@ def _nachtwerk_achter_elkaar():
     heeft tijd genoeg. Zit het geheugen na een stap toch boven de grens, dan
     slaan we de stappen over die kunnen wachten (de leeragent, de lijstjes),
     in plaats van de hele dienst te laten omvallen."""
-    import gc
     import nachtcontrole
     import nachtagenten
     import leeragent
@@ -5979,6 +6035,7 @@ def admin_benadering():
             meetruimte=kosten.ruimte_voor_benadering(),
             metingen_bezig=bezig),
         trechter=db.trechter_benadering(),
+        per_dag=db.trechter_per_dag(7),
         varianten=_varianten_met_oordeel(),
         verslagen=benadering.rondeverslagen(),
         meetfouten=benadering.meetfouten(),
@@ -7875,6 +7932,21 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             gegevens["balken"] = dp.balken_per_assistent(gegevens["vragen"]["per_assistent"])
             # 1 oktober: de vragen met de minste concurrentie, om eerst over te schrijven.
             gegevens["open_plekken"] = [] if proef else dp.open_plekken(gegevens["vragen"])
+            # 2 oktober (stap 180): de eigen vragen van de klant, alleen in zijn dashboard.
+            if klant_token and not proef:
+                try:
+                    import eigenvragen
+                    klant_rij = db.get_klant(klant_token) or {}
+                    lijst = eigenvragen.overzicht(webshop_url)
+                    gegevens["eigen"] = {
+                        "lijst": lijst, "max": eigenvragen.maximum(klant_rij.get("pakket")),
+                        "voorstellen": eigenvragen.voorstellen(
+                            webshop_url, categorienaam=beeld.get("categorie") if beeld else None,
+                            land=(beeld or {}).get("land") or "nl", al=[v["vraag"] for v in lijst]),
+                        "melding": request.args.get("eigen") or "",
+                        "actie": f"/mijn/{klant_token}/eigen-vragen"}
+                except Exception as e:
+                    print(f"Eigen vragen voor het dashboard mislukt: {e}")
         if pagina == "verbeteringen" and werk and not proef:
             # Stap 255: AI-gereedheid per pagina, uit de wekelijkse ronde.
             try:
@@ -8639,6 +8711,33 @@ def klant_kies_vraag(klant_token):
         return jsonify({"ok": False}), 400
     aantal = db.zet_gekozen_vraag(klant["webshop_url"], vraag, aan)
     return jsonify({"ok": aantal is not None, "aantal": aantal or 0, "aan": aan})
+
+
+@app.route("/mijn/<klant_token>/eigen-vragen", methods=["POST"])
+def klant_eigen_vragen(klant_token):
+    """Een eigen vraag toevoegen of weghalen (2 oktober, stap 180). Na toevoegen
+    meteen een keer meten, op de achtergrond; daarna elke week mee."""
+    import eigenvragen
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return render_template("fout.html", titel="This link no longer works",
+                               bericht="Open your dashboard and try again."), 404
+    url = klant["webshop_url"]
+    if request.form.get("actie") == "weg":
+        try:
+            eigenvragen.verwijder(url, int(request.form.get("id") or 0))
+            melding = "Removed."
+        except ValueError:
+            melding = "Not found."
+    else:
+        uit = eigenvragen.voeg_toe(url, request.form.get("vraag"), klant.get("pakket"))
+        if uit["ok"]:
+            threading.Thread(target=eigenvragen.meet, args=(url,), kwargs={"alleen_id": uit["id"]},
+                             daemon=True).start()
+            melding = "Added. We ask ChatGPT and Gemini now; refresh in a minute."
+        else:
+            melding = uit["fout"]
+    return redirect(f"/mijn/{klant_token}/questions?eigen={quote(melding)}#eigen")
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -10058,7 +10157,21 @@ def admin_controle():
     if doorsturen:
         return redirect(doorsturen)
     import nachtcontrole
-    if request.method == "POST":
+    index_bezig = False
+    if request.method == "POST" and request.form.get("actie") == "index":
+        # 2 oktober: de indexcontrole nu draaien, op de achtergrond (hij loopt
+        # alle categorieen langs). Zonder onthouden, zoals in de nacht.
+        import nachtagenten
+
+        def _index_nu():
+            db.onthouden_pauze(True)
+            try:
+                nachtagenten.draai(None)
+            finally:
+                db.onthouden_pauze(False)
+        threading.Thread(target=_index_nu, daemon=True).start()
+        index_bezig = True
+    if request.method == "POST" and request.form.get("actie") != "index":
         uit = nachtcontrole.draai(app, lambda kop, tekst: None)
     else:
         try:
@@ -10076,7 +10189,11 @@ def admin_controle():
         afgekeurd = json.loads(db.get_instelling("tekstkeuring_afgekeurd") or "[]")
     except Exception:
         na, afgekeurd = {}, []
-    rijen += ("<h2>Kwaliteit van de index</h2><ul>" + ("".join(f"<li>{escape(f)}</li>" for f in na.get("kwaliteit") or [])
+    datum = escape(na.get("datum") or "nog nooit")
+    rijen += ("<h2>Kwaliteit van de index</h2><p>Laatst gedraaid: " + datum + ". "
+              + ("<b>Gestart; ververs over een paar minuten.</b>" if index_bezig else "")
+              + "</p><form method='post'><input type='hidden' name='actie' value='index'>"
+              "<button style='padding:8px 14px'>Indexcontrole nu draaien</button></form><ul>" + ("".join(f"<li>{escape(f)}</li>" for f in na.get("kwaliteit") or [])
               or "<li>Niets gevonden.</li>") + "</ul><h2>Concurrenten (elke maandag)</h2><ul>"
               + ("".join(f"<li>{escape(f)}</li>" for f in na.get("concurrenten") or []) or "<li>Alle bedragen op /compare kloppen nog.</li>")
               + "</ul><h2>Tegengehouden door de controleagent</h2><ul>"

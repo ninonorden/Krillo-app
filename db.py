@@ -2208,6 +2208,37 @@ def noteer_doorgeklikt(webshop_url):
         conn.close()
 
 
+def trechter_per_dag(dagen=7):
+    """Per dag (Nederlandse klok): gemaild, geopend, echte mensen, naar de prijzen.
+
+    2 oktober, Nino: "nu meet het vanaf 29 september, maar niet hoeveel er
+    vandaag precies gingen en gister". Elke telling op de dag dat het GEBEURDE
+    (een opening van vandaag op een mail van gisteren telt vandaag)."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    WITH dagen AS (
+                        SELECT (date_trunc('day', now() AT TIME ZONE 'Europe/Amsterdam') - (n || ' days')::interval)::date AS dag
+                          FROM generate_series(0, %s - 1) n)
+                    SELECT d.dag,
+                           (SELECT COUNT(*) FROM benadering WHERE (gemaild_op AT TIME ZONE 'Europe/Amsterdam')::date = d.dag),
+                           (SELECT COUNT(*) FROM benadering WHERE (bekeken_op AT TIME ZONE 'Europe/Amsterdam')::date = d.dag),
+                           (SELECT COUNT(*) FROM benadering WHERE (mens_op AT TIME ZONE 'Europe/Amsterdam')::date = d.dag),
+                           (SELECT COUNT(*) FROM benadering WHERE (doorgeklikt_op AT TIME ZONE 'Europe/Amsterdam')::date = d.dag)
+                      FROM dagen d ORDER BY d.dag DESC""", (int(dagen),))
+                return [{"dag": r[0], "gemaild": r[1] or 0, "geopend": r[2] or 0, "mensen": r[3] or 0,
+                         "prijzen": r[4] or 0} for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Trechter per dag ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def trechter_benadering():
     """Hoeveel er gemaild, geopend en doorgeklikt is. Altijd een woordenboek."""
     leeg = {"gemaild": 0, "bekeken": 0, "doorgeklikt": 0, "bounces": 0, "klachten": 0}

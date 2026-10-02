@@ -65,6 +65,12 @@ def bouw(webshop_url, land=None, max_vragen=MAX_VRAGEN, categorie=None):
     vorige = verloop[-2]["positie"] if len(verloop) > 1 else None
 
     boven = [r for r in rijen if r["positie"] < mij["positie"]][-3:]
+    # 2 oktober (Nino, Partywinkel.nl op 1): niemand boven je. Dan de winkels
+    # vlak achter je in de grafiek, en de tekst zegt dat ook (boven_is_achter).
+    # Een NIEUWE sleutel (achter_mij): boven_mij betekent overal "boven je"
+    # (mails, verkoopagent, de Shopify-app) en blijft dus leeg op 1.
+    achter = not boven
+    achter_mij = [r for r in rijen if r["positie"] > mij["positie"]][:3] if achter else []
 
     return {
         "webshop_url": webshop_url,
@@ -82,6 +88,8 @@ def bouw(webshop_url, land=None, max_vragen=MAX_VRAGEN, categorie=None):
         "gemeten_op": mij.get("gemeten_op"),
         "verloop": verloop,
         "boven_mij": boven,
+        "boven_is_achter": achter,
+        "achter_mij": achter_mij,
         "gemiste_vragen": gemiste_vragen(lijst["ronde"], webshop_url,
                                          max_vragen=max_vragen),
     }
