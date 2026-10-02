@@ -105,19 +105,16 @@
     {# DE GRATIS VOORPROEF na de koude mail (stap 135). Zijn eigen dashboard,
        met zijn eigen cijfers, en een knop die meteen het afrekenen opent. #}
     <div class="proefbalk">
+      {# 2 OKTOBER (akkoord Nino): de kern als kop. Van de 68 die hun uitkomst
+         openden gingen er 3 naar de prijzen. Nu staat bovenaan in een regel
+         WIE AI noemde en bij WELKE vraag, met eronder wat de proef kost. #}
+      {% set gemist = (beeld.gemiste_vragen or []) | selectattr('concurrenten') | list %}
       <div>
-        <div class="proefkop">{{ 'Je eigen Krillo-dashboard, gratis voorproef' if taal == 'nl' else 'Your own Krillo dashboard, free preview' }}</div>
+        <div class="proefkop">{% if gemist %}{{ 'AI noemde' if taal == 'nl' else 'AI named' }} {{ (gemist | first).concurrenten[:2] | join(' and ' if taal != 'nl' else ' en ') }}, {{ 'niet jou' if taal == 'nl' else 'not you' }}.{% else %}{{ 'Je eigen Krillo-dashboard, gratis voorproef' if taal == 'nl' else 'Your own Krillo dashboard, free preview' }}{% endif %}</div>
         <div class="proeftekst">
-          {# 1 oktober: de kern in een regel. Van de 66 die hun uitkomst openden
-             gingen er 3 naar de prijzen. Wie kijkt moet in twee seconden zien
-             wie AI WEL noemt, en meteen de knop ernaast. #}
-          {% set gemist = (beeld.gemiste_vragen or []) | selectattr('concurrenten') | list %}
-          {% if taal == 'nl' %}{{ beeld.naam }} staat op <strong>#{{ beeld.positie }}</strong> van {{ beeld.van }} in {{ categorienaam }}.
-          {% if gemist %}AI noemde <strong>{{ (gemist | first).concurrenten[:2] | join(' en ') }}</strong>, niet jou.{% endif %}
-          Watch of Fix zet je hoger.
-          {% else %}{{ beeld.naam }} is <strong>#{{ beeld.positie }}</strong> of {{ beeld.van }} in {{ categorienaam }}.
-          {% if gemist %}AI named <strong>{{ (gemist | first).concurrenten[:2] | join(' and ') }}</strong>, not you.{% endif %}
-          Watch or Fix moves you up.{% endif %}
+          {% if gemist %}{{ 'Vraag' if taal == 'nl' else 'Question' }}: <span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">&ldquo;{{ (gemist | first).vraag }}&rdquo;</span><br>{% endif %}
+          {% if taal == 'nl' %}{{ beeld.naam }} staat op <strong>#{{ beeld.positie }}</strong> van {{ beeld.van }} in {{ categorienaam }}. Watch of Fix zet je hoger.
+          {% else %}{{ beeld.naam }} is <strong>#{{ beeld.positie }}</strong> of {{ beeld.van }} in {{ categorienaam }}. Watch or Fix moves you up.{% endif %}
         </div>
       </div>
       <div class="proefknoppen">
@@ -125,6 +122,7 @@
         <a class="knop-vol" href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Start gratis proef &middot; 14 dagen'|safe if taal == 'nl' else 'Start free trial &middot; 14 days'|safe }}</a>
         <a class="knop-licht" href="/uitkomst/{{ proef }}/verder?plan=fix">Fix &middot; &euro;{{ prijzen.fix }}/{{ 'mnd' if taal == 'nl' else 'mo' }}</a>
       </div>
+      <div class="klein" style="flex-basis:100%; margin-top:2px;">{{ ('14 dagen gratis, daarna €' ~ prijzen.watch ~ ' per maand. Opzeggen wanneer je wilt.') if taal == 'nl' else ('Free for 14 days, then €' ~ prijzen.watch ~ ' a month. Cancel any time.') }}</div>
     </div>
     {% endif %}
 
@@ -224,6 +222,28 @@
       <p style="margin:10px 0 0; font-size:13px; color:var(--zacht, #6E7079);">{{ 'Elke ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ ' opnieuw. Je plek in de ranglijst komt uit de maandmeting, waar elke winkel dezelfde vragen krijgt.' if taal == 'nl' else 'Checked again every ' ~ snel_dag ~ '. Your rank comes from the monthly measurement, where every store gets the same questions.' }}</p>
       {% else %}
       <p style="margin:0; font-size:15px;">{{ ('Elke week stellen we je vijf belangrijkste koopvragen opnieuw aan ChatGPT en Gemini, zodat je binnen een week ziet of een verbetering werkt. De eerste keer is op ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ '.') if taal == 'nl' else ('Every week we ask your five most important buying questions again to ChatGPT and Gemini, so you see within a week whether a change works. The first check is on ' ~ snel_dag ~ '.') }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# 2 oktober (goedgekeurd): de productkaart. Welke producten AI bij naam
+       noemt in de wekelijkse vragen, en bij welke vraag. Eerlijk: vijf vragen. #}
+    {% if productkaart is defined and productkaart and productkaart.gemeten %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'JE PRODUCTEN IN AI-ANTWOORDEN' if taal == 'nl' else 'YOUR PRODUCTS IN AI ANSWERS' }}
+        <span class="uitleg">{{ productkaart.vragen }} {{ 'vragen deze week' if taal == 'nl' else 'questions this week' }}</span></div>
+      {% if productkaart.genoemd %}
+      <table class="tabel"><tbody>
+        {% for p in productkaart.genoemd %}<tr><td class="kort">{% if p.url %}<a href="{{ p.url }}" rel="nofollow">{{ p.naam }}</a>{% else %}{{ p.naam }}{% endif %}</td>
+          <td class="klein">{% for k in p.keer[:2] %}{{ k.assistent }}: <span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ k.vraag }}</span>{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>{% endfor %}
+      </tbody></table>
+      {% else %}
+      <div class="binnen">{{ 'AI noemde deze week geen product van je bij naam. Dat is normaal: AI noemt vaak alleen de winkel.' if taal == 'nl' else 'AI named none of your products by name this week. That is common: AI often names only the store.' }}</div>
+      {% endif %}
+      {% if productkaart.niet %}
+      <div class="binnen klein" style="border-top:1px solid var(--lijnz);">{{ 'Niet genoemd in deze vragen, bijvoorbeeld' if taal == 'nl' else 'Not named in these questions, for example' }}:
+        {% for p in productkaart.niet[:5] %}{{ p.naam }}{% if not loop.last %}, {% endif %}{% endfor %}.
+        {{ 'Een duidelijke producttekst helpt AI ze te noemen.' if taal == 'nl' else 'A clear product text helps AI name them.' }}</div>
       {% endif %}
     </div>
     {% endif %}
@@ -846,6 +866,19 @@
       {% endfor %}
       {% else %}
       <div class="binnen">{{ "Alle nagekeken pagina's zijn goed te lezen voor AI." if taal == 'nl' else 'Every page we checked is easy for AI to read.' }}</div>
+      {% endif %}
+      {# 2 oktober: per pagina per AI-robot, uit robots.txt en een bezoek met zijn naam. #}
+      {% set met_robots = paginacheck.paginas | selectattr('robots') | list %}
+      {% if met_robots %}
+      <div class="binnen" style="border-top:1px solid var(--lijnz); overflow-x:auto;">
+        <div class="klein" style="margin-bottom:6px;">{{ 'AI-ROBOTS PER PAGINA' if taal == 'nl' else 'AI ROBOTS PER PAGE' }}</div>
+        <table class="tabel" style="font-size:13px;"><thead><tr><th style="text-align:left;">{{ 'Pagina' if taal == 'nl' else 'Page' }}</th>
+          {% for r in (met_robots | first).robots %}<th title="{{ r.wie }}">{{ r.bot }}</th>{% endfor %}</tr></thead><tbody>
+          {% for p in met_robots %}<tr><td style="font-family:var(--mono);">{{ p.pad }}</td>
+            {% for r in p.robots %}<td style="text-align:center;">{% if not r.robots %}{{ 'robots.txt: nee' if taal == 'nl' else 'robots.txt: no' }}{% elif r.open %}{{ 'open' }}{% elif r.status %}{{ 'geweigerd' if taal == 'nl' else 'refused' }} ({{ r.status }}){% else %}?{% endif %}</td>{% endfor %}</tr>{% endfor %}
+        </tbody></table>
+        <div class="klein" style="margin-top:6px;">{{ 'GPTBot is training. Die blokkeren haalt je niet uit ChatGPT search.' if taal == 'nl' else 'GPTBot is training only. Blocking it does not remove you from ChatGPT search.' }}</div>
+      </div>
       {% endif %}
     </div>
     {% endif %}
