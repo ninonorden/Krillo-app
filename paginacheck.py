@@ -11,12 +11,16 @@ PER PAGINA (dezelfde metingen als de dertien controles, geen tweede manier):
 - een hoofdkop (H1)?
 - een titel en een omschrijving?
 - op een productpagina: productgegevens die AI kan lezen (schema.org Product)?
-Of AI-robots erbij mogen is een instelling voor de hele site; die staat al in de
-dertien controles en de robotwacht, niet hier per pagina.
+2 oktober (goedgekeurd door Nino): nu ook PER PAGINA per AI-robot (GPTBot,
+OAI-SearchBot, PerplexityBot, Googlebot): mag hij de pagina lezen volgens
+robots.txt, krijgt hij de pagina als hij met zijn naam aanklopt (veel
+beveiligingen weigeren op naam), en zegt de pagina zelf "noindex". Zie
+crawlbaarheid() hieronder.
 
 Geen AI, kost niets behalve het ophalen. Engels, zoals het dashboard.
 """
 import json
+import re
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
@@ -84,7 +88,98 @@ def keur_pagina(url, html):
     return acties[:3]
 
 
-def controleer(webshop_url, haal=None):
+# ---------------------------------------------------------------------------
+# Crawlbaarheid per pagina per AI-robot (2 oktober). Otterly verkoopt dit als
+# losse "Crawlability Checker". Wat wij doen, en wat niet:
+# - robots.txt van de winkel lezen en per pagina per robot zeggen of hij mag;
+# - de pagina ophalen met de naam van de robot. Een firewall die op naam
+#   blokkeert (vaak bij Cloudflare-instellingen) zie je zo. Een firewall die op
+#   het IP-adres van de echte robot controleert, zien wij NIET; dat staat erbij;
+# - "noindex" in de pagina of in de kop X-Robots-Tag.
+# ---------------------------------------------------------------------------
+CRAWLERS = [
+    ("OAI-SearchBot", "ChatGPT search",
+     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot"),
+    ("GPTBot", "OpenAI training",
+     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot"),
+    ("PerplexityBot", "Perplexity",
+     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)"),
+    ("Googlebot", "Google and Gemini",
+     "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"),
+]
+# Robots die tellen voor gevonden worden (GPTBot is training: blokkeren mag).
+VOOR_GEVONDEN = {"OAI-SearchBot", "PerplexityBot", "Googlebot"}
+
+
+def _haal_als(url, agent):
+    """(statuscode, html, kop X-Robots-Tag) met de naam van een robot, of (None, None, '')."""
+    import requests
+    try:
+        r = requests.get(url, headers={"User-Agent": agent, "Accept": "text/html"}, timeout=12,
+                         allow_redirects=True)
+        return r.status_code, (r.text if r.status_code < 400 else None), (r.headers.get("X-Robots-Tag") or "")
+    except Exception:
+        return None, None, ""
+
+
+def _noindex(html, kop):
+    laag = (html or "")[:30000].lower()
+    meta = re.search(r'<meta[^>]+name=["\']robots["\'][^>]*>', laag)
+    return "noindex" in (kop or "").lower() or bool(meta and "noindex" in meta.group(0))
+
+
+def crawlbaarheid(webshop_url, paginas, robots_tekst=None, haal_als=None):
+    """Per pagina per robot: {"bot", "wie", "robots": bool, "status": int|None, "open": bool}.
+    Plus "noindex" per pagina. robots_tekst en haal_als zijn er voor de test.
+
+    Geeft {pagina_url: {"robots": [...], "noindex": bool}}."""
+    import urllib.robotparser
+    import scan_engine
+    basis = f"{urlparse(webshop_url).scheme}://{urlparse(webshop_url).netloc}"
+    if robots_tekst is None:
+        r = scan_engine.fetch(basis + "/robots.txt", pogingen=1)
+        robots_tekst = r.text if (r is not None and r.status_code == 200) else ""
+    parser = urllib.robotparser.RobotFileParser()
+    parser.parse((robots_tekst or "").splitlines())
+    haal_als = haal_als or _haal_als
+    uit = {}
+    for u in paginas:
+        rijen, noindex = [], False
+        for bot, wie, agent in CRAWLERS:
+            mag = bool(parser.can_fetch(bot, u))
+            status, html, kop = haal_als(u, agent) if mag else (None, None, "")
+            if html is not None and _noindex(html, kop):
+                noindex = True
+            rijen.append({"bot": bot, "wie": wie, "robots": mag, "status": status,
+                          "open": mag and status is not None and status < 400})
+        uit[u] = {"robots": rijen, "noindex": noindex}
+    return uit
+
+
+def crawl_acties(info):
+    """Hoogstens een actie over robots voor een pagina, in het Engels."""
+    if not info:
+        return []
+    if info.get("noindex"):
+        return ["This page says 'noindex': search engines, and the AI that relies on them, are asked to "
+                "leave it out. Remove the noindex if you want it found."]
+    dicht = [r for r in info["robots"] if r["bot"] in VOOR_GEVONDEN and not r["open"]]
+    if not dicht:
+        return []
+    door_robots = [r["bot"] for r in dicht if not r["robots"]]
+    if door_robots:
+        return [f"Your robots.txt keeps {', '.join(door_robots)} out of this page. Remove that Disallow line "
+                f"so AI search can read it."]
+    # Alleen een echte weigering (een foutcode) telt. Geen antwoord kan aan ons
+    # liggen (netwerk), en dan zeggen wij niets in plaats van een vals alarm.
+    geweigerd = [r for r in dicht if r["status"] is not None]
+    if not geweigerd:
+        return []
+    return [f"This page refused {', '.join(r['bot'] for r in geweigerd)} (error {geweigerd[0]['status']}). "
+            f"A firewall or bot protection is probably blocking it by name."]
+
+
+def controleer(webshop_url, haal=None, robots_tekst=None, haal_als=None):
     """Haalt de homepage en hoogstens vijf pagina's op en keurt ze. haal: voor de test."""
     import scan_engine
     if haal is None:
@@ -93,10 +188,19 @@ def controleer(webshop_url, haal=None):
             return r.text if r is not None else None
     home = haal(webshop_url)
     paginas = [webshop_url] + (scan_engine.find_relevant_pages(webshop_url, home, limit=MAX_PAGINAS) if home else [])
+    paginas = paginas[:MAX_PAGINAS + 1]
+    try:
+        crawl = crawlbaarheid(webshop_url, paginas, robots_tekst=robots_tekst, haal_als=haal_als)
+    except Exception as e:
+        print(f"Crawlbaarheid mislukt voor {webshop_url}: {e}")
+        crawl = {}
     uit = []
-    for u in paginas[:MAX_PAGINAS + 1]:
+    for u in paginas:
         html = home if u == webshop_url else haal(u)
-        uit.append({"url": u, "pad": urlparse(u).path or "/", "acties": keur_pagina(u, html)})
+        info = crawl.get(u)
+        acties = (crawl_acties(info) + keur_pagina(u, html))[:3]
+        uit.append({"url": u, "pad": urlparse(u).path or "/", "acties": acties,
+                    "robots": (info or {}).get("robots") or [], "noindex": (info or {}).get("noindex", False)})
     return uit
 
 

@@ -7660,8 +7660,38 @@ def _onthouden_aan():
     return bool(os.environ.get("RENDER")) or os.environ.get("DB_ONTHOUDEN") == "1"
 
 
+# 2 oktober: Render herstartte de dienst om 01:34 weer (boven 512 MB), vier
+# minuten na de start van het nachtwerk. Het nachtwerk loopt alle categorieen
+# en landen langs (herberekenen, indexcontrole) en elke ranglijst en elke set
+# antwoorden bleef in dit geheugen staan, tot 400 vakken met hele AI-antwoorden.
+# Twee remmen:
+# 1. tijdens het nachtwerk wordt er niets onthouden (onthouden_pauze); 's nachts
+#    kijkt er bijna niemand, en elke stap haalt toch alles een keer op;
+# 2. komt het proces boven ONTHOUD_GEHEUGEN_MB, dan wordt het geheugen geleegd.
+_PAUZE = {"aan": False}
+ONTHOUD_GEHEUGEN_MB = int(os.environ.get("ONTHOUD_GEHEUGEN_MB", "330"))
+_teller = {"n": 0}
+
+
+def onthouden_pauze(aan=True):
+    _PAUZE["aan"] = bool(aan)
+    if aan:
+        vergeet_onthouden()
+
+
+def _rss_mb():
+    try:
+        with open("/proc/self/status") as f:
+            for regel in f:
+                if regel.startswith("VmRSS:"):
+                    return int(regel.split()[1]) // 1024
+    except Exception:
+        return None
+    return None
+
+
 def _onthouden(sleutel, functie, *args):
-    if not _onthouden_aan():
+    if not _onthouden_aan() or _PAUZE["aan"]:
         return functie(*args)
     nu = time.time()
     with _ONTHOUD_SLOT:
@@ -7673,6 +7703,12 @@ def _onthouden(sleutel, functie, *args):
     if waarde and (not isinstance(waarde, dict) or waarde.get("rijen") or waarde.get("ronde")):
         with _ONTHOUD_SLOT:
             _ruim_onthouden_op(nu)
+            _teller["n"] += 1
+            if _teller["n"] % 25 == 0:
+                mb = _rss_mb()
+                if mb and mb > ONTHOUD_GEHEUGEN_MB:
+                    print(f"Geheugen {mb} MB boven {ONTHOUD_GEHEUGEN_MB}: onthouden geleegd.")
+                    _ONTHOUD.clear()
             _ONTHOUD[sleutel] = (nu, waarde)
     return _copy.deepcopy(waarde)
 

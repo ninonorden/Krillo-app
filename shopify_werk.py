@@ -58,12 +58,14 @@ LABELS = {
            "tekst": "Producttekst",
            "faq": "Nieuwe pagina met veelgestelde vragen",
            "faq_waar": "Winkel, Pagina's",
+           "llms": "llms.txt: een kort bestand dat AI vertelt wat je verkoopt",
            "foto": "foto",
            "pagina": "pagina"},
     "en": {"alt": "Description on a product image",
            "tekst": "Product description",
            "faq": "New page with frequently asked questions",
            "faq_waar": "Online Store, Pages",
+           "llms": "llms.txt: a short file that tells AI what you sell",
            "foto": "image",
            "pagina": "page"},
 }
@@ -433,7 +435,18 @@ def zoek_gebreken(winkel, sleutel):
                   re.I)
         for pg in paginas)
 
+    # 2 oktober: wat de llms.txt nodig heeft (llmstxt.py).
+    import llmstxt
+    eigen = next((pg for pg in paginas if (pg.get("handle") or "") == llmstxt.HANDLE), None)
+    adres = f"https://{shopify_app._schoon(winkel)}"
     return {
+        "llms_producten": [{"titel": p.get("title"), "url": f"{adres}/products/{p.get('handle')}",
+                            "soort": p.get("product_type") or "", "tekst": _kale_tekst(p.get("body_html"))}
+                           for p in producten if p.get("handle")],
+        "llms_paginas": [{"titel": pg.get("title"), "url": f"{adres}/pages/{pg.get('handle')}"}
+                         for pg in paginas if pg.get("handle") and pg.get("handle") != llmstxt.HANDLE],
+        "llms_huidig": llmstxt.uit_html(eigen.get("body_html")) if eigen else None,
+        "llms_pagina_id": eigen.get("id") if eigen else None,
         "producten_bekeken": len(producten),
         "zonder_alt": zonder_alt,
         "dunne_tekst": dunne_tekst,
@@ -688,6 +701,26 @@ def maak_voorstellen(winkel, sleutel, markt=None):
     voordat hij op de knop drukt."""
     gebreken = zoek_gebreken(winkel, sleutel)
     alles, fouten = [], []
+    # 2 oktober: de llms.txt (llmstxt.py) eerst. Geen AI, kost niets, en bij Fix
+    # wordt hij zo elke week vanzelf bijgehouden.
+    try:
+        import llmstxt
+        rij = db.get_shopify_winkel(winkel) or {}
+        adres = rij.get("webshop_url") or f"https://{shopify_app._schoon(winkel)}"
+        naam, omschrijving = llmstxt.naam_en_omschrijving(adres)
+        gebreken["llms_omschrijving"] = omschrijving
+        # De links met het eigen domein van de winkel, niet het myshopify-adres.
+        eigen = f"https://{shopify_app._schoon(winkel)}"
+        for lijst in ("llms_producten", "llms_paginas"):
+            for item in gebreken.get(lijst) or []:
+                item["url"] = adres.rstrip("/") + item["url"][len(eigen):] if item["url"].startswith(eigen) \
+                    else item["url"]
+        llms = llmstxt.voorstel("shopify", adres, naam, gebreken,
+                                f"https://{shopify_app._schoon(winkel)}/admin/pages")
+        if llms:
+            alles.append(llms)
+    except Exception as e:
+        fouten.append(f"llms.txt: {e}"[:200])
     for stuk in (maak_faq_voorstel(winkel, sleutel, gebreken, markt),
                  maak_tekst_voorstellen(winkel, sleutel, gebreken, markt),
                  maak_alt_voorstellen(winkel, sleutel, gebreken, markt)):
@@ -704,7 +737,8 @@ def maak_voorstellen(winkel, sleutel, markt=None):
     rest = (max(0, len(gebreken["zonder_alt"]) - gemaakt_per_soort.get("alt", 0))
             + max(0, len(gebreken["dunne_tekst"]) - gemaakt_per_soort.get("tekst", 0)))
 
-    return {"gebreken": {k: v for k, v in gebreken.items() if k != "voorbeeldproducten"},
+    return {"gebreken": {k: v for k, v in gebreken.items()
+                         if k not in ("voorbeeldproducten", "llms_producten", "llms_paginas", "llms_huidig")},
             "aantallen": {"zonder_alt": len(gebreken["zonder_alt"]),
                           "dunne_tekst": len(gebreken["dunne_tekst"]),
                           "faq_ontbreekt": not gebreken["heeft_faq"],
@@ -754,6 +788,24 @@ mutation MaakPagina($pagina: PageCreateInput!) {
   }
 }
 """
+
+WERK_PAGINA_BIJ = """
+mutation WerkPaginaBij($id: ID!, $pagina: PageUpdateInput!) {
+  pageUpdate(id: $id, page: $pagina) {
+    page { id handle }
+    userErrors { field message code }
+  }
+}
+"""
+
+
+def _llms_pagina(winkel, sleutel):
+    import llmstxt
+    for pagina in haal_paginas(winkel, sleutel):
+        if (pagina.get("handle") or "") == llmstxt.HANDLE:
+            return pagina
+    return None
+
 
 WEG_PAGINA = """
 mutation VerwijderPagina($id: ID!) {
@@ -819,6 +871,9 @@ def _huidige_waarde(winkel, sleutel, voorstel):
         return product.get("descriptionHtml") or "", None
     if soort == "faq":
         return "", None
+    if soort == "llms":
+        pagina = _llms_pagina(winkel, sleutel)
+        return (pagina.get("body_html") or "") if pagina else "", None
     return None, "Onbekend soort wijziging."
 
 
@@ -876,6 +931,18 @@ def pas_toe(winkel, sleutel, voorstel, klant_url):
                 webshop_url=klant_url, taak_id=voorstel["id"], wat=voorstel.get("wat"),
                 waar=voorstel.get("waar") or f"page {nieuwe}", oude_waarde="",
                 nieuwe_waarde=voorstel.get("nieuw_html") or voorstel["nieuw"])
+    elif soort == "llms":
+        # Bestaat de pagina al (eerder gemaakt), dan bijwerken; anders maken.
+        import llmstxt
+        pagina = _llms_pagina(winkel, sleutel)
+        body = voorstel.get("nieuw_html") or llmstxt.als_html(voorstel["nieuw"])
+        if pagina:
+            uit = _muteer(winkel, sleutel, WERK_PAGINA_BIJ,
+                          {"id": _gid("Page", pagina["id"]), "pagina": {"body": body}}, "pageUpdate")
+        else:
+            uit = _muteer(winkel, sleutel, MAAK_PAGINA,
+                          {"pagina": {"title": llmstxt.TITEL, "handle": llmstxt.HANDLE, "body": body,
+                                      "isPublished": True}}, "pageCreate")
     else:
         return {"gelukt": False, "fout": "Onbekend soort wijziging."}
 
@@ -926,6 +993,18 @@ def zet_terug(winkel, sleutel, wijziging, klant_url=None):
             return {"gelukt": True, "id": taak_id}
         uit = _muteer(winkel, sleutel, WEG_PAGINA,
                       {"id": _gid("Page", pagina_id)}, "pageDelete")
+    elif delen[1] == "llms":
+        # Stond er eerst een andere llms.txt, dan die terug; anders de pagina weg.
+        pagina = _llms_pagina(winkel, sleutel)
+        if pagina is None:
+            if klant_url:
+                db.verwijder_wijziging(klant_url, taak_id)
+            return {"gelukt": True, "id": taak_id}
+        if oud:
+            uit = _muteer(winkel, sleutel, WERK_PAGINA_BIJ,
+                          {"id": _gid("Page", pagina["id"]), "pagina": {"body": oud}}, "pageUpdate")
+        else:
+            uit = _muteer(winkel, sleutel, WEG_PAGINA, {"id": _gid("Page", pagina["id"])}, "pageDelete")
     else:
         return {"gelukt": False, "fout": "Onbekend soort wijziging."}
 

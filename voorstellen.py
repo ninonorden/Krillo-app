@@ -48,6 +48,14 @@ AL_GEDAAN = {
 # Zelfde, maar op het begin van de titel (voorstellen van de leeragent hebben
 # geen vaste sleutel). (begin van de titel, nieuwe stand, wat er gebeurde).
 OP_TITEL = [
+    ("Crawlbaarheidscheck per pagina", "gebouwd",
+     "2 okt: per pagina per AI-robot (OAI-SearchBot, GPTBot, PerplexityBot, Googlebot) op Fixes"),
+    ("Per-product AI-zichtbaarheidskaart", "gebouwd",
+     "2 okt: productkaart op het overzicht, uit de wekelijkse vragen"),
+    ("Voeg aan de bestaande Fix-module een automatische llms.txt-generator toe", "gebouwd",
+     "2 okt: llms.txt voor Shopify en WordPress, bijgehouden; de doorverwijzing doet de winkelier een keer"),
+    ("Test een wekelijkse e-maildigest", "gebouwd",
+     "2 okt: weekmail na de snelmeting, met een knop om hem uit te zetten"),
     ("Stuur de persoonlijke opvolging alleen als iemand heeft doorgeklikt", "gebouwd",
      "1 okt: de verkoopagent volgt alleen nog wie doorklikte naar de prijzen"),
     ("Voeg aan de opvolging na een gratis check een tweede alinea toe", "gebouwd",

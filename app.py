@@ -1006,6 +1006,35 @@ def api_naar_fix(klant_token):
     return jsonify({"ok": True, "volgende_betaling": uit.get("volgende_betaling"), "bedrag": uit.get("bedrag")})
 
 
+@app.route("/mijn/<klant_token>/weekmail/uit", methods=["GET", "POST"])
+def weekmail_uit(klant_token):
+    """De weekmail uitzetten (2 oktober). GET toont alleen een knop, POST zet
+    hem uit: mailbeveiliging opent elke link in een mail, en die zou anders de
+    weekmail voor de klant uitzetten zonder dat hij iets deed."""
+    import weekmail
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return render_template("fout.html", titel="This link no longer works",
+                               bericht="Open your dashboard and try again."), 404
+    if request.method == "POST":
+        aan = request.form.get("aan") == "ja"
+        weekmail.zet_uit(klant["webshop_url"], uit=not aan)
+        tekst = ("The weekly email is on again." if aan else
+                 "Done. You no longer get the weekly email. Your dashboard and the monthly report stay as they are.")
+        knop = ""
+    else:
+        uit = weekmail.staat_uit(klant["webshop_url"])
+        tekst = ("The weekly email is off." if uit else
+                 "You get a short email every week with how often AI named your store.")
+        knop = (f"<form method='post'><input type='hidden' name='aan' value='{'ja' if uit else ''}'>"
+                f"<button style='padding:10px 16px;font-size:15px'>{'Turn it on' if uit else 'Turn it off'}"
+                f"</button></form>")
+    return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+            f"<title>Weekly email | Krillo</title><body style='font-family:Arial,sans-serif;max-width:560px;"
+            f"margin:60px auto;padding:0 16px;line-height:1.6'><h1 style='font-size:22px'>Weekly email</h1>"
+            f"<p>{escape(tekst)}</p>{knop}<p><a href='/mijn/{escape(klant_token)}'>Back to your dashboard</a></p>")
+
+
 @app.route("/api/opzeggen/<klant_token>", methods=["POST"])
 def api_opzeggen(klant_token):
     klant = db.get_klant(klant_token)
@@ -4472,6 +4501,10 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                     import snelmeting
                     v = snelmeting.meet(c["webshop_url"])
                     print(f"Snelmeting {c['webshop_url']}: {v}")
+                    # 2 oktober (goedgekeurd, als test): de weekmail met de uitkomst.
+                    if v.get("gemeten"):
+                        import weekmail
+                        weekmail.stuur_voor(c["webshop_url"], c.get("email"), klant_token, base_url)
                 except Exception as e:
                     print(f"Snelmeting mislukt voor {c['webshop_url']}: {e}")
                 # Stap 255: de product- en categoriepagina's, per pagina wat AI mist.
@@ -5583,6 +5616,16 @@ def _nachtwerk_achter_elkaar():
         ("lijstjes", lijstjesagent.zoek, False),
     ]
     verslag = {}
+    # 2 oktober: tijdens het nachtwerk niets onthouden (zie db.onthouden_pauze).
+    db.onthouden_pauze(True)
+    try:
+        return _nachtstappen(stappen, verslag)
+    finally:
+        db.onthouden_pauze(False)
+
+
+def _nachtstappen(stappen, verslag):
+    import gc
     for naam, stap, moet in stappen:
         voor = geheugen_mb()
         if not moet and voor and voor > GEHEUGEN_GRENS_MB:
@@ -7856,6 +7899,12 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 try:
                     import snelmeting
                     gegevens["snel"] = snelmeting.overzicht(webshop_url)
+                    # 2 oktober: de productkaart uit dezelfde wekelijkse vragen.
+                    try:
+                        import productkaart
+                        gegevens["productkaart"] = productkaart.kaart(webshop_url)
+                    except Exception as e:
+                        print(f"Productkaart mislukt voor {webshop_url}: {e}")
                     gegevens["snel_dag"] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
                                             "Saturday", "Sunday"][meetdag(webshop_url)]
                 except Exception as e:
@@ -10282,7 +10331,7 @@ def _voorstel_uit_wijziging(wijziging):
             voorstel.pop("nieuw_html", None)
         elif soort == "tekst" and len(delen) >= 3:
             voorstel["product_id"] = int(delen[2])
-        elif soort != "faq":
+        elif soort not in ("faq", "llms"):
             return None
     except ValueError:
         return None
@@ -10315,7 +10364,7 @@ def _wijziging_soort_woord(taak_id, markt):
     delen = (taak_id or "").split(":")
     if len(delen) < 2:
         return None
-    sleutel = {"alt": "alt", "tekst": "tekst", "faq": "faq"}.get(delen[1])
+    sleutel = {"alt": "alt", "tekst": "tekst", "faq": "faq", "llms": "llms"}.get(delen[1])
     if not sleutel:
         return None
     return shopify_werk._label(markt, sleutel)

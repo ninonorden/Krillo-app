@@ -160,7 +160,23 @@ class Winkel:
         heeft_faq = any(re.search(r"faq|veelgestelde|vragen|questions", (pg.get("slug") or "") + " "
                                   + ((pg.get("title") or {}).get("raw") or (pg.get("title") or {}).get("rendered") or ""),
                                   re.I) for pg in paginas)
-        return {"producten_bekeken": len(producten), "zonder_alt": zonder_alt, "dunne_tekst": dunne_tekst,
+        # 2 oktober: wat de llms.txt nodig heeft (llmstxt.py).
+        import llmstxt
+        eigen = next((pg for pg in paginas if (pg.get("slug") or "") == llmstxt.HANDLE), None)
+
+        def _titel(pg):
+            return (pg.get("title") or {}).get("raw") or (pg.get("title") or {}).get("rendered") or ""
+        return {"llms_producten": [{"titel": p.get("name"), "url": p.get("permalink"),
+                                    "soort": ", ".join(c.get("name") or "" for c in p.get("categories") or []),
+                                    "tekst": sw._kale_tekst(p.get("short_description") or p.get("description"))}
+                                   for p in producten if p.get("permalink")],
+                "llms_paginas": [{"titel": _titel(pg), "url": pg.get("link")} for pg in paginas
+                                 if pg.get("link") and (pg.get("slug") or "") != llmstxt.HANDLE
+                                 and pg.get("status", "publish") == "publish"],
+                "llms_huidig": llmstxt.uit_html(((eigen.get("content") or {}).get("raw")
+                                                 or (eigen.get("content") or {}).get("rendered") or ""))
+                if eigen else None,
+                "producten_bekeken": len(producten), "zonder_alt": zonder_alt, "dunne_tekst": dunne_tekst,
                 "heeft_faq": heeft_faq, "paginas": len(paginas),
                 "voorbeeldproducten": [{"titel": p.get("name"),
                                         "soort": ", ".join(c.get("name") or "" for c in p.get("categories") or []),
@@ -172,6 +188,16 @@ class Winkel:
         """Zelfde voorstellen als bij Shopify, met WordPress-kenmerken en -links."""
         gebreken = self.zoek_gebreken()
         alles, fouten = [], []
+        # 2 oktober: de llms.txt eerst (llmstxt.py), zonder AI.
+        try:
+            import llmstxt
+            naam, omschrijving = llmstxt.naam_en_omschrijving(self.site)
+            gebreken["llms_omschrijving"] = omschrijving
+            llms = llmstxt.voorstel("wp", self.site, naam, gebreken, f"{self.site}/wp-admin/edit.php?post_type=page")
+            if llms:
+                alles.append(llms)
+        except Exception as e:
+            fouten.append(f"llms.txt: {e}"[:200])
         for stuk in (sw.maak_faq_voorstel(self.site, None, gebreken, markt),
                      sw.maak_tekst_voorstellen(self.site, None, gebreken, markt),
                      sw.maak_alt_voorstellen(self.site, None, gebreken, markt)):
@@ -187,6 +213,8 @@ class Winkel:
     def _naar_wordpress(self, v):
         v = dict(v)
         v["id"] = "wp:" + v["id"].split(":", 1)[1]
+        if v["soort"] == "llms":
+            return v
         if v["soort"] in ("alt", "tekst"):
             v["link"] = f"{self.site}/wp-admin/post.php?post={v['product_id']}&action=edit"
         else:
@@ -207,9 +235,19 @@ class Winkel:
                 return (self._vraag("GET", f"wc/v3/products/{voorstel['product_id']}").get("description") or ""), None
             if soort == "faq":
                 return "", None
+            if soort == "llms":
+                pagina = self._llms_pagina()
+                return (((pagina or {}).get("content") or {}).get("raw") or ""), None
         except Fout as e:
             return None, str(e)
         return None, "Onbekend soort wijziging."
+
+    def _llms_pagina(self):
+        import llmstxt
+        for pg in self.paginas():
+            if (pg.get("slug") or "") == llmstxt.HANDLE:
+                return pg
+        return None
 
     def _faq_pagina(self):
         for pg in self.paginas():
@@ -249,6 +287,14 @@ class Winkel:
                 titel = voorstel.get("titel") or sw.FAQ_TITELS["nl"]
                 self._vraag("POST", "wp/v2/pages",
                             json={"title": titel, "slug": sw.FAQ_HANDLE, "content": nieuw, "status": "publish"})
+            elif soort == "llms":
+                import llmstxt
+                pagina = self._llms_pagina()
+                if pagina:
+                    self._vraag("POST", f"wp/v2/pages/{pagina['id']}", json={"content": nieuw})
+                else:
+                    self._vraag("POST", "wp/v2/pages", json={"title": llmstxt.TITEL, "slug": llmstxt.HANDLE,
+                                                              "content": nieuw, "status": "publish"})
             else:
                 db.verwijder_wijziging(klant_url, voorstel["id"])
                 return {"gelukt": False, "fout": "Onbekend soort wijziging."}
@@ -271,6 +317,12 @@ class Winkel:
             elif delen[1] == "faq":
                 pagina = self._faq_pagina()
                 if pagina:
+                    self._vraag("DELETE", f"wp/v2/pages/{pagina['id']}", params={"force": "true"})
+            elif delen[1] == "llms":
+                pagina = self._llms_pagina()
+                if pagina and oud:
+                    self._vraag("POST", f"wp/v2/pages/{pagina['id']}", json={"content": oud})
+                elif pagina:
                     self._vraag("DELETE", f"wp/v2/pages/{pagina['id']}", params={"force": "true"})
             else:
                 return {"gelukt": False, "fout": "Onbekend soort wijziging."}

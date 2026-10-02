@@ -265,6 +265,13 @@ def nachtregel(geheugen=None, nu=None):
                           + (f"Mislukt of overgeslagen: {', '.join(mislukt)}." if mislukt else "Alle stappen gelukt.")
                           + mb)}
     bezig = verslag.get("bezig")
+    if bezig == "onderhoud":
+        try:
+            sub = db.get_instelling("onderhoud_stap")
+            if sub and sub != "klaar":
+                bezig = f"onderhoud ({sub})"
+        except Exception:
+            pass
     return {"goed": False,
             "tekst": (f"LET OP: het nachtwerk startte om {uur(gestart)} maar kwam niet af"
                       + (f", het bleef hangen bij: {bezig}" if bezig else "")

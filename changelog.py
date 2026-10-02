@@ -11,6 +11,19 @@ Deze lijst wordt ook getest (test_changelog.py): elke link erin moet laden.
 
 # (datum, titel, tekst, link of None). Nieuwste eerst.
 REGELS = [
+    # 2 oktober: vier goedgekeurde voorstellen uit de leeragent.
+    ("2026-10-02", "Which AI robots can read each page",
+     "Your Fixes page now shows, per page, whether ChatGPT search, Perplexity, Google and OpenAI's training "
+     "robot may read it and actually get it. Blocked by robots.txt, a firewall or a noindex: you see which.", None),
+    ("2026-10-02", "Your products in AI answers",
+     "The weekly check now also looks for your products. Your overview shows which ones ChatGPT and Gemini named "
+     "by name, and for which question.", None),
+    ("2026-10-02", "llms.txt for Shopify and WordPress",
+     "Fix now writes an llms.txt for your store: a short file that tells AI what you sell, with your main pages "
+     "and products. We keep it up to date when your products change.", None),
+    ("2026-10-02", "A short weekly email",
+     "Paying stores get one short email a week: how often AI named you, what changed since last week, and which "
+     "products were named. One click turns it off.", None),
     # 1 oktober, laat: wat er voor klanten veranderde. Kort; de details staan in het dashboard.
     ("2026-10-01", "Every week: your five key questions checked again",
      "Besides the monthly ranking, we now ask your five most important buying questions again every week. Your "
@@ -89,6 +102,7 @@ REGELS = [
 # De grootste veranderingen: alleen die gaan in het maandelijkse klantnieuws
 # (klantnieuws.py). Nino, 1 oktober: "alleen de grootste veranderingen".
 GROOT = {
+    "Which AI robots can read each page", "Your products in AI answers", "llms.txt for Shopify and WordPress",
     "Every week: your five key questions checked again",
     "Your rank within the hour after you start",
     "Fix for WooCommerce and WordPress",

@@ -61,6 +61,8 @@ def maak_tabel():
                 aanbevolen BOOLEAN NOT NULL DEFAULT FALSE,
                 anderen JSONB)""")
     _sql("CREATE INDEX IF NOT EXISTS snelmetingen_winkel ON snelmetingen (webshop_url, ronde_op)")
+    # 2 oktober (productkaart.py): welke producten van de winkel in het antwoord staan.
+    _sql("ALTER TABLE snelmetingen ADD COLUMN IF NOT EXISTS producten JSONB")
 
 
 def kies_vragen(vragen_overzicht, gekozen=None, aantal=AANTAL):
@@ -87,7 +89,7 @@ def vragen_voor(webshop_url):
     return kies_vragen(vo, db.gekozen_vragen(webshop_url))
 
 
-def meet(webshop_url, vragen=None, aanbieders=None, vraag_aan=None, lees=None, nu=None):
+def meet(webshop_url, vragen=None, aanbieders=None, vraag_aan=None, lees=None, nu=None, haal_producten=None):
     """De snelmeting voor een winkel. Geeft een verslag.
 
     vraag_aan en lees zijn alleen voor de test (geen echte AI-aanroepen)."""
@@ -107,6 +109,14 @@ def meet(webshop_url, vragen=None, aanbieders=None, vraag_aan=None, lees=None, n
     lees = lees or categoriemeting.winkels_uit_antwoord
     moment = nu or datetime.now(timezone.utc)
     verslag = {"gemeten": 0, "mislukt": 0, "gestopt": None}
+    # De productlijst (productkaart.py), een keer per week uit de sitemap.
+    try:
+        import productkaart
+        producten = productkaart.producten_van(webshop_url, haal=haal_producten) if haal_producten is not False \
+            else []
+    except Exception as e:
+        print(f"Productlijst voor de snelmeting mislukt: {e}")
+        producten = []
     for vraag in vragen:
         for a in aanbieders:
             rem = kosten.mag_doorgaan(webshop_url=webshop_url)
@@ -132,10 +142,16 @@ def meet(webshop_url, vragen=None, aanbieders=None, vraag_aan=None, lees=None, n
             anderen = [w.get("naam") for w in genoemde.get("winkels", [])
                        if w.get("naam") and (w.get("soort") or "winkel") != "platform"
                        and not scan_engine.is_eigen_winkel(webshop_url, w.get("naam"))][:3]
-            _sql("""INSERT INTO snelmetingen (webshop_url, ronde_op, vraag, assistent, genoemd, aanbevolen, anderen)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            try:
+                import productkaart
+                in_antwoord = productkaart.genoemd_in(producten, uitkomst.get("antwoord"))
+            except Exception:
+                in_antwoord = []
+            _sql("""INSERT INTO snelmetingen (webshop_url, ronde_op, vraag, assistent, genoemd, aanbevolen, anderen,
+                                              producten)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                  (webshop_url, moment, vraag, dp.assistent_naam(a["model"]), genoemd, aanbevolen,
-                  json.dumps(anderen)))
+                  json.dumps(anderen), json.dumps(in_antwoord)))
             verslag["gemeten"] += 1
         if verslag["gestopt"]:
             break

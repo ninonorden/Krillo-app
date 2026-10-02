@@ -48,6 +48,7 @@ Valt een ronde halverwege om, dan pakt de volgende het gewoon op.
 """
 import os
 import threading
+import gc
 import time
 
 import categorieen
@@ -323,6 +324,9 @@ def stap_herberekenen():
         for land in db.landen_met_eigen_ronde(slug):
             if not categoriemeting.herbereken_ranglijst(slug, land=land).get("fout"):
                 verslag["bijgewerkt"] += 1
+        # 2 oktober: na elke categorie opruimen, niet pas aan het eind.
+        db.vergeet_onthouden()
+        gc.collect()
     db.vergeet_onthouden()
     return verslag
 
@@ -422,6 +426,16 @@ def stap_meten(hoeveel=None):
 # De hele ronde
 # ---------------------------------------------------------------------------
 
+def _zet_stap(naam):
+    """De stap in het geheugen EN in de database (2 oktober). Valt de dienst om
+    (geheugen), dan zegt het ochtendbericht bij welke stap van het onderhoud."""
+    _stand["stap"] = naam
+    try:
+        db.zet_instelling("onderhoud_stap", naam)
+    except Exception:
+        pass
+
+
 def ronde():
     """Een hele onderhoudsronde. Draait op de aanroepende draad.
 
@@ -431,34 +445,34 @@ def ronde():
 
     # Eerst gericht winkels zoeken voor de landen met eigen vragen, zodat ze
     # dezelfde nacht nog ingedeeld worden.
-    _stand["stap"] = "landen vullen"
+    _zet_stap("landen vullen")
     verslag["landen_vullen"] = stap_landen_vullen()
 
-    _stand["stap"] = "indelen"
+    _zet_stap("indelen")
     verslag["indelen"] = stap_indelen()
 
-    _stand["stap"] = "opschonen"
+    _zet_stap("opschonen")
     verslag["opschonen"] = stap_opschonen()
 
     # Voor het herberekenen, zodat een platform dezelfde nacht nog uit de
     # ranglijst valt.
-    _stand["stap"] = "platforms nakijken"
+    _zet_stap("platforms nakijken")
     verslag["platformcheck"] = stap_platformcheck()
 
     # Gratis, en het moet na het opschonen: wat daar geleerd is over ketens en
     # merken hoort meteen in de bestaande ranglijsten te staan.
-    _stand["stap"] = "ranglijsten herberekenen"
+    _zet_stap("ranglijsten herberekenen")
     verslag["herberekenen"] = stap_herberekenen()
 
-    _stand["stap"] = "meten"
+    _zet_stap("meten")
     verslag["meten"] = stap_meten()
 
     # Stap 71: wat langer bewaard is dan het privacybeleid belooft, weg. Elke
     # nacht, want dan is niets ooit meer dan een dag over zijn termijn.
-    _stand["stap"] = "bewaartermijnen"
+    _zet_stap("bewaartermijnen")
     verslag["bewaartermijnen"] = db.ruim_verlopen_gegevens(12)
 
-    _stand["stap"] = "klaar"
+    _zet_stap("klaar")
     verslag["kosten_vandaag"] = kosten.mag_doorgaan()
     return verslag
 
