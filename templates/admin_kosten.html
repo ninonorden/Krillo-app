@@ -126,6 +126,15 @@
   <div class="leeg">Nog niets.</div>
   {% endif %}
 
+  <h2>Weekgrens per agent</h2>
+  <p>Een eigen agent die zijn weekgrens haalt, slaat over tot er weer ruimte is. Te veranderen in Render (WEEKGRENS_LEERAGENT, WEEKGRENS_LIJSTJESAGENT, WEEKGRENS_ARTIKEL).</p>
+  <table>
+    <tr><th>Agent</th><th>Laatste 7 dagen</th></tr>
+    {% for w in weekgrenzen %}
+    <tr><td>{{ w.naam }}</td><td class="getal">{{ '%.2f'|format(w.week) }} van {{ '%.2f'|format(w.grens) }} euro</td></tr>
+    {% endfor %}
+  </table>
+
   <h2>Per webshop</h2>
   {% if per_klant %}
   <table>
