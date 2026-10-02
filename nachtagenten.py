@@ -179,6 +179,13 @@ def _zichtbare_bedragen(html):
     return tekst
 
 
+# Alleen AthenaHQ: daar staat "$25 in credits" gewoon in de pagina en "$295"
+# pas na het laden in de browser, dus de regel "alles weg = niet zeker" vangt
+# het niet. Otterly viel al onder die regel (alle drie weg); dat het daar toch
+# terugkwam, kwam door de oude uitkomst die tot maandag herhaald werd.
+PRIJS_IN_BROWSER = {"athenahq"}
+
+
 def concurrenten(haal=None, vandaag=None):
     """Staan de bedragen die wij noemen nog op hun prijspagina?"""
     import vergelijkingen
@@ -224,7 +231,14 @@ def concurrenten(haal=None, vandaag=None):
         # Daarom: is ALLES wat wij noemen weg, dan is de pagina waarschijnlijk niet
         # te lezen, en dat is "niet zeker", geen taak voor Nino. Is een DEEL weg,
         # dan is er echt iets veranderd.
-        if weg and len(weg) == len(bedragen):
+        # 2 oktober: AthenaHQ kwam elke ochtend terug, terwijl de prijs er met
+        # de hand nagekeken nog precies zo staat (zie PRIJS_IN_BROWSER). Voor
+        # zo'n pagina is het altijd "niet zeker"; de hand-controle elke 90
+        # dagen (GEKEKEN) vangt een echte prijswijziging.
+        if weg and slug in PRIJS_IN_BROWSER:
+            uit.append(f"Niet zeker: {t['naam']} bouwt zijn prijzen in de browser op ({t['bron']}); "
+                       f"met de hand nakijken bij de 90-dagencontrole")
+        elif weg and len(weg) == len(bedragen):
             uit.append(f"Niet zeker: {t['naam']} toont zijn prijzen niet in de pagina zelf ({t['bron']}); "
                        f"met de hand nakijken als je toch op /compare bent")
         elif weg:
@@ -291,7 +305,10 @@ def draai(melden=None, vandaag=None):
         vorige = json.loads(db.get_instelling("nachtagenten") or "{}")
     except Exception:
         pass
-    if vandaag.weekday() == PER_WEEK_DAG or vorige.get("concurrenten") is None:
+    # 2 oktober: had de vorige keer bevindingen, dan elke nacht opnieuw kijken
+    # (het kost niets). Anders bleef een opgelost vals alarm tot maandag staan.
+    vorige_zeker = [c for c in vorige.get("concurrenten") or [] if not c.startswith("Niet zeker")]
+    if vandaag.weekday() == PER_WEEK_DAG or vorige.get("concurrenten") is None or vorige_zeker:
         try:
             uit["concurrenten"] = concurrenten(vandaag=vandaag)
         except Exception as e:

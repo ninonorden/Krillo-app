@@ -1397,6 +1397,13 @@ def kosten_vandaag():
         "AT TIME ZONE 'Europe/Amsterdam'", ())
 
 
+def kosten_tussen(van, tot):
+    """Wat er tussen twee tijdstippen (seconden sinds 1970) uitgegeven is. Voor
+    de nachtregel in het ochtendbericht. None bij een fout."""
+    rij = _kosten_optellen("moment BETWEEN to_timestamp(%s) AND to_timestamp(%s)", (float(van), float(tot)))
+    return None if rij is None else float(rij.get("kosten") or 0)
+
+
 def kosten_per_soort(dagen=1):
     """Wat elke soort werk kostte: vandaag (dagen=1, Nederlandse klok) of de
     laatste N dagen. Duurste eerst.

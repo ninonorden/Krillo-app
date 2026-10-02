@@ -126,6 +126,14 @@ def te_doen(basis_url):
         na = {}
     # 1 oktober: wat de site zelf al afhandelt ("Niets voor jou te doen") hoort
     # niet bij "wat jij vandaag moet doen". Het staat wel op /admin/controle.
+    # 2 oktober: verouderde bevindingen niet meer als taak. Liep de
+    # indexcontrole vannacht niet, dan bleef de lijst van een eerdere nacht
+    # staan (met fouten die allang opgelost waren), elke ochtend opnieuw.
+    from datetime import date as _date, timedelta as _td
+    if na.get("datum") and na["datum"] < (_date.today() - _td(days=1)).isoformat():
+        uit.append((f"De indexcontrole liep sinds {na['datum']} niet. Geef dit aan Claude",
+                    f"{basis_url}/admin/controle"))
+        na = {}
     kwaliteit = [k for k in na.get("kwaliteit") or [] if "Niets voor jou te doen" not in k]
     if kwaliteit:
         uit.append((f"De kwaliteitsagent vond {len(kwaliteit)} ding(en) in de index: "
@@ -219,6 +227,50 @@ def index_groei():
     return regels
 
 
+def nachtregel(geheugen=None, nu=None):
+    """Een zin bovenaan het ochtendbericht: liep de nacht af, hoe laat, hoe lang,
+    welke stap mislukte, en wat de nacht kostte (2 oktober).
+
+    Stond eerst onderaan, en op /admin/ochtendbericht helemaal niet. Nino vroeg
+    om 10 uur: "nachtwerk staat er niet". Nu altijd als eerste regel."""
+    import time
+    from datetime import datetime
+    try:
+        gestart = float(db.get_instelling("nachtwerk_gestart") or 0)
+        klaar = float(db.get_instelling("nachtwerk_klaar") or 0)
+        verslag = json.loads(db.get_instelling("nachtwerk_verslag") or "{}")
+    except Exception:
+        gestart, klaar, verslag = 0, 0, {}
+    nu = nu or time.time()
+
+    def uur(t):
+        return datetime.fromtimestamp(t).strftime("%H:%M")
+    mb = f" Geheugen nu {geheugen} MB (Render herstart boven 512)." if geheugen else ""
+    if not gestart or nu - gestart > 30 * 3600:
+        return {"goed": False, "tekst": "LET OP: het nachtwerk is vannacht niet gestart. De site start het "
+                                         "zelf tussen 2 en 5 uur; gebeurde dat niet, geef dit aan Claude." + mb}
+    if klaar >= gestart:
+        mislukt = [f"{k} ({v})" for k, v in verslag.items()
+                   if k not in ("geheugen_na", "bezig") and isinstance(v, str) and v != "ok"]
+        kosten = ""
+        try:
+            k = db.kosten_tussen(gestart, klaar)
+            if k is not None:
+                kosten = f", kostte {k:.2f} euro"
+        except Exception:
+            pass
+        minuten = int((klaar - gestart) // 60)
+        return {"goed": not mislukt,
+                "tekst": (f"Nachtwerk klaar: van {uur(gestart)} tot {uur(klaar)} ({minuten} min){kosten}. "
+                          + (f"Mislukt of overgeslagen: {', '.join(mislukt)}." if mislukt else "Alle stappen gelukt.")
+                          + mb)}
+    bezig = verslag.get("bezig")
+    return {"goed": False,
+            "tekst": (f"LET OP: het nachtwerk startte om {uur(gestart)} maar kwam niet af"
+                      + (f", het bleef hangen bij: {bezig}" if bezig else "")
+                      + ". Waarschijnlijk een herstart van Render. De site probeert het tot 7 uur opnieuw." + mb)}
+
+
 def verzamel(basis_url):
     gisteren = [(wat, _tel(sql)) for wat, sql in GISTEREN]
     # Hoe de post landt (stap 117): zelfde telling als de automatische rem.
@@ -299,6 +351,10 @@ def verzamel(basis_url):
         gegevens["bouwlijst"] = len(voorstellen.bouwlijst())
     except Exception as e:
         print(f"Ochtendbericht, dagtaken mislukt: {e}")
+    try:
+        gegevens["nacht"] = nachtregel()
+    except Exception as e:
+        print(f"Ochtendbericht, nachtregel mislukt: {e}")
     # Kosten per agent (1 oktober): de laatste 7 dagen, duurste vijf. Zo zie je
     # welke agent de dagpot opmaakt en of hij dat waard is.
     try:
@@ -336,7 +392,12 @@ def tekst(gegevens, extra_regels=None):
                  + (f", {len(voorstel)} voorstel(len)" if voorstel else "")
                  + f", {mails if mails is not None else '?'} mails, "
                  f"{klikken if klikken is not None else '?'} bekeken")
-    stuk = ["<div style='font-family:Arial,sans-serif;font-size:15px;line-height:1.55;max-width:600px'>",
+    stuk = ["<div style='font-family:Arial,sans-serif;font-size:15px;line-height:1.55;max-width:600px'>"]
+    if gegevens.get("nacht"):
+        n = gegevens["nacht"]
+        stuk.append(f"<p style='margin:0 0 14px;padding:8px 10px;background:{'#EAF5EC' if n['goed'] else '#FDECEA'}'>"
+                    f"{escape(n['tekst'])}</p>")
+    stuk += [
             "<h2 style='font-size:17px;margin:0 0 8px'>Wat jij vandaag moet doen"
             + (f" (ongeveer {minuten} minuten)" if minuten else "") + "</h2>"]
     if taken:

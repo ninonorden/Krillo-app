@@ -433,7 +433,7 @@ def mag_eigen_agent(agent=None):
     return {"mag": True, "reden": None}
 
 
-def ruimte_voor_benadering():
+def _ruimte_voor_benadering():
     """Of de eigen benadering vandaag nog metingen mag doen.
 
     Aparte, lagere grens dan die voor klanten. Klanten gaan voor. Wat de
@@ -457,6 +457,15 @@ def ruimte_voor_benadering():
             # worden. Plan er nooit meer in dan dit, anders koop je halve
             # metingen: wel betaald, geen uitkomst.
             "past_nog": max(0, int((grens - totaal) / SCHATTING_BENADERING_EURO))}
+
+
+def ruimte_voor_benadering():
+    """Zie _ruimte_voor_benadering. Met erbij wat de site uit Render leest
+    (2 oktober: Nino zette de pot op 7 en zag nog steeds 5)."""
+    uit = _ruimte_voor_benadering()
+    uit["totaal_grens"] = GRENS_TOTAAL_DAG_EURO
+    uit["deel"] = DEEL_VOOR_BENADERING
+    return uit
 
 
 # Wat een hele categoriemeting ongeveer kost: dertig vragen aan twee modellen,

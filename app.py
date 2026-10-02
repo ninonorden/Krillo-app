@@ -5233,7 +5233,7 @@ def _dagbericht_sturen():
                                      f"de webservice in Render in de regio Frankfurt, net als Neon."]
         # 1 oktober: het geheugen en of de nacht afkwam. Na de herstart van die
         # nacht kwam er geen bericht en wist niemand waarom.
-        regels = list(regels) + [_nachtregel()]
+        # 2 oktober: de nachtregel staat nu bovenaan (ochtendbericht.nachtregel).
         onderwerp, body = ochtendbericht.tekst(
             ochtendbericht.verzamel(get_base_url().rstrip("/")), extra_regels=regels)
         if emailing.send_email(ontvanger, onderwerp, body):
@@ -5358,6 +5358,7 @@ MINIMUM_WINKELS_VOOR_VERGELIJKING = 25
 # dit aantal is een verschil van een of twee kliks toeval, en zou je op toeval
 # een mail weggooien.
 MINIMUM_MAILS_PER_VERSIE = int(os.environ.get("MINIMUM_MAILS_PER_VERSIE", "60"))
+MINIMUM_ACTIES_VOOR_WINNAAR = int(os.environ.get("MINIMUM_ACTIES_VOOR_WINNAAR", "15"))
 
 
 def _varianten_met_oordeel():
@@ -5383,6 +5384,15 @@ def _varianten_met_oordeel():
     if len(rijen) >= 2 and len(groot) < 2:
         oordeel = (f"Nog geen winnaar: pas vanaf {MINIMUM_MAILS_PER_VERSIE} mails per versie "
                    "is een verschil meer dan toeval.")
+    elif len(groot) >= 2 and not any(r.get("klant") for r in groot) \
+            and sum((r.get("doorgeklikt") or 0) + (r.get("mensen") or 0) for r in groot) \
+            < MINIMUM_ACTIES_VOOR_WINNAAR:
+        # 2 oktober: "Versie b wint" op 1 doorklik tegen 0. Dat is toeval, geen
+        # winnaar. Pas bij genoeg echte acties (mensen plus naar de prijzen)
+        # zegt een verschil iets. Een betalende klant beslist wel meteen.
+        acties = sum((r.get("doorgeklikt") or 0) + (r.get("mensen") or 0) for r in groot)
+        oordeel = (f"Nog geen winnaar: {acties} echte acties (mensen plus naar de prijzen) is te weinig. "
+                   f"Pas vanaf {MINIMUM_ACTIES_VOOR_WINNAAR} zegt een verschil iets. Laat alle versies lopen.")
     elif len(groot) >= 2:
         beste = max(groot, key=_score)
         slechtste = min(groot, key=_score)
@@ -5562,9 +5572,13 @@ def _nachtwerk_achter_elkaar():
     stappen = [
         ("onderhoud", lambda: onderhoud._werk(), True),
         ("betalingen", _controleer_betalingen, True),
-        ("nachtcontrole", lambda: nachtcontrole.draai(app, _meld_aan_beheer), True),
+        # 2 oktober: de indexcontrole en de robotwacht VOOR de nachtcontrole.
+        # De nachtcontrole bootst de hele site na en duurt het langst; bleef
+        # die hangen, dan liep de indexcontrole niet en stonden de bevindingen
+        # van een eerdere nacht nog in het ochtendbericht.
         ("indexcontrole", lambda: nachtagenten.draai(_meld_aan_beheer), True),
         ("robotwacht", lambda: robotwacht.ronde(meld=_meld_aan_beheer, basis_url=get_base_url()), True),
+        ("nachtcontrole", lambda: nachtcontrole.draai(app, _meld_aan_beheer), True),
         ("leeragent", leeragent.draai, False),
         ("lijstjes", lijstjesagent.zoek, False),
     ]
@@ -5575,6 +5589,13 @@ def _nachtwerk_achter_elkaar():
             verslag[naam] = f"overgeslagen, geheugen {voor} MB"
             print(f"NACHT {naam}: overgeslagen, geheugen {voor} MB boven {GEHEUGEN_GRENS_MB}")
             continue
+        # 2 oktober: na elke stap bewaren waar we zijn. Valt de dienst om, dan
+        # zegt het ochtendbericht bij welke stap.
+        verslag["bezig"] = naam
+        try:
+            db.zet_instelling("nachtwerk_verslag", json.dumps(verslag)[:4000])
+        except Exception:
+            pass
         try:
             stap()
             verslag[naam] = "ok"
@@ -5586,6 +5607,7 @@ def _nachtwerk_achter_elkaar():
         gc.collect()
         print(f"NACHT {naam}: geheugen {voor} -> {geheugen_mb()} MB")
     verslag["geheugen_na"] = geheugen_mb()
+    verslag.pop("bezig", None)
     try:
         db.zet_instelling(NACHTWERK_KLAAR_SLEUTEL, str(int(time.time())))
         db.zet_instelling("nachtwerk_verslag", json.dumps(verslag)[:4000])
@@ -5595,23 +5617,10 @@ def _nachtwerk_achter_elkaar():
 
 
 def _nachtregel():
-    """Een zin voor het ochtendbericht: liep de nacht af, en hoeveel geheugen nu."""
-    try:
-        gestart = float(db.get_instelling(NACHTWERK_SLEUTEL) or 0)
-        klaar = float(db.get_instelling(NACHTWERK_KLAAR_SLEUTEL) or 0)
-        verslag = json.loads(db.get_instelling("nachtwerk_verslag") or "{}")
-    except Exception:
-        gestart, klaar, verslag = 0, 0, {}
-    mb = geheugen_mb()
-    deel = f"Geheugen nu {mb} MB (Render herstart boven 512)." if mb else ""
-    if gestart and klaar >= gestart:
-        mislukt = [k for k, v in verslag.items() if isinstance(v, str) and v != "ok"]
-        return (f"De nacht liep af{', behalve: ' + ', '.join(mislukt) if mislukt else ', alle stappen gelukt'}. "
-                f"Geheugen na de nacht {verslag.get('geheugen_na', '?')} MB. {deel}")
-    if gestart:
-        return (f"LET OP: de nacht startte maar kwam niet af (waarschijnlijk een herstart van Render). "
-                f"De site probeert het tot 7 uur zelf opnieuw. {deel}")
-    return f"De nacht is niet gestart. Kijk bij cron-job.org naar /api/cron/onderhoud. {deel}"
+    """Een zin over de nacht. Sinds 2 oktober in ochtendbericht.nachtregel, zodat
+    hij ook bovenaan /admin/ochtendbericht staat."""
+    import ochtendbericht
+    return ochtendbericht.nachtregel(geheugen=geheugen_mb())["tekst"]
 
 
 def _start_nachtwerk():
