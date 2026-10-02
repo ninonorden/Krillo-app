@@ -176,6 +176,24 @@
       Boven 5 procent bounces of 0,3 procent klachten gaat Gmail je mail als spam zien.</b>{% endif %}
       <br><span class="klein">Blijft 'geopend' laag, dan ligt het aan de mail. Blijft
       'doorgeklikt' laag terwijl 'geopend' hoog is, dan ligt het aan de uitkomstpagina.</span>
+      {# 2 oktober: per dag, zodat je ziet wat VANDAAG en GISTEREN gebeurde. #}
+      {% if per_dag %}
+      <table style="margin-top:12px; border-collapse:collapse;">
+        <tr><th style="text-align:left; padding:4px 14px 4px 0;">Dag</th>
+            <th style="text-align:right; padding:4px 14px;">Gemaild</th>
+            <th style="text-align:right; padding:4px 14px;">Geopend</th>
+            <th style="text-align:right; padding:4px 14px;">Echte mensen</th>
+            <th style="text-align:right; padding:4px 0 4px 14px;">Naar de prijzen</th></tr>
+        {% for d in per_dag %}
+        <tr><td style="padding:4px 14px 4px 0;">{{ 'vandaag' if loop.first else ('gisteren' if loop.index == 2 else d.dag.strftime('%a %d-%m')) }}</td>
+            <td style="text-align:right; padding:4px 14px;">{{ d.gemaild }}</td>
+            <td style="text-align:right; padding:4px 14px;">{{ d.geopend }}</td>
+            <td style="text-align:right; padding:4px 14px;"><b>{{ d.mensen }}</b></td>
+            <td style="text-align:right; padding:4px 0 4px 14px;"><b>{{ d.prijzen }}</b></td></tr>
+        {% endfor %}
+      </table>
+      <span class="klein">Geteld op de dag dat het gebeurde: een opening vandaag op een mail van gisteren telt vandaag.</span>
+      {% endif %}
     </div>
   </div>
   {% endif %}

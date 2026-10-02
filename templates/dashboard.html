@@ -110,11 +110,20 @@
          WIE AI noemde en bij WELKE vraag, met eronder wat de proef kost. #}
       {% set gemist = (beeld.gemiste_vragen or []) | selectattr('concurrenten') | list %}
       <div>
-        <div class="proefkop">{% if gemist %}{{ 'AI noemde' if taal == 'nl' else 'AI named' }} {{ (gemist | first).concurrenten[:2] | join(' and ' if taal != 'nl' else ' en ') }}, {{ 'niet jou' if taal == 'nl' else 'not you' }}.{% else %}{{ 'Je eigen Krillo-dashboard, gratis voorproef' if taal == 'nl' else 'Your own Krillo dashboard, free preview' }}{% endif %}</div>
+        {# 2 oktober (Nino, Partywinkel.nl): op 1 klopt "zet je hoger" niet. Dan:
+           je staat op 1, houd dat zo, en waar AI je nog mist. #}
+        {% set op1 = beeld.positie == 1 %}
+        {% set gem_namen = ((gemist | first).concurrenten[:2] | join(' and ' if taal != 'nl' else ' en ')) if gemist else '' %}
+        <div class="proefkop">{% if op1 %}{{ ('Je staat op 1 in ' ~ categorienaam ~ '. Houd dat zo.') if taal == 'nl' else ('You are #1 in ' ~ categorienaam ~ '. Keep it that way.') }}{% elif gemist %}{{ 'AI noemde' if taal == 'nl' else 'AI named' }} {{ gem_namen }}, {{ 'niet jou' if taal == 'nl' else 'not you' }}.{% else %}{{ 'Je eigen Krillo-dashboard, gratis voorproef' if taal == 'nl' else 'Your own Krillo dashboard, free preview' }}{% endif %}</div>
         <div class="proeftekst">
+          {% if op1 %}
+          {% if gemist %}{{ ('Maar bij sommige vragen noemt AI anderen, zoals ' ~ gem_namen ~ ' bij') if taal == 'nl' else ('But for some questions AI names others, like ' ~ gem_namen ~ ' for') }} <span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">&ldquo;{{ (gemist | first).vraag }}&rdquo;</span>.<br>{% endif %}
+          {{ 'Watch laat elke maand zien wie dichterbij komt, en Fix wint de vragen die je nog mist.' if taal == 'nl' else 'Watch shows every month who is coming closer, and Fix wins the questions you still miss.' }}
+          {% else %}
           {% if gemist %}{{ 'Vraag' if taal == 'nl' else 'Question' }}: <span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">&ldquo;{{ (gemist | first).vraag }}&rdquo;</span><br>{% endif %}
           {% if taal == 'nl' %}{{ beeld.naam }} staat op <strong>#{{ beeld.positie }}</strong> van {{ beeld.van }} in {{ categorienaam }}. Watch of Fix zet je hoger.
           {% else %}{{ beeld.naam }} is <strong>#{{ beeld.positie }}</strong> of {{ beeld.van }} in {{ categorienaam }}. Watch or Fix moves you up.{% endif %}
+          {% endif %}
         </div>
       </div>
       <div class="proefknoppen">
@@ -284,7 +293,7 @@
         <div class="d8-kaart d8-twee">
           <div class="d8-grafiek" id="verloop">
             <div class="d8-kop"><b data-grafiektitel>{{ 'Plek per meting' if nl else 'Rank over time' }}</b>
-              <span class="d8-mono d8-hoofd">{{ 'jij en de winkels boven je, nummer 1 bovenaan' if nl else 'you and the stores above you, number 1 at the top' }}</span>
+              <span class="d8-mono d8-hoofd">{% if beeld.boven_is_achter %}{{ 'jij op 1, en de winkels vlak achter je' if nl else 'you at number 1, and the stores right behind you' }}{% else %}{{ 'jij en de winkels boven je, nummer 1 bovenaan' if nl else 'you and the stores above you, number 1 at the top' }}{% endif %}</span>
               {% if reeksen %}<span class="d8-mono rechts">{{ 'KLIK EEN METING' if nl else 'CLICK A MEASUREMENT' }}</span>{% endif %}</div>
             {% if reeksen %}
             <div class="d8-vlak" data-grafiek>
@@ -295,7 +304,7 @@
             <script type="application/json" id="d8Reeksen">{{ reeksen | tojson }}</script>
             {% else %}
             <p class="d8-leeg">{{ 'Dit is je eerste meting. Na de volgende zie je hier de lijn van jou en de winkels boven je.' if nl
-                 else 'This is your first measurement. After the next one, the lines of you and the stores above you appear here.' }}</p>
+                 else ('This is your first measurement. After the next one, the lines of you and the stores right behind you appear here.' if beeld.boven_is_achter else 'This is your first measurement. After the next one, the lines of you and the stores above you appear here.') }}</p>
             {% endif %}
           </div>
           <div class="d8-rang">
@@ -564,7 +573,7 @@
     {# ================================================================ RANGLIJST #}
     {% if pagina == 'ranglijst' and beeld %}
     <div class="kaartblok">
-      <div class="kaartkop">{{ 'JIJ EN DE WINKELS BOVEN JE, PER METING' if taal == 'nl' else 'YOU AND THE STORES ABOVE YOU, PER MEASUREMENT' }}</div>
+      <div class="kaartkop">{% if beeld.boven_is_achter %}{{ 'JIJ EN DE WINKELS VLAK ACHTER JE, PER METING' if taal == 'nl' else 'YOU AND THE STORES RIGHT BEHIND YOU, PER MEASUREMENT' }}{% else %}{{ 'JIJ EN DE WINKELS BOVEN JE, PER METING' if taal == 'nl' else 'YOU AND THE STORES ABOVE YOU, PER MEASUREMENT' }}{% endif %}</div>
       {% if grafiek_buren %}
       {{ grafiek_buren }}
       <div class="legenda">
@@ -678,6 +687,33 @@
       <ul style="margin:0 16px 4px; padding-left:18px; font-size:14px; line-height:1.7;">
         {% for o in open_plekken %}<li><span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ o.vraag }}</span> <span style="font-family:var(--mono); font-size:12px; color:var(--zacht, #6E7079);">{% if o.aantal == 0 %}{{ 'nog niemand genoemd' if taal == 'nl' else 'no store named yet' }}{% else %}{{ o.namen | join(', ') }}{% endif %}</span></li>{% endfor %}
       </ul>
+    </div>
+    {% endif %}
+
+    {# 2 oktober (stap 180): eigen vragen. Alleen in dit dashboard; de plek in
+       de index komt uit de vaste vragen, zodat de index eerlijk blijft. #}
+    {% if eigen is defined and eigen %}
+    <div class="kaartblok" id="eigen">
+      <div class="kaartkop">{{ 'JE EIGEN VRAGEN' if taal == 'nl' else 'YOUR OWN QUESTIONS' }}
+        <span class="uitleg">{{ eigen.lijst | length }} {{ 'van' if taal == 'nl' else 'of' }} {{ eigen.max }}</span></div>
+      <p style="margin:0 0 8px; font-size:14px;">{{ 'Vragen die jij belangrijk vindt. Elke week aan ChatGPT en Gemini gesteld, alleen voor jou. Ze tellen niet mee voor je plek in de index.' if taal == 'nl' else 'Questions you care about. Asked to ChatGPT and Gemini every week, only for you. They do not count toward your rank in the index.' }}</p>
+      {% if eigen.melding %}<div class="binnen klein" style="background:var(--vlak, #F4F4F5);">{{ eigen.melding }}</div>{% endif %}
+      {% if eigen.lijst %}
+      <table class="tabel"><tbody>
+        {% for v in eigen.lijst %}<tr>
+          <td class="kort"><span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ v.vraag }}</span>{% if v.was is not none and v.assistenten and v.was != (v.assistenten | selectattr('genoemd') | list | length > 0) %} <span class="klein">{{ ('nu genoemd' if (v.assistenten | selectattr('genoemd') | list) else 'niet meer genoemd') if taal == 'nl' else ('now named' if (v.assistenten | selectattr('genoemd') | list) else 'no longer named') }}</span>{% endif %}</td>
+          <td class="klein" style="white-space:nowrap;">{% if v.assistenten %}{% for a in v.assistenten %}<span title="{{ a.anderen | join(', ') }}">{{ a.naam }} {{ '&#10003;' | safe if a.genoemd else '&#10005;' | safe }}</span> {% endfor %}{% else %}{{ 'wordt gemeten' if taal == 'nl' else 'being measured' }}{% endif %}</td>
+          <td><form method="post" action="{{ eigen.actie }}"><input type="hidden" name="actie" value="weg"><input type="hidden" name="id" value="{{ v.id }}"><button type="submit" class="klein" style="border:0;background:none;cursor:pointer;color:var(--zacht, #6E7079);">{{ 'weg' if taal == 'nl' else 'remove' }}</button></form></td>
+        </tr>{% endfor %}
+      </tbody></table>
+      {% endif %}
+      {% if eigen.lijst | length < eigen.max %}
+      <form method="post" action="{{ eigen.actie }}" class="binnen" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input name="vraag" id="eigenvraag" maxlength="200" required placeholder="{{ 'Typ een vraag zoals een koper hem stelt' if taal == 'nl' else 'Type a question the way a shopper asks it' }}" style="flex:1 1 240px; padding:9px 10px; border:1px solid var(--lijn, #E4E4E7); border-radius:8px; font-size:14px;">
+        <button type="submit" class="knop-vol" style="border:0; cursor:pointer;">{{ 'Toevoegen' if taal == 'nl' else 'Add' }}</button>
+      </form>
+      {% if eigen.voorstellen %}<div class="binnen klein">{{ 'Ideeën' if taal == 'nl' else 'Ideas' }}: {% for vs in eigen.voorstellen %}<a href="#eigen" lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}" onclick="document.getElementById('eigenvraag').value=this.textContent;document.getElementById('eigenvraag').focus();return false;">{{ vs }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+      {% endif %}
     </div>
     {% endif %}
 
