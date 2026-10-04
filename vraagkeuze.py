@@ -122,7 +122,30 @@ def passende_vragen(webshop_url, gemiste, ophalen=None):
         vak = _KEUZE_GEHEUGEN.get(sleutel)
         if vak and time.time() - vak[0] < KEUZE_SECONDEN:
             return list(vak[1])
+    # 4 oktober: "Index: vragen kiezen" kostte gemiddeld 0,99 euro per dag. Het
+    # geheugen hierboven verdween bij elke herstart van de dienst, en dan werd
+    # dezelfde keuze opnieuw aan het model gevraagd. Nu ook in de database, 30 dagen.
+    import hashlib
+    import json
+    db_sleutel = "vraagkeuze:" + hashlib.sha1(repr(sleutel).encode()).hexdigest()[:20]
+    if ophalen is None:
+        try:
+            bewaard = json.loads(db.get_instelling(db_sleutel) or "null")
+            if bewaard and time.time() - bewaard["op"] < 30 * 24 * 3600:
+                keuze = [gemiste[i] for i in bewaard["idx"] if i < len(gemiste)]
+                _KEUZE_GEHEUGEN[sleutel] = (time.time(), list(keuze))
+                return keuze
+        except Exception:
+            pass
     uit = _passende_vragen_vers(webshop_url, gemiste, ophalen=ophalen)
+    # Alleen een gevonden keuze bewaren: een lege kan ook komen doordat de site
+    # even niet bereikbaar was, en die moet de volgende keer opnieuw kunnen.
+    if ophalen is None and uit:
+        try:
+            idx = [i for i, g in enumerate(gemiste) if g in uit]
+            db.zet_instelling(db_sleutel, json.dumps({"op": time.time(), "idx": idx}))
+        except Exception:
+            pass
     if ophalen is None and uit:
         if len(_KEUZE_GEHEUGEN) > 5000:
             _KEUZE_GEHEUGEN.clear()
