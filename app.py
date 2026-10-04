@@ -4605,6 +4605,8 @@ def weekly_scans():
 
     alles = request.args.get("alles") == "ja"
     base_url = get_base_url()
+    if not _ruimte_voor_zwaar_werk("wekelijkse scans"):
+        return "later", 200
     threading.Thread(target=_draai_wekelijkse_scans, args=(base_url, alles), daemon=True).start()
     return "ok", 200
 
@@ -5681,7 +5683,6 @@ def _nachtwerk_achter_elkaar():
 
 
 def _nachtstappen(stappen, verslag):
-    import gc
     for naam, stap, moet in stappen:
         voor = geheugen_mb()
         if not moet and voor and voor > GEHEUGEN_GRENS_MB:
@@ -5703,7 +5704,7 @@ def _nachtstappen(stappen, verslag):
             print(f"NACHT {naam} mislukt: {e}")
         db.vergeet_onthouden()
         _bewaard_opslag.clear()
-        gc.collect()
+        db.geef_geheugen_terug()
         print(f"NACHT {naam}: geheugen {voor} -> {geheugen_mb()} MB")
     verslag["geheugen_na"] = geheugen_mb()
     verslag.pop("bezig", None)
@@ -5713,6 +5714,29 @@ def _nachtstappen(stappen, verslag):
     except Exception:
         pass
     return verslag
+
+
+# 4 OKTOBER: drie herstarts in twee dagen (3 okt 04:07 en 09:11, 4 okt 08:02),
+# telkens overdag of vroeg in de ochtend, niet in het nachtwerk. Om 08:00
+# startten de uurronde van de benadering en de wekelijkse scans tegelijk op een
+# dienst die al op 440 MB stond. Zwaar werk start nu alleen als er ruimte is:
+# eerst geheugen teruggeven, en staat hij dan nog boven ZWAAR_WERK_MB, dan slaat
+# dit werk een ronde over (het komt de volgende ronde vanzelf terug).
+ZWAAR_WERK_MB = int(os.environ.get("ZWAAR_WERK_MB", "400"))
+
+
+def _ruimte_voor_zwaar_werk(naam):
+    mb = geheugen_mb()
+    if mb and mb > ZWAAR_WERK_MB:
+        db.vergeet_onthouden()
+        _bewaard_opslag.clear()
+        db.geef_geheugen_terug()
+        na = geheugen_mb()
+        print(f"Geheugen voor {naam}: {mb} MB, na teruggeven {na} MB.")
+        if na and na > ZWAAR_WERK_MB:
+            print(f"{naam} overgeslagen: geheugen {na} MB boven {ZWAAR_WERK_MB}.")
+            return False
+    return True
 
 
 def _nachtregel():
@@ -5770,8 +5794,9 @@ def _wachtklok_tik(nu=None):
     te_lang = laatst is None or (nu - laatst).total_seconds() > WACHTKLOK_MINUTEN * 60
     if te_lang and db.claim_moment("wachtklok_benadering", 50 * 60):
         print("WACHTKLOK: geen uurronde gezien, de site start er zelf een.")
-        threading.Thread(target=_benadering_ronde, daemon=True).start()
-        gedaan.append("benadering")
+        if _ruimte_voor_zwaar_werk("benaderingsronde (wachtklok)"):
+            threading.Thread(target=_benadering_ronde, daemon=True).start()
+            gedaan.append("benadering")
         if db.claim_moment("wachtklok_melding", 20 * 3600):
             _meld_aan_beheer("De uurtaak in Render riep de site niet aan",
                              "Er was langer dan een uur geen ronde van de benadering. De site heeft er zelf een "
@@ -5908,6 +5933,8 @@ def cron_benadering():
     cron_key = os.environ.get("CRON_KEY")
     if not cron_key or not _sleutel_klopt(request.args.get("key"), cron_key):
         return "", 404
+    if not _ruimte_voor_zwaar_werk("benaderingsronde"):
+        return "later", 200
     threading.Thread(target=_benadering_ronde, daemon=True).start()
     return "ok", 200
 

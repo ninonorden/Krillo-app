@@ -261,6 +261,18 @@ def stap_landen_vullen():
         verslag["zoeken_overgeslagen"] = (f"{voorraad['klaar']} winkels klaar, genoeg voor "
                                           f"{voorraad['dagen']} dagen mailen")
         return verslag
+    # 4 oktober: categorieen waar de categoriecheck de laatste 7 dagen vooral
+    # fouten vond (muziekinstrumenten 5 van 5, supplementen 8 van 9): daar levert
+    # het zoeken rommel aan. Die slaan we over tot de foutmeter weer zakt;
+    # zoeken kost geld, en rommel moet daarna weer nagekeken worden (ook geld).
+    try:
+        import categoriecheck
+        rommel = {r[0] for r in (categoriecheck.gecorrigeerd() or {}).get("rommel") or []}
+    except Exception:
+        rommel = set()
+    if rommel:
+        verslag["rommel_overgeslagen"] = sorted(rommel)
+        gemeten = [(slug, naam) for slug, naam in gemeten if slug not in rommel]
     for land in vraaglanden.VRAAGLANDEN:
         try:
             verslag[land] = winkelvinder.vul_land(
@@ -277,7 +289,8 @@ def stap_landen_vullen():
     # ranglijst, nieuwe winkelpagina's en nieuwe winkels om te mailen.
     try:
         verslag["nieuwe_categorieen"] = winkelvinder.vul_land(
-            "nl", nog_te_vullen(set(db.gemeten_categorieen())), db.winkels_per_categorie_in_land("nl"),
+            "nl", [c for c in nog_te_vullen(set(db.gemeten_categorieen())) if c[0] not in rommel],
+            db.winkels_per_categorie_in_land("nl"),
             doel=categorieen.MINIMUM_VOOR_INDEX + 2, max_zoekopdrachten=NIEUWE_CATEGORIEEN_PER_NACHT,
             dichtst_bij=True)
     except Exception as e:

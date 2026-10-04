@@ -7704,6 +7704,19 @@ ONTHOUD_GEHEUGEN_MB = int(os.environ.get("ONTHOUD_GEHEUGEN_MB", "330"))
 _teller = {"n": 0}
 
 
+def geef_geheugen_terug():
+    """Python geeft vrijgekomen geheugen niet vanzelf terug aan het systeem;
+    malloc_trim vraagt glibc dat wel te doen (4 oktober: na het legen bleef de
+    dienst op 440 MB staan, en de volgende piek ging over de 512)."""
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
+
 def onthouden_pauze(aan=True):
     _PAUZE["aan"] = bool(aan)
     if aan:
@@ -7740,6 +7753,7 @@ def _onthouden(sleutel, functie, *args):
                 if mb and mb > ONTHOUD_GEHEUGEN_MB:
                     print(f"Geheugen {mb} MB boven {ONTHOUD_GEHEUGEN_MB}: onthouden geleegd.")
                     _ONTHOUD.clear()
+                    geef_geheugen_terug()
             _ONTHOUD[sleutel] = (nu, waarde)
     return _copy.deepcopy(waarde)
 
