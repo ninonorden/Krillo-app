@@ -39,6 +39,31 @@ HEADERS = {
     "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
 }
 
+# 5 oktober: een bezoeker probeerde vijf keer de gratis check en kreeg steeds
+# "We could not reach this website". Veel firewalls weigeren alles met "Bot" in
+# de naam (KrilloScanBot), met een 403. De eigenaar vraagt de check zelf aan
+# voor zijn eigen site, dus bij een weigering proberen we het nog een keer als
+# gewone browser. En lukt ook dat niet, dan is de weigering zelf de uitkomst:
+# AI-robots worden dan vrijwel zeker ook geweigerd.
+BROWSER_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
+}
+# Per draad, niet voor de hele server: twee bezoekers die tegelijk een check
+# doen mogen elkaars instelling niet zien.
+import threading as _threading
+try:
+    import urllib3 as _urllib3
+    _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
+except Exception:
+    pass
+_KOPPEN = _threading.local()
+LAATSTE_WEIGERING = {}
+LAATSTE_SSL_FOUT = {}
+
+
 # Kenmerken van beveiligings- of controlepagina's. Krijgen we zoiets terug,
 # dan is dat niet de echte website en mogen we er geen score aan hangen.
 BLOKKADE_KENMERKEN = [
@@ -243,6 +268,19 @@ def is_eigen_winkel(webshop_url, naam):
              "online", "co", "uk", "biz", "info")
     kaal_delen = delen[:-1] if len(delen) > 1 and delen[-1] in _TLDS else delen
     zonder_tld = "".join(kaal_delen)
+    # 5 oktober (Nino, ranglijst Belgie): noemt AI "DiscountOffice.nl" of
+    # "Schoenen.nl" MET een landcode, dan is dat die site in dat land. Die
+    # telde mee voor discountoffice.be en zelfs voor schoenenruytings.be. Een
+    # andere landcode dan die van de winkel is dus niet de winkel.
+    _LANDCODES = ("nl", "be", "de", "fr", "uk", "es", "it", "at", "ch", "dk", "se")
+    try:
+        from urllib.parse import urlparse as _up
+        eigen_tld = _up(webshop_url if "//" in webshop_url else "https://" + webshop_url).netloc.rsplit(".", 1)[-1]
+    except Exception:
+        eigen_tld = ""
+    if (len(delen) > 1 and delen[-1] in _LANDCODES and eigen_tld in _LANDCODES
+            and delen[-1] != eigen_tld and "." in laag):
+        return False
 
     for plat in (met, zonder, zonder_tld):
         if not plat:
@@ -259,8 +297,10 @@ def is_eigen_winkel(webshop_url, naam):
         # Een korte kern mag daarom alleen exact matchen. Een lange kern mag nog
         # wel een stuk schelen, want daar zijn de toevalstreffers verwaarloosbaar
         # en vangt dit gevallen als winkel.nl tegenover "Winkel BV".
+        # 5 oktober: en alleen als ze bijna even lang zijn. "schoenen" zit in
+        # "schoenenruytings", maar Schoenen.nl is een andere winkel.
         if len(kern) >= 8 and len(plat) >= 8:
-            if kern in plat or plat in kern:
+            if (kern in plat or plat in kern) and min(len(kern), len(plat)) >= 0.7 * max(len(kern), len(plat)):
                 return True
     return False
 
@@ -288,7 +328,8 @@ def _haal_op_zonder_omleiding_naar_binnen(url):
         if is_intern_adres(huidig):
             print(f"Geweigerd, wijst naar een intern adres: {huidig[:80]}")
             return None
-        resp = requests.get(huidig, headers=HEADERS, timeout=TIMEOUT,
+        resp = requests.get(huidig, headers=getattr(_KOPPEN, "nu", None) or HEADERS, timeout=TIMEOUT,
+                            verify=getattr(_KOPPEN, "verify", True),
                             allow_redirects=False)
         if resp.status_code not in (301, 302, 303, 307, 308):
             return resp
@@ -354,6 +395,12 @@ def _probeer_adres(url, measure_time, pogingen):
                 snelste = elapsed
             if not measure_time:
                 return resp
+        except requests.exceptions.SSLError:
+            # 5 oktober: veel kleine winkels sturen hun certificaat zonder de
+            # tussenschakel mee. Een browser vult die zelf aan, Python niet: dan
+            # "kon de site niet bereikt worden" terwijl hij voor iedereen werkt.
+            LAATSTE_SSL_FOUT[url] = True
+            break
         except requests.RequestException:
             if poging < pogingen - 1:
                 time.sleep(0.5)
@@ -363,6 +410,7 @@ def _probeer_adres(url, measure_time, pogingen):
     if laatste_resp is None:
         return None
     if laatste_resp.status_code >= 400:
+        LAATSTE_WEIGERING[url] = laatste_resp.status_code
         return None
     if measure_time:
         return (laatste_resp, snelste)
@@ -864,7 +912,19 @@ def find_product_page(base_url, html):
 
 
 def run_scan(url):
-    """Voert de volledige gratis scan uit over alle categorieen en geeft score + checks terug."""
+    """Voert de volledige gratis scan uit over alle categorieen en geeft score + checks terug.
+
+    De instelling per draad (gewone browser, certificaat) geldt alleen binnen
+    deze scan, en staat daarna altijd weer terug."""
+    try:
+        return _run_scan(url)
+    finally:
+        _KOPPEN.nu = None
+        _KOPPEN.verify = True
+        _KOPPEN.blijf = False
+
+
+def _run_scan(url):
     url = normalize_url(url)
     parsed = urlparse(url)
     if not parsed.netloc:
@@ -873,13 +933,39 @@ def run_scan(url):
     if is_intern_adres(url):
         return {"error": "Dat is geen openbare webshop. Vul het gewone webadres in."}
 
+    LAATSTE_WEIGERING.clear()
+    LAATSTE_SSL_FOUT.clear()
     resp, elapsed = fetch(url, measure_time=True)
+    if resp is None or lijkt_op_blokkadepagina(resp.text or ""):
+        # Nog een keer als gewone browser (zie BROWSER_HEADERS), en had de
+        # site een onvolledig certificaat, dan zonder die controle: wij lezen
+        # alleen de openbare pagina en sturen niets mee.
+        _KOPPEN.nu = BROWSER_HEADERS
+        _KOPPEN.verify = not LAATSTE_SSL_FOUT
+        try:
+            resp2, elapsed2 = fetch(url, measure_time=True, pogingen=2)
+            if resp2 is not None:
+                resp, elapsed = resp2, elapsed2
+                html2 = resp2.text or ""
+                # De rest van de scan (extra pagina's) met dezelfde instelling.
+                if LAATSTE_SSL_FOUT or not lijkt_op_blokkadepagina(html2):
+                    _KOPPEN.blijf = True
+        finally:
+            if not getattr(_KOPPEN, "blijf", False):
+                _KOPPEN.nu = None
+                _KOPPEN.verify = True
+        if resp is None and LAATSTE_SSL_FOUT:
+            print(f"Gratis check {url}: certificaatfout, ook zonder controle niet gelukt.")
     html = resp.text if resp is not None else None
 
     # Als de website helemaal niet te bereiken is, geven we geen misleidend
     # laag cijfer, maar zeggen we eerlijk dat het niet gelukt is. Een score
     # van 20 omdat de server even plat lag is erger dan geen score.
     if html is None:
+        code = next(iter(LAATSTE_WEIGERING.values()), None)
+        if code in (401, 403, 406, 429, 451, 503):
+            # De site antwoordt wel, maar weigert ons. Dat is de uitkomst.
+            return {"error": "Deze website weigerde ons bezoek", "weigering": code}
         return {"error": "We konden deze website niet bereiken. Check of de URL klopt en of de site online is, en probeer het zo nogmaals."}
 
     if lijkt_op_blokkadepagina(html):

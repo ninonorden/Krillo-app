@@ -3072,6 +3072,17 @@ def api_scan():
     result = run_scan(url)
     if "error" in result:
         db.bewaar_gratis_scan(url, gelukt=False, foutsoort=result["error"][:200], herkomst=herkomst)
+        # 5 oktober: iemand probeerde het vijf keer en niemand wist het. Nu een
+        # melding aan Nino, hoogstens een keer per site per dag.
+        try:
+            if db.claim_moment(f"gratis_fout:{scan_engine.normalize_url(url)}", 24 * 3600):
+                _meld_aan_beheer(f"Gratis check mislukt: {url}",
+                                 f"De gratis check voor {url} lukte niet: {result['error']}"
+                                 + (f" (code {result.get('weigering')})" if result.get("weigering") else "")
+                                 + ". Een mogelijke klant. Open de site zelf, en geef het adres aan Claude als "
+                                   "het bij ons fout gaat.")
+        except Exception as e:
+            print(f"Melding mislukte gratis check mislukt: {e}")
         # GEVONDEN 24 SEPTEMBER bij mediamarkt.nl: grote winkels houden onze
         # scanner tegen, en dan kreeg de bezoeker alleen "we could not reach
         # this website", terwijl zijn PLEK gewoon in de index staat. De plek

@@ -10,6 +10,7 @@ uit Neon).
 """
 
 import os
+import re
 import json
 import uuid
 import secrets
@@ -6622,6 +6623,16 @@ def _ranglijst_per_land_vers(categorie, land, limiet=200):
                      LIMIT %s""",
                     (vorige, nu, land, (land or "").lower() or None, limiet))
                 rijen = [dict(r) for r in cur.fetchall()]
+
+        # 5 oktober (Nino, Belgie): de naam kwam soms uit een AI-antwoord over
+        # een andere site ("Schoenen.nl" bij schoenenverduyn.be, twee keer).
+        # Is de naam zelf een webadres en niet dat van deze winkel, dan tonen
+        # we het eigen adres van de winkel.
+        for rij in rijen:
+            naam = (rij.get("naam") or "").strip().lower()
+            host = re.sub(r"^https?://(www\.)?", "", rij["webshop_url"] or "").split("/")[0].lower()
+            if re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", naam) and naam.replace("www.", "") != host:
+                rij["naam"] = host
 
         # Opnieuw nummeren binnen dit land. De volgorde komt uit de query en is
         # dezelfde als bij een verse meting: aanbevolen weegt zwaarder dan

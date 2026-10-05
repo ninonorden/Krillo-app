@@ -55,7 +55,13 @@ FOUTEN = {
         "That is not a public online store. Enter its normal web address.",
     "We konden deze website niet bereiken.":
         "We could not reach this website. Check the address and whether the site is "
-        "online, and try again in a moment.",
+        "online. Does it open fine for you? Then the problem is on our side: email the address to "
+        "hello@krilloai.com and we check it by hand, the same day.",
+    "Deze website weigerde ons bezoek":
+        "Your website refused our visit. That usually means AI robots such as ChatGPT's are refused too, so "
+        "AI cannot read your store. It is fixable: a firewall or bot-protection setting (for example "
+        "Cloudflare) blocks automated visitors. Our free AI robots check shows which ones: "
+        "krilloai.com/tools/ai-crawler-check",
     "Deze website stuurde ons een beveiligingscontrole":
         "This website sent us a security check instead of the real page, so we cannot "
         "give a reliable score. Try again in a few minutes.",
