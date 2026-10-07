@@ -85,6 +85,7 @@
       <table style="margin-top:8px; border-collapse:collapse;">
         {% for r in geen_adres.redenen %}<tr><td style="padding:3px 14px 3px 0;">{{ r.reden }}</td><td style="text-align:right;">{{ r.aantal }}</td></tr>{% endfor %}
       </table>
+      {% if zoekmachine %}<div class="klein" style="margin-top:8px;">Via de zoekmachine (stap 306, proef): {{ zoekmachine.bekeken }} van hooguit {{ zoekmachine.max }} bekeken, {{ zoekmachine.gevonden }} adres{{ '' if zoekmachine.gevonden == 1 else 'sen' }} gevonden. Alleen algemene adressen op het eigen domein. Levert het genoeg op, zet dan ADRES_ZOEKMACHINE_MAX in Render hoger.</div>{% endif %}
     </div>
   </div>
   {% endif %}
