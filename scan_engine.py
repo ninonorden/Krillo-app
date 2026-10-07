@@ -62,6 +62,10 @@ except Exception:
 _KOPPEN = _threading.local()
 LAATSTE_WEIGERING = {}
 LAATSTE_SSL_FOUT = {}
+# 5 oktober, beautyleverancier.nl: geen weigering, maar helemaal geen antwoord
+# (de verbinding loopt vast), terwijl de site bij Nino gewoon opent. Dan weigert
+# de hosting of firewall waarschijnlijk verkeer van servers of uit het buitenland.
+LAATSTE_GEEN_ANTWOORD = {}
 
 
 # Kenmerken van beveiligings- of controlepagina's. Krijgen we zoiets terug,
@@ -400,6 +404,11 @@ def _probeer_adres(url, measure_time, pogingen):
             # tussenschakel mee. Een browser vult die zelf aan, Python niet: dan
             # "kon de site niet bereikt worden" terwijl hij voor iedereen werkt.
             LAATSTE_SSL_FOUT[url] = True
+            break
+        except (requests.exceptions.ConnectTimeout, requests.exceptions.ReadTimeout):
+            # Niet nog twee keer 15 seconden wachten: een site die nu niet
+            # antwoordt, antwoordt over een halve seconde ook niet.
+            LAATSTE_GEEN_ANTWOORD[url] = True
             break
         except requests.RequestException:
             if poging < pogingen - 1:
@@ -935,8 +944,11 @@ def _run_scan(url):
 
     LAATSTE_WEIGERING.clear()
     LAATSTE_SSL_FOUT.clear()
+    LAATSTE_GEEN_ANTWOORD.clear()
     resp, elapsed = fetch(url, measure_time=True)
-    if resp is None or lijkt_op_blokkadepagina(resp.text or ""):
+    # Gaf de site helemaal geen antwoord, dan helpt een andere naam niet: niet
+    # nog een keer laten wachten (de bezoeker zit al op een draaiend rondje).
+    if (resp is None and not LAATSTE_GEEN_ANTWOORD) or (resp is not None and lijkt_op_blokkadepagina(resp.text or "")):
         # Nog een keer als gewone browser (zie BROWSER_HEADERS), en had de
         # site een onvolledig certificaat, dan zonder die controle: wij lezen
         # alleen de openbare pagina en sturen niets mee.
@@ -966,6 +978,8 @@ def _run_scan(url):
         if code in (401, 403, 406, 429, 451, 503):
             # De site antwoordt wel, maar weigert ons. Dat is de uitkomst.
             return {"error": "Deze website weigerde ons bezoek", "weigering": code}
+        if LAATSTE_GEEN_ANTWOORD:
+            return {"error": "Deze website gaf ons geen antwoord", "weigering": "geen antwoord"}
         return {"error": "We konden deze website niet bereiken. Check of de URL klopt en of de site online is, en probeer het zo nogmaals."}
 
     if lijkt_op_blokkadepagina(html):

@@ -905,6 +905,12 @@ def zo_meten_we():
     return render_template("zo-meten-we.html")
 
 
+@app.route("/proof")
+def bewijs():
+    """7 oktober: "genoemd worden is nog geen verkoop". Hoe je het zelf ziet."""
+    return render_template("proof.html")
+
+
 @app.route("/about")
 def over_ons():
     return render_template("over-ons.html")
@@ -2720,7 +2726,7 @@ def _bouw_sitemap():
     # /uitkomst/<token> staat hier BEWUST niet in. Die pagina's gaan over één
     # winkel met naam en toenaam en horen niet in Google.
     vast = ["/", "/articles", "/how-we-measure", "/faq",
-            "/index", "/demo", "/about", "/terms", "/privacy",
+            "/index", "/demo", "/about", "/proof", "/terms", "/privacy",
             "/withdrawal", "/tools", "/compare", "/partners", "/changelog"]
     import trackerpaginas
     vast += [f"/{slug}" for slug in trackerpaginas.PAGINAS]

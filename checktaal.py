@@ -62,6 +62,12 @@ FOUTEN = {
         "AI cannot read your store. It is fixable: a firewall or bot-protection setting (for example "
         "Cloudflare) blocks automated visitors. Our free AI robots check shows which ones: "
         "krilloai.com/tools/ai-crawler-check",
+    "Deze website gaf ons geen antwoord":
+        "Your website did not answer us at all. Does it open fine for you? Then your hosting or firewall "
+        "probably refuses visitors from servers or from abroad. ChatGPT, Gemini and Perplexity read the web "
+        "from servers, mostly in the US, so they are most likely refused too, and AI cannot read your store. "
+        "Ask your host whether traffic from abroad or from data centers is blocked. Want us to look with you? "
+        "Email the address to hello@krilloai.com.",
     "Deze website stuurde ons een beveiligingscontrole":
         "This website sent us a security check instead of the real page, so we cannot "
         "give a reliable score. Try again in a few minutes.",

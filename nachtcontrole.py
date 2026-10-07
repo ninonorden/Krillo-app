@@ -28,7 +28,7 @@ import db
 # Daarom zoekt hij nu naar de knoppen zoals ze echt heten, en bewaakt
 # test_nachtcontrole_teksten dat elke tekst op de echte pagina staat.
 PAGINAS = [
-    ("/", "Get my free rank"),
+    ("/", "Check my store free"),
     ("/#pricing", "Try 14 days free"),
     ("/demo", "Overview"),
     ("/demo/ranking", "Ranking"),
