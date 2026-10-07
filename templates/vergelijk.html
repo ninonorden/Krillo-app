@@ -36,7 +36,7 @@
   <div class="kruimels"><a href="/compare">Compare</a> &rsaquo; {{ tool.naam }}</div>
   <h1>Krillo vs {{ tool.naam }}</h1>
   <p class="inleiding">An honest comparison for webshops. Their prices come from {{ 'each app\'s App Store listing' if tool.naam_zin else 'their own pricing page' }}, checked on
-     {{ gekeken }}.</p>
+     {{ tool.gekeken or gekeken }}.</p>
 
   <div class="naast">
     <div class="blok">
@@ -44,7 +44,7 @@
       <p>{{ tool.wat }}</p>
       <p><strong>Price.</strong> {{ tool.prijs }}</p>
       <p><strong>Made for.</strong> {{ tool.voor_wie }}</p>
-      <p class="bron">Source: <a href="{{ tool.bron }}" rel="nofollow noopener" target="_blank">{{ tool.bron }}</a>, checked {{ gekeken }}</p>
+      <p class="bron">Source: <a href="{{ tool.bron }}" rel="nofollow noopener" target="_blank">{{ tool.bron }}</a>, checked {{ tool.gekeken or gekeken }}</p>
     </div>
     <div class="blok">
       <h3>Krillo</h3>

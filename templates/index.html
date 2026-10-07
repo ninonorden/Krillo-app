@@ -929,6 +929,8 @@
   .ai-chip{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid #E4E4E7; border-radius:999px; background:#fff; font-size:13px; font-weight:600; color:#0A0A0B;}
   .ai-chip i{width:8px; height:8px; border-radius:50%; display:inline-block;}
   .ai-chip.zacht{color:#6E7079; font-weight:500;}
+  .k9-kpis-geld > div{background:#F3FBF6;}
+  .k9-voorna [hidden]{display:none !important;}
   .keten{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:18px;}
   .keten div{flex:1 1 120px; padding:12px 14px; border:1px solid #E4E4E7; border-radius:12px; background:#fff;}
   .keten div:first-child{border-color:#2F5BFF; background:#F3F6FF;}
@@ -1348,7 +1350,7 @@
          Krillo doet. "Make your store the answer..." blijft de positionering in
          de paginatitel en voor Google. #}
       <h1 class="k9-h1">See how ChatGPT and Gemini recommend your webshop.</h1>
-      <p class="k9-intro">Krillo asks ChatGPT and Gemini the buying questions your customers ask, shows which stores AI recommends instead of you, and tells you what to change. Or we do it for you.</p>
+      <p class="k9-intro">Krillo asks ChatGPT and Gemini the buying questions your customers ask, shows which stores AI recommends instead of you, and tells you what to change. Or we do it for you. Then you see what it brings: visits, orders and revenue from AI.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
         <button type="button" id="scanButton">Check my store free</button>
@@ -1501,6 +1503,15 @@
             <div><span class="k9-mono">RECOMMENDED</span><b>3</b><em>+2</em></div>
             <div><span class="k9-mono">QUESTIONS WON</span><b>8/30</b><em>+3</em></div>
           </div>
+          {# 7 oktober (Nino, na Perplexity): de bedrijfscijfers naast de AI-cijfers.
+             Zelfde voorbeeldwinkel als in /demo, uit de eigen statistieken. #}
+          <div class="k9-kpis k9-kpis-geld" aria-label="Example: visits, orders and revenue from AI">
+            <div><span class="k9-mono">AI SESSIONS</span><b>96</b><em>+134%</em></div>
+            <div><span class="k9-mono">ORDERS FROM AI</span><b>4</b><em>+3</em></div>
+            <div><span class="k9-mono">REVENUE FROM AI</span><b>&euro;268</b><em>+&euro;204</em></div>
+            <div><span class="k9-mono">AI CONVERSION</span><b>4.2%</b><em>was 2.4%</em></div>
+          </div>
+          <div class="k9-mono k9-grijs" style="font-size:11px; margin:8px 16px 10px;">TOP ROW: MEASURED BY KRILLO &middot; BOTTOM ROW: FROM YOUR GOOGLE ANALYTICS OR SHOPIFY</div>
           <div class="k9-dash-twee">
             <div class="k9-grafiek" data-grafiek>
               <div class="k9-grafiektabs">
@@ -1611,12 +1622,12 @@
         </div>
       </div>
       <div class="zeskaart">
-        <span class="k9-nr">05</span><b>Proof it worked</b>
-        <p>At the next monthly measurement we ask the same questions again and show the difference.</p>
+        <span class="k9-nr">05</span><b>Proof it moved the business</b>
+        <p>Every month we ask the same questions again, and put your visits, orders and revenue from AI next to it.</p>
         <div class="k9-voorna k9-laag" data-voorna>
           <div class="k9-seg"><button type="button" class="aan" data-vn="0">Before</button><button type="button" data-vn="1">After</button></div>
-          <div data-vn-paneel="0"><span class="k9-mono k9-grijs">AUGUST &middot; EXAMPLE</span><b>#9</b><span class="k9-klein">named in 3 of 30 questions</span></div>
-          <div data-vn-paneel="1" hidden><span class="k9-mono k9-grijs">SEPTEMBER &middot; EXAMPLE</span><b>#6 <em>&#9650;3</em></b><span class="k9-klein">named in 8 of 30 questions</span></div>
+          <div data-vn-paneel="0"><span class="k9-mono k9-grijs">AUGUST &middot; EXAMPLE</span><b>#9</b><span class="k9-klein">named in 3 of 30 questions<br>58 AI sessions &middot; 2 orders &middot; &euro;121</span></div>
+          <div data-vn-paneel="1" hidden><span class="k9-mono k9-grijs">SEPTEMBER &middot; EXAMPLE</span><b>#6 <em>&#9650;3</em></b><span class="k9-klein">named in 8 of 30 questions<br>96 AI sessions &middot; 4 orders &middot; &euro;268</span></div>
         </div>
       </div>
       <div class="zeskaart">
@@ -1661,7 +1672,7 @@
         <span class="k9-mono k9-as-y">RECOMMENDED &rarr;</span>
       </div>
       <div class="k9-kwadrant-uitleg">
-        <div class="blauw"><b>Leaders</b><span>Named often and advised often. This is where the sales are.</span></div>
+        <div class="blauw"><b>Leaders</b><span>Named often and advised often. This is where AI is most likely to send buyers.</span></div>
         <div><b>Named, not advised</b><span>AI knows the store but sends buyers elsewhere. Usually a matter of reviews and clear product facts.</span></div>
         <div><b>Advised, rarely named</b><span>When AI names the store it recommends it, but that happens on few questions. Clear category pages usually help.</span></div>
         <a class="k-knop wit" href="/index/{{ t0.land }}/{{ t0.categorie }}">Open the full ranking &rarr;</a>

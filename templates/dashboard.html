@@ -205,48 +205,6 @@
     <div class="volgende"><span class="pijl">&rarr;</span> {{ volgende }}</div>
     {% endif %}
 
-    {# Stap 198 (1 oktober): de wekelijkse snelmeting van de vijf belangrijkste
-       vragen. Alleen voor een betalende klant (snel_dag staat alleen dan). Geen
-       nieuwe plek: die komt uit de maandmeting, en dat staat er ook. #}
-    {% if snel_dag is defined and snel_dag %}
-    <div class="kaartblok">
-      <div class="kaartkop">{{ 'DEZE WEEK: JE VIJF BELANGRIJKSTE VRAGEN' if taal == 'nl' else "THIS WEEK: YOUR FIVE KEY QUESTIONS" }}</div>
-      {% if snel %}
-      <p style="margin:0 0 10px; font-size:15px;">
-        {% if taal == 'nl' %}Genoemd in <strong>{{ snel.genoemd }} van {{ snel.van }}</strong> antwoorden{% if snel.vorige_van %} (vorige week {{ snel.vorige_genoemd }} van {{ snel.vorige_van }}){% endif %}. Gemeten op {{ snel.op.strftime('%d-%m-%Y') }}.
-        {% else %}Named in <strong>{{ snel.genoemd }} of {{ snel.van }}</strong> answers{% if snel.vorige_van %} (last week {{ snel.vorige_genoemd }} of {{ snel.vorige_van }}){% endif %}. Checked on {{ snel.op.strftime('%d %b %Y') }}.{% endif %}
-      </p>
-      <div style="padding:0 16px; overflow-x:auto;">
-      <table style="width:100%; border-collapse:collapse; font-size:14px;">
-        {% for v in snel.vragen %}
-        <tr style="border-top:1px solid var(--lijn, #E8E8EC);">
-          <td style="padding:8px 8px 8px 0;">{{ v.vraag }}{% if v.was is not none and v.was != v.nu %} <span style="font-family:var(--mono); font-size:12px; color:{{ '#0A7F55' if v.nu else '#B42318' }};">{{ ('nu genoemd' if v.nu else 'niet meer genoemd') if taal == 'nl' else ('now named' if v.nu else 'no longer named') }}</span>{% endif %}</td>
-          {% for a in v.assistenten %}
-          <td style="padding:8px 0 8px 8px; white-space:nowrap; font-family:var(--mono); font-size:12px;" title="{{ a.anderen | join(', ') }}">{{ a.naam }} {{ '&#10003;' | safe if a.genoemd else '&#10005;' | safe }}</td>
-          {% endfor %}
-        </tr>
-        {% endfor %}
-      </table>
-      </div>
-      <p style="margin:10px 0 0; font-size:13px; color:var(--zacht, #6E7079);">{{ 'Elke ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ ' opnieuw. Je plek in de ranglijst komt uit de maandmeting, waar elke winkel dezelfde vragen krijgt.' if taal == 'nl' else 'Checked again every ' ~ snel_dag ~ '. Your rank comes from the monthly measurement, where every store gets the same questions.' }}</p>
-      {% else %}
-      <p style="margin:0; font-size:15px;">{{ ('Elke week stellen we je vijf belangrijkste koopvragen opnieuw aan ChatGPT en Gemini, zodat je binnen een week ziet of een verbetering werkt. De eerste keer is op ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ '.') if taal == 'nl' else ('Every week we ask your five most important buying questions again to ChatGPT and Gemini, so you see within a week whether a change works. The first check is on ' ~ snel_dag ~ '.') }}</p>
-      {% endif %}
-    </div>
-    {% endif %}
-
-    {# Stap 241: het concurrent-alarm. Wie je plek innam of inhaalde, uit de
-       metingen die er al zijn. Alleen als er iets te melden is. #}
-    {% if alarm is defined and alarm %}
-    <div class="kaartblok" id="alarm">
-      <div class="kaartkop">{{ 'CONCURRENTEN IN BEWEGING' if taal == 'nl' else 'COMPETITORS ON THE MOVE' }}</div>
-      <ul style="margin:0; padding:0 16px 4px 34px; font-size:15px; line-height:1.6;">
-        {% for z in alarm %}<li>{{ z }}</li>{% endfor %}
-      </ul>
-      <p class="klein" style="margin:6px 16px 0;">{{ 'Zie Vragen voor het echte antwoord, en Fixes voor wat je terugwint.' if taal == 'nl' else 'See Questions for the real answer, and Fixes for how to win it back.' }}</p>
-    </div>
-    {% endif %}
-
     {# 7 OKTOBER (Nino): "brengt Krillo mij verkeer?" De hele keten per maand:
        plek bij AI (wij meten) naast bezoek, bestellingen en omzet uit AI (de
        klant zet ze uit Google Analytics of Shopify erin). Eerste maand is de
@@ -258,11 +216,28 @@
         {% if aiverkeer_voorbeeld is defined and aiverkeer_voorbeeld %}<span class="uitleg">{{ 'VOORBEELD' if nl else 'EXAMPLE' }}</span>{% endif %}</div>
       {% if aiverkeer.rijen %}
       {% set o = aiverkeer.oordeel %}
-      {% if o and o.bezoek is not none %}
-      <p style="margin:0 0 10px; font-size:15px;">
-        {% if nl %}Sinds {{ o.van }}: bezoek uit AI <strong>{{ '%+d' % o.bezoek }}%</strong>{% if o.orders is not none %}, bestellingen <strong>{{ '%+d' % o.orders }}%</strong>{% endif %}{% if o.omzet is not none %}, omzet <strong>{{ '%+d' % o.omzet }}%</strong>{% endif %}{% if o.plek_van and o.plek_tot %}, terwijl je plek ging van #{{ o.plek_van }} naar #{{ o.plek_tot }}{% endif %}.
-        {% else %}Since {{ o.van }}: visits from AI <strong>{{ '%+d' % o.bezoek }}%</strong>{% if o.orders is not none %}, orders <strong>{{ '%+d' % o.orders }}%</strong>{% endif %}{% if o.omzet is not none %}, revenue <strong>{{ '%+d' % o.omzet }}%</strong>{% endif %}{% if o.plek_van and o.plek_tot %}, while your rank went from #{{ o.plek_van }} to #{{ o.plek_tot }}{% endif %}.{% endif %}
-      </p>
+      {# 7 oktober middag (Nino, na Perplexity): de bedrijfscijfers als tegels,
+         net als plek en zichtbaarheid. Laatste ingevulde maand, en het verschil
+         met de nulmeting. Uit de eigen statistieken van de winkel. #}
+      {% set l = aiverkeer.rijen | last %}
+      {% set b0 = aiverkeer.rijen | first %}
+      {% set vgl = aiverkeer.rijen | length > 1 %}
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; padding:0 16px 12px;">
+        {% for label_nl, label_en, waarde, verschil in [
+             ('AI-BEZOEK', 'AI SESSIONS', l.bezoek, (('%+d%%' % o.bezoek) if o and o.bezoek is not none else None)),
+             ('BESTELLINGEN UIT AI', 'ORDERS FROM AI', l.orders, (('%+d' % (l.orders - b0.orders)) if vgl and l.orders is not none and b0.orders is not none else None)),
+             ('OMZET UIT AI', 'REVENUE FROM AI', ('€%.0f' % l.omzet) if l.omzet is not none else None, (('%+d%%' % o.omzet) if o and o.omzet is not none else None)),
+             ('CONVERSIE UIT AI', 'AI CONVERSION', ('%s%%' % l.conversie) if l.conversie is not none else None, (('was %s%%' % b0.conversie) if vgl and b0.conversie is not none else None)),
+           ] %}
+        <div style="border:1px solid var(--lijn, #E8E8EC); border-radius:10px; padding:10px 12px;">
+          <div style="font-family:var(--mono); font-size:11px; color:var(--zacht, #6E7079);">{{ label_nl if nl else label_en }}</div>
+          <div style="font-size:24px; font-weight:700; margin:2px 0;">{{ waarde if waarde is not none else '-' }}</div>
+          <div style="font-size:12px; color:{{ '#0A7F55' if verschil and verschil[:1] == '+' else 'var(--zacht, #6E7079)' }};">{% if verschil %}{{ verschil }} {{ '' if verschil[:3] == 'was' else ('tegen ' ~ b0.maand if nl else 'vs ' ~ b0.maand) }}{% else %}{{ l.maand }}{% endif %}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if o and o.plek_van and o.plek_tot %}
+      <p class="klein" style="margin:0 16px 10px;">{{ ('In dezelfde periode ging je plek bij AI van #' ~ o.plek_van ~ ' naar #' ~ o.plek_tot ~ '.') if nl else ('In the same period your AI rank went from #' ~ o.plek_van ~ ' to #' ~ o.plek_tot ~ '.') }}</p>
       {% endif %}
       {# 7 oktober (Nino): "laten zien dat de ROI omhoog gaat". Extra omzet uit AI
          tegen de nulmeting, naast wat Krillo die maand kost. Na te rekenen. #}
@@ -304,6 +279,48 @@
       </form>
       <p class="klein" style="margin:8px 0 0;">{{ 'Waar vind je het: Google Analytics, Acquisitie, Verkeersacquisitie, filter de bron op chatgpt.com, gemini.google.com, perplexity.ai en copilot.microsoft.com. Of Shopify, Analytics, Sessies en Verkoop per verwijzer.' if nl else 'Where to find it: Google Analytics, Acquisition, Traffic acquisition, filter session source on chatgpt.com, gemini.google.com, perplexity.ai and copilot.microsoft.com. Or Shopify, Analytics, Sessions and Sales by referrer.' }} <a href="/proof">{{ 'Hoe we bewijzen dat het werkt' if nl else 'How we prove it pays' }} &rarr;</a></p>
       {% endif %}
+    </div>
+    {% endif %}
+
+    {# Stap 198 (1 oktober): de wekelijkse snelmeting van de vijf belangrijkste
+       vragen. Alleen voor een betalende klant (snel_dag staat alleen dan). Geen
+       nieuwe plek: die komt uit de maandmeting, en dat staat er ook. #}
+    {% if snel_dag is defined and snel_dag %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'DEZE WEEK: JE VIJF BELANGRIJKSTE VRAGEN' if taal == 'nl' else "THIS WEEK: YOUR FIVE KEY QUESTIONS" }}</div>
+      {% if snel %}
+      <p style="margin:0 0 10px; font-size:15px;">
+        {% if taal == 'nl' %}Genoemd in <strong>{{ snel.genoemd }} van {{ snel.van }}</strong> antwoorden{% if snel.vorige_van %} (vorige week {{ snel.vorige_genoemd }} van {{ snel.vorige_van }}){% endif %}. Gemeten op {{ snel.op.strftime('%d-%m-%Y') }}.
+        {% else %}Named in <strong>{{ snel.genoemd }} of {{ snel.van }}</strong> answers{% if snel.vorige_van %} (last week {{ snel.vorige_genoemd }} of {{ snel.vorige_van }}){% endif %}. Checked on {{ snel.op.strftime('%d %b %Y') }}.{% endif %}
+      </p>
+      <div style="padding:0 16px; overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:14px;">
+        {% for v in snel.vragen %}
+        <tr style="border-top:1px solid var(--lijn, #E8E8EC);">
+          <td style="padding:8px 8px 8px 0;">{{ v.vraag }}{% if v.was is not none and v.was != v.nu %} <span style="font-family:var(--mono); font-size:12px; color:{{ '#0A7F55' if v.nu else '#B42318' }};">{{ ('nu genoemd' if v.nu else 'niet meer genoemd') if taal == 'nl' else ('now named' if v.nu else 'no longer named') }}</span>{% endif %}</td>
+          {% for a in v.assistenten %}
+          <td style="padding:8px 0 8px 8px; white-space:nowrap; font-family:var(--mono); font-size:12px;" title="{{ a.anderen | join(', ') }}">{{ a.naam }} {{ '&#10003;' | safe if a.genoemd else '&#10005;' | safe }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+      </div>
+      <p style="margin:10px 0 0; font-size:13px; color:var(--zacht, #6E7079);">{{ 'Elke ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ ' opnieuw. Je plek in de ranglijst komt uit de maandmeting, waar elke winkel dezelfde vragen krijgt.' if taal == 'nl' else 'Checked again every ' ~ snel_dag ~ '. Your rank comes from the monthly measurement, where every store gets the same questions.' }}</p>
+      {% else %}
+      <p style="margin:0; font-size:15px;">{{ ('Elke week stellen we je vijf belangrijkste koopvragen opnieuw aan ChatGPT en Gemini, zodat je binnen een week ziet of een verbetering werkt. De eerste keer is op ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ '.') if taal == 'nl' else ('Every week we ask your five most important buying questions again to ChatGPT and Gemini, so you see within a week whether a change works. The first check is on ' ~ snel_dag ~ '.') }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# Stap 241: het concurrent-alarm. Wie je plek innam of inhaalde, uit de
+       metingen die er al zijn. Alleen als er iets te melden is. #}
+    {% if alarm is defined and alarm %}
+    <div class="kaartblok" id="alarm">
+      <div class="kaartkop">{{ 'CONCURRENTEN IN BEWEGING' if taal == 'nl' else 'COMPETITORS ON THE MOVE' }}</div>
+      <ul style="margin:0; padding:0 16px 4px 34px; font-size:15px; line-height:1.6;">
+        {% for z in alarm %}<li>{{ z }}</li>{% endfor %}
+      </ul>
+      <p class="klein" style="margin:6px 16px 0;">{{ 'Zie Vragen voor het echte antwoord, en Fixes voor wat je terugwint.' if taal == 'nl' else 'See Questions for the real answer, and Fixes for how to win it back.' }}</p>
     </div>
     {% endif %}
 
