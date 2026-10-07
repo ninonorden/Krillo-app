@@ -152,6 +152,11 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
     aanbevolen = klant.get("aanbevolen") or 0
     beweging = _beweging(keuze.get("verschil"), taal)
     soort = keuze["soort"]
+    # 7 oktober (Nino: "de maandmail is top"): wat AI hem opleverde, bovenaan.
+    # Uitgerekend in na_meting (rendement_regel), hier alleen geplaatst.
+    rendement = klant.get("rendement")
+    voor = f"{rendement}\n\n" if rendement and soort != "daling" else ""
+    na = f"\n\n{rendement}" if rendement and soort == "daling" else ""
 
     if taal == "en":
         stand = (f"You are number {p} of {van} in {categorienaam}. {beweging} "
@@ -162,7 +167,7 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
         # oplevering (26 tot 70 dagen, zie hierboven), en een goedkeurknop
         # voor oplossingen bestaat niet.
         if soort == "nameting":
-            return (f"Since your last measurement we made changes to your store. We "
+            return (f"{voor}Since your last measurement we made changes to your store. We "
                     f"have now measured your category again."
                     f"\n\n{stand}\n\n"
                     f"This is the whole point of the re-measure: not our opinion "
@@ -171,14 +176,14 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
             return (f"Your position dropped, so we are telling you before you "
                     f"notice it in your sales.\n\n{stand}\n\n"
                     f"Your dashboard shows which questions you lost, which stores "
-                    f"took your place, and the fixes that gain you the most.")
-        return (f"We measured {categorienaam} again this month.\n\n{stand}")
+                    f"took your place, and the fixes that gain you the most.{na}")
+        return (f"{voor}We measured {categorienaam} again this month.\n\n{stand}")
 
     stand = (f"Je staat op plaats {p} van de {van} in {categorienaam}. {beweging} "
              f"Je werd genoemd bij {genoemd} van de {telbaar} koopvragen, "
              f"en aanbevolen bij {aanbevolen}.")
     if soort == "nameting":
-        return (f"Vier weken geleden hebben wij je webshop aangepast. We hebben nu "
+        return (f"{voor}Vier weken geleden hebben wij je webshop aangepast. We hebben nu "
                 f"opnieuw gemeten, met precies dezelfde vragen.\n\n{stand}\n\n"
                 f"Dat is waar de nameting voor is: niet onze mening dat het gewerkt "
                 f"heeft, maar dezelfde meting ervoor en erna.")
@@ -186,8 +191,43 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
         return (f"Je positie is gezakt, en dat horen wij je te vertellen voordat je "
                 f"het aan je verkopen merkt.\n\n{stand}\n\n"
                 f"Wij kijken al na bij welke vragen je weggevallen bent en wat er in "
-                f"de antwoorden veranderd is. De oplossingen krijg je ter goedkeuring.")
-    return (f"We hebben {categorienaam} deze maand opnieuw gemeten.\n\n{stand}")
+                f"de antwoorden veranderd is. De oplossingen krijg je ter goedkeuring.{na}")
+    return (f"{voor}We hebben {categorienaam} deze maand opnieuw gemeten.\n\n{stand}")
+
+
+def rendement_regel(webshop_url, taal="en", pakket=None):
+    """De zin over wat AI de klant opleverde, uit zijn eigen cijfers in het
+    dashboard (aiverkeer.py). Drie gevallen, altijd eerlijk:
+    - extra omzet: hoeveel, en hoeveel keer de prijs van Krillo;
+    - wel cijfers, geen extra omzet: dat zeggen, en wat eerst komt;
+    - nog geen cijfers: vragen ze in te vullen, want zonder kunnen wij het niet laten zien.
+    Mislukt er iets, dan geen zin: het maandbericht moet altijd uitgaan."""
+    try:
+        import aiverkeer
+        import payments
+        prijs = float(payments.prijs_van(pakket or "watch")["value"])
+        o = aiverkeer.overzicht(webshop_url, maandprijs=prijs)
+    except Exception as e:
+        print(f"Rendementsregel mislukt voor {webshop_url}: {e}")
+        return None
+    oordeel = o.get("oordeel") or {}
+    if oordeel.get("keer"):
+        if taal == "nl":
+            return (f"AI bracht je \u20ac{oordeel['extra_omzet']} meer omzet in {oordeel['tot']} dan in je "
+                    f"eerste maand: {oordeel['keer']}x wat Krillo je kost.")
+        return (f"AI brought you \u20ac{oordeel['extra_omzet']} more revenue in {oordeel['tot']} than in "
+                f"your first month: {oordeel['keer']}x what Krillo costs you.")
+    if o.get("rijen"):
+        if taal == "nl":
+            return ("Nog geen extra omzet uit AI ten opzichte van je eerste maand. Eerst komt genoemd "
+                    "worden, dan bezoek. Zet de cijfers van deze maand in je dashboard.")
+        return ("No extra revenue from AI yet compared to your first month. Being named comes first, "
+                "then visits. Add this month's numbers in your dashboard.")
+    if taal == "nl":
+        return ("Zet je bezoek en omzet uit AI van deze maand in je dashboard (drie getallen uit Google "
+                "Analytics of Shopify). Dan laten we je elke maand zien wat Krillo je oplevert.")
+    return ("Add your visits and revenue from AI for this month in your dashboard (three numbers from "
+            "Google Analytics or Shopify). Then we show you every month what Krillo earns you.")
 
 
 # De kop boven in de mail, per soort bericht. Het onderwerp staat hieronder.
@@ -301,6 +341,7 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
         try:
             import emailing
             taal = _taal_van(klant["webshop_url"])
+            klant["rendement"] = rendement_regel(klant["webshop_url"], taal, klant.get("pakket"))
             link = f"{(basis or '').rstrip('/')}/mijn/{klant['klant_token']}" \
                 if basis and klant.get("klant_token") else None
             gelukt = emailing.send_vermeldingen_update(

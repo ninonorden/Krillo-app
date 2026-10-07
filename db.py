@@ -6951,7 +6951,7 @@ def klanten_in_ronde(ronde):
                            v.positie          AS vorige_positie,
                            v.genoemd          AS vorige_genoemd,
                            v.aanbevolen       AS vorige_aanbevolen,
-                           k.email, k.klant_token,
+                           k.email, k.klant_token, k.pakket,
                            (SELECT max(x.opgeleverd_op) FROM uitvoeringen x
                              WHERE x.webshop_url = u.webshop_url
                                AND x.opgeleverd_op IS NOT NULL) AS opgeleverd_op,

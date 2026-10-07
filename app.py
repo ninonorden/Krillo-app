@@ -3161,6 +3161,37 @@ def api_scan():
     return jsonify(result)
 
 
+@app.route("/api/handcheck", methods=["POST"])
+def api_handcheck():
+    """7 oktober: een mislukte gratis check is geen eindpunt meer.
+
+    Ongeveer 4 op de 10 checks gaven geen uitslag (de site weigert servers, een
+    beveiligingscontrole, geen antwoord). Die bezoeker WILDE zijn uitslag, en
+    kreeg alleen het advies om zelf te mailen: dat doet bijna niemand. Nu laat
+    hij in hetzelfde vak zijn mailadres achter, wij krijgen een melding en
+    kijken de winkel met de hand na. Vastgelegd in de instellingen, zodat er
+    niets verloren gaat als de melding niet aankomt."""
+    import json as _json
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    url = (data.get("url") or "").strip()[:300]
+    if not _EMAIL_VORM.match(email) or len(email) > 190 or not url:
+        return jsonify({"fout": "Enter a valid email address."}), 400
+    import gratistools
+    if not gratistools.mag_nu("handcheck:" + (_bezoeker_kenmerk() or request.remote_addr or "?")):
+        return jsonify({"ok": True})
+    try:
+        lijst = _json.loads(db.get_instelling("handchecks") or "[]")
+    except ValueError:
+        lijst = []
+    lijst.append({"email": email, "url": url, "op": datetime.utcnow().isoformat(timespec="minutes")})
+    db.zet_instelling("handchecks", _json.dumps(lijst[-200:]))
+    _meld_aan_beheer("Mislukte check: iemand wil zijn uitslag",
+                     f"{escape(email)} probeerde {escape(url)}. De check gaf geen uitslag. "
+                     f"Bekijk de winkel en mail binnen een werkdag zijn plek en de drie grootste punten.")
+    return jsonify({"ok": True})
+
+
 @app.route("/api/wachtlijst", methods=["POST"])
 def api_wachtlijst():
     """Stap 165: op de wachtlijst voor een land. Alleen adres, winkel en land."""
