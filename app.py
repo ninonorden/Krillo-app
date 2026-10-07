@@ -668,6 +668,16 @@ def _bereken_thuis():
         elif _laatste_indexcijfers:
             print("Indexcijfers leeg, laatste goede cijfers gebruikt.")
             cijfers = dict(_laatste_indexcijfers)
+        # 7 oktober: dezelfde telling als op /index, alleen wat er openbaar
+        # staat (niet elke categorie die ooit gemeten is).
+        try:
+            openbaar = db.openbare_categorieen(MINIMUM_PER_LAND)
+            if openbaar:
+                cijfers = dict(cijfers or {})
+                cijfers["categorieen"] = len({r["categorie"] for r in openbaar})
+                cijfers["winkels"] = sum(int(r.get("winkels") or 0) for r in openbaar)
+        except Exception as e:
+            print(f"Openbare telling voor de homepage mislukt: {e}")
         voorbeeldland = landen[0]["land"] if landen else None
         rijen = (db.categorieen_per_land(voorbeeldland, MINIMUM_PER_LAND)
                  if voorbeeldland else [])
@@ -7626,6 +7636,13 @@ def _indexoverzicht(land, taal, canonical="/index"):
     for r in rijen:
         r["naam"] = categorieen.naam_van(r["categorie"])
     rijen.sort(key=lambda r: r["naam"])
+    # 7 oktober (Nino): er stond "52 categories" bij Nederland EN bij Belgie,
+    # terwijl de lijst eronder er minder had. Dat getal telde elke categorie
+    # die ooit gemeten is, ook zonder openbare ranglijst. Nu tellen de
+    # categorieen en winkels precies wat er op DEZE pagina staat, per land.
+    cijfers = dict(cijfers or {})
+    cijfers["categorieen"] = len({r["categorie"] for r in rijen})
+    cijfers["winkels"] = sum(int(r.get("winkels") or 0) for r in rijen)
     return render_template(
         "index_overzicht.html",
         t=t, taal=taal, land=land, naam_en=categorieen.naam_en,
@@ -8119,6 +8136,16 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 print(f"Ranglijst voor het overzicht mislukt: {e}")
                 rijen = []
             gegevens["top"] = dp.topkaart(rijen, webshop_url, beeld.get("telbaar") or 0, aantal=7)
+            # Stap 241: het concurrent-alarm. Maand uit deze ranglijst, week uit
+            # de snelmeting (alleen voor een betalende klant, die heeft hem).
+            try:
+                import concurrentalarm
+                alarm = concurrentalarm.zinnen_maand(concurrentalarm.maand(rijen, webshop_url), taal)
+                if werk and not proef:
+                    alarm = concurrentalarm.zinnen_week(concurrentalarm.week_voor(webshop_url), taal) + alarm
+                gegevens["alarm"] = alarm[:5]
+            except Exception as e:
+                print(f"Concurrent-alarm voor het dashboard mislukt: {e}")
             # Versie 8 (30 september): de beweging per winkel naast de ranglijst,
             # de grafiek als gegevens voor de browser en de lijntjes in de tegels.
             try:

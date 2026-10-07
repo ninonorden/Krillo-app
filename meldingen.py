@@ -157,11 +157,16 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
     rendement = klant.get("rendement")
     voor = f"{rendement}\n\n" if rendement and soort != "daling" else ""
     na = f"\n\n{rendement}" if rendement and soort == "daling" else ""
+    # Stap 241: wie je inhaalde, direct onder de stand.
+    if klant.get("concurrenten"):
+        voor_stand = "\n\n" + " ".join(klant["concurrenten"])
+    else:
+        voor_stand = ""
 
     if taal == "en":
         stand = (f"You are number {p} of {van} in {categorienaam}. {beweging} "
                  f"You were named in {genoemd} of {telbaar} buying questions, "
-                 f"and recommended in {aanbevolen}.")
+                 f"and recommended in {aanbevolen}.{voor_stand}")
         # 21 september: "four weeks ago" en "you will get the fixes for
         # approval" eruit. De nameting is de eerstvolgende maandmeting na een
         # oplevering (26 tot 70 dagen, zie hierboven), en een goedkeurknop
@@ -181,7 +186,7 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
 
     stand = (f"Je staat op plaats {p} van de {van} in {categorienaam}. {beweging} "
              f"Je werd genoemd bij {genoemd} van de {telbaar} koopvragen, "
-             f"en aanbevolen bij {aanbevolen}.")
+             f"en aanbevolen bij {aanbevolen}.{voor_stand}")
     if soort == "nameting":
         return (f"{voor}Vier weken geleden hebben wij je webshop aangepast. We hebben nu "
                 f"opnieuw gemeten, met precies dezelfde vragen.\n\n{stand}\n\n"
@@ -280,6 +285,7 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
     # mail en "#6 of 25" op zijn dashboard. Nu komt het cijfer in de mail uit
     # dezelfde functie als het dashboard: twee query's per meting, niet per klant.
     per_land = {}
+    lijsten = {}  # stap 241: de hele ranglijst per land, voor het concurrent-alarm
     import vraaglanden
     for land in dict.fromkeys(("nl", "be", *vraaglanden.VRAAGLANDEN)):
         try:
@@ -290,6 +296,7 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
         if lijst.get("ronde") != ronde:
             continue
         for rij in lijst.get("rijen") or []:
+            lijsten.setdefault(rij["webshop_url"], lijst.get("rijen") or [])
             per_land.setdefault(rij["webshop_url"], {
                 "positie": rij.get("positie"),
                 "vorige_positie": rij.get("vorige_positie"),
@@ -342,6 +349,12 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
             import emailing
             taal = _taal_van(klant["webshop_url"])
             klant["rendement"] = rendement_regel(klant["webshop_url"], taal, klant.get("pakket"))
+            try:
+                import concurrentalarm
+                klant["concurrenten"] = concurrentalarm.zinnen_maand(
+                    concurrentalarm.maand(lijsten.get(klant["webshop_url"]), klant["webshop_url"]), taal)
+            except Exception as e:
+                print(f"Concurrent-alarm in de maandmail mislukt: {e}")
             link = f"{(basis or '').rstrip('/')}/mijn/{klant['klant_token']}" \
                 if basis and klant.get("klant_token") else None
             gelukt = emailing.send_vermeldingen_update(

@@ -27,8 +27,10 @@ def zet_uit(webshop_url, uit=True):
     db.zet_instelling(UIT_SLEUTEL.format(webshop_url), "ja" if uit else "")
 
 
-def alineas(snel, kaart=None):
-    """De alinea's van de mail, of None als er niets te melden is."""
+def alineas(snel, kaart=None, alarm=None):
+    """De alinea's van de mail, of None als er niets te melden is.
+
+    alarm: het concurrent-alarm van deze week (stap 241, concurrentalarm.py)."""
     if not snel or not snel.get("van"):
         return None
     regel = f"This week AI named your store in <strong>{snel['genoemd']} of {snel['van']}</strong> answers"
@@ -40,6 +42,10 @@ def alineas(snel, kaart=None):
     nu = [v for v in snel.get("vragen") or [] if v.get("was") is not None and v["was"] != v["nu"]]
     for v in nu[:3]:
         uit.append(("Now named: " if v["nu"] else "No longer named: ") + f"“{v['vraag']}”.")
+    # Stap 241: wie er deze week bij kwam, en wie jouw plek innam.
+    if alarm:
+        import concurrentalarm
+        uit += concurrentalarm.zinnen_week(alarm)
     if kaart and kaart.get("genoemd"):
         namen = ", ".join(p["naam"] for p in kaart["genoemd"][:3])
         uit.append(f"Products AI named by name: {namen}.")
@@ -60,7 +66,12 @@ def stuur_voor(webshop_url, email, klant_token, basis_url="https://krilloai.com"
         kaart = productkaart.kaart(webshop_url)
     except Exception:
         kaart = None
-    tekst = alineas(snelmeting.overzicht(webshop_url), kaart)
+    try:
+        import concurrentalarm
+        alarm = concurrentalarm.week_voor(webshop_url)
+    except Exception:
+        alarm = None
+    tekst = alineas(snelmeting.overzicht(webshop_url), kaart, alarm)
     if not tekst:
         return False
     basis = basis_url.rstrip("/")
