@@ -908,7 +908,14 @@ def zo_meten_we():
 @app.route("/proof")
 def bewijs():
     """7 oktober: "genoemd worden is nog geen verkoop". Hoe je het zelf ziet."""
-    return render_template("proof.html")
+    # De uitkomst van alle klanten samen, pas vanaf drie winkels (aiverkeer.samen).
+    try:
+        import aiverkeer
+        samen = aiverkeer.samen()
+    except Exception as e:
+        print(f"Bewijs samen mislukt: {e}")
+        samen = None
+    return render_template("proof.html", samen=samen)
 
 
 @app.route("/about")
@@ -1039,6 +1046,36 @@ def weekmail_uit(klant_token):
             f"<title>Weekly email | Krillo</title><body style='font-family:Arial,sans-serif;max-width:560px;"
             f"margin:60px auto;padding:0 16px;line-height:1.6'><h1 style='font-size:22px'>Weekly email</h1>"
             f"<p>{escape(tekst)}</p>{knop}<p><a href='/mijn/{escape(klant_token)}'>Back to your dashboard</a></p>")
+
+
+@app.route("/mijn/<klant_token>/aiverkeer", methods=["POST"])
+def aiverkeer_bewaren(klant_token):
+    """De klant zet zijn AI-bezoek, bestellingen en omzet van een maand in het
+    dashboard (7 oktober, zie aiverkeer.py). Daarna terug naar het overzicht."""
+    import aiverkeer
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return render_template("fout.html", titel="This link no longer works",
+                               bericht="Open your dashboard and try again."), 404
+    aiverkeer.bewaar(klant["webshop_url"], request.form.get("maand"), request.form.get("bezoek"),
+                     request.form.get("orders"), request.form.get("omzet"))
+    return redirect(f"/mijn/{klant_token}#aiverkeer", code=303)
+
+
+# Stap-tellers van de kassa (7 oktober). 36 mensen gingen naar de prijzen en
+# niemand betaalde, maar wij wisten niet WAAR ze afhaakten: openden ze het
+# venster niet, vulden ze het niet in, of haakten ze af bij de bank? Elke stap
+# telt nu als bezoek aan een vast pad, en verschijnt zo vanzelf op /admin/bezoek.
+KASSA_STAPPEN = {"venster_watch", "venster_fix", "verstuurd_watch", "verstuurd_fix",
+                 "fout_watch", "fout_fix", "naar_bank_watch", "naar_bank_fix"}
+
+
+@app.route("/api/stap/<naam>", methods=["POST"])
+def api_kassastap(naam):
+    ua = (request.headers.get("User-Agent", "") or "").lower()
+    if naam in KASSA_STAPPEN and ua and not any(r in ua for r in BEZOEK_ROBOTS):
+        db.noteer_bezoek("/stap/" + naam, bezoeker=_bezoeker_kenmerk())
+    return ("", 204)
 
 
 @app.route("/api/opzeggen/<klant_token>", methods=["POST"])
@@ -8025,6 +8062,21 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                                             "Saturday", "Sunday"][meetdag(webshop_url)]
                 except Exception as e:
                     print(f"Snelmeting voor het dashboard mislukt: {e}")
+            # 7 oktober: brengt AI ook bezoek en verkoop? Een klant vult zijn eigen
+            # cijfers in (aiverkeer.py); demo en voorproef zien een voorbeeld.
+            try:
+                import aiverkeer
+                if klant_token:
+                    pakket = ((db.get_klant(klant_token) or {}).get("pakket") or "watch")
+                    prijs = float(payments.prijs_van(pakket)["value"])
+                    gegevens["aiverkeer"] = aiverkeer.overzicht(webshop_url, beeld.get("verloop"),
+                                                                maandprijs=prijs)
+                    gegevens["aiverkeer_post"] = f"/mijn/{klant_token}/aiverkeer"
+                elif not beheer:
+                    gegevens["aiverkeer"] = aiverkeer.voorbeeld()
+                    gegevens["aiverkeer_voorbeeld"] = True
+            except Exception as e:
+                print(f"AI-verkeer voor het dashboard mislukt: {e}")
             eigen = [{"naam": winkelnaam, "jij": True,
                       "punten": [(r.get("afgerond_op"), r["positie"]) for r in beeld.get("verloop") or []]}]
             gegevens["grafiek_eigen"] = dp.lijngrafiek(eigen, taal=taal)

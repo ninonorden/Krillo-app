@@ -29,7 +29,7 @@ import db
 # test_nachtcontrole_teksten dat elke tekst op de echte pagina staat.
 PAGINAS = [
     ("/", "Check my store free"),
-    ("/#pricing", "Try 14 days free"),
+    ("/#pricing", "Start Watch free for 14 days"),
     ("/demo", "Overview"),
     ("/demo/ranking", "Ranking"),
     ("/demo/questions", "All buying questions"),
