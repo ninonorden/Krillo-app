@@ -1058,6 +1058,34 @@ def weekmail_uit(klant_token):
             f"<p>{escape(tekst)}</p>{knop}<p><a href='/mijn/{escape(klant_token)}'>Back to your dashboard</a></p>")
 
 
+@app.route("/api/pixel", methods=["POST", "OPTIONS"])
+def api_pixel():
+    """Stap 304: meldingen van de Krillo-pixel op de site van een klant.
+
+    Komt van een ander domein (de winkel), dus open voor elke herkomst. Neemt
+    alleen aan wat pixel.noteer goedkeurt: een bekende sleutel, sessie of
+    order, een redelijk bedrag. Altijd 204: een winkel mag nooit een fout zien
+    of trager worden door Krillo."""
+    if request.method == "POST":
+        try:
+            import pixel
+            import gratistools
+            ruw = request.get_data(cache=False, as_text=True)[:2000]
+            d = json.loads(ruw) if ruw else {}
+            # Rem per bezoeker (zelfde als de gratis tools): een bezoeker doet
+            # hooguit een sessie en een bestelling, meer is misbruik.
+            if isinstance(d, dict) and gratistools.mag_nu("pixel:" + (request.remote_addr or "?")):
+                pixel.noteer(d.get("k"), d.get("t"), bron=d.get("b"), bedrag=d.get("v"),
+                             valuta=d.get("c"), order_id=d.get("o"))
+        except Exception as e:
+            print(f"Pixelmelding mislukt: {e}")
+    antwoord = app.response_class(status=204)
+    antwoord.headers["Access-Control-Allow-Origin"] = "*"
+    antwoord.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    antwoord.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return antwoord
+
+
 @app.route("/mijn/<klant_token>/aiverkeer", methods=["POST"])
 def aiverkeer_bewaren(klant_token):
     """De klant zet zijn AI-bezoek, bestellingen en omzet van een maand in het
@@ -2347,61 +2375,59 @@ def admin_voorstellen():
 # beheerpagina erin staat, zodat een nieuwe pagina niet stil ontbreekt.
 # ---------------------------------------------------------------------------
 BEHEER_GROEPEN = [
-    ("Vandaag", [
+    # 7 oktober (Nino: "teveel pagina's, veel kan samen"): wat je elke dag nodig
+    # hebt bovenaan; de rest ingeklapt onder "Minder vaak nodig".
+    ("Elke dag", [
         ("/admin/ochtendbericht", "Ochtendbericht", "Het bericht van vanochtend, nu bekijken"),
+        ("/admin/bezoek", "Trechter en bezoek", "Per dag: van bezoek tot betaald, en de koude mail"),
+        ("/admin/bezoekers", "Gratis checks", "Handmatige checks die wachten, mislukte checks, herkomst"),
+        ("/admin/benadering", "Benadering", "De lijst, de rem, en wat de mails opleveren"),
+        ("/admin/antwoorden", "Antwoorden", "Wie terugmailde, met een concept-antwoord"),
+        ("/admin/verkoop", "Verkoopagent", "Opvolgingen goedkeuren of overslaan"),
         ("/admin/voorstellen", "Voorstellen", "Ja of nee op wat de agents willen doen, en de bouwlijst voor Claude"),
-        ("/admin/klantblik", "Klantblik", "Alle pagina's nagelopen zoals een klant ze ziet: wat er niet klopt"),
-        ("/admin/snelmeting", "Snelmeting", "De wekelijkse meting van de vijf belangrijkste vragen per klant"),
-        ("/admin/agents", "Commandocentrum", "Alle agents met hun schakelaars"),
-        ("/admin/controle", "Nachtcontrole", "Wat de controleagent vond, en nu draaien"),
-        ("/admin/traag", "Trage pagina's", "Welke pagina's traag waren, en waarom"),
+        ("/admin/kosten", "Kosten", "Wat de metingen en modellen kosten"),
     ]),
-    ("Klanten en geld", [
+    ("Klanten", [
         ("/admin/bestellingen", "Bestellingen", "Wie betaald heeft"),
+        ("/admin/snelmeting", "Snelmeting", "De wekelijkse meting van de vijf belangrijkste vragen per klant"),
         ("/admin/uitvoeringen", "Werklijst Fix", "Wat wij in winkels van klanten doen"),
         ("/admin/werkbriefje", "Werkbriefje", "Wat jij precies doet in de winkel van een klant"),
         ("/admin/oplevering", "Oplevering", "Het overzicht dat de klant krijgt als het klaar is"),
         ("/admin/oplossingen", "Kant-en-klare teksten", "De teksten van het actieplan los schrijven"),
+        ("/admin/voorbeeld", "Klantpagina bekijken", "De klantpagina voor een winkel naar keuze"),
         ("/admin/shopify", "Shopify-app", "Welke winkels de app hebben"),
         ("/admin/wordpress", "WordPress-winkels", "Fix in gekoppelde WooCommerce-winkels"),
         ("/admin/doorverwijzen", "Partners", "Partneraanvragen goedkeuren"),
-        ("/admin/kosten", "Kosten", "Wat de metingen en modellen kosten"),
     ]),
-    ("Koude mail en verkoop", [
-        ("/admin/benadering", "Benadering", "De lijst, de rem, en wat de mails opleveren"),
-        ("/admin/antwoorden", "Antwoorden", "Wie terugmailde, met een concept-antwoord"),
-        ("/admin/verkoop", "Verkoopagent", "Opvolgingen goedkeuren of overslaan"),
+    ("Meer klanten vinden", [
         ("/admin/formulieren", "Contactformulieren", "Winkels zonder info@, bericht staat klaar"),
-        ("/admin/bureaus", "Bureaus", "Webbureaus uit de voettekst van winkels"),
-        ("/admin/merken", "Merken en platforms", "Wat het opschonen als merk aanmerkte"),
-        ("/admin/merkaanvragen", "Merkaanvragen", "Aanvragen via /agencies"),
         ("/admin/onderzoeksmail", "Onderzoeksmail", "Gemeten winkels met hun eigen uitkomst"),
+        ("/admin/bureaus", "Bureaus", "Webbureaus uit de voettekst van winkels"),
+        ("/admin/merkaanvragen", "Merkaanvragen", "Aanvragen via /agencies"),
         ("/admin/wachtlijst", "Wachtlijst per land", "Welke landen wachten, en hoeveel"),
-    ]),
-    ("Zichtbaar worden", [
         ("/admin/linkedin", "LinkedIn", "Posts van de LinkedIn-agent met plaatje"),
         ("/admin/persbericht", "Persbericht", "Klaar om te kopieren"),
         ("/admin/lijstjes", "Lijstjes", "Wat de lijstjesagent vond en mailde"),
         ("/admin/artikelen", "Artikelen", "Concepten van de artikelagent nakijken en plaatsen"),
     ]),
-    ("Index en metingen", [
+    ("Index", [
         ("/admin/ranglijst", "Ranglijst", "Een categorie meten en bekijken"),
         ("/admin/categorieen", "Categorieen", "Winkels indelen en tellen"),
         ("/admin/opschonen", "Opschonen", "De winkellijst schoon voor publicatie"),
         ("/admin/metingen", "Metingen", "Wat de modellen antwoordden"),
-        ("/admin/beoordelingen", "Beoordelingen", "Wat er uit de antwoorden gehaald is"),
         ("/admin/koopvragen", "Koopvragen", "De vragen per webshop"),
+    ]),
+    ("Minder vaak nodig", [
+        ("/admin/klantblik", "Klantblik", "Alle pagina's nagelopen zoals een klant ze ziet: wat er niet klopt"),
+        ("/admin/agents", "Commandocentrum", "Alle agents met hun schakelaars"),
+        ("/admin/controle", "Nachtcontrole", "Wat de controleagent vond, en nu draaien"),
+        ("/admin/traag", "Trage pagina's", "Welke pagina's traag waren, en waarom"),
+        ("/admin/merken", "Merken en platforms", "Wat het opschonen als merk aanmerkte"),
+        ("/admin/beoordelingen", "Beoordelingen", "Wat er uit de antwoorden gehaald is"),
         ("/admin/benchmark", "Benchmark", "Alle gemeten winkels bij elkaar"),
         ("/admin/bronnen", "Bronnen", "Welke externe pagina's gevonden zijn"),
         ("/admin/modellen", "Modellen", "Werken de ingestelde modelnamen nog"),
-    ]),
-    ("Site en bezoek", [
-        ("/admin/bezoek", "Bezoek", "Hoeveel mensen, welke pagina's, waarvandaan"),
-        ("/admin/bezoekers", "Gratis scans", "Scans en waar ze vandaan komen"),
-        ("/admin/voorbeeld", "Klantpagina bekijken", "De klantpagina voor een winkel naar keuze"),
         ("/admin/demo", "Demo-uitkomsten", "De volledige meting voor een niet-klant"),
-    ]),
-    ("Agents", [
         ("/admin/leren", "Leeragent", "Wat de agents onderzochten en doorvoerden"),
         ("/admin/wereld", "Agentendorp", "Het dorp van de agents, ververst vanzelf"),
     ]),
@@ -2421,7 +2447,11 @@ def admin_portaal():
         items = "".join(
             f"<a class='tegel' href='{pad}' data-zoek='{escape((naam + ' ' + uitleg + ' ' + pad).lower())}'>"
             f"<b>{escape(naam)}</b><span>{escape(uitleg)}</span></a>" for pad, naam, uitleg in paginas)
-        tegels += f"<section><h2>{escape(groep)}</h2><div class='raster'>{items}</div></section>"
+        if groep == "Minder vaak nodig":
+            tegels += (f"<section><details><summary><h2 style='display:inline'>{escape(groep)}</h2></summary>"
+                       f"<div class='raster'>{items}</div></details></section>")
+        else:
+            tegels += f"<section><h2>{escape(groep)}</h2><div class='raster'>{items}</div></section>"
     # Wat er te doen is komt los binnen (fetch): het zijn een stuk of tien
     # tellingen in de database, en het portaal zelf moet meteen open staan.
     return ("<!doctype html><html lang='nl'><meta charset='utf-8'>"
@@ -2447,6 +2477,7 @@ def admin_portaal():
             "<a href='/admin/uitloggen'>Uitloggen</a></p></div>"
             "<script>"
             "var z=document.getElementById('zoek');z.addEventListener('input',function(){var q=z.value.toLowerCase().trim();"
+            "document.querySelectorAll('details').forEach(function(d){d.open=!!q});"
             "document.querySelectorAll('.tegel').forEach(function(t){t.style.display=!q||t.dataset.zoek.indexOf(q)>-1?'':'none'});"
             "document.querySelectorAll('section').forEach(function(s){var z2=[].some.call(s.querySelectorAll('.tegel'),"
             "function(t){return t.style.display!=='none'});s.style.display=z2?'':'none'})});"
@@ -3234,7 +3265,23 @@ def _rang_voor_gratis_check(webshop_url):
         for kandidaat in dict.fromkeys(kandidaten):
             beeld = klantbeeld.bouw(kandidaat, max_vragen=0)
             if beeld and beeld.get("land") and (beeld.get("van") or 0) >= MINIMUM_PER_LAND:
+                # 7 oktober: het concept is "wie AI aanraadt in plaats van jou".
+                # Dus ook de namen: de bovenste drie winkels van dezelfde lijst,
+                # zonder de winkel zelf. Mislukt dat, dan gewoon zonder namen.
+                voor = []
+                try:
+                    lijst = db.ranglijst_per_land(beeld["categorie"], beeld["land"], limiet=6)
+                    eigen = scan_engine.normalize_url(kandidaat)
+                    for r in (lijst or {}).get("rijen") or []:
+                        if scan_engine.normalize_url(r.get("webshop_url") or "") == eigen:
+                            continue
+                        voor.append(r.get("naam") or re.sub(r"^https?://(www\.)?", "", r.get("webshop_url") or ""))
+                        if len(voor) == 3:
+                            break
+                except Exception as e:
+                    print(f"Namen voor de gratis check mislukt: {e}")
                 return {
+                    "voor": voor,
                     "positie": beeld["positie"], "van": beeld["van"],
                     "categorie": categorieen.naam_en(beeld["categorie"]),
                     "land": sitetaal.landnaam(beeld["land"], "en"),
@@ -6153,6 +6200,7 @@ def admin_benadering():
     bezig = _metingen_bezig()
     return render_template(
         "admin_benadering.html",
+        geen_adres=db.redenen_geen_adres(),
         diagnose=benadering.waarom_gaat_er_niets_uit(
             moment_laatste_ronde=benadering.laatste_ronde(),
             meetruimte=kosten.ruimte_voor_benadering(),
@@ -8121,6 +8169,15 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                     gegevens["aiverkeer"] = aiverkeer.overzicht(webshop_url, beeld.get("verloop"),
                                                                 maandprijs=prijs)
                     gegevens["aiverkeer_post"] = f"/mijn/{klant_token}/aiverkeer"
+                    # Stap 304: de pixel, met de code al ingevuld voor deze winkel.
+                    try:
+                        import pixel
+                        sleutel = pixel.sleutel_voor(webshop_url)
+                        gegevens["pixel"] = {"status": pixel.status(webshop_url),
+                                             "shopify": pixel.shopify_code(sleutel, get_base_url()),
+                                             "site": pixel.site_code(sleutel, get_base_url())}
+                    except Exception as e:
+                        print(f"Pixel voor het dashboard mislukt: {e}")
                 elif not beheer:
                     gegevens["aiverkeer"] = aiverkeer.voorbeeld()
                     gegevens["aiverkeer_voorbeeld"] = True
@@ -9587,8 +9644,25 @@ def admin_bezoekers():
     totaal = overzicht["totaal"] or {}
     scans = totaal.get("scans") or 0
     betaald = totaal.get("betaald") or 0
+    # 7 oktober: wie na een mislukte check "Check it by hand" invulde, en welke
+    # checks mislukten. Dit zijn warme mensen: ze wilden hun uitslag.
+    try:
+        handchecks = list(reversed(json.loads(db.get_instelling("handchecks") or "[]")))[:30]
+    except Exception:
+        handchecks = []
+    try:
+        conn = db._get_connection()
+        with conn, conn.cursor() as cur:
+            cur.execute("""SELECT gedaan_op, webshop_url, coalesce(foutsoort, '') FROM gratis_scans
+                            WHERE NOT coalesce(gelukt, false) ORDER BY gedaan_op DESC LIMIT 20""")
+            mislukt = [{"op": r[0], "url": r[1], "fout": r[2]} for r in cur.fetchall()]
+        conn.close()
+    except Exception as e:
+        print(f"Mislukte checks ophalen mislukt: {e}")
+        mislukt = []
     return render_template(
         "admin_bezoekers.html",
+        handchecks=handchecks, mislukt=mislukt,
         dagen=dagen,
         totaal=totaal,
         # Bewust als "x van de y" en niet als percentage: bij kleine aantallen
@@ -9854,8 +9928,15 @@ def admin_bezoek():
         gemeten = (datetime.now(timezone.utc) - eerste).days + 1
         trechterdagen = max(1, min(dagen, gemeten))
     scantotaal = (db.scanoverzicht(trechterdagen)["totaal"] or {})
+    # 7 oktober (Nino): elke dag zien waar mensen heen gaan en afhaken.
+    try:
+        per_dag_trechter = db.trechter_volledig(14)
+    except Exception as e:
+        print(f"Trechter per dag mislukt: {e}")
+        per_dag_trechter = []
     return render_template(
         "admin_bezoek.html",
+        trechter_dag=per_dag_trechter,
         dagen=dagen,
         trechterdagen=trechterdagen,
         sinds=eerste,

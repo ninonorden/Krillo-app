@@ -27,8 +27,33 @@ def zet_uit(webshop_url, uit=True):
     db.zet_instelling(UIT_SLEUTEL.format(webshop_url), "ja" if uit else "")
 
 
-def alineas(snel, kaart=None, alarm=None):
+def acties_voor(webshop_url, maximaal=3):
+    """Stap 291 (7 oktober): de drie dingen die deze week het meest opleveren.
+
+    Dezelfde aanpak als op de pagina Fixes (vraagaanpak.py), de verloren vragen
+    met de gekozen vragen eerst. Per vraag de eerste concrete stap. Nooit een
+    fout: lukt het niet, dan staat er gewoon geen actieblok in de mail."""
+    try:
+        import klantbeeld
+        import dashboardpaginas as dp
+        import vraagaanpak
+        beeld = klantbeeld.bouw(webshop_url)
+        if not beeld or not beeld.get("ronde"):
+            return []
+        naam = beeld.get("naam") or webshop_url
+        vo = dp.vragen_overzicht(beeld["ronde"], webshop_url, naam)
+        lijst = vraagaanpak.voor_dashboard(vo, db.gekozen_vragen(webshop_url), None, en=True,
+                                           maximaal=maximaal)
+        return [{"vraag": a["vraag"], "stap": (a.get("stappen") or [""])[0]} for a in lijst if a.get("stappen")]
+    except Exception as e:
+        print(f"Acties voor de weekmail mislukt voor {webshop_url}: {e}")
+        return []
+
+
+def alineas(snel, kaart=None, alarm=None, acties=None):
     """De alinea's van de mail, of None als er niets te melden is.
+
+    acties: de drie acties van deze week (stap 291, acties_voor).
 
     alarm: het concurrent-alarm van deze week (stap 241, concurrentalarm.py)."""
     if not snel or not snel.get("van"):
@@ -46,6 +71,9 @@ def alineas(snel, kaart=None, alarm=None):
     if alarm:
         import concurrentalarm
         uit += concurrentalarm.zinnen_week(alarm)
+    # Stap 291: niet alleen cijfers, ook wat je deze week doet.
+    for i, a in enumerate((acties or [])[:3], start=1):
+        uit.append((f"This week, do this. " if i == 1 else "") + f"{i}. For “{a['vraag']}”: {a['stap']}")
     if kaart and kaart.get("genoemd"):
         namen = ", ".join(p["naam"] for p in kaart["genoemd"][:3])
         uit.append(f"Products AI named by name: {namen}.")
@@ -71,7 +99,7 @@ def stuur_voor(webshop_url, email, klant_token, basis_url="https://krilloai.com"
         alarm = concurrentalarm.week_voor(webshop_url)
     except Exception:
         alarm = None
-    tekst = alineas(snelmeting.overzicht(webshop_url), kaart, alarm)
+    tekst = alineas(snelmeting.overzicht(webshop_url), kaart, alarm, acties_voor(webshop_url))
     if not tekst:
         return False
     basis = basis_url.rstrip("/")
