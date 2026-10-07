@@ -364,6 +364,62 @@ def herkans_adressen(hoeveel=None):
     return gedaan
 
 
+# Stap 306 (7 oktober): winkels zonder adres op hun site, een keer via de
+# zoekmachine. Eerst als proef: hoogstens ADRES_ZOEKMACHINE_MAX winkels in totaal,
+# ADRES_ZOEKMACHINE_PER_RONDE per ronde. Zet MAX hoger als de proef iets oplevert.
+ZOEKMACHINE_SLEUTEL = "benadering_adres_zoekmachine_v1"
+ZOEKMACHINE_PER_RONDE = int(os.environ.get("ADRES_ZOEKMACHINE_PER_RONDE", "25"))
+ZOEKMACHINE_MAX = int(os.environ.get("ADRES_ZOEKMACHINE_MAX", "200"))
+
+
+def zoekmachine_stand():
+    """Hoeveel er via de zoekmachine bekeken en gevonden zijn (voor beheer)."""
+    try:
+        ruw = json.loads(str(db.get_instelling(ZOEKMACHINE_SLEUTEL) or "{}"))
+    except ValueError:
+        ruw = {}
+    return {"bekeken": len(ruw.get("gehad") or []), "gevonden": ruw.get("gevonden", 0),
+            "max": ZOEKMACHINE_MAX}
+
+
+def adressen_via_zoekmachine(hoeveel=None, zoek=None):
+    """Stap 306. Alleen winkels met "Geen mailadres op de site gevonden", elk
+    hooguit een keer. Kost per winkel een zoekopdracht (ongeveer een halve cent)."""
+    hoeveel = ZOEKMACHINE_PER_RONDE if hoeveel is None else hoeveel
+    try:
+        ruw = json.loads(str(db.get_instelling(ZOEKMACHINE_SLEUTEL) or "{}"))
+    except ValueError:
+        ruw = {}
+    gehad = set(ruw.get("gehad") or [])
+    ruimte = min(hoeveel, ZOEKMACHINE_MAX - len(gehad))
+    gedaan = {"bekeken": 0, "gevonden": 0}
+    if ruimte < 1:
+        return gedaan
+    if zoek is None:
+        import bronnen
+        if not bronnen.beschikbaar():
+            return gedaan
+    for winkel in db.get_benaderingen(stand="geen_adres", limiet=ruimte * 8):
+        if gedaan["bekeken"] >= ruimte:
+            break
+        url = winkel["webshop_url"]
+        kaal = scan_engine.normalize_url(url)
+        if kaal in gehad or "persoonlijk" in (winkel.get("notitie") or "").lower():
+            continue
+        gehad.add(kaal)
+        gedaan["bekeken"] += 1
+        uitkomst = contactvinder.zoek_via_zoekmachine(url, zoek=zoek)
+        if uitkomst.get("adres"):
+            db.zet_benadering(url, stand="adres", email=uitkomst["adres"],
+                              email_bron=uitkomst.get("vandaan"),
+                              notitie="Adres gevonden via de zoekmachine.")
+            gedaan["gevonden"] += 1
+    ruw["gehad"] = sorted(gehad)
+    ruw["gevonden"] = ruw.get("gevonden", 0) + gedaan["gevonden"]
+    db.zet_instelling(ZOEKMACHINE_SLEUTEL, json.dumps(ruw))
+    return gedaan
+
+
 # ------------------------------------------------------------------ 2. meten
 
 # Hoe lang een meting mag duren voordat wij hem als vastgelopen beschouwen.

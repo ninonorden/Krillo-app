@@ -5040,6 +5040,16 @@ def _benadering_ronde_werk():
         print(f"Benadering, herkansing mislukt: {e}")
 
     try:
+        # Stap 306: winkels zonder adres op hun site, via de zoekmachine.
+        via_zoek = benadering.adressen_via_zoekmachine()
+        if via_zoek.get("bekeken"):
+            verslag["zoekmachine"] = via_zoek
+            print(f"Benadering, adressen via de zoekmachine: {via_zoek}")
+    except Exception as e:
+        verslag["mislukt"].append(f"adressen via zoekmachine: {e}")
+        print(f"Benadering, zoekmachine mislukt: {e}")
+
+    try:
         # Winkels die geklikt hebben maar geen meting kregen omdat de dagpot op
         # was. Die staan vooraan in de rij: iemand die op zijn uitkomst klikt is
         # het beste wat er die dag gebeurt, en in de mail is hem een grotere
@@ -6212,6 +6222,7 @@ def admin_benadering():
     return render_template(
         "admin_benadering.html",
         geen_adres=db.redenen_geen_adres(),
+        zoekmachine=benadering.zoekmachine_stand(),
         diagnose=benadering.waarom_gaat_er_niets_uit(
             moment_laatste_ronde=benadering.laatste_ronde(),
             meetruimte=kosten.ruimte_voor_benadering(),
