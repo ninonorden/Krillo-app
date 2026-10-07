@@ -161,8 +161,15 @@ def _getal(ruw):
         return None
 
 
+# 7 oktober: de voorbeeldwinkel op de homepage en in /demo (aiverkeer.VOORBEELD)
+# toont omzet uit AI: 64, 121 en 268 euro, en het verschil 204. Dat zijn geen
+# prijzen van Krillo maar voorbeeldomzet, en staan er met "EXAMPLE" bij.
+# Alleen precies deze bedragen; elk ander vreemd bedrag blijft een fout.
+VOORBEELD_BEDRAGEN = {64, 121, 268, 204}
+
+
 def vreemde_bedragen(tekst, toegestaan=None):
-    toegestaan = toegestaan or toegestane_prijzen()
+    toegestaan = set(toegestaan or toegestane_prijzen()) | VOORBEELD_BEDRAGEN
     uit = []
     for m in re.finditer(r"(?:€|EUR)\s?(\d[\d.,]*)", tekst or ""):
         n = _getal(m.group(1))

@@ -2785,7 +2785,8 @@ def _bouw_sitemap():
     import gratistools
     import vergelijkingen
     regels += [(f"/tools/{t}", nieuwste) for t in gratistools.TOOLS]
-    regels += [(f"/compare/{t}", vergelijkingen.GEKEKEN) for t in vergelijkingen.TOOLS]
+    regels += [(f"/compare/{t}", vergelijkingen.TOOLS[t].get("gekeken") or vergelijkingen.GEKEKEN)
+               for t in vergelijkingen.TOOLS]
     # De categoriepagina's van de index, met hun EIGEN meetdatum. Dat is niet
     # cosmetisch: een zoekmachine ziet daaraan dat de pagina van vorige maand
     # veranderd is, en haalt hem opnieuw op. Zonder datum zou hij moeten gokken.

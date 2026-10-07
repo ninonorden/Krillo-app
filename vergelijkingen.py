@@ -87,6 +87,28 @@ TOOLS = {
             "With Fix we write the product texts and put them in your store.",
         ],
     },
+    # 7 oktober (Nino zag Ranketta): eigen datum, want alleen deze is vandaag
+    # nagekeken. Hun klantaantal (1.200+) noemen we niet: dat is hun eigen claim.
+    "ranketta": {
+        "naam": "Ranketta",
+        "gekeken": "2026-10-07",
+        "bron": "https://ranketta.com",
+        "wat": "Tracks which of your products AI recommends, per product (SKU), across ChatGPT, Google AI "
+               "Overviews, Perplexity, Gemini, Claude, Copilot, Alexa Shopping and Grok. Rewrites product "
+               "titles and descriptions and connects your product feed to AI shopping engines.",
+        "prijs": "Tracker EUR 29 a month (2 models, 30 prompts per model), Growth EUR 199, Scale EUR 449, "
+                 "enterprise on request. 7-day free trial.",
+        "voor_wie": "Brands and webshops with their own catalogue and product codes, and agencies, that want "
+                    "data per product across many AI engines.",
+        "beter_als": "you sell your own products with product codes, want visibility per product across eight "
+                     "AI engines, and have someone to work with feeds and catalogue tools.",
+        "krillo_anders": [
+            "No setup: your category is already measured in our public index, so you see your rank against "
+            "your competitors without writing a single prompt.",
+            "Buying questions in the shopper's own language, the way they are asked in each country we measure.",
+            "With Fix we do the work in your store for you, not only the software.",
+        ],
+    },
     "shopify-apps": {
         "naam": "AI visibility apps on Shopify",
         # Voor zinnen als "When a Shopify app is the better choice" (enkelvoud).
