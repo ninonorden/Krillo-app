@@ -937,6 +937,7 @@
   .vc-rij b{display:block; font-size:28px; line-height:1.1;}
   .vc-rij span{font-size:13px; color:#4A4A55;}
   .voorbeeldcase a{font-size:14px;}
+  .k9-h3-stappen{font-size:15px; margin:28px 0 12px; font-family:var(--mono, monospace); text-transform:uppercase; letter-spacing:.04em; color:#6E7079;}
   .keten{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:18px;}
   .keten div{flex:1 1 120px; padding:12px 14px; border:1px solid #E4E4E7; border-radius:12px; background:#fff;}
   .keten div:first-child{border-color:#2F5BFF; background:#F3F6FF;}
@@ -1342,6 +1343,10 @@
 
 <div class="k9">
 
+{# 7 OKTOBER AVOND (Nino, na een review): korter en in deze volgorde:
+   kop met de index als bewijs, het probleem, het product, wat het oplevert, de
+   prijzen, en vertrouwen achter uitklappers. De zes kaarten en het kwadrant
+   zijn eruit: te veel lezen voor iemand die via een advertentie binnenkomt. #}
 {# DE HERO. Links de belofte en het invoerveld (de scan is nog steeds de
    hoofdingang), rechts de index van vandaag met zwevende kaartjes. #}
 <section class="k9-hero" id="scan">
@@ -1356,13 +1361,13 @@
          Krillo doet. "Make your store the answer..." blijft de positionering in
          de paginatitel en voor Google. #}
       <h1 class="k9-h1">See how ChatGPT and Gemini recommend your webshop.</h1>
-      <p class="k9-intro">Krillo asks ChatGPT and Gemini the buying questions your customers ask, shows which stores AI recommends instead of you, and tells you what to change. Or we do it for you. Then you see what it brings: visits, orders and revenue from AI.</p>
+      <p class="k9-intro">Find the buying questions where competitors are recommended instead of you. See what to change, and what it brings in sales.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
         <button type="button" id="scanButton">Check my store free</button>
       </div>
       {# 7 oktober: de teller "used ... times" bleef op 215 staan (het tellen faalde soms). Een getal dat niet klopt, weg. #}
-      <div class="hero-note" id="scanNote">FREE &middot; NO ACCOUNT &middot; SEE WHO AI RECOMMENDS INSTEAD OF YOU</div>
+      <div class="hero-note" id="scanNote">FREE &middot; NO ACCOUNT &middot; YOUR RANK + 13 CHECKS</div>
       {# 7 oktober (Nino): welke assistenten we meten, eerlijk. Alleen namen als
          tekst, geen logo's: die zijn van de bedrijven zelf, en wat we nog niet
          meten staat er als "soon", niet als belofte. #}
@@ -1372,7 +1377,6 @@
         <span class="ai-chip zacht"><i style="background:#9A9AA3"></i>Perplexity soon</span></div>
       <div class="k9-landen k9-mono" id="liveLanden"><span class="k9-landen-stip"></span>LIVE IN {{ index_landen_kaal_en | upper }} &middot; <a href="/index#wachtlijst" title="Leave your email and we tell you when your country goes live">MORE COUNTRIES SOON</a></div>
       <div id="scanResult" class="scan-result"></div>
-      <div class="k9-proefregel">Want it every month? <a href="/?plan=watch#pricing" id="heroProef">Try Watch, the monthly dashboard</a>: 14 days free, then &euro;49 a month, cancel any time.</div>
     </div>
 
     <div class="k9-hero-rechts">
@@ -1447,54 +1451,44 @@
   </div>
 </section>
 
-{# 7 OKTOBER (Nino): wat Krillo doet, in vijf seconden, en het eerlijke antwoord op
-   "genoemd worden is nog geen verkoop". Kort: de uitleg staat op /proof. #}
-<section class="k9-sectie" id="werkwijze">
+{# WAT AI ZEGT. De drie getallen die we tellen, met de echte top 3 van de
+   eerste categorie. Klik een getal en een winkel: het zwarte vak laat het
+   echte cijfer zien. Er staat geen verzonnen AI-tekst bij. #}
+{% if tabs and tabs[0].rijen | length >= 3 %}
+{% set t0 = tabs[0] %}
+<section class="k9-sectie" id="wat-ai-zegt">
   <div class="k9-binnen">
     <div class="k9-sectiekop">
-      <div><span class="k9-label">HOW IT WORKS</span>
-        <h2 class="k9-h2">Detect, understand, fix, measure</h2></div>
+      <div><span class="k9-label">WHAT WE COUNT</span>
+        <h2 class="k9-h2">AI is already recommending stores. Is yours one of them?</h2></div>
+      <div><p>Real numbers from our latest measurement. Click a store.</p></div>
     </div>
-    <div class="vier-stappen">
-      <div><span class="k9-nr">01</span><b>Detect</b><p>Which buying questions you lose, and which store AI names instead.</p></div>
-      <div><span class="k9-nr">02</span><b>Understand</b><p>Why that store gets named: what its pages say that yours do not.</p></div>
-      <div><span class="k9-nr">03</span><b>Fix</b><p>The exact text and the page it goes on. You add it, or we do.</p></div>
-      <div><span class="k9-nr">04</span><b>Measure</b><p>We ask the same questions again every week, so you see when it works.</p></div>
-    </div>
-    {# 7 OKTOBER (Nino): de hele keten tonen, niet alleen "genoemd". Eerlijk wie
-       wat meet: de eerste schakel meet Krillo, de rest komt uit de eigen
-       statistieken van de winkel en staat naast elkaar in het dashboard. #}
-    <div class="keten" aria-label="From AI answer to revenue">
-      <div><b>Named by AI</b><span>Krillo measures</span></div>
-      <i>&rarr;</i>
-      <div><b>Visits from AI</b><span>your analytics</span></div>
-      <i>&rarr;</i>
-      <div><b>Engaged visits</b><span>your analytics</span></div>
-      <i>&rarr;</i>
-      <div><b>Orders</b><span>your shop</span></div>
-      <i>&rarr;</i>
-      <div><b>Revenue</b><span>your shop</span></div>
-    </div>
-    {# 7 oktober (Nino): een duidelijke case met de hele keten. Er is nog geen
-       klant met drie maanden cijfers, dus dit is de voorbeeldwinkel uit /demo,
-       en dat staat er groot bij. Zodra er een echte klant is, komt die hier. #}
-    <div class="voorbeeldcase">
-      <span class="k9-mono">EXAMPLE STORE &middot; NOT A CUSTOMER &middot; THREE MONTHS WITH FIX</span>
-      <div class="vc-rij">
-        <div><b>2.7x</b><span>named by ChatGPT and Gemini<br>8 of 30 questions, was 3</span></div>
-        <div><b>+134%</b><span>visits from AI<br>96 a month, was 41</span></div>
-        <div><b>+3</b><span>orders from AI a month<br>4, was 1</span></div>
-        <div><b>+&euro;204</b><span>revenue from AI a month<br>1.4x the cost of Fix</span></div>
+    <div class="k9-tellen" data-tellen>
+      <div class="k9-tellen-links">
+        <button type="button" class="aan" data-maat="0"><span class="k9-mono">01</span><span><b>Named</b><i>How often AI mentions a store in its answer.</i></span></button>
+        <button type="button" data-maat="1"><span class="k9-mono">02</span><span><b>Recommended</b><i>How often AI advises buying there. This counts first.</i></span></button>
+        <button type="button" data-maat="2"><span class="k9-mono">03</span><span><b>Rank</b><i>The place among every store we measure in the category.</i></span></button>
+        <div class="k9-tellen-voet"><span class="k9-mono k9-grijs">IN YOUR DASHBOARD</span>For all {{ t0.telbaar }} questions, both assistants, every month.</div>
       </div>
-      <a href="/demo">See these numbers in the live example dashboard &rarr;</a>
-    </div>
-    <div class="bewijsregel">
-      <b>&ldquo;Being named is not a sale.&rdquo;</b> True. So your dashboard puts the whole chain side by side, month by month:
-      your place in AI answers next to your visits, orders and revenue from ChatGPT, Gemini and Perplexity, with the month before the fix as the baseline, and what that earns you next to what Krillo costs.
-      <a href="/proof">How we prove it pays &rarr;</a>
+      <div class="k9-tellen-rechts">
+        {% if t0.vraag %}<span class="k9-bubbel">{{ t0.vraag }}</span><span class="k9-taal k9-mono">ASKED IN {{ vraagtaal_en(t0.land) | upper }}, THE LANGUAGE OF THE MARKET</span>{% endif %}
+        <div class="k9-antwoord k9-laag">
+          <span class="k9-mono k9-grijs">THE INDEX &middot; {{ t0.naam | upper }} &middot; {{ t0.land | upper }}</span>
+          <span>The top 3 of the ranking, over {{ t0.telbaar }} buying questions like this one. Recommended counts first, then named.</span>
+          {% for r in t0.rijen[:3] %}
+          <div class="k9-antwoordrij"><span class="k9-mono k9-grijs">{{ loop.index }}.</span>
+            <button type="button" class="k9-winkelknop{{ ' aan' if loop.index0 == 1 }}" data-winkel="{{ loop.index0 }}"
+                    data-w0="{{ r.genoemd }} of {{ t0.telbaar }}" data-w1="{{ r.aanbevolen }} of {{ t0.telbaar }}" data-w2="#{{ r.positie }}">{{ r.naam }}</button></div>
+          {% endfor %}
+        </div>
+        <div class="k9-uitkomst op" data-uitkomst>
+          <span class="k9-mono" data-u="kop"></span><b data-u="getal"></b><span data-u="tekst"></span>
+        </div>
+      </div>
     </div>
   </div>
 </section>
+{% endif %}
 
 {# HET DASHBOARD. Een plaat van het scherm dat een klant elke maand krijgt.
    Bewust een VOORBEELD met nep-namen, met een knop naar het echte voorbeeld
@@ -1503,8 +1497,8 @@
   <div class="k9-binnen">
     <div class="k9-sectiekop">
       <div><span class="k9-label">THE DASHBOARD</span>
-        <h2 class="k9-h2">The screen your store gets every month</h2></div>
-      <div><p>Your rank, the stores around you, every buying question with the real answer, and what to change. Click around: this is an example with made-up names.</p>
+        <h2 class="k9-h2">Know what AI says. Know what to change.</h2></div>
+      <div><p>Click around. An example with made-up names.</p>
         <a class="k-knop wit" href="/demo">Open a live example: real store, real data &rarr;</a></div>
     </div>
     <div class="k9-dashlijst">
@@ -1551,185 +1545,59 @@
         </div>
       </div>
     </div>
+      <h3 class="k9-h3-stappen">Detect, understand, fix, measure</h3>
+    <div class="vier-stappen">
+      <div><span class="k9-nr">01</span><b>Detect</b><p>Which buying questions you lose, and which store AI names instead.</p></div>
+      <div><span class="k9-nr">02</span><b>Understand</b><p>Why that store gets named: what its pages say that yours do not.</p></div>
+      <div><span class="k9-nr">03</span><b>Fix</b><p>The exact text and the page it goes on. You add it, or we do.</p></div>
+      <div><span class="k9-nr">04</span><b>Measure</b><p>We ask the same questions again every week, so you see when it works.</p></div>
+    </div>
   </div>
 </section>
 
-{# WAT AI ZEGT. De drie getallen die we tellen, met de echte top 3 van de
-   eerste categorie. Klik een getal en een winkel: het zwarte vak laat het
-   echte cijfer zien. Er staat geen verzonnen AI-tekst bij. #}
-{% if tabs and tabs[0].rijen | length >= 3 %}
-{% set t0 = tabs[0] %}
-<section class="k9-sectie" id="wat-ai-zegt">
+{# 7 OKTOBER (Nino): wat Krillo doet, in vijf seconden, en het eerlijke antwoord op
+   "genoemd worden is nog geen verkoop". Kort: de uitleg staat op /proof. #}
+<section class="k9-sectie" id="werkwijze">
   <div class="k9-binnen">
     <div class="k9-sectiekop">
-      <div><span class="k9-label">WHAT WE COUNT</span>
-        <h2 class="k9-h2">Three numbers decide if a shopper hears your name</h2></div>
-      <div><p>Pick a number, then click a store. These are the real numbers of the top 3 in {{ t0.naam }}, from our latest measurement.</p></div>
+      <div><span class="k9-label">WHAT IT BRINGS</span>
+        <h2 class="k9-h2">Proof it moved the business</h2></div>
     </div>
-    <div class="k9-tellen" data-tellen>
-      <div class="k9-tellen-links">
-        <button type="button" class="aan" data-maat="0"><span class="k9-mono">01</span><span><b>Named</b><i>How often AI mentions a store in its answer.</i></span></button>
-        <button type="button" data-maat="1"><span class="k9-mono">02</span><span><b>Recommended</b><i>How often AI advises buying there. This counts first.</i></span></button>
-        <button type="button" data-maat="2"><span class="k9-mono">03</span><span><b>Rank</b><i>The place among every store we measure in the category.</i></span></button>
-        <div class="k9-tellen-voet"><span class="k9-mono k9-grijs">IN YOUR DASHBOARD</span>For all {{ t0.telbaar }} questions, both assistants, every month.</div>
-      </div>
-      <div class="k9-tellen-rechts">
-        {% if t0.vraag %}<span class="k9-bubbel">{{ t0.vraag }}</span><span class="k9-taal k9-mono">ASKED IN {{ vraagtaal_en(t0.land) | upper }}, THE LANGUAGE OF THE MARKET</span>{% endif %}
-        <div class="k9-antwoord k9-laag">
-          <span class="k9-mono k9-grijs">THE INDEX &middot; {{ t0.naam | upper }} &middot; {{ t0.land | upper }}</span>
-          <span>The top 3 of the ranking, over {{ t0.telbaar }} buying questions like this one. Recommended counts first, then named.</span>
-          {% for r in t0.rijen[:3] %}
-          <div class="k9-antwoordrij"><span class="k9-mono k9-grijs">{{ loop.index }}.</span>
-            <button type="button" class="k9-winkelknop{{ ' aan' if loop.index0 == 1 }}" data-winkel="{{ loop.index0 }}"
-                    data-w0="{{ r.genoemd }} of {{ t0.telbaar }}" data-w1="{{ r.aanbevolen }} of {{ t0.telbaar }}" data-w2="#{{ r.positie }}">{{ r.naam }}</button></div>
-          {% endfor %}
-        </div>
-        <div class="k9-uitkomst op" data-uitkomst>
-          <span class="k9-mono" data-u="kop"></span><b data-u="getal"></b><span data-u="tekst"></span>
-        </div>
-      </div>
+    {# 7 OKTOBER (Nino): de hele keten tonen, niet alleen "genoemd". Eerlijk wie
+       wat meet: de eerste schakel meet Krillo, de rest komt uit de eigen
+       statistieken van de winkel en staat naast elkaar in het dashboard. #}
+    <div class="keten" aria-label="From AI answer to revenue">
+      <div><b>Named by AI</b><span>Krillo measures</span></div>
+      <i>&rarr;</i>
+      <div><b>Visits from AI</b><span>your analytics</span></div>
+      <i>&rarr;</i>
+      <div><b>Engaged visits</b><span>your analytics</span></div>
+      <i>&rarr;</i>
+      <div><b>Orders</b><span>your shop</span></div>
+      <i>&rarr;</i>
+      <div><b>Revenue</b><span>your shop</span></div>
     </div>
-  </div>
-</section>
-{% endif %}
-
-{# DE ZES DINGEN. Precies wat Krillo elke maand doet, genummerd, met 04 in het
-   zwart: het werk doen is wat ons anders maakt. De schermpjes zijn
-   voorbeelden. #}
-<section class="k9-sectie" id="wat-je-krijgt">
-  <div class="k9-binnen">
-    <div class="k9-sectiekop">
-      <div><span class="k9-label">EVERY MONTH</span>
-        <h2 class="k9-h2">Everyone else reports. We fix.</h2></div>
-      <div><p>Six things every month. With Watch you see them all and do the fixes yourself. With Fix we also put the fixes live. The small screens are examples.</p></div>
+    {# 7 oktober (Nino): een duidelijke case met de hele keten. Er is nog geen
+       klant met drie maanden cijfers, dus dit is de voorbeeldwinkel uit /demo,
+       en dat staat er groot bij. Zodra er een echte klant is, komt die hier. #}
+    <div class="voorbeeldcase">
+      <span class="k9-mono">EXAMPLE STORE &middot; NOT A CUSTOMER &middot; THREE MONTHS WITH FIX</span>
+      <div class="vc-rij">
+        <div><b>2.7x</b><span>named by ChatGPT and Gemini<br>8 of 30 questions, was 3</span></div>
+        <div><b>+134%</b><span>visits from AI<br>96 a month, was 41</span></div>
+        <div><b>+3</b><span>orders from AI a month<br>4, was 1</span></div>
+        <div><b>+&euro;204</b><span>revenue from AI a month<br>1.4x the cost of Fix</span></div>
+      </div>
+      <a href="/demo">See these numbers in the live example dashboard &rarr;</a>
     </div>
-    <div class="k9-zes">
-      <div class="zeskaart">
-        <span class="k9-nr">01</span><b>Your rank</b>
-        <p>Where you stand in your category and your country, and who moved past you.</p>
-        <div class="k9-stapel">
-          <div class="k9-stapel-a"></div><div class="k9-stapel-b"></div>
-          <div class="k9-stapel-c k9-laag"><span class="k9-mono k9-grijs">RANK IN OUTDOOR GEAR &middot; EXAMPLE</span><b>#6 <em>&#9650;3</em></b>
-            <span class="k9-klein">of 24 stores we measure &middot; Northpeak is #1</span></div>
-        </div>
-      </div>
-      <div class="zeskaart">
-        <span class="k9-nr">02</span><b>The questions you lose</b>
-        <p>The real answer, and the store named instead of you. Click one.</p>
-        <div class="k9-lijstje" data-open-lijst>
-          <button type="button" class="aan"><span>best waterproof hiking jacket under 200 euros</span><i class="k9-mono">NAMED INSTEAD: NORTHPEAK, TRAILHAUS</i></button>
-          <button type="button"><span>where to buy a lightweight tent online</span><i class="k9-mono">NAMED INSTEAD: FERNVALE</i></button>
-          <button type="button"><span>outdoor shop with free returns</span><i class="k9-mono">NAMED INSTEAD: KITEWELL</i></button>
-        </div>
-      </div>
-      <div class="zeskaart">
-        <span class="k9-nr">03</span><b>The blockers</b>
-        <p>Thirteen checks on your store. We say what is a fact and what is only likely.</p>
-        <div class="k9-lijstje" data-open-lijst>
-          <button type="button" class="aan"><span><em class="k9-nee">&#10005;</em> AI robots blocked in robots.txt</span><i class="k9-mono">FACT: CHATGPT CANNOT READ YOUR PAGES</i></button>
-          <button type="button"><span><em class="k9-ja">&#10003;</em> Price and stock in the product code</span><i class="k9-mono">FACT: AI CAN READ YOUR PRICES</i></button>
-          <button type="button"><span><em class="k9-nee">&#10005;</em> No questions page</span><i class="k9-mono">LIKELY: HARDER FOR AI TO QUOTE YOU</i></button>
-        </div>
-      </div>
-      <div class="zeskaart donker">
-        <span class="k9-nr">04 &middot; FIX</span><b>The fix, installed</b>
-        <p>We write it and put it live in your store, with access you give us and can take back any time. The old text is kept, so every change can be undone.</p>
-        <div class="k9-lijstje zwart" data-open-lijst>
-          <button type="button" class="aan"><span>Size guide and waterproof ratings on /hiking-jackets</span><i class="k9-mono">LIVE &middot; OLD TEXT KEPT</i></button>
-          <button type="button"><span>Answers to buyer questions on a FAQ page</span><i class="k9-mono">READY &middot; GOES LIVE THIS WEEK</i></button>
-          <button type="button"><span>Delivery time in the product data</span><i class="k9-mono">READY &middot; GOES LIVE THIS WEEK</i></button>
-        </div>
-      </div>
-      <div class="zeskaart">
-        <span class="k9-nr">05</span><b>Proof it moved the business</b>
-        <p>Every month we ask the same questions again, and put your visits, orders and revenue from AI next to it.</p>
-        <div class="k9-voorna k9-laag" data-voorna>
-          <div class="k9-seg"><button type="button" class="aan" data-vn="0">Before</button><button type="button" data-vn="1">After</button></div>
-          <div data-vn-paneel="0"><span class="k9-mono k9-grijs">AUGUST &middot; EXAMPLE</span><b>#9</b><span class="k9-klein">named in 3 of 30 questions<br>58 AI sessions &middot; 2 orders &middot; &euro;121</span></div>
-          <div data-vn-paneel="1" hidden><span class="k9-mono k9-grijs">SEPTEMBER &middot; EXAMPLE</span><b>#6 <em>&#9650;3</em></b><span class="k9-klein">named in 8 of 30 questions<br>96 AI sessions &middot; 4 orders &middot; &euro;268</span></div>
-        </div>
-      </div>
-      <div class="zeskaart">
-        <span class="k9-nr">06 &middot; FIX</span><b>A warning when you drop</b>
-        <p>With Fix: a message when you drop three places or more, with who moved past you.</p>
-        <div class="k9-mail k9-laag">
-          <span class="k9-mono k9-grijs">EMAIL FROM KRILLO &middot; EXAMPLE</span>
-          <b>You dropped 3 places in Outdoor gear</b>
-          <span class="k9-klein">Kitewell and Fernvale moved past you. This is what they changed, and what we do next.</span>
-        </div>
-      </div>
+    <div class="bewijsregel">
+      <b>&ldquo;Being named is not a sale.&rdquo;</b> True. So you see the whole chain, in your own numbers. <a href="/proof">How we prove it pays &rarr;</a>
     </div>
+    {# Een hoofdknop die terugkomt: dezelfde actie als bovenaan (7 oktober). #}
+    <div style="margin-top:22px;"><a class="k-knop blauw" href="#scan" onclick="setTimeout(function(){var v=document.getElementById('scanUrlInput');if(v)v.focus()},400)">Check my store free</a></div>
   </div>
 </section>
 
-{# HET KWADRANT. Genoemd tegen aangeraden, van de echte winkels in de eerste
-   categorie. Klik een stip. #}
-{% if tabs and tabs[0].punten | length >= 4 %}
-{% set t0 = tabs[0] %}
-<section class="k9-sectie" id="index">
-  <div class="k9-binnen">
-    <div class="k9-sectiekop">
-      <div><span class="k9-label">{{ t0.naam | upper }} &middot; {{ t0.land | upper }}</span>
-        <h2 class="k9-h2">Who AI names, and who it recommends</h2></div>
-      <div><p>Being named is not the same as being advised. These are the top stores in {{ t0.naam }} from our latest measurement. Click a store.</p></div>
-    </div>
-    <div class="idx-kaart k9-kwadrant k9-laag" data-kwadrant>
-      <div class="k9-veld">
-        <div class="k9-assen">
-          <span class="k9-mono k9-q1">ADVISED, RARELY NAMED</span><span class="k9-mono k9-q2">LEADERS</span>
-          <span class="k9-mono k9-q3">RARELY IN THE ANSWER</span><span class="k9-mono k9-q4">NAMED, NOT ADVISED</span>
-          {% set maxx = (t0.punten | map(attribute='x') | max) or 1 %}
-          {% set maxy = (t0.punten | map(attribute='y') | max) or 1 %}
-          {% for p in t0.punten %}
-          <button type="button" class="k9-stip{{ ' aan' if loop.first }}" aria-label="{{ p.naam }}"
-                  style="left:{{ (6 + 88 * p.x / maxx) | round(1) }}%; bottom:{{ (6 + 88 * p.y / maxy) | round(1) }}%;"
-                  data-naam="{{ p.naam }}" data-tekst="#{{ p.positie }} &middot; named {{ p.genoemd }}/{{ t0.telbaar }} &middot; recommended {{ p.aanbevolen }}">{{ p.positie }}</button>
-          {% endfor %}
-          <div class="k9-stiptip op" data-stiptip><b></b><span class="k9-mono"></span></div>
-        </div>
-        <span class="k9-mono k9-as-x">NAMED IN ANSWERS &rarr;</span>
-        <span class="k9-mono k9-as-y">RECOMMENDED &rarr;</span>
-      </div>
-      <div class="k9-kwadrant-uitleg">
-        <div class="blauw"><b>Leaders</b><span>Named often and advised often. This is where AI is most likely to send buyers.</span></div>
-        <div><b>Named, not advised</b><span>AI knows the store but sends buyers elsewhere. Usually a matter of reviews and clear product facts.</span></div>
-        <div><b>Advised, rarely named</b><span>When AI names the store it recommends it, but that happens on few questions. Clear category pages usually help.</span></div>
-        <a class="k-knop wit" href="/index/{{ t0.land }}/{{ t0.categorie }}">Open the full ranking &rarr;</a>
-      </div>
-    </div>
-  </div>
-</section>
-{% endif %}
-
-{# HOE JE ONS KAN CONTROLEREN. Geen keurmerk en geen bekende klanten: de
-   methode is het vertrouwen. #}
-<section class="k9-sectie" id="methode">
-  <div class="k9-binnen methode-blok k9-twee">
-    <div>
-      <span class="k9-label">HOW TO CHECK US</span>
-      <h2 class="k9-h2">A method you can verify</h2>
-      <p class="k9-p">Every ranking is public. The questions, the assistants and the counting are the same for every store. Nobody can pay to rank higher.</p>
-    </div>
-    <div class="k9-accordeon" data-accordeon>
-      <button type="button" class="aan"><span class="k9-mono">01</span><span><b>Every question is published</b><i>The exact buying questions behind each ranking sit on the page, in the language of the market. Ask them yourself.</i></span><em>&minus;</em></button>
-      <button type="button"><span class="k9-mono">02</span><span><b>No paid positions</b><i>Nobody can buy a place. The order follows from the answers, nothing else. Customers do not rank higher because they pay.</i></span><em>+</em></button>
-      <button type="button"><span class="k9-mono">03</span><span><b>Dated, never eternal</b><i>AI answers change. Every ranking carries the day it was measured, and we measure again every month.</i></span><em>+</em></button>
-      <button type="button"><span class="k9-mono">04</span><span><b>Every answer kept in full</b><i>{% if index and index.cijfers and index.cijfers.antwoorden %}{{ index.cijfers.antwoorden }} complete answers are on record, each with the date it was given. That is how we show movement.{% else %}Every answer is kept in full, with the date it was given.{% endif %}</i></span><em>+</em></button>
-    </div>
-  </div>
-</section>
-
-{# GRATIS, ZONDER ACCOUNT. Wie nog niet koopt, kan hier iets gratis doen. #}
-<section class="k9-sectie k9-smal" id="gratis">
-  <div class="k9-binnen">
-    <div class="k9-gratis">
-      <a class="k9-kaart" href="/tools/ai-crawler-check"><span class="k9-mono k9-grijs">FREE TOOL</span><b>Can AI read your store?</b><span>We check whether the crawlers of ChatGPT, Gemini, Perplexity and Claude are allowed in by your robots.txt.</span></a>
-      <a class="k9-kaart" href="/tools/product-data-check"><span class="k9-mono k9-grijs">FREE TOOL</span><b>Does your product page give AI the facts?</b><span>Price, stock, brand and reviews in the code, the details AI answers are built from.</span></a>
-      <a class="k9-kaart" href="/index"><span class="k9-mono k9-grijs">FREE</span><b>Where do you rank?</b><span>The public rankings per category and country, with every question we asked.</span></a>
-      <a class="k9-kaart" href="/partners"><span class="k9-mono k9-grijs">PARTNERS</span><b>Agency or freelancer?</b><span>Show your clients where AI recommends them, and earn 20 percent of what they pay, for as long as they pay, up to 12 months.</span></a>
-    </div>
-  </div>
-</section>
 </div>
 
 <section id="pricing" class="k9-sectie k9-prijzen">
@@ -1754,11 +1622,10 @@
         <div class="price-amount" data-maand="&euro;49 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;490 &lt;span&gt;/year&lt;/span&gt;">&euro;49 <span>/mo</span></div>
         <div class="price-amount proef-noot" data-maand="First 14 days free. Cancel before then and you pay nothing." data-jaar="Paid yearly. The free trial is for the monthly plan.">First 14 days free. Cancel before then and you pay nothing.</div>
         <ul class="price-feats">
-          <li><strong>Your rank every month</strong>, who AI names instead of you, and who passes you</li>
+          <li><strong>Your rank every month</strong>, and who passes you</li>
           <li>Every buying question you lose, with the real AI answer</li>
           <li><strong>Every week</strong>, your five key questions by email, plus five questions of your own</li>
           <li>Per page: which AI robots can read it, and which products AI names</li>
-          <li>The fixes written out, to do yourself</li>
           <li>Your visits and revenue from AI, next to what Krillo costs you</li>
         </ul>
         <a class="price-btn solid" href="#scan" id="watchCheckoutBtn" data-maand="Start Watch free for 14 days" data-jaar="Start Watch">Start Watch free for 14 days</a>
@@ -1774,8 +1641,6 @@
           <li><strong>We make the fixes in your store</strong>, with access you give us and can take back any time</li>
           <li>The old text is kept, so it can always be rolled back</li>
           <li>An llms.txt for Shopify and WordPress, kept up to date</li>
-          <li>At the next monthly measurement we show the difference</li>
-          <li>A message when you drop three places or more</li>
         </ul>
         <a class="price-btn ghost" href="#scan" id="fixCheckoutBtn">Fix it for me</a>
       </div>
@@ -1795,21 +1660,30 @@
     </div>
 
     <div class="prijs-voet">
-      <div>
-        <strong>Selling in more than one country?</strong>
-        AI gives different answers per country, so each country has its own ranking.
-        Your plan covers the country of your store; email us if you sell in more and
-        we look at it with you. {{ meting_zin_en }}
-      </div>
-      <div>
-        <strong>Not happy with a change we made? We roll it back.</strong>
-        You can cancel within fourteen days of your first payment and get that month back.
-      </div>
+      <div><strong>Not happy? Cancel within 14 days of your first payment and get that month back.</strong></div>
     </div>
   </div>
 </section>
 
 <div class="k9">
+{# HOE JE ONS KAN CONTROLEREN. Geen keurmerk en geen bekende klanten: de
+   methode is het vertrouwen. #}
+<section class="k9-sectie" id="methode">
+  <div class="k9-binnen methode-blok k9-twee">
+    <div>
+      <span class="k9-label">HOW TO CHECK US</span>
+      <h2 class="k9-h2">A method you can verify</h2>
+      <p class="k9-p">Public rankings, the same questions for every store. Nobody can pay to rank higher.</p>
+    </div>
+    <div class="k9-accordeon" data-accordeon>
+      <button type="button" class="aan"><span class="k9-mono">01</span><span><b>Every question is published</b><i>The exact buying questions behind each ranking sit on the page, in the language of the market. Ask them yourself.</i></span><em>&minus;</em></button>
+      <button type="button"><span class="k9-mono">02</span><span><b>No paid positions</b><i>Nobody can buy a place. The order follows from the answers, nothing else. Customers do not rank higher because they pay.</i></span><em>+</em></button>
+      <button type="button"><span class="k9-mono">03</span><span><b>Dated, never eternal</b><i>AI answers change. Every ranking carries the day it was measured, and we measure again every month.</i></span><em>+</em></button>
+      <button type="button"><span class="k9-mono">04</span><span><b>Every answer kept in full</b><i>{% if index and index.cijfers and index.cijfers.antwoorden %}{{ index.cijfers.antwoorden }} complete answers are on record, each with the date it was given. That is how we show movement.{% else %}Every answer is kept in full, with the date it was given.{% endif %}</i></span><em>+</em></button>
+    </div>
+  </div>
+</section>
+
 <section class="k9-sectie" id="vragen">
   <div class="k9-binnen k9-twee">
     <div><span class="k9-label">QUESTIONS</span><h2 class="k9-h2">Before you start</h2>
@@ -1820,6 +1694,18 @@
       <button type="button"><span><b>What is the difference between Watch and Fix?</b><i>Watch shows your rank, the answers and the fixes to do yourself. With Fix we put the changes live in your store, and the old text is kept so every change can be undone.</i></span><em>+</em></button>
       <button type="button"><span><b>Can I cancel any time?</b><i>Yes, every month, from the Plan page in your dashboard. The first 14 days of Watch are free, and if you cancel within fourteen days of your first payment you get that month back.</i></span><em>+</em></button>
       <button type="button"><span><b>Do you work with agencies?</b><i>Yes. Check up to ten client stores for free on the agencies page, and follow up to 25 stores in one plan.</i></span><em>+</em></button>
+    </div>
+  </div>
+</section>
+
+{# GRATIS, ZONDER ACCOUNT. Wie nog niet koopt, kan hier iets gratis doen. #}
+<section class="k9-sectie k9-smal" id="gratis">
+  <div class="k9-binnen">
+    <div class="k9-gratis">
+      <a class="k9-kaart" href="/tools/ai-crawler-check"><span class="k9-mono k9-grijs">FREE TOOL</span><b>Can AI read your store?</b><span>Which AI robots your site lets in.</span></a>
+      <a class="k9-kaart" href="/tools/product-data-check"><span class="k9-mono k9-grijs">FREE TOOL</span><b>Does your product page give AI the facts?</b><span>The facts AI answers are built from.</span></a>
+      <a class="k9-kaart" href="/index"><span class="k9-mono k9-grijs">FREE</span><b>Where do you rank?</b><span>Every ranking, free to read.</span></a>
+      <a class="k9-kaart" href="/partners"><span class="k9-mono k9-grijs">PARTNERS</span><b>Agency or freelancer?</b><span>Earn 20 percent on every client.</span></a>
     </div>
   </div>
 </section>

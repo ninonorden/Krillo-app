@@ -249,10 +249,11 @@
         {% else %}
         {{ 'Nog geen extra omzet uit AI ten opzichte van je nulmeting. Eerst komt genoemd worden, dan bezoek: kijk hieronder of je plek al stijgt.' if nl else 'No extra revenue from AI yet compared to your baseline. Being named comes first, then visits: check below whether your rank is rising.' }}
         {% endif %}
-        <div class="klein" style="margin-top:4px;">{{ 'Seizoen en acties tellen ook mee. Vergelijk met een categorie die je niet veranderde.' if nl else 'Seasons and sales count too. Compare with a category you did not change.' }}</div>
+        <div class="klein" style="margin-top:4px;">{{ 'Seizoen en acties tellen ook mee.' if nl else 'Seasons and sales count too.' }}</div>
       </div>
       {% endif %}
-      <div style="padding:0 16px; overflow-x:auto;">
+      <details style="margin:0 16px;"><summary class="klein" style="cursor:pointer;">{{ 'Per maand' if nl else 'Month by month' }}</summary>
+      <div style="overflow-x:auto;">
       <table class="tabel"><thead><tr>
         <th>{{ 'Maand' if nl else 'Month' }}</th><th>{{ 'Plek bij AI' if nl else 'AI rank' }}</th>
         <th>{{ 'Bezoek uit AI' if nl else 'Visits from AI' }}</th><th>{{ 'Bestellingen' if nl else 'Orders' }}</th>
@@ -266,8 +267,9 @@
           <td>{{ (r.conversie ~ '%') if r.conversie is not none else '-' }}</td></tr>{% endfor %}
       </tbody></table>
       </div>
+      </details>
       {% else %}
-      <p style="margin:0 0 10px; font-size:15px;">{{ 'Genoemd worden is nog geen verkoop. Koppel hieronder je verkoop, dan zie je naast je plek bij AI of er ook bezoek en omzet uit komt. De eerste maand is je nulmeting.' if nl else 'Being named is not a sale yet. Connect your sales below and you see, next to your AI rank, whether it brings visits and revenue. Your first month is the baseline.' }}</p>
+      <p style="margin:0 0 10px; font-size:15px;">{{ 'Genoemd worden is nog geen verkoop. Koppel je verkoop om te zien wat AI je oplevert.' if nl else 'Being named is not a sale yet. Connect your sales to see what AI brings you.' }}</p>
       {% endif %}
       {% if aiverkeer_post is defined and aiverkeer_post %}
       {# Stap 304 (7 oktober, Nino: "dit moet automatisch"): de Krillo-pixel,
@@ -280,9 +282,9 @@
         <div class="klein">{{ 'Laatste signaal' if nl else 'Last signal' }}: {{ pixel.status.laatst.strftime('%d %b %Y %H:%M') if pixel.status.laatst else '-' }}</div>
         {% else %}
         <div style="font-weight:600;">{{ 'Koppel je verkoop automatisch' if nl else 'Connect your sales automatically' }}</div>
-        <div class="klein" style="margin-bottom:6px;">{{ 'Eén keer een stukje code plaatsen, daarna telt Krillo zelf het bezoek, de bestellingen en de omzet uit ChatGPT, Gemini, Perplexity en Copilot. Geen persoonsgegevens. Kies je platform:' if nl else 'Place a small piece of code once, and Krillo counts the visits, orders and revenue from ChatGPT, Gemini, Perplexity and Copilot by itself. No personal data. Choose your platform:' }}</div>
+        <div class="klein" style="margin-bottom:6px;">{{ 'Eén keer een stukje code plaatsen. Daarna telt Krillo zelf bezoek, bestellingen en omzet uit AI. Kies je platform:' if nl else 'Paste a small piece of code once. Krillo then counts visits, orders and revenue from AI by itself. Choose your platform:' }}</div>
         {% endif %}
-        <details style="margin-top:6px;"{% if not pixel.status.verbonden %} open{% endif %}><summary style="cursor:pointer; font-weight:600;">Shopify ({{ '2 minuten' if nl else '2 minutes' }})</summary>
+        <details style="margin-top:6px;"><summary style="cursor:pointer; font-weight:600;">Shopify ({{ '2 minuten' if nl else '2 minutes' }})</summary>
           <ol style="margin:8px 0 8px 20px; font-size:14px;">
             <li>{{ 'Ga in Shopify naar Instellingen, dan Klantgebeurtenissen.' if nl else 'In Shopify, go to Settings, then Customer events.' }}</li>
             <li>{{ 'Klik op "Aangepaste pixel toevoegen" en noem hem Krillo.' if nl else 'Click "Add custom pixel" and name it Krillo.' }}</li>
@@ -346,9 +348,9 @@
         {% endfor %}
       </table>
       </div>
-      <p style="margin:10px 0 0; font-size:13px; color:var(--zacht, #6E7079);">{{ 'Elke ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ ' opnieuw. Je plek in de ranglijst komt uit de maandmeting, waar elke winkel dezelfde vragen krijgt.' if taal == 'nl' else 'Checked again every ' ~ snel_dag ~ '. Your rank comes from the monthly measurement, where every store gets the same questions.' }}</p>
+      <p style="margin:10px 0 0; font-size:13px; color:var(--zacht, #6E7079);">{{ 'Elke ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ ' opnieuw. Je plek komt uit de maandmeting.' if taal == 'nl' else 'Checked again every ' ~ snel_dag ~ '. Your rank comes from the monthly measurement.' }}</p>
       {% else %}
-      <p style="margin:0; font-size:15px;">{{ ('Elke week stellen we je vijf belangrijkste koopvragen opnieuw aan ChatGPT en Gemini, zodat je binnen een week ziet of een verbetering werkt. De eerste keer is op ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ '.') if taal == 'nl' else ('Every week we ask your five most important buying questions again to ChatGPT and Gemini, so you see within a week whether a change works. The first check is on ' ~ snel_dag ~ '.') }}</p>
+      <p style="margin:0; font-size:15px;">{{ ('Elke week je vijf belangrijkste vragen opnieuw. De eerste keer: ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ '.') if taal == 'nl' else ('Your five key questions, again every week. First check: ' ~ snel_dag ~ '.') }}</p>
       {% endif %}
     </div>
     {% endif %}
@@ -1014,6 +1016,14 @@
         <ol style="margin:6px 0 0; padding-left:20px; font-size:14.5px; line-height:1.55;">
           {% for st in a.stappen %}<li style="margin-bottom:4px;">{{ st }}</li>{% endfor %}
         </ol>
+        {# Stap 290: waar het antwoord moet staan, en welke sites AI hier noemt. #}
+        {% if a.pagina is defined %}
+        <div class="klein" style="margin-top:6px;">
+          {% if a.pagina %}{{ 'Jouw pagina hiervoor' if taal == 'nl' else 'Your page for this' }}: <a href="{{ a.pagina }}" rel="nofollow" target="_blank">{{ a.pagina | replace('https://', '') | replace('www.', '') }}</a>
+          {% else %}{{ 'We vonden nog geen pagina van jou over dit onderwerp: maak er een, dat is stap 1.' if taal == 'nl' else 'We found no page of yours about this yet: make one, that is step 1.' }}{% endif %}
+          {% if a.bronnen %}<br>{{ 'Sites die AI bij deze vraag noemt' if taal == 'nl' else 'Sites AI mentions for this question' }}: <strong>{{ a.bronnen | join(', ') }}</strong>. {{ 'Sta daar ook, met reviews en volledige productgegevens.' if taal == 'nl' else 'Be there too, with reviews and full product data.' }}{% endif %}
+        </div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
