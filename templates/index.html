@@ -1905,8 +1905,32 @@
     resultBox.innerHTML = '<div class="scan-loading">Checking your store, thirteen points...</div>';
   }
 
-  function renderError(message){
-    resultBox.innerHTML = '<div class="scan-error">' + message + '</div>';
+  function renderError(message, metVeld){
+    var h = '<div class="scan-error">' + message + '</div>';
+    // 7 oktober: na een mislukte check een herkansing in hetzelfde vak. Wie
+    // zijn uitslag wilde, laat zijn mailadres achter en wij kijken het na.
+    if(metVeld){
+      h += '<div class="scan-rang" style="border:1px solid #E8E8EC; border-radius:12px; padding:14px 18px; margin-top:12px; font-size:14px;">';
+      h += '<b>Want your result anyway?</b> Leave your email and we check your store by hand. You get your rank and the three biggest points within one working day.';
+      h += '<div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;"><input id="handEmail" type="email" placeholder="you@yourstore.com" style="flex:1; min-width:200px; height:42px; border:1.5px solid #D8D8DE; border-radius:8px; padding:0 12px;">';
+      h += '<button type="button" id="handKnop" style="height:42px; padding:0 16px; border:0; border-radius:8px; background:#1B3FE0; color:#fff; font-weight:600; cursor:pointer;">Check it by hand</button></div>';
+      h += '<div id="handUit" style="margin-top:8px;"></div></div>';
+    }
+    resultBox.innerHTML = h;
+    var knop = document.getElementById('handKnop');
+    if(!knop) return;
+    knop.addEventListener('click', function(){
+      var email = (document.getElementById('handEmail').value || '').trim();
+      var uit = document.getElementById('handUit');
+      fetch('/api/handcheck', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({email: email, url: (input.value || '').trim()})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        uit.textContent = d.ok ? 'Thanks. You hear from us within one working day.' : (d.fout || 'Something went wrong.');
+        if(d.ok){ knop.disabled = true; }
+      })
+      .catch(function(){ uit.textContent = 'Something went wrong. Email hello@krilloai.com.'; });
+    });
   }
 
   function renderResult(data){
@@ -2065,6 +2089,11 @@
         if(!knop) return;
         e.preventDefault();
         if(veld){ veld.value = (input.value || '').trim(); }
+        // De knop belooft "per maand" en "14 dagen gratis". Stond de schakelaar
+        // bij de prijzen op jaar, dan eerst terug naar maand, anders opent de
+        // kassa met een jaarbedrag zonder proef.
+        var maand = document.querySelector('[data-periode="maand"]');
+        if(maand && !maand.classList.contains('aan')){ maand.click(); }
         knop.click();
       });
     });
@@ -2371,13 +2400,14 @@
     .then(function(res){ return res.json().then(function(data){ return {ok: res.ok, data: data}; }); })
     .then(function(result){
       if(!result.ok){
-        renderError(result.data.error || 'Something went wrong while checking.');
+        var fout = result.data.error || 'Something went wrong while checking.';
+        renderError(fout, !/^That is not/.test(fout));
         return;
       }
       renderResult(result.data);
     })
     .catch(function(){
-      renderError('Could not run the check. Try again in a moment.');
+      renderError('Could not run the check. Try again in a moment.', true);
     });
   }
 
