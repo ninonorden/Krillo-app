@@ -924,6 +924,11 @@
   .vier-stappen > div{border:1px solid var(--lijn, #E4E4E7); border-radius:12px; padding:16px; background:#fff;}
   .vier-stappen b{display:block; font-size:17px; margin:6px 0 4px;}
   .vier-stappen p{margin:0; font-size:14.5px; line-height:1.5; color:#52525B;}
+  .price-rol{font-size:15px; font-weight:600; margin:2px 0 8px;}
+  .ai-rij{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:#6E7079;}
+  .ai-chip{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid #E4E4E7; border-radius:999px; background:#fff; font-size:13px; font-weight:600; color:#0A0A0B;}
+  .ai-chip i{width:8px; height:8px; border-radius:50%; display:inline-block;}
+  .ai-chip.zacht{color:#6E7079; font-weight:500;}
   .keten{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:18px;}
   .keten div{flex:1 1 120px; padding:12px 14px; border:1px solid #E4E4E7; border-radius:12px; background:#fff;}
   .keten div:first-child{border-color:#2F5BFF; background:#F3F6FF;}
@@ -1339,14 +1344,24 @@
          in de regel onder de knop, uit markten.py. Komt er een land bij, dan
          past die regel zich vanzelf aan. #}
       <span class="k9-label">AI VISIBILITY FOR WEBSHOPS</span>
-      <h1 class="k9-h1">Make your store the answer when shoppers ask AI what to buy.</h1>
-      <p class="k9-intro">Krillo asks ChatGPT and Gemini the questions your buyers ask, shows which stores they recommend instead of you, and tells you exactly what to change. Or we change it for you.</p>
+      {# 7 oktober middag (Nino, na een review): de kop zegt nu letterlijk wat
+         Krillo doet. "Make your store the answer..." blijft de positionering in
+         de paginatitel en voor Google. #}
+      <h1 class="k9-h1">See how ChatGPT and Gemini recommend your webshop.</h1>
+      <p class="k9-intro">Krillo asks ChatGPT and Gemini the buying questions your customers ask, shows which stores AI recommends instead of you, and tells you what to change. Or we do it for you.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
         <button type="button" id="scanButton">Check my store free</button>
       </div>
       {# 7 oktober: de teller "used ... times" bleef op 215 staan (het tellen faalde soms). Een getal dat niet klopt, weg. #}
       <div class="hero-note" id="scanNote">FREE &middot; NO ACCOUNT &middot; SEE WHO AI RECOMMENDS INSTEAD OF YOU</div>
+      {# 7 oktober (Nino): welke assistenten we meten, eerlijk. Alleen namen als
+         tekst, geen logo's: die zijn van de bedrijven zelf, en wat we nog niet
+         meten staat er als "soon", niet als belofte. #}
+      <div class="ai-rij" aria-label="Assistants we measure"><span class="k9-mono">WE ASK</span>
+        <span class="ai-chip"><i style="background:#10A37F"></i>ChatGPT</span>
+        <span class="ai-chip"><i style="background:#4285F4"></i>Gemini</span>
+        <span class="ai-chip zacht"><i style="background:#9A9AA3"></i>Perplexity soon</span></div>
       <div class="k9-landen k9-mono" id="liveLanden"><span class="k9-landen-stip"></span>LIVE IN {{ index_landen_kaal_en | upper }} &middot; <a href="/index#wachtlijst" title="Leave your email and we tell you when your country goes live">MORE COUNTRIES SOON</a></div>
       <div id="scanResult" class="scan-result"></div>
       <div class="k9-proefregel">Want it every month? <a href="/?plan=watch#pricing" id="heroProef">Try Watch, the monthly dashboard</a>: 14 days free, then &euro;49 a month, cancel any time.</div>
@@ -1705,10 +1720,11 @@
     <div class="price-grid">
       <div class="price-card featured">
         <div class="price-top"><span class="price-name">Watch</span><span class="price-tag blauw k9-mono">14 DAYS FREE</span></div>
+        <div class="price-rol">You track it and improve it yourself</div>
         <div class="price-amount" data-maand="&euro;49 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;490 &lt;span&gt;/year&lt;/span&gt;">&euro;49 <span>/mo</span></div>
         <div class="price-amount proef-noot" data-maand="First 14 days free. Cancel before then and you pay nothing." data-jaar="Paid yearly. The free trial is for the monthly plan.">First 14 days free. Cancel before then and you pay nothing.</div>
         <ul class="price-feats">
-          <li><strong>Your rank every month</strong>, and who AI names instead of you</li>
+          <li><strong>Your rank every month</strong>, who AI names instead of you, and who passes you</li>
           <li>Every buying question you lose, with the real AI answer</li>
           <li><strong>Every week</strong>, your five key questions by email, plus five questions of your own</li>
           <li>Per page: which AI robots can read it, and which products AI names</li>
@@ -1720,8 +1736,9 @@
 
       <div class="price-card">
         <div class="price-top"><span class="price-name">Fix</span><span class="price-tag k9-mono">WE DO THE WORK</span></div>
+        <div class="price-rol">We make the changes for you</div>
         <div class="price-amount" data-maand="&euro;149 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;1,490 &lt;span&gt;/year&lt;/span&gt;">&euro;149 <span>/mo</span></div>
-        <div class="price-amount proef-noot" data-maand="For stores that want the changes made for them." data-jaar="Two months free compared to monthly.">For stores that want the changes made for them.</div>
+        <div class="price-amount proef-noot" data-maand="Cancel within 14 days of your first payment and you get it back." data-jaar="Two months free compared to monthly.">Cancel within 14 days of your first payment and you get it back.</div>
         <ul class="price-feats">
           <li><strong>Everything in Watch</strong>, with fifteen questions of your own</li>
           <li><strong>We make the fixes in your store</strong>, with access you give us and can take back any time</li>
@@ -2071,9 +2088,9 @@
     var h = '<div class="scan-cta" style="display:block;">';
     h += '<div class="scan-cta-text" style="margin-bottom:12px;"><strong>' + kop + '</strong></div>';
     h += '<div style="display:flex; flex-wrap:wrap; gap:10px;">';
-    h += '<div style="flex:1 1 240px;"><a href="#pricing" class="scan-cta-btn" data-kies-plan="watch" style="display:block; text-align:center;">Start Watch free for 14 days &rarr;</a>';
+    h += '<div style="flex:1 1 240px;"><div style="font-weight:600; margin-bottom:6px;">Want to improve it yourself?</div><a href="#pricing" class="scan-cta-btn" data-kies-plan="watch" style="display:block; text-align:center;">Start Watch free for 14 days &rarr;</a>';
     h += '<div style="font-size:13px; margin-top:6px; opacity:.85;">Your rank, every lost question, and whether AI brings you sales. Then &euro;49/mo, cancel any time.</div></div>';
-    h += '<div style="flex:1 1 240px;"><a href="#pricing" class="scan-cta-btn" data-kies-plan="fix" style="display:block; text-align:center; background:transparent; border:1.5px solid currentColor;">Fix this for me &rarr;</a>';
+    h += '<div style="flex:1 1 240px;"><div style="font-weight:600; margin-bottom:6px;">Rather have us do it?</div><a href="#pricing" class="scan-cta-btn" data-kies-plan="fix" style="display:block; text-align:center; background:transparent; border:1.5px solid currentColor;">Fix this for me &rarr;</a>';
     h += '<div style="font-size:13px; margin-top:6px; opacity:.85;">We make the changes on your store and show the difference. &euro;149/mo.</div></div>';
     h += '</div></div>';
     return h;
@@ -2503,7 +2520,7 @@
       items: [
         'Your rank in your category and your country, every month',
         'The buying questions you do not appear in, with the real answer',
-        'Which competitor was named instead of you',
+        'Which competitor was named instead of you, and who passes you',
         'Every week, your five key questions and the thirteen checks',
         'The fixes written out, to do yourself',
         'Your visits and revenue from AI, next to what Krillo costs you',

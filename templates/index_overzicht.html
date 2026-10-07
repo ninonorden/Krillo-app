@@ -27,11 +27,11 @@
   <div class="strook">
     <div>
       <div class="getal">{{ cijfers.categorieen or 0 }}</div>
-      <div class="bij">{{ t.categorieen | upper }}</div>
+      <div class="bij">{{ t.categorieen | upper }}{% if landnaam %} IN {{ landnaam | upper }}{% endif %}</div>
     </div>
     <div>
       <div class="getal">{{ cijfers.winkels or 0 }}</div>
-      <div class="bij">{{ t.winkels_gevolgd | upper }}</div>
+      <div class="bij">{{ t.winkels_gevolgd | upper }}{% if landnaam %} IN {{ landnaam | upper }}{% endif %}</div>
     </div>
     <div>
       <div class="getal">{{ cijfers.antwoorden or 0 }}</div>

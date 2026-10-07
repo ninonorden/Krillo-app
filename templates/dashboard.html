@@ -235,6 +235,18 @@
     </div>
     {% endif %}
 
+    {# Stap 241: het concurrent-alarm. Wie je plek innam of inhaalde, uit de
+       metingen die er al zijn. Alleen als er iets te melden is. #}
+    {% if alarm is defined and alarm %}
+    <div class="kaartblok" id="alarm">
+      <div class="kaartkop">{{ 'CONCURRENTEN IN BEWEGING' if taal == 'nl' else 'COMPETITORS ON THE MOVE' }}</div>
+      <ul style="margin:0; padding:0 16px 4px 34px; font-size:15px; line-height:1.6;">
+        {% for z in alarm %}<li>{{ z }}</li>{% endfor %}
+      </ul>
+      <p class="klein" style="margin:6px 16px 0;">{{ 'Zie Vragen voor het echte antwoord, en Fixes voor wat je terugwint.' if taal == 'nl' else 'See Questions for the real answer, and Fixes for how to win it back.' }}</p>
+    </div>
+    {% endif %}
+
     {# 7 OKTOBER (Nino): "brengt Krillo mij verkeer?" De hele keten per maand:
        plek bij AI (wij meten) naast bezoek, bestellingen en omzet uit AI (de
        klant zet ze uit Google Analytics of Shopify erin). Eerste maand is de
