@@ -73,6 +73,21 @@
       </div>
     {% endfor %}
   </div>
+  {# 7 oktober (Nino: "meten en gemeten blijven op 3 staan"). Dat is goed: een
+     winkel staat daar maar even. Wat telt is de voorraad op "adres". #}
+  <div class="klein" style="margin:-6px 0 16px;">De weg van een winkel: <b>nieuw</b> (adres nog niet gezocht) &rarr; <b>geen adres</b> of <b>adres</b> (klaar om te meten) &rarr; <b>meten</b> (meting loopt, minuten) &rarr; <b>gemeten</b> (klaar om te mailen, gaat meestal dezelfde ronde uit) &rarr; <b>gemaild</b>. Meten en gemeten zijn dus altijd klein. De voorraad is <b>adres</b>: {{ tellingen.per_stand.get('adres', 0) }} winkels, genoeg voor ongeveer {{ (tellingen.per_stand.get('adres', 0) // ((tellingen.vandaag_gemaild or 60) if (tellingen.vandaag_gemaild or 0) > 0 else 60)) }} dagen post in het huidige tempo.</div>
+
+  {# 7 oktober: waarom winkels geen adres hebben, zodat we weten wat helpt. #}
+  {% if geen_adres and geen_adres.redenen %}
+  <div class="kaart">
+    <div class="uitleg"><b>Waarom {{ tellingen.per_stand.get('geen_adres', 0) }} winkels geen adres hebben.</b>
+      {{ geen_adres.formulier }} daarvan hebben wel een contactformulier (zie <a href="/admin/formulieren">Contactformulieren</a>).
+      <table style="margin-top:8px; border-collapse:collapse;">
+        {% for r in geen_adres.redenen %}<tr><td style="padding:3px 14px 3px 0;">{{ r.reden }}</td><td style="text-align:right;">{{ r.aantal }}</td></tr>{% endfor %}
+      </table>
+    </div>
+  </div>
+  {% endif %}
 
   {# 28 september: "klant" telt alleen echte klanten. Hier zie je wie er met
      stand klant op de lijst staat, en zet je een test met een klik apart. #}
@@ -176,62 +191,14 @@
       Boven 5 procent bounces of 0,3 procent klachten gaat Gmail je mail als spam zien.</b>{% endif %}
       <br><span class="klein">Blijft 'geopend' laag, dan ligt het aan de mail. Blijft
       'doorgeklikt' laag terwijl 'geopend' hoog is, dan ligt het aan de uitkomstpagina.</span>
-      {# 2 oktober: per dag, zodat je ziet wat VANDAAG en GISTEREN gebeurde. #}
-      {% if per_dag %}
-      <table style="margin-top:12px; border-collapse:collapse;">
-        <tr><th style="text-align:left; padding:4px 14px 4px 0;">Dag</th>
-            <th style="text-align:right; padding:4px 14px;">Gemaild</th>
-            <th style="text-align:right; padding:4px 14px;">Geopend</th>
-            <th style="text-align:right; padding:4px 14px;">Echte mensen</th>
-            <th style="text-align:right; padding:4px 0 4px 14px;">Naar de prijzen</th></tr>
-        {% for d in per_dag %}
-        <tr><td style="padding:4px 14px 4px 0;">{{ 'vandaag' if loop.first else ('gisteren' if loop.index == 2 else d.dag.strftime('%a %d-%m')) }}</td>
-            <td style="text-align:right; padding:4px 14px;">{{ d.gemaild }}</td>
-            <td style="text-align:right; padding:4px 14px;">{{ d.geopend }}</td>
-            <td style="text-align:right; padding:4px 14px;"><b>{{ d.mensen }}</b></td>
-            <td style="text-align:right; padding:4px 0 4px 14px;"><b>{{ d.prijzen }}</b></td></tr>
-        {% endfor %}
-      </table>
-      <span class="klein">Geteld op de dag dat het gebeurde: een opening vandaag op een mail van gisteren telt vandaag.</span>
-      {% endif %}
+      <br><a href="/admin/bezoek">Per dag, naast de site: Trechter en bezoek &rarr;</a>
     </div>
   </div>
   {% endif %}
 
-  {# De twee versies van de mail naast elkaar (stap 56). Openen staat er
-     bewust niet bij: dat meet een pixel die Gmail en Apple zelf al laden. #}
-  {% if varianten and varianten.rijen %}
-  <div class="kaart">
-    <div class="uitleg">
-      <b>Welke mail werkt beter.</b>
-      Versie a zet de positie voorop, versie b de vraag, versie c "ben jij een van de drie die AI noemt".
-      Een winkel krijgt altijd dezelfde versie. "Link geklikt" is vooral mailbeveiliging;
-      de winnaar gaat op klant, naar de prijzen en echte mensen (geteld sinds 29 september).
-      {% set met_versie = varianten.rijen | sum(attribute='gemaild') %}
-      {% if trechter and trechter.gemaild and trechter.gemaild > met_versie %}
-        De versies tellen pas sinds ze bestaan: {{ met_versie }} van de {{ trechter.gemaild }} mails.
-        De {{ trechter.gemaild - met_versie }} mails van daarvoor staan hier niet in.
-      {% endif %}
-      <table style="margin-top:10px; border-collapse:collapse;">
-        <tr><th style="text-align:left; padding:4px 14px 4px 0;">Versie</th>
-            <th style="text-align:right; padding:4px 14px;">Gemaild</th>
-            <th style="text-align:right; padding:4px 14px;">Link geklikt</th>
-            <th style="text-align:right; padding:4px 14px;">Echte mensen</th>
-            <th style="text-align:right; padding:4px 14px;">Naar de prijzen</th>
-            <th style="text-align:right; padding:4px 0 4px 14px;">Klant geworden</th></tr>
-        {% for r in varianten.rijen %}
-        <tr><td style="padding:4px 14px 4px 0;">{{ r.variant }}</td>
-            <td style="text-align:right; padding:4px 14px;">{{ r.gemaild }}</td>
-            <td style="text-align:right; padding:4px 14px;">{{ r.bekeken }} ({{ r.klik_pct }}%)</td>
-            <td style="text-align:right; padding:4px 14px;">{{ r.mensen or 0 }} ({{ r.mens_pct }}%)</td>
-            <td style="text-align:right; padding:4px 14px;">{{ r.doorgeklikt }} ({{ r.door_pct }}%)</td>
-            <td style="text-align:right; padding:4px 0 4px 14px;">{{ r.klant }}</td></tr>
-        {% endfor %}
-      </table>
-      {% if varianten.oordeel %}<p style="margin:10px 0 0;"><b>{{ varianten.oordeel }}</b></p>{% endif %}
-    </div>
-  </div>
-  {% endif %}
+  {# 7 oktober: de versies a, b en d zijn uit; alleen versie c gaat nog uit
+     (MAIL_VARIANTEN=c in Render). De vergelijking is daarmee klaar. #}
+  <div class="klein" style="margin:0 0 16px;">Mailversie: alleen <b>c</b> ("ben jij een van de drie die AI noemt"), de winnaar van de test. Andere versies staan uit.</div>
 
   {# Wat er op dit moment echt loopt. Zonder dit is "er wordt gemeten" en "er
      staat iets vast" van buitenaf hetzelfde. #}

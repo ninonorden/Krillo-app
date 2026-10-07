@@ -931,6 +931,12 @@
   .ai-chip.zacht{color:#6E7079; font-weight:500;}
   .k9-kpis-geld > div{background:#F3FBF6;}
   .k9-voorna [hidden]{display:none !important;}
+  .voorbeeldcase{margin-top:18px; padding:16px 18px; border-radius:12px; border:1.5px solid #0A7F55; background:#F3FBF6;}
+  .voorbeeldcase > .k9-mono{font-size:11px; color:#0A7F55;}
+  .vc-rij{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:10px 0;}
+  .vc-rij b{display:block; font-size:28px; line-height:1.1;}
+  .vc-rij span{font-size:13px; color:#4A4A55;}
+  .voorbeeldcase a{font-size:14px;}
   .keten{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:18px;}
   .keten div{flex:1 1 120px; padding:12px 14px; border:1px solid #E4E4E7; border-radius:12px; background:#fff;}
   .keten div:first-child{border-color:#2F5BFF; background:#F3F6FF;}
@@ -1469,6 +1475,19 @@
       <i>&rarr;</i>
       <div><b>Revenue</b><span>your shop</span></div>
     </div>
+    {# 7 oktober (Nino): een duidelijke case met de hele keten. Er is nog geen
+       klant met drie maanden cijfers, dus dit is de voorbeeldwinkel uit /demo,
+       en dat staat er groot bij. Zodra er een echte klant is, komt die hier. #}
+    <div class="voorbeeldcase">
+      <span class="k9-mono">EXAMPLE STORE &middot; NOT A CUSTOMER &middot; THREE MONTHS WITH FIX</span>
+      <div class="vc-rij">
+        <div><b>2.7x</b><span>named by ChatGPT and Gemini<br>8 of 30 questions, was 3</span></div>
+        <div><b>+134%</b><span>visits from AI<br>96 a month, was 41</span></div>
+        <div><b>+3</b><span>orders from AI a month<br>4, was 1</span></div>
+        <div><b>+&euro;204</b><span>revenue from AI a month<br>1.4x the cost of Fix</span></div>
+      </div>
+      <a href="/demo">See these numbers in the live example dashboard &rarr;</a>
+    </div>
     <div class="bewijsregel">
       <b>&ldquo;Being named is not a sale.&rdquo;</b> True. So your dashboard puts the whole chain side by side, month by month:
       your place in AI answers next to your visits, orders and revenue from ChatGPT, Gemini and Perplexity, with the month before the fix as the baseline, and what that earns you next to what Krillo costs.
@@ -1511,7 +1530,7 @@
             <div><span class="k9-mono">REVENUE FROM AI</span><b>&euro;268</b><em>+&euro;204</em></div>
             <div><span class="k9-mono">AI CONVERSION</span><b>4.2%</b><em>was 2.4%</em></div>
           </div>
-          <div class="k9-mono k9-grijs" style="font-size:11px; margin:8px 16px 10px;">TOP ROW: MEASURED BY KRILLO &middot; BOTTOM ROW: FROM YOUR GOOGLE ANALYTICS OR SHOPIFY</div>
+          <div class="k9-mono k9-grijs" style="font-size:11px; margin:8px 16px 10px;">TOP ROW: MEASURED BY KRILLO &middot; BOTTOM ROW: COUNTED BY THE KRILLO PIXEL ON YOUR STORE</div>
           <div class="k9-dash-twee">
             <div class="k9-grafiek" data-grafiek>
               <div class="k9-grafiektabs">
@@ -1973,6 +1992,10 @@
       html += '<div style="font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:#4A4A55;">Your rank in ' + veilig(r.categorie) + ', ' + veilig(r.land) + '</div>';
       html += '<div style="font-size:32px; font-weight:700; line-height:1.2; margin:4px 0;">#' + r.positie + ' of ' + r.van + '</div>';
       html += '<div style="font-size:14px; color:#4A4A55;">AI named you in ' + r.genoemd + ' of ' + r.telbaar + ' buying questions. <a href="' + r.link + '">See the full ranking &rarr;</a></div>';
+      // 7 oktober: wie AI aanraadt in plaats van jou, het hart van het concept.
+      if(r.voor && r.voor.length){
+        html += '<div style="font-size:14px; margin-top:8px;"><b>' + (r.positie === 1 ? 'Right behind you:' : 'AI names these stores most in your category:') + '</b> ' + r.voor.map(veilig).join(', ') + '.</div>';
+      }
       html += '</div>';
     } else if(data.buiten_markt){
       // Stap 165: een land dat de index nog niet meet. Eerlijk zeggen, en de
@@ -2000,6 +2023,8 @@
       zetStapKnoppen();
       return;
     }
+    // 7 oktober: de techniek is het tweede deel van de uitslag, niet het eerste.
+    html += '<div class="scan-categorie-label" style="margin-top:6px;">Can AI read your store?</div>';
     html += '<div class="scan-result-score">';
     html += '<div class="num">' + data.score + '</div>';
     html += '<div class="label">AI readability of<br>' + data.url + '</div>';
