@@ -924,6 +924,13 @@
   .vier-stappen > div{border:1px solid var(--lijn, #E4E4E7); border-radius:12px; padding:16px; background:#fff;}
   .vier-stappen b{display:block; font-size:17px; margin:6px 0 4px;}
   .vier-stappen p{margin:0; font-size:14.5px; line-height:1.5; color:#52525B;}
+  .keten{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:18px;}
+  .keten div{flex:1 1 120px; padding:12px 14px; border:1px solid #E4E4E7; border-radius:12px; background:#fff;}
+  .keten div:first-child{border-color:#2F5BFF; background:#F3F6FF;}
+  .keten b{display:block; font-size:15px;}
+  .keten span{display:block; font-size:12px; color:#6E7079; font-family:var(--mono, monospace); text-transform:uppercase; margin-top:2px;}
+  .keten i{font-style:normal; color:#9A9AA3;}
+  @media (max-width:640px){ .keten i{display:none;} .keten div{flex:1 1 40%;} }
   .bewijsregel{margin-top:16px; padding:14px 16px; border-radius:12px; background:#F4F4F5; font-size:15px; line-height:1.55;}
   @media (max-width:760px){ .vier-stappen{grid-template-columns:1fr 1fr;} }
 </style>
@@ -1431,9 +1438,24 @@
       <div><span class="k9-nr">03</span><b>Fix</b><p>The exact text and the page it goes on. You add it, or we do.</p></div>
       <div><span class="k9-nr">04</span><b>Measure</b><p>We ask the same questions again every week, so you see when it works.</p></div>
     </div>
+    {# 7 OKTOBER (Nino): de hele keten tonen, niet alleen "genoemd". Eerlijk wie
+       wat meet: de eerste schakel meet Krillo, de rest komt uit de eigen
+       statistieken van de winkel en staat naast elkaar in het dashboard. #}
+    <div class="keten" aria-label="From AI answer to revenue">
+      <div><b>Named by AI</b><span>Krillo measures</span></div>
+      <i>&rarr;</i>
+      <div><b>Visits from AI</b><span>your analytics</span></div>
+      <i>&rarr;</i>
+      <div><b>Engaged visits</b><span>your analytics</span></div>
+      <i>&rarr;</i>
+      <div><b>Orders</b><span>your shop</span></div>
+      <i>&rarr;</i>
+      <div><b>Revenue</b><span>your shop</span></div>
+    </div>
     <div class="bewijsregel">
-      <b>&ldquo;Being named is not a sale.&rdquo;</b> True. So we show the whole chain: named by AI, visits from AI, sales from those visits.
-      You see it in your own Google Analytics or Shopify, before and after a fix. <a href="/proof">How we prove it pays &rarr;</a>
+      <b>&ldquo;Being named is not a sale.&rdquo;</b> True. So your dashboard puts the whole chain side by side, month by month:
+      your place in AI answers next to your visits, orders and revenue from ChatGPT, Gemini and Perplexity, with the month before the fix as the baseline, and what that earns you next to what Krillo costs.
+      <a href="/proof">How we prove it pays &rarr;</a>
     </div>
   </div>
 </section>
@@ -1691,8 +1713,9 @@
           <li><strong>Every week</strong>, your five key questions by email, plus five questions of your own</li>
           <li>Per page: which AI robots can read it, and which products AI names</li>
           <li>The fixes written out, to do yourself</li>
+          <li>Your visits and revenue from AI, next to what Krillo costs you</li>
         </ul>
-        <a class="price-btn solid" href="#scan" id="watchCheckoutBtn" data-maand="Try 14 days free" data-jaar="Start">Try 14 days free</a>
+        <a class="price-btn solid" href="#scan" id="watchCheckoutBtn" data-maand="Start Watch free for 14 days" data-jaar="Start Watch">Start Watch free for 14 days</a>
       </div>
 
       <div class="price-card">
@@ -1707,7 +1730,7 @@
           <li>At the next monthly measurement we show the difference</li>
           <li>A message when you drop three places or more</li>
         </ul>
-        <a class="price-btn ghost" href="#scan" id="fixCheckoutBtn">Start with Fix</a>
+        <a class="price-btn ghost" href="#scan" id="fixCheckoutBtn">Fix it for me</a>
       </div>
 
       <div class="price-card">
@@ -1918,9 +1941,11 @@
     if(data.score === null){
       html += '<div class="scan-rang" style="border:1px solid #E8E8EC; border-radius:12px; padding:14px 18px; font-size:14px; color:#4A4A55;">';
       html += '<b style="color:#0A0A0B;">We could not read your site itself.</b> It blocks automated visitors, so we cannot score the thirteen technical points from here. Your rank above comes from what AI answered, not from your site. ';
-      html += '<a href="#pricing">See how we help you move up &rarr;</a></div>';
+      html += '</div>';
+      html += volgendeStap(data, 0, 0);
       resultBox.innerHTML = html;
       zetWachtlijstKnop();
+      zetStapKnoppen();
       return;
     }
     html += '<div class="scan-result-score">';
@@ -1942,7 +1967,10 @@
     // De zichtbaarheidstest staat bewust hier, vlak onder het cijfer en boven
     // de dertien punten. Het cijfer zegt of AI je site kan lezen. Of AI je ook
     // noemt is een andere vraag, en dat is de vraag waar iemand voor terugkomt.
-    html += '<div id="zichtbaarheidBlok"></div>';
+    // 7 oktober: niet als er al een plek staat. Dan zei dit blok "dat cijfer
+    // zegt nog niet of AI je noemt" vlak onder "AI noemde je in 8 van 30", en
+    // stond het tussen de uitslag en de knoppen. Verwarrend en een omweg.
+    if(!data.rang){ html += '<div id="zichtbaarheidBlok"></div>'; }
 
     var byCategorie = {};
     data.checks.forEach(function(check){
@@ -1991,22 +2019,55 @@
     // "de volledige oplossing zit in de audit" zegt, verwijst naar iets wat
     // niet meer te koop is.
 
-    if(issueCount > 0){
-      html += '<div class="scan-cta">';
-      html += '<div class="scan-cta-text"><strong>' + issueCount + ' of ' + totalCount + ' points can be better.</strong> ';
-      html += 'We put them right for you and write the texts for your products.</div>';
-      html += '<a href="#pricing" class="scan-cta-btn">Let us do it &rarr;</a>';
-      html += '</div>';
-    } else {
-      html += '<div class="scan-cta scan-cta-good">';
-      html += '<div class="scan-cta-text"><strong>Strong result.</strong> Want to know whether AI actually names you? Every month we ask ChatGPT and Gemini the questions buyers ask, and you see whether your store is in the answer.</div>';
-      html += '<a href="#pricing" class="scan-cta-btn">See what that costs &rarr;</a>';
-      html += '</div>';
-    }
+    html += volgendeStap(data, issueCount, totalCount);
 
     resultBox.innerHTML = html;
     zetWachtlijstKnop();
+    zetStapKnoppen();
     startVoorproef(data.url);
+  }
+
+  // 7 OKTOBER: DE VOLGENDE STAP NA DE CHECK. Dit was het grootste lek: de
+  // uitslag eindigde met een link naar "#pricing", en daar moest iemand zelf
+  // kiezen, zijn adres opnieuw intypen en op een knop zoeken. Nu staan de
+  // twee keuzes direct onder zijn eigen uitslag, met zijn adres al ingevuld:
+  // Watch (volgen, standaard, gratis proef) en Fix (doe het voor mij).
+  function volgendeStap(data, issueCount, totalCount){
+    var kop;
+    if(data.rang && data.rang.telbaar){
+      var gemist = data.rang.telbaar - data.rang.genoemd;
+      kop = gemist > 0
+        ? 'You are missing from ' + gemist + ' of ' + data.rang.telbaar + ' buying questions. Those shoppers get another store.'
+        : 'AI names you in every buying question we measured. Keep it that way.';
+    } else if(issueCount > 0){
+      kop = issueCount + ' of ' + totalCount + ' points make it harder for AI to read and recommend your store.';
+    } else {
+      kop = 'AI can read your store well. The question now is whether it recommends you.';
+    }
+    var h = '<div class="scan-cta" style="display:block;">';
+    h += '<div class="scan-cta-text" style="margin-bottom:12px;"><strong>' + kop + '</strong></div>';
+    h += '<div style="display:flex; flex-wrap:wrap; gap:10px;">';
+    h += '<div style="flex:1 1 240px;"><a href="#pricing" class="scan-cta-btn" data-kies-plan="watch" style="display:block; text-align:center;">Start Watch free for 14 days &rarr;</a>';
+    h += '<div style="font-size:13px; margin-top:6px; opacity:.85;">Your rank, every lost question, and whether AI brings you sales. Then &euro;49/mo, cancel any time.</div></div>';
+    h += '<div style="flex:1 1 240px;"><a href="#pricing" class="scan-cta-btn" data-kies-plan="fix" style="display:block; text-align:center; background:transparent; border:1.5px solid currentColor;">Fix this for me &rarr;</a>';
+    h += '<div style="font-size:13px; margin-top:6px; opacity:.85;">We make the changes on your store and show the difference. &euro;149/mo.</div></div>';
+    h += '</div></div>';
+    return h;
+  }
+
+  // De knoppen hierboven openen meteen de kassa, met het gecheckte adres erin.
+  function zetStapKnoppen(){
+    resultBox.querySelectorAll('[data-kies-plan]').forEach(function(a){
+      a.addEventListener('click', function(e){
+        var plan = a.getAttribute('data-kies-plan');
+        var knop = document.getElementById(plan === 'watch' ? 'watchCheckoutBtn' : 'fixCheckoutBtn');
+        var veld = document.getElementById('checkoutUrl');
+        if(!knop) return;
+        e.preventDefault();
+        if(veld){ veld.value = (input.value || '').trim(); }
+        knop.click();
+      });
+    });
   }
 
   // Stap 165: de knop van de wachtlijst.
@@ -2415,6 +2476,7 @@
         'Which competitor was named instead of you',
         'Every week, your five key questions and the thirteen checks',
         'The fixes written out, to do yourself',
+        'Your visits and revenue from AI, next to what Krillo costs you',
         'First 14 days free, then cancel any time, no minimum term'
       ],
       delivery: 'Delivery: the link to your dashboard arrives within minutes, your rank usually within the hour. No password: the link is your key.',
@@ -2514,11 +2576,24 @@
     submitBtn.textContent = (type === 'watch' && periode !== 'jaar' && !geenProef) ? 'Start my free trial' : 'Continue to payment';
     submitBtn.disabled = false;
     overlay.classList.add('open');
-    urlInput.focus();
+    kassaStap('venster');
+    // Adres al ingevuld (vanuit de uitslag): meteen naar het mailveld.
+    (urlInput.value ? emailInput : urlInput).focus();
   }
 
   function closeModal(){
     overlay.classList.remove('open');
+  }
+
+  // 7 oktober: tellen waar mensen in de kassa afhaken (venster open, verstuurd,
+  // fout, naar de bank). Alleen Watch en Fix; nooit iets dat het afrekenen stopt.
+  function kassaStap(stap){
+    try {
+      if(currentType !== 'watch' && currentType !== 'fix'){ return; }
+      var pad = '/api/stap/' + stap + '_' + currentType;
+      if(navigator.sendBeacon){ navigator.sendBeacon(pad); }
+      else { fetch(pad, {method:'POST', keepalive:true}); }
+    } catch(e) {}
   }
 
   function submitCheckout(){
@@ -2547,6 +2622,7 @@
       return;
     }
     clearError();
+    kassaStap('verstuurd');
     submitBtn.disabled = true;
     submitBtn.textContent = 'One moment...';
 
@@ -2575,6 +2651,7 @@
     .then(function(res){ return res.json().then(function(data){ return {ok: res.ok, data: data}; }); })
     .then(function(result){
       if(!result.ok || !result.data.checkout_url){
+        kassaStap('fout');
         showError(result.data.error || 'Could not start the payment yet.');
         // Stap 167: de proef is al gebruikt. Dan eerlijk verder zonder proef.
         submitBtn.disabled = false;
@@ -2591,9 +2668,11 @@
         submitBtn.textContent = 'Continue to payment';
         return;
       }
+      kassaStap('naar_bank');
       window.location.href = result.data.checkout_url;
     })
     .catch(function(){
+      kassaStap('fout');
       showError('Something went wrong. Try again in a moment.');
       submitBtn.disabled = false;
       submitBtn.textContent = 'Continue to payment';

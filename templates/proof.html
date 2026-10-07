@@ -89,6 +89,7 @@
   <h2>Where you see it</h2>
   <p><strong>Google Analytics 4:</strong> Reports, Acquisition, Traffic acquisition. Set the table to "Session source" and filter on chatgpt, gemini, perplexity and copilot. Add the columns Sessions, Key events and Total revenue. For the steps before a purchase: Advertising, Attribution paths.</p>
   <p><strong>Shopify:</strong> Analytics, Reports, "Sessions by referrer" and "Sales by referrer". AI assistants show up under their own domain.</p>
+  <p><strong>In your Krillo dashboard:</strong> add those three numbers once a month (visits from AI, orders, revenue). Krillo puts them next to your AI rank for the same month, with your first month as the baseline, so you see the whole chain on one screen. Today you type them in; automatic reading from Shopify follows once our Shopify app is approved.</p>
   <p>Note: not every AI visit is labelled. Apps and some browsers send no source, and those visits land under "direct". The real number is usually higher than what you see.</p>
 
   <h2>How to show it is cause, not chance</h2>
@@ -98,6 +99,16 @@
     <li><strong>Measure after:</strong> four weeks of the same numbers. Krillo asks the same questions again every week, so you see when you start being named.</li>
     <li><strong>Compare with a control:</strong> a category or a set of pages you did not change, over the same weeks. If only the changed part moves, that is your evidence.</li>
   </ol>
+
+  <h2>The return, in one line</h2>
+  <p>Every month your dashboard compares your revenue from AI with your baseline month, and puts it next to what Krillo costs you. For example: &ldquo;&euro;204 more revenue from AI in September than in your baseline month. Krillo costs you &euro;49 a month: that is 4.2x what you pay.&rdquo; Your own numbers, so you can check every euro. If there is no extra revenue yet, it says so.</p>
+
+  <h2>Results so far</h2>
+  {% if samen %}
+  <p>{{ samen.winkels }} stores track their AI visits and revenue in Krillo for two months or more. {{ samen.bezoek_op }} of them get more visits from AI than in their first month, and {{ samen.omzet_op }} more revenue from AI. No store names: these are totals, updated every day.</p>
+  {% else %}
+  <p>Krillo is new. We publish the totals here, without store names, as soon as three stores have tracked two months or more. Until then we show nothing rather than numbers we cannot back up.</p>
+  {% endif %}
 
   <h2>The honest limits</h2>
   <p>Seasons and sales move your numbers too. AI models are updated and answers change without you doing anything. With few visits, chance plays a big role, so look at several weeks, not one. And attribution is never complete, because part of the AI traffic arrives without a label. That is why we show the trend over time and a comparison with what you did not change, never one number as proof.</p>

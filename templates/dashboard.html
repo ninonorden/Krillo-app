@@ -235,6 +235,66 @@
     </div>
     {% endif %}
 
+    {# 7 OKTOBER (Nino): "brengt Krillo mij verkeer?" De hele keten per maand:
+       plek bij AI (wij meten) naast bezoek, bestellingen en omzet uit AI (de
+       klant zet ze uit Google Analytics of Shopify erin). Eerste maand is de
+       nulmeting. Demo en voorproef zien een voorbeeld, duidelijk als voorbeeld. #}
+    {% if aiverkeer is defined and aiverkeer %}
+    {% set nl = taal == 'nl' %}
+    <div class="kaartblok" id="aiverkeer">
+      <div class="kaartkop">{{ 'BRENGT AI JE BEZOEK EN VERKOOP?' if nl else 'IS AI SENDING YOU VISITORS AND SALES?' }}
+        {% if aiverkeer_voorbeeld is defined and aiverkeer_voorbeeld %}<span class="uitleg">{{ 'VOORBEELD' if nl else 'EXAMPLE' }}</span>{% endif %}</div>
+      {% if aiverkeer.rijen %}
+      {% set o = aiverkeer.oordeel %}
+      {% if o and o.bezoek is not none %}
+      <p style="margin:0 0 10px; font-size:15px;">
+        {% if nl %}Sinds {{ o.van }}: bezoek uit AI <strong>{{ '%+d' % o.bezoek }}%</strong>{% if o.orders is not none %}, bestellingen <strong>{{ '%+d' % o.orders }}%</strong>{% endif %}{% if o.omzet is not none %}, omzet <strong>{{ '%+d' % o.omzet }}%</strong>{% endif %}{% if o.plek_van and o.plek_tot %}, terwijl je plek ging van #{{ o.plek_van }} naar #{{ o.plek_tot }}{% endif %}.
+        {% else %}Since {{ o.van }}: visits from AI <strong>{{ '%+d' % o.bezoek }}%</strong>{% if o.orders is not none %}, orders <strong>{{ '%+d' % o.orders }}%</strong>{% endif %}{% if o.omzet is not none %}, revenue <strong>{{ '%+d' % o.omzet }}%</strong>{% endif %}{% if o.plek_van and o.plek_tot %}, while your rank went from #{{ o.plek_van }} to #{{ o.plek_tot }}{% endif %}.{% endif %}
+      </p>
+      {% endif %}
+      {# 7 oktober (Nino): "laten zien dat de ROI omhoog gaat". Extra omzet uit AI
+         tegen de nulmeting, naast wat Krillo die maand kost. Na te rekenen. #}
+      {% if o and o.extra_omzet is defined and o.extra_omzet is not none %}
+      <div style="margin:0 16px 12px; padding:12px 14px; border-radius:10px; background:{{ '#ECFDF3' if o.keer is defined else '#F4F4F5' }}; font-size:15px;">
+        {% if o.keer is defined %}
+        {% if nl %}<strong>&euro; {{ o.extra_omzet }} meer omzet uit AI</strong> in {{ o.tot }} dan in je nulmeting. Krillo kost je &euro; {{ '%.0f' % o.maandprijs }} per maand: dat is <strong>{{ o.keer }}x</strong> wat je betaalt.
+        {% else %}<strong>&euro;{{ o.extra_omzet }} more revenue from AI</strong> in {{ o.tot }} than in your baseline month. Krillo costs you &euro;{{ '%.0f' % o.maandprijs }} a month: that is <strong>{{ o.keer }}x</strong> what you pay.{% endif %}
+        {% else %}
+        {{ 'Nog geen extra omzet uit AI ten opzichte van je nulmeting. Eerst komt genoemd worden, dan bezoek: kijk hieronder of je plek al stijgt.' if nl else 'No extra revenue from AI yet compared to your baseline. Being named comes first, then visits: check below whether your rank is rising.' }}
+        {% endif %}
+        <div class="klein" style="margin-top:4px;">{{ 'Seizoen en acties tellen ook mee. Vergelijk met een categorie die je niet veranderde.' if nl else 'Seasons and sales count too. Compare with a category you did not change.' }}</div>
+      </div>
+      {% endif %}
+      <div style="padding:0 16px; overflow-x:auto;">
+      <table class="tabel"><thead><tr>
+        <th>{{ 'Maand' if nl else 'Month' }}</th><th>{{ 'Plek bij AI' if nl else 'AI rank' }}</th>
+        <th>{{ 'Bezoek uit AI' if nl else 'Visits from AI' }}</th><th>{{ 'Bestellingen' if nl else 'Orders' }}</th>
+        <th>{{ 'Omzet' if nl else 'Revenue' }}</th><th>{{ 'Conversie' if nl else 'Conversion' }}</th></tr></thead><tbody>
+        {% for r in aiverkeer.rijen %}<tr>
+          <td>{{ r.maand }}{% if loop.first and aiverkeer.rijen|length > 1 %} <span class="klein">{{ 'nulmeting' if nl else 'baseline' }}</span>{% endif %}</td>
+          <td>{{ '#' ~ r.plek if r.plek else '-' }}</td>
+          <td>{{ r.bezoek if r.bezoek is not none else '-' }}</td>
+          <td>{{ r.orders if r.orders is not none else '-' }}</td>
+          <td>{{ ('&euro; %.0f' % r.omzet) | safe if r.omzet is not none else '-' }}</td>
+          <td>{{ (r.conversie ~ '%') if r.conversie is not none else '-' }}</td></tr>{% endfor %}
+      </tbody></table>
+      </div>
+      {% else %}
+      <p style="margin:0 0 10px; font-size:15px;">{{ 'Genoemd worden is nog geen verkoop. Zet hier elke maand drie getallen uit je eigen statistieken, dan zie je naast je plek bij AI of er ook bezoek en omzet uit komt. De eerste maand is je nulmeting.' if nl else 'Being named is not a sale yet. Add three numbers from your own analytics each month and you see, next to your AI rank, whether it brings visits and revenue. Your first month is the baseline.' }}</p>
+      {% endif %}
+      {% if aiverkeer_post is defined and aiverkeer_post %}
+      <form method="post" action="{{ aiverkeer_post }}" style="display:flex; flex-wrap:wrap; gap:8px; align-items:end; margin-top:12px; font-size:13px;">
+        <label>{{ 'Maand' if nl else 'Month' }}<br><input type="month" name="maand" required style="padding:6px;"></label>
+        <label>{{ 'Bezoek uit AI' if nl else 'Visits from AI' }}<br><input name="bezoek" inputmode="numeric" style="padding:6px; width:110px;"></label>
+        <label>{{ 'Bestellingen' if nl else 'Orders' }}<br><input name="orders" inputmode="numeric" style="padding:6px; width:90px;"></label>
+        <label>{{ 'Omzet (€)' if nl else 'Revenue (€)' }}<br><input name="omzet" inputmode="decimal" style="padding:6px; width:110px;"></label>
+        <button type="submit" style="padding:8px 14px;">{{ 'Bewaren' if nl else 'Save' }}</button>
+      </form>
+      <p class="klein" style="margin:8px 0 0;">{{ 'Waar vind je het: Google Analytics, Acquisitie, Verkeersacquisitie, filter de bron op chatgpt.com, gemini.google.com, perplexity.ai en copilot.microsoft.com. Of Shopify, Analytics, Sessies en Verkoop per verwijzer.' if nl else 'Where to find it: Google Analytics, Acquisition, Traffic acquisition, filter session source on chatgpt.com, gemini.google.com, perplexity.ai and copilot.microsoft.com. Or Shopify, Analytics, Sessions and Sales by referrer.' }} <a href="/proof">{{ 'Hoe we bewijzen dat het werkt' if nl else 'How we prove it pays' }} &rarr;</a></p>
+      {% endif %}
+    </div>
+    {% endif %}
+
     {# 2 oktober (goedgekeurd): de productkaart. Welke producten AI bij naam
        noemt in de wekelijkse vragen, en bij welke vraag. Eerlijk: vijf vragen. #}
     {% if productkaart is defined and productkaart and productkaart.gemeten %}
