@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Does AI visibility sell? | Krillo</title>
+<meta name="description" content="Being named by ChatGPT is not a sale. How to see whether AI visibility brings visits, orders and revenue, in GA4 or Shopify, and how to test it honestly.">
+<link rel="canonical" href="{{ basis_url }}/proof">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ basis_url }}/proof">
+<meta property="og:title" content="Does AI visibility sell?">
+<meta property="og:description" content="How to see whether AI visibility brings visits, orders and revenue.">
+<meta property="og:locale" content="en_GB">
+
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0A0B; --ink-soft:#4A4A55; --paper:#FFFFFF; --paper-raised:#FFFFFF;
+    --line:#E8E8EC; --coral:#1B3FE0; --coral-tekst:#142FA8; --teal:#0B7C5E;
+    --mono:'IBM Plex Mono', monospace; --disp:'Space Grotesk', sans-serif; --body:'Space Grotesk', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:var(--body); line-height:1.6; -webkit-font-smoothing:antialiased;}
+  a{color:var(--coral-tekst); text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  .wrap{max-width:1080px; margin:0 auto; padding:0 28px;}
+  nav{position:sticky; top:0; z-index:50; background:rgba(246,245,241,0.9); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);}
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:68px;}
+  .logo{font-family:var(--disp); font-weight:700; font-size:19px; display:flex; align-items:center; gap:8px; color:var(--ink);}
+  .logo-dot{width:9px; height:9px; background:var(--coral); border-radius:50%;}
+  .nav-cta{font-size:14px; font-weight:600; background:var(--ink); color:var(--paper); padding:9px 18px; border-radius:100px;}
+  main{max-width:720px; margin:0 auto; padding:56px 28px 96px;}
+  h1{font-family:var(--disp); font-weight:700; letter-spacing:-0.02em; font-size:34px; margin-bottom:16px;}
+  h2{font-family:var(--disp); font-weight:600; font-size:19px; margin-top:36px; margin-bottom:10px;}
+  p{font-size:15px; color:var(--ink-soft); margin-bottom:14px;}
+  .contact-card{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:24px; margin-top:28px;}
+  .contact-card strong{display:block; font-family:var(--disp); font-size:16px; margin-bottom:8px; color:var(--ink);}
+  .contact-row{font-size:14px; color:var(--ink-soft); margin-bottom:6px;}
+  footer{border-top:1px solid var(--line); padding:36px 0; text-align:center; font-size:12.5px; color:var(--ink-soft);}
+
+  /* Respecteer de voorkeur van mensen die liever geen bewegende beelden zien */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration:0.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.01ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--coral); outline-offset:3px; border-radius:4px;
+  }
+  /* OPTIE B, 18 september 2026: het woordmerk. Hoofdletters, strak
+     gespatieerd, met INDEX ernaast in de schrijfmachineletter. De stip van
+     optie A is weg. */
+  .logo{font-family:var(--disp); font-weight:700; font-size:21px;
+        letter-spacing:-0.04em; text-transform:uppercase; display:flex;
+        align-items:baseline; gap:9px; color:var(--ink); text-decoration:none;}
+  .logo .tag{font-family:var(--mono); font-size:10.5px; color:#6E7079;
+             letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
+  .logo-dot{display:none;}
+</style>
+{% include "_k_stijl.html" %}
+</head>
+<body>
+
+{% include "_kop.html" %}
+
+<main>
+  {# 7 oktober (Nino): het eerlijke antwoord op het grootste bezwaar, "genoemd
+     worden is nog geen verkoop". Geen beloftes over omzet: een manier om het
+     zelf te zien, met de grenzen erbij. #}
+  <h1>Does being named by AI sell?</h1>
+  <p>Not by itself. A store can be named in a hundred answers and sell nothing from it. So the right question is not "are we named?", but "does being named bring visits, orders and revenue?" This page shows how to check that, in your own numbers.</p>
+
+  <h2>The chain</h2>
+  <p><strong>Named by AI</strong> &rarr; <strong>a visit from AI</strong> &rarr; <strong>engaged visitor</strong> &rarr; <strong>order</strong> &rarr; <strong>revenue</strong>. Every step needs its own number:</p>
+  <ul style="margin:0 0 14px 20px; color:var(--ink-soft); font-size:15px;">
+    <li><strong>Named:</strong> in how many buying questions AI names or recommends you. Krillo measures this every month, and your key questions every week.</li>
+    <li><strong>Visits from AI:</strong> sessions that come from chatgpt.com, gemini.google.com, perplexity.ai and copilot.microsoft.com.</li>
+    <li><strong>Engagement:</strong> pages per visit and time on site of those visits, compared with your other traffic.</li>
+    <li><strong>Orders:</strong> conversions and conversion rate of AI visits.</li>
+    <li><strong>Revenue:</strong> revenue from AI visits, and orders where AI was one of the steps before the purchase (assisted conversions).</li>
+  </ul>
+
+  <h2>Where you see it</h2>
+  <p><strong>Google Analytics 4:</strong> Reports, Acquisition, Traffic acquisition. Set the table to "Session source" and filter on chatgpt, gemini, perplexity and copilot. Add the columns Sessions, Key events and Total revenue. For the steps before a purchase: Advertising, Attribution paths.</p>
+  <p><strong>Shopify:</strong> Analytics, Reports, "Sessions by referrer" and "Sales by referrer". AI assistants show up under their own domain.</p>
+  <p>Note: not every AI visit is labelled. Apps and some browsers send no source, and those visits land under "direct". The real number is usually higher than what you see.</p>
+
+  <h2>How to show it is cause, not chance</h2>
+  <ol style="margin:0 0 14px 20px; color:var(--ink-soft); font-size:15px;">
+    <li><strong>Baseline:</strong> write down four weeks of AI visits, orders and revenue before you change anything, and your Krillo numbers for the same weeks.</li>
+    <li><strong>Change one thing:</strong> the fix Krillo suggests for one group of questions or one category page. Note the date.</li>
+    <li><strong>Measure after:</strong> four weeks of the same numbers. Krillo asks the same questions again every week, so you see when you start being named.</li>
+    <li><strong>Compare with a control:</strong> a category or a set of pages you did not change, over the same weeks. If only the changed part moves, that is your evidence.</li>
+  </ol>
+
+  <h2>The honest limits</h2>
+  <p>Seasons and sales move your numbers too. AI models are updated and answers change without you doing anything. With few visits, chance plays a big role, so look at several weeks, not one. And attribution is never complete, because part of the AI traffic arrives without a label. That is why we show the trend over time and a comparison with what you did not change, never one number as proof.</p>
+
+  <p style="margin-top:28px;"><a href="/#scan">Check where your store stands now, free &rarr;</a></p>
+</main>
+
+{% include "_voet.html" %}
+
+</body>
+</html>

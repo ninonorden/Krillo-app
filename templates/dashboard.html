@@ -799,19 +799,30 @@
        gelijk. Nu: Verbeteringen laat zien wat we zouden doen, Abonnement de
        pakketten. #}
     {# 1 oktober: per verloren vraag wat je concreet doet (vraagaanpak.py). #}
+    {# 7 oktober (Nino): in het voorbeeld en de voorproef stonden de stappen
+       uitgeschreven met sjabloonzinnen die bij echte vragen geen sense maakten,
+       en we geven de verbeteringen daar niet gratis weg. Nu: per vraag wie AI
+       noemt, en eenmaal de vier stappen die een klant krijgt, op slot. #}
     {% if pagina == 'verbeteringen' and aanpak %}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'VRAGEN OM EERST TE WINNEN' if taal == 'nl' else 'QUESTIONS TO WIN FIRST' }}
-        <span class="uitleg">{{ 'uit je laatste meting, je eigen lijst eerst' if taal == 'nl' else 'from your last measurement, your own list first' }}</span></div>
+        <span class="uitleg">{{ 'uit de laatste meting' if taal == 'nl' else 'from the last measurement' }}</span></div>
       {% for a in aanpak %}
-      <div class="binnen" style="{{ 'border-top:1px solid var(--lijnz);' if not loop.first }}">
-        <div style="font-weight:600; font-size:15.5px;">&ldquo;{{ a.vraag[:1] | upper }}{{ a.vraag[1:] }}&rdquo;</div>
-        {% if a.anderen %}<div class="klein" style="margin:2px 0 8px;">{{ 'AI noemt nu' if taal == 'nl' else 'AI names now' }}: {{ a.anderen | join(', ') }}</div>{% endif %}
-        <ol style="margin:6px 0 0; padding-left:20px; font-size:14.5px; line-height:1.55;">
-          {% for st in a.stappen %}<li style="margin-bottom:4px;">{{ st }}</li>{% endfor %}
-        </ol>
+      <div class="binnen" style="{{ 'border-top:1px solid var(--lijnz);' if not loop.first }} display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div><div style="font-weight:600; font-size:15.5px;">&ldquo;{{ a.vraag[:1] | upper }}{{ a.vraag[1:] }}&rdquo;</div>
+        {% if a.anderen %}<div class="klein" style="margin-top:2px;">{{ 'AI noemt nu' if taal == 'nl' else 'AI names now' }}: {{ a.anderen | join(', ') }}</div>{% endif %}</div>
+        <span class="klein" style="font-family:var(--mono); white-space:nowrap;">{{ 'VERBETERPLAN KLAAR · OP SLOT' if taal == 'nl' else 'FIX PLAN READY · LOCKED' }}</span>
       </div>
       {% endfor %}
+      <div class="binnen" style="border-top:1px solid var(--lijnz); background:var(--vlak, #F4F4F5);">
+        <div style="font-weight:600; margin-bottom:6px;">{{ 'Wat een klant per vraag krijgt' if taal == 'nl' else 'What a customer gets for each question' }}</div>
+        <ol style="margin:0; padding-left:20px; font-size:14.5px; line-height:1.6;">
+          <li><strong>{{ 'Zien' if taal == 'nl' else 'Detect' }}:</strong> {{ 'welke koopvragen je verliest, en aan wie.' if taal == 'nl' else 'which buying questions you lose, and to whom.' }}</li>
+          <li><strong>{{ 'Begrijpen' if taal == 'nl' else 'Understand' }}:</strong> {{ 'wat hun pagina zegt dat de jouwe niet zegt.' if taal == 'nl' else 'what their page says that yours does not.' }}</li>
+          <li><strong>{{ 'Verbeteren' if taal == 'nl' else 'Fix' }}:</strong> {{ 'de tekst en de pagina waar hij moet staan. Watch: jij zet hem erin. Fix: wij doen het.' if taal == 'nl' else 'the exact text and the page it goes on. Watch: you add it. Fix: we do it.' }}</li>
+          <li><strong>{{ 'Meten' if taal == 'nl' else 'Measure' }}:</strong> {{ 'elke week dezelfde vraag opnieuw, zodat je ziet wanneer het werkt.' if taal == 'nl' else 'the same question again every week, so you see when it works.' }}</li>
+        </ol>
+      </div>
     </div>
     {% endif %}
     {% if pagina == 'verbeteringen' %}

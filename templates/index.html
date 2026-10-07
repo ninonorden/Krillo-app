@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Krillo: when AI picks the shop, who does it name?</title>
+<title>Krillo: make your store the answer when shoppers ask AI what to buy</title>
 {# Twee verificatiecodes voor Search Console, en ze moeten ALLEBEI blijven staan.
    De eerste hoort bij het eigendom www.krillo.nl. De tweede is op 19 september
    toegevoegd voor krilloai.com. Google wil dat het oude eigendom geverifieerd
@@ -12,12 +12,12 @@
    Meerdere van deze regels naast elkaar is gewoon toegestaan. #}
 <meta name="google-site-verification" content="-rhhZoHmZMYdIbtYgGXCj-Zg4FY0j0lSAQdJOPTtEwQ" />
 <meta name="google-site-verification" content="f9WynjVD3AdJuRowJY7s4cFcZEFKDNJybRKC9zz3XDQ" />
-<meta name="description" content="Krillo asks AI assistants the questions buyers ask and publishes who gets named. Check your store for free, and we fix what holds you back. For online stores.">
+<meta name="description" content="Krillo asks ChatGPT and Gemini the questions your buyers ask, shows which stores they recommend instead of you, and what to change. Free check for online stores.">
 <link rel="canonical" href="{{ basis_url }}/">
 
 <meta property="og:type" content="website">
 <meta property="og:url" content="{{ basis_url }}/">
-<meta property="og:title" content="Krillo: when AI picks the shop, who does it name?">
+<meta property="og:title" content="Krillo: make your store the answer when shoppers ask AI what to buy">
 <meta property="og:description" content="The public ranking of the online stores ChatGPT and Gemini recommend. See your rank for free, and let us fix what holds you back.">
 <meta property="og:image" content="{{ basis_url }}/static/krillo-share-2026.png">
 <meta property="og:image:width" content="1200">
@@ -920,6 +920,12 @@
     .idx-rij .c{display:none;}
     .idx-rij .g{width:70px;} .idx-rij .a{width:60px;}
   }
+  .vier-stappen{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:8px;}
+  .vier-stappen > div{border:1px solid var(--lijn, #E4E4E7); border-radius:12px; padding:16px; background:#fff;}
+  .vier-stappen b{display:block; font-size:17px; margin:6px 0 4px;}
+  .vier-stappen p{margin:0; font-size:14.5px; line-height:1.5; color:#52525B;}
+  .bewijsregel{margin-top:16px; padding:14px 16px; border-radius:12px; background:#F4F4F5; font-size:15px; line-height:1.55;}
+  @media (max-width:760px){ .vier-stappen{grid-template-columns:1fr 1fr;} }
 </style>
 {% include "_k_stijl.html" %}
 <style>
@@ -1325,14 +1331,15 @@
          label zegt wat Krillo is (voor webshops, overal); waar we NU meten staat
          in de regel onder de knop, uit markten.py. Komt er een land bij, dan
          past die regel zich vanzelf aan. #}
-      <span class="k9-label">AI SEARCH ANALYTICS FOR WEBSHOPS</span>
-      <h1 class="k9-h1">Know where ChatGPT ranks your store. Then move up.</h1>
-      <p class="k9-intro">Every month Krillo asks ChatGPT and Gemini the questions your buyers ask, ranks every store in your category, and shows what to change. Or we change it for you.</p>
+      <span class="k9-label">AI VISIBILITY FOR WEBSHOPS</span>
+      <h1 class="k9-h1">Make your store the answer when shoppers ask AI what to buy.</h1>
+      <p class="k9-intro">Krillo asks ChatGPT and Gemini the questions your buyers ask, shows which stores they recommend instead of you, and tells you exactly what to change. Or we change it for you.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
-        <button type="button" id="scanButton">Get my free rank</button>
+        <button type="button" id="scanButton">Check my store free</button>
       </div>
-      <div class="hero-note" id="scanNote">FREE &middot; NO ACCOUNT &middot; YOUR RANK AND 13 CHECKS ON YOUR SITE{% if gescand %} &middot; USED {{ gescand }} TIMES{% endif %}</div>
+      {# 7 oktober: de teller "used ... times" bleef op 215 staan (het tellen faalde soms). Een getal dat niet klopt, weg. #}
+      <div class="hero-note" id="scanNote">FREE &middot; NO ACCOUNT &middot; SEE WHO AI RECOMMENDS INSTEAD OF YOU</div>
       <div class="k9-landen k9-mono" id="liveLanden"><span class="k9-landen-stip"></span>LIVE IN {{ index_landen_kaal_en | upper }} &middot; <a href="/index#wachtlijst" title="Leave your email and we tell you when your country goes live">MORE COUNTRIES SOON</a></div>
       <div id="scanResult" class="scan-result"></div>
       <div class="k9-proefregel">Want it every month? <a href="/?plan=watch#pricing" id="heroProef">Try Watch, the monthly dashboard</a>: 14 days free, then &euro;49 a month, cancel any time.</div>
@@ -1406,6 +1413,27 @@
         <span class="k9-chips k9-mono"><span>IN {{ vraagtaal_en(tabs[0].land) | upper }}, AS SHOPPERS ASK IT</span><span class="blauw">{{ tabs[0].naam | upper }}</span><span>1 OF {{ tabs[0].telbaar }} QUESTIONS</span></span>
       </div>
       {% endif %}
+    </div>
+  </div>
+</section>
+
+{# 7 OKTOBER (Nino): wat Krillo doet, in vijf seconden, en het eerlijke antwoord op
+   "genoemd worden is nog geen verkoop". Kort: de uitleg staat op /proof. #}
+<section class="k9-sectie" id="werkwijze">
+  <div class="k9-binnen">
+    <div class="k9-sectiekop">
+      <div><span class="k9-label">HOW IT WORKS</span>
+        <h2 class="k9-h2">Detect, understand, fix, measure</h2></div>
+    </div>
+    <div class="vier-stappen">
+      <div><span class="k9-nr">01</span><b>Detect</b><p>Which buying questions you lose, and which store AI names instead.</p></div>
+      <div><span class="k9-nr">02</span><b>Understand</b><p>Why that store gets named: what its pages say that yours do not.</p></div>
+      <div><span class="k9-nr">03</span><b>Fix</b><p>The exact text and the page it goes on. You add it, or we do.</p></div>
+      <div><span class="k9-nr">04</span><b>Measure</b><p>We ask the same questions again every week, so you see when it works.</p></div>
+    </div>
+    <div class="bewijsregel">
+      <b>&ldquo;Being named is not a sale.&rdquo;</b> True. So we show the whole chain: named by AI, visits from AI, sales from those visits.
+      You see it in your own Google Analytics or Shopify, before and after a fix. <a href="/proof">How we prove it pays &rarr;</a>
     </div>
   </div>
 </section>
@@ -1658,12 +1686,10 @@
         <div class="price-amount" data-maand="&euro;49 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;490 &lt;span&gt;/year&lt;/span&gt;">&euro;49 <span>/mo</span></div>
         <div class="price-amount proef-noot" data-maand="First 14 days free. Cancel before then and you pay nothing." data-jaar="Paid yearly. The free trial is for the monthly plan.">First 14 days free. Cancel before then and you pay nothing.</div>
         <ul class="price-feats">
-          <li><strong>Your rank every month</strong>, in your category and your country</li>
-          <li>The buying questions you do not appear in, with the real answer</li>
-          <li>Which competitor was named instead of you</li>
-          <li><strong>Every week</strong>, your five key questions by email, and the thirteen checks</li>
-          <li>Per page: which AI robots can read it, and which of your products AI names</li>
-          <li>Five questions of your own, checked every week</li>
+          <li><strong>Your rank every month</strong>, and who AI names instead of you</li>
+          <li>Every buying question you lose, with the real AI answer</li>
+          <li><strong>Every week</strong>, your five key questions by email, plus five questions of your own</li>
+          <li>Per page: which AI robots can read it, and which products AI names</li>
           <li>The fixes written out, to do yourself</li>
         </ul>
         <a class="price-btn solid" href="#scan" id="watchCheckoutBtn" data-maand="Try 14 days free" data-jaar="Start">Try 14 days free</a>
