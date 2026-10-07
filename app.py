@@ -6098,6 +6098,17 @@ def afmelden(token):
             return "", 404
         return render_template("afgemeld.html", gelukt=False), 404
 
+    # 7 OKTOBER (gevonden in de trechter per dag: 11 tot 19 afmeldingen op 60
+    # mails, elke dag). Beveiligingsscanners van bedrijven (Microsoft, Mimecast,
+    # Proofpoint) openen ELKE link in een mail voordat de mens hem leest, ook
+    # de afmeldlink. Met afmelden op GET meldde de scanner de winkel dus af, en
+    # haalde hem ook nog uit de openbare index. Nu: een gewone klik (GET) toont
+    # een knop, de knop (POST) meldt af. De afmeldknop van Gmail zelf stuurt een
+    # POST en werkt dus nog steeds met een klik.
+    if request.method == "GET":
+        return render_template("afgemeld.html", vraag=True, token=token,
+                               winkel=webshop_url)
+
     # Kijken of het echt bewaard is. Een bevestigingsscherm tonen terwijl er
     # niets is opgeslagen is erger dan een foutmelding: hij denkt dat het
     # geregeld is en krijgt toch weer post.
@@ -6113,9 +6124,9 @@ def afmelden(token):
     # die net gezegd heeft dat hij niets meer van ons wil.
     benadering.haal_van_wachtlijst(webshop_url)
 
-    if request.method == "POST":
-        return "", 200
-    return render_template("afgemeld.html", gelukt=True, winkel=webshop_url)
+    if request.form.get("bevestig"):
+        return render_template("afgemeld.html", gelukt=True, winkel=webshop_url)
+    return "", 200
 
 
 def _benader_regels(alles=False, aantal=200):
@@ -8141,6 +8152,15 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 gegevens["aanpak"] = vraagaanpak.voor_dashboard(
                     vo, gekozen_lijst, sitetaal.landnaam(beeld.get("land"), taal) if beeld.get("land") else None,
                     en=(taal != "nl"), maximaal=(2 if proef else 3))
+                # Stap 290: per vraag de bronnen die AI noemt en de pagina die moet antwoorden.
+                if not proef:
+                    try:
+                        import paginacheck
+                        pc = paginacheck.laatste(webshop_url) or {}
+                        vraagaanpak.verrijk(gegevens["aanpak"], db.antwoorden_met_tekst_van_ronde(beeld["ronde"]),
+                                            pc.get("paginas"))
+                    except Exception as e:
+                        print(f"Bronnen en pagina per vraag mislukt voor {webshop_url}: {e}")
             except Exception as e:
                 print(f"Aanpak per vraag mislukt voor {webshop_url}: {e}")
         if pagina == "overzicht":

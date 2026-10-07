@@ -965,6 +965,16 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
         + _p("<strong>Right now.</strong> We are putting thirty buying questions that shoppers "
              "in your category really ask to ChatGPT and Gemini, and writing your first fixes. "
              "That usually takes less than an hour; your dashboard fills itself.")
+        # 7 oktober (Nino): stap een voor de klant is de pixel, zodat hij na een
+        # maand vanzelf ziet wat AI hem oplevert (stap 304).
+        + (_p("<strong>Your sales, connected.</strong> We place the Krillo pixel in your store "
+              "for you, so you see every month the visits, orders and revenue AI brings you.")
+           if naam == "Fix" else
+           _p("<strong>Step 1 for you: connect your sales (2 minutes).</strong> In your dashboard, "
+              "under \u201cIs AI sending you visitors and sales?\u201d, copy the Krillo pixel and paste it "
+              "into Shopify (Settings, Customer events) or into your site. From then on you see every "
+              "month the visits, orders and revenue AI brings you. Rather not do it yourself? Reply "
+              "to this email and we place it for you."))
         + (_p(f"<strong>Your rank.</strong> You are already in the Krillo Index: "
               f"<strong>#{plek['positie']} of {plek['van']}</strong> in your category, from this "
               f"month's measurement. Your dashboard shows the questions where AI names another "
