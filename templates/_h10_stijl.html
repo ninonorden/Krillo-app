@@ -1,0 +1,71 @@
+{# De stijl van het canvasbord Homepage (versie 10), met voorvoegsel c-. Zie _h10_product.html. #}
+<style>
+
+:root{--c-ink:#0A0A0B;--c-soft:#4A4A55;--c-grey:#6E7079;--c-faint:#9A9BA3;--c-line:#E7E7E4;--c-line2:#F0F0EE;--c-paper:#F7F7F5;--c-blue:#1B3FE0;--c-blue-d:#142FA8;--c-blue-bg:#EEF1FD;--c-win:#0B7C5E;--c-win-bg:#E7F6EF;--c-loss:#B4471A;--c-loss-bg:#FFF1E8}
+
+.c-k *{box-sizing:border-box}
+.c-k a{color:inherit;text-decoration:none}
+.c-k{font-family:Inter,system-ui,sans-serif;color:var(--c-ink);background:var(--c-paper);-webkit-font-smoothing:antialiased;font-size:15px}
+.c-kt{font-family:'Inter Tight',Inter,sans-serif;letter-spacing:-.035em;font-weight:500}
+.c-km{font-family:'IBM Plex Mono',monospace;letter-spacing:.04em;text-transform:uppercase}
+.c-rail{max-width:1200px;margin:0 auto;border-left:1px solid var(--c-line);border-right:1px solid var(--c-line);position:relative}
+.c-sec{border-top:1px solid var(--c-line)}
+.c-plus{position:absolute;width:9px;height:9px;top:-5px}
+.c-plus:before,.c-plus:after{content:"";position:absolute;background:#C9C9C4}
+.c-plus:before{left:4px;top:0;width:1px;height:9px}.c-plus:after{top:4px;left:0;height:1px;width:9px}
+.c-pl{left:-5px}.c-pr{right:-5px}
+.c-btn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 18px;border-radius:10px;font-weight:500;font-size:14.5px;border:0;cursor:pointer;font-family:inherit;transition:transform .2s,box-shadow .2s,background .2s}
+.c-btn-z{background:var(--c-ink);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.15) inset,0 6px 16px -6px rgba(10,10,11,.5)}
+.c-btn-z:hover{transform:translateY(-1px);box-shadow:0 1px 0 rgba(255,255,255,.15) inset,0 10px 24px -8px rgba(10,10,11,.55)}
+.c-btn-w{background:#fff;color:var(--c-ink);border:1px solid var(--c-line);box-shadow:0 1px 2px rgba(10,10,11,.05)}
+.c-btn-w:hover{border-color:#D4D4D0}
+.c-card{background:#fff;border:1px solid var(--c-line);border-radius:18px;box-shadow:0 1px 2px rgba(10,10,11,.04),0 24px 48px -24px rgba(10,10,11,.18)}
+.c-lift{transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s}
+.c-lift:hover{transform:translateY(-4px);box-shadow:0 1px 2px rgba(10,10,11,.04),0 36px 64px -28px rgba(10,10,11,.26)}
+.c-sky{background:radial-gradient(120% 90% at 20% 0%,#D6DEFA 0%,rgba(214,222,250,0) 55%),radial-gradient(90% 80% at 90% 100%,#F4EBDD 0%,rgba(244,235,221,0) 60%),linear-gradient(180deg,#E7ECFB 0%,#F3F1EC 100%);position:relative;overflow:hidden}
+.c-sky:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(27,63,224,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(27,63,224,.06) 1px,transparent 1px);background-size:44px 44px;mask-image:radial-gradient(80% 70% at 50% 40%,#000 30%,transparent 100%);-webkit-mask-image:radial-gradient(80% 70% at 50% 40%,#000 30%,transparent 100%)}
+.c-pill{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:6px;white-space:nowrap;display:inline-block}
+.c-tab{display:flex;align-items:center;justify-content:center;gap:8px;height:52px;font-size:14px;color:var(--c-grey);cursor:pointer;border:0;background:transparent;font-family:inherit;border-bottom:2px solid transparent;border-right:1px solid var(--c-line);transition:color .2s}
+.c-tab:last-child{border-right:0}
+.c-tab:hover{color:var(--c-ink)}
+.c-tab-on{color:var(--c-ink);font-weight:500;border-bottom-color:var(--c-ink);background:#fff}
+.c-mono-tile{width:20px;height:20px;border-radius:6px;display:inline-grid;place-items:center;color:#fff;font-size:10.5px;font-weight:600;flex:none}
+.c-row{display:grid;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;transition:background .15s}
+.c-row:hover{background:#F7F7F5}
+.c-step{display:flex;gap:14px;align-items:flex-start;padding:16px 0;border-bottom:1px solid var(--c-line);cursor:pointer;background:transparent;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;font-family:inherit;color:var(--c-faint);position:relative}
+.c-step:hover{color:var(--c-soft)}
+.c-step-on{color:var(--c-ink)}
+.c-step-on:after{content:"";position:absolute;left:0;bottom:-1px;height:2px;width:46%;background:var(--c-ink);animation:cgroei 4s linear}
+@keyframes cgroei{from{width:0}to{width:46%}}
+@keyframes cop{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes cteken{from{stroke-dashoffset:900}to{stroke-dashoffset:0}}
+@keyframes czweef{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes cpuls{0%{box-shadow:0 0 0 0 rgba(11,124,94,.45)}100%{box-shadow:0 0 0 8px rgba(11,124,94,0)}}
+@keyframes cbalk{from{width:0}}
+.c-op{animation:cop .7s cubic-bezier(.2,.8,.2,1) both}
+.c-op2{animation:cop .7s .12s cubic-bezier(.2,.8,.2,1) both}
+.c-op3{animation:cop .7s .24s cubic-bezier(.2,.8,.2,1) both}
+.c-lijn{stroke-dasharray:900;animation:cteken 1.8s .3s cubic-bezier(.4,0,.2,1) both}
+.c-zweef{animation:czweef 6s ease-in-out infinite}
+.c-puls{width:7px;height:7px;border-radius:50%;background:var(--c-win);display:inline-block;animation:cpuls 1.8s infinite}
+.c-balk{animation:cbalk 1.1s .2s cubic-bezier(.2,.8,.2,1) both}
+.c-toggle{width:34px;height:20px;border-radius:20px;background:#E3E3E0;position:relative;flex:none;transition:background .2s}
+.c-toggle i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .2s}
+.c-toggle-on{background:var(--c-blue)}.c-toggle-on i{left:16px}
+.c-faq{width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--c-line);padding:20px 0;font-family:inherit;font-size:16px;font-weight:500;cursor:pointer;display:flex;justify-content:space-between;color:var(--c-ink)}
+.c-logo-slot{height:48px;border:1px solid var(--c-line);box-shadow:0 1px 2px rgba(10,10,11,.04);border-radius:12px;display:flex;align-items:center;justify-content:center;gap:9px;font-size:14px;font-weight:500;color:var(--c-soft);background:#fff}
+@media (max-width:980px){.c-g2{grid-template-columns:minmax(0,1fr)!important}.c-g3{grid-template-columns:minmax(0,1fr)!important}.c-g4{grid-template-columns:repeat(2,minmax(0,1fr))!important}.c-hide-m{display:none!important}.c-h1{font-size:44px!important}}
+.c-wm{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:21px;letter-spacing:-.04em;color:var(--c-ink)}
+.c-card{border-radius:22px}
+.c-frame{box-shadow:0 2px 4px rgba(10,10,11,.04),0 40px 90px -40px rgba(20,30,90,.45),0 0 0 1px rgba(10,10,11,.04)}
+.c-glass{background:rgba(255,255,255,.72);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);border:1px solid rgba(255,255,255,.8)}
+.c-vs{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:16px;padding:15px 22px;border-top:1px solid var(--c-line2);align-items:center;font-size:14px}
+.c-pcel{padding:28px 24px 22px;border-right:1px solid var(--c-line);transition:background .3s}
+.c-pcel:hover{background:#fff}
+.c-pvis{display:flex;height:44px;margin-top:16px}
+.c-groeibalk{flex:1;background:linear-gradient(180deg,#1B3FE0,#8FA2F5);border-radius:3px;opacity:.85;transform-origin:bottom;animation:cgroeiop .9s cubic-bezier(.2,.8,.2,1) both}
+@keyframes cgroeiop{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.c-segm{flex:1;border:0;background:transparent;font:inherit;font-size:14px;font-weight:500;color:var(--c-grey);padding:9px 12px;border-radius:11px;cursor:pointer;transition:all .25s}
+.c-segm-on{background:#fff;color:var(--c-ink);box-shadow:0 1px 2px rgba(10,10,11,.08),0 4px 12px -4px rgba(10,10,11,.15)}
+
+</style>

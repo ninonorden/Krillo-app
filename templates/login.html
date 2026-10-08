@@ -6,7 +6,7 @@
 <title>Log in | Krillo</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600&family=Space+Grotesk:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 {# 29 september: de inlogpagina in de stijl van Peec. Geen wachtwoord: wij mailen
    de geheime link naar het dashboard (dezelfde werking als /get-my-link). Het
    antwoord is altijd hetzelfde, of het adres nu bekend is of niet, zodat niemand
@@ -15,23 +15,24 @@
   /* 30 september: in de huisstijl van homepage 9 (Space Grotesk, een wit
      vlak met een zachte schaduw op zand, de hoofdknop blauw). */
   *{box-sizing:border-box;}
-  body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:#F7F7F9; color:#0A0A0B;
-       font-family:'Space Grotesk', system-ui, sans-serif; font-size:14.5px;}
+  body{margin:0; min-height:100vh; display:flex; flex-direction:column; background:#F7F7F5; color:#0A0A0B;
+       font-family:Inter, system-ui, sans-serif; font-size:14.5px;}
   main{flex-grow:1; display:flex; align-items:center; justify-content:center; padding:64px 16px;}
-  .vak{width:100%; max-width:420px; background:#fff; border:1px solid #E8E8EC; border-radius:12px; padding:32px 32px 26px;
-       box-shadow:0 1px 2px rgba(10,10,11,.04), 0 12px 28px -12px rgba(10,10,11,.12), 0 40px 80px -32px rgba(10,10,11,.22);}
+  .vak{width:100%; max-width:420px; background:#fff; border:1px solid #E7E7E4; border-radius:20px; padding:32px 32px 26px;
+       box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18);}
   .label{font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.08em; color:#1B3FE0;}
-  h1{font-size:26px; font-weight:700; letter-spacing:-0.03em; margin:8px 0 22px;}
+  h1{font-family:'Inter Tight', Inter, sans-serif; font-size:26px; font-weight:500; letter-spacing:-0.03em; margin:8px 0 22px;}
   label{display:block; font-size:13px; font-weight:500; margin-bottom:6px;}
-  input{width:100%; font:inherit; padding:11px 12px; border:1px solid #E8E8EC; border-radius:8px; background:#fff;}
+  input{width:100%; font:inherit; padding:11px 12px; border:1px solid #E7E7E4; border-radius:10px; background:#fff;}
   input:focus{outline:2px solid #E7EBFF; border-color:#1B3FE0;}
   .uitleg{font-size:13px; color:#6E7079; margin:8px 0 16px;}
-  form button{width:100%; font:inherit; font-weight:500; padding:11px 12px; border:0; border-radius:8px; background:#1B3FE0;
-         color:#fff; cursor:pointer; box-shadow:0 1px 2px rgba(27,63,224,.25), 0 8px 20px -10px rgba(27,63,224,.55);}
-  form button:hover{background:#142FA8;}
-  .klaar{background:#F7F7F9; border:1px solid #E8E8EC; border-radius:10px; padding:16px; line-height:1.55;}
+  form button{width:100%; font:inherit; font-weight:500; padding:11px 12px; border:0; border-radius:10px; background:#0A0A0B;
+         color:#fff; cursor:pointer; box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5);}
+  form button:hover{background:#0A0A0B; transform:translateY(-1px);}
+  .klaar{background:#FAFAF9; border:1px solid #E7E7E4; border-radius:14px; padding:16px; line-height:1.55;}
   .onder{font-size:12.5px; color:#6E7079; margin-top:22px; line-height:1.6;}
   .onder a{color:#4A4A55;}
+  /* VERSIE 10 (8 oktober): papierwit, Inter, zwarte hoofdknop, radius 20; de kleine blauwe label blijft Plex Mono. */
   .nog{font-size:13.5px; margin-top:18px; color:#4A4A55;}
   .nog a{color:#142FA8; text-decoration:none; font-weight:500;}
 </style>

@@ -187,4 +187,9 @@
   .strook, .cta{border-radius:20px;}
   .marktkiezer a{border:1px solid var(--lijn); border-radius:9px;}
   a:hover{color:var(--vermiljoen-tekst);}
+  /* Op een zwarte strook (.cta) zou een zwarte hoofdknop verdwijnen: daar is
+     hij wit met zwarte tekst. */
+  .cta .knop.vol, .cta .knop.donker{background:#fff; color:var(--ink);
+    box-shadow:0 6px 16px -6px rgba(0,0,0,.5);}
+  .cta .knop.vol:hover, .cta .knop.donker:hover{background:#fff; color:var(--ink);}
 </style>

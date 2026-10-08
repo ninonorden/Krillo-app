@@ -20,6 +20,15 @@
   .groot{font-family:var(--disp); font-size:44px; font-weight:700; letter-spacing:-0.02em; line-height:1;}
   .cijfers{display:flex; gap:36px; flex-wrap:wrap; margin:22px 0 10px;}
   @media(max-width:640px){ table.klanten .weg{display:none;} }
+
+  /* VERSIE 10 (8 oktober 2026, Nino: "maak alles zo"). WAAROM: dit blok
+     overschrijft de oude waarden van deze pagina (blauwe knop, radius 8 en
+     12, rand #D8D8DE, Space Grotesk zwaar) zodat ze passen bij de gedeelde
+     laag in _stijl.html. Teksten, id's en scripts zijn niet aangeraakt. */
+  .groot{font-weight:500; letter-spacing:-0.03em;}
+  table.klanten{background:#fff; border:1px solid #E7E7E4; border-radius:18px; overflow:hidden;
+                box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18);}
+  table.klanten th{font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; background:#FAFAF9;}
 </style>
 {% include "_k_stijl.html" %}
 </head>

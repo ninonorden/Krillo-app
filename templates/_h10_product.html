@@ -1,0 +1,321 @@
+{# VERSIE 10 (8 oktober 2026). Dit deel komt letterlijk uit het goedgekeurde canvasbord
+   "Homepage" (artefact Krillo redesign), omgezet met een script; de klassen hebben het
+   voorvoegsel c- zodat ze niet botsen met de oude opmaak. Alles hier is een VOORBEELD
+   (verzonnen winkels, label "Example"); echte cijfers staan in de index-blokken. #}
+<!-- PRODUCT FRAME WITH TABS -->
+<div class="c-sec" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr))">
+<span class="c-plus c-pl"></span><span class="c-plus c-pr"></span>
+<button type="button" class="c-tab c-tab-on">Ranking</button>
+<button type="button" class="c-tab">Buying questions</button>
+<button type="button" class="c-tab">Why you lose</button>
+<button type="button" class="c-tab">Actions</button>
+<button type="button" class="c-tab">AI sales</button>
+</div>
+<div class="c-sky" style="padding:44px 44px 0;border-top:1px solid var(--c-line)">
+<div class="c-card c-frame" style="position:relative;border-radius:18px 18px 0 0;border-bottom:0;display:grid;grid-template-columns:200px minmax(0,1fr);min-height:560px;overflow:hidden">
+<!-- app sidebar -->
+<div class="c-hide-m" style="border-right:1px solid var(--c-line2);padding:16px 12px;background:#FCFCFB">
+<div style="display:flex;align-items:center;gap:8px;padding:4px 6px 16px"><span class="c-mono-tile" style="background:#1B3FE0">Y</span><div><div style="font-size:12.5px;font-weight:600">yourstore.com</div><div style="font-size:11px;color:var(--c-grey)">Toys · NL</div></div></div>
+
+<div style="font-size:12.5px;padding:6px 8px;border-radius:7px;color:#0A0A0B;background:#EFEFED;font-weight:500;margin-top:0">Overview</div>
+
+<div style="font-size:12.5px;padding:6px 8px;border-radius:7px;color:#4A4A55;background:transparent;font-weight:400;margin-top:0">Ranking</div>
+
+<div style="font-size:12.5px;padding:6px 8px;border-radius:7px;color:#4A4A55;background:transparent;font-weight:400;margin-top:0">Buying questions</div>
+
+<div style="font-size:12.5px;padding:6px 8px;border-radius:7px;color:#4A4A55;background:transparent;font-weight:400;margin-top:12px">Why you lose</div>
+
+<div style="font-size:12.5px;padding:6px 8px;border-radius:7px;color:#4A4A55;background:transparent;font-weight:400;margin-top:0">AI answers</div>
+
+<div style="font-size:12.5px;padding:6px 8px;border-radius:7px;color:#4A4A55;background:transparent;font-weight:400;margin-top:0">Sources</div>
+
+<div style="font-size:12.5px;padding:6px 8px;border-radius:7px;color:#4A4A55;background:transparent;font-weight:400;margin-top:12px">Actions</div>
+
+<div style="font-size:12.5px;padding:6px 8px;border-radius:7px;color:#4A4A55;background:transparent;font-weight:400;margin-top:0">AI sales</div>
+
+<div style="font-size:12.5px;padding:6px 8px;border-radius:7px;color:#4A4A55;background:transparent;font-weight:400;margin-top:0">Site check</div>
+
+</div>
+<!-- app main -->
+<div style="padding:16px 20px;min-width:0">
+<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+<span style="font-size:12px;border:1px solid var(--c-line);border-radius:7px;padding:4px 9px">Last 8 weeks</span>
+<span style="font-size:12px;border:1px solid var(--c-line);border-radius:7px;padding:4px 9px">All 35 questions</span>
+<span style="font-size:12px;border:1px solid var(--c-line);border-radius:7px;padding:4px 9px">ChatGPT + Gemini</span>
+<span style="margin-left:auto" class="c-pill"><span style="background:var(--c-loss-bg);color:var(--c-loss);padding:3px 7px;border-radius:6px">Example data</span></span>
+</div>
+
+<!-- TAB 1 ranking -->
+<div data-k10-paneel="1" style="display:block" class="c-op">
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px" class="c-g4">
+
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:12px 14px">
+<div style="font-size:11.5px;color:var(--c-grey)">Named</div>
+<div style="display:flex;align-items:end;justify-content:space-between;margin-top:8px"><div><span class="c-kt" style="font-size:24px">12/35</span> <span style="font-size:11.5px;color:var(--c-win);font-weight:500">+7</span></div>
+<svg width="64" height="22" viewBox="0 0 64 22"><polyline fill="none" stroke="#0B7C5E" stroke-width="1.6" points="0,14 9,14 18,13 27,13 37,12 46,10 55,10 64,9"></polyline></svg></div>
+</div>
+
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:12px 14px">
+<div style="font-size:11.5px;color:var(--c-grey)">Recommended</div>
+<div style="display:flex;align-items:end;justify-content:space-between;margin-top:8px"><div><span class="c-kt" style="font-size:24px">4</span> <span style="font-size:11.5px;color:var(--c-win);font-weight:500">+3</span></div>
+<svg width="64" height="22" viewBox="0 0 64 22"><polyline fill="none" stroke="#0B7C5E" stroke-width="1.6" points="0,16 9,16 18,16 27,13 37,13 46,11 55,11 64,9"></polyline></svg></div>
+</div>
+
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:12px 14px">
+<div style="font-size:11.5px;color:var(--c-grey)">Rank in Toys</div>
+<div style="display:flex;align-items:end;justify-content:space-between;margin-top:8px"><div><span class="c-kt" style="font-size:24px">#5</span> <span style="font-size:11.5px;color:var(--c-win);font-weight:500">+9</span></div>
+<svg width="64" height="22" viewBox="0 0 64 22"><polyline fill="none" stroke="#0B7C5E" stroke-width="1.6" points="0,16 9,15 18,15 27,14 37,13 46,11 55,10 64,9"></polyline></svg></div>
+</div>
+
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:12px 14px">
+<div style="font-size:11.5px;color:var(--c-grey)">Share of voice</div>
+<div style="display:flex;align-items:end;justify-content:space-between;margin-top:8px"><div><span class="c-kt" style="font-size:24px">6%</span> <span style="font-size:11.5px;color:var(--c-win);font-weight:500">+4</span></div>
+<svg width="64" height="22" viewBox="0 0 64 22"><polyline fill="none" stroke="#0B7C5E" stroke-width="1.6" points="0,15 9,15 18,13 27,13 37,12 46,10 55,10 64,9"></polyline></svg></div>
+</div>
+
+</div>
+<div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:10px;margin-top:10px" class="c-g2">
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:14px 16px;position:relative">
+<div style="font-size:12px;color:var(--c-grey)">Share of AI answers over time</div>
+<div class="c-kt" style="font-size:22px;margin-top:2px">12 of 35 <span style="font-size:12px;color:var(--c-win);font-family:Inter;letter-spacing:0">↗ +7</span></div>
+<svg viewBox="0 0 520 190" style="width:100%;height:auto;margin-top:8px">
+<g stroke="#F0F0EE"><line x1="0" y1="20" x2="520" y2="20"></line><line x1="0" y1="75" x2="520" y2="75"></line><line x1="0" y1="130" x2="520" y2="130"></line><line x1="0" y1="185" x2="520" y2="185"></line></g>
+<polyline class="c-lijn" fill="none" stroke="#0A0A0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="0,39 74,33 149,39 223,28 297,33 371,39 446,33 520,39"></polyline><polyline class="c-lijn" fill="none" stroke="#7C5CDB" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" points="0,100 74,105 149,94 223,100 297,105 371,100 446,100 520,100"></polyline><polyline class="c-lijn" fill="none" stroke="#D97706" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" points="0,120 74,115 149,120 223,115 297,110 371,115 446,115 520,115"></polyline><polyline class="c-lijn" fill="none" stroke="#0E7490" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" points="0,130 74,125 149,125 223,120 297,125 371,120 446,120 520,120"></polyline><polyline class="c-lijn" fill="none" stroke="#1B3FE0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" points="0,161 74,161 149,155 223,150 297,145 371,135 446,130 520,125"></polyline>
+<line x1="371" y1="10" x2="371" y2="185" stroke="#0A0A0B" stroke-opacity=".15"></line>
+</svg>
+<div style="position:absolute;left:58%;top:64px;background:#0A0A0B;color:#fff;border-radius:10px;padding:10px 12px;font-size:11.5px;width:168px;box-shadow:0 16px 32px -12px rgba(0,0,0,.4)" class="c-zweef">
+<div style="color:#A6A7B0;margin-bottom:6px">Sat 26 Sep</div>
+<div style="display:flex;align-items:center;gap:7px;padding:2px 0"><i style="width:7px;height:7px;border-radius:2px;background:#0A0A0B"></i><span style="flex:1">Store A</span><b style="font-weight:500">30</b></div><div style="display:flex;align-items:center;gap:7px;padding:2px 0"><i style="width:7px;height:7px;border-radius:2px;background:#7C5CDB"></i><span style="flex:1">Store B</span><b style="font-weight:500">17</b></div><div style="display:flex;align-items:center;gap:7px;padding:2px 0"><i style="width:7px;height:7px;border-radius:2px;background:#D97706"></i><span style="flex:1">Store C</span><b style="font-weight:500">14</b></div><div style="display:flex;align-items:center;gap:7px;padding:2px 0"><i style="width:7px;height:7px;border-radius:2px;background:#1B3FE0"></i><span style="flex:1">yourstore.com</span><b style="font-weight:500">11</b></div>
+</div>
+</div>
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:12px 8px">
+<div style="display:flex;justify-content:space-between;padding:0 10px 6px;font-size:12px;color:var(--c-grey)"><span>Stores in Toys · NL</span><span>Named</span></div>
+
+<div class="c-row" style="grid-template-columns:16px 20px minmax(0,1fr) 34px 38px;background:transparent">
+<span style="font-size:11px;color:var(--c-faint)">1</span><span class="c-mono-tile" style="background:#0A0A0B">A</span>
+<span style="font-size:12.5px;font-weight:500;color:#0A0A0B">Store A</span><span style="font-size:12px;text-align:right">29</span><span style="font-size:11px;text-align:right;color:#9A9BA3">0</span>
+</div>
+
+<div class="c-row" style="grid-template-columns:16px 20px minmax(0,1fr) 34px 38px;background:transparent">
+<span style="font-size:11px;color:var(--c-faint)">2</span><span class="c-mono-tile" style="background:#7C5CDB">B</span>
+<span style="font-size:12.5px;font-weight:500;color:#0A0A0B">Store B</span><span style="font-size:12px;text-align:right">17</span><span style="font-size:11px;text-align:right;color:#0B7C5E">+1</span>
+</div>
+
+<div class="c-row" style="grid-template-columns:16px 20px minmax(0,1fr) 34px 38px;background:transparent">
+<span style="font-size:11px;color:var(--c-faint)">3</span><span class="c-mono-tile" style="background:#D97706">C</span>
+<span style="font-size:12.5px;font-weight:500;color:#0A0A0B">Store C</span><span style="font-size:12px;text-align:right">14</span><span style="font-size:11px;text-align:right;color:#B4471A">-1</span>
+</div>
+
+<div class="c-row" style="grid-template-columns:16px 20px minmax(0,1fr) 34px 38px;background:transparent">
+<span style="font-size:11px;color:var(--c-faint)">4</span><span class="c-mono-tile" style="background:#0E7490">D</span>
+<span style="font-size:12.5px;font-weight:500;color:#0A0A0B">Store D</span><span style="font-size:12px;text-align:right">13</span><span style="font-size:11px;text-align:right;color:#9A9BA3">0</span>
+</div>
+
+<div class="c-row" style="grid-template-columns:16px 20px minmax(0,1fr) 34px 38px;background:#EEF1FD">
+<span style="font-size:11px;color:var(--c-faint)">5</span><span class="c-mono-tile" style="background:#1B3FE0">Y</span>
+<span style="font-size:12.5px;font-weight:600;color:#142FA8">yourstore.com</span><span style="font-size:12px;text-align:right">12</span><span style="font-size:11px;text-align:right;color:#0B7C5E">+9</span>
+</div>
+
+<div class="c-row" style="grid-template-columns:16px 20px minmax(0,1fr) 34px 38px;background:transparent">
+<span style="font-size:11px;color:var(--c-faint)">6</span><span class="c-mono-tile" style="background:#BE185D">E</span>
+<span style="font-size:12.5px;font-weight:500;color:#0A0A0B">Store E</span><span style="font-size:12px;text-align:right">9</span><span style="font-size:11px;text-align:right;color:#B4471A">-2</span>
+</div>
+
+</div>
+</div>
+</div>
+
+<!-- TAB 2 questions -->
+<div data-k10-paneel="2" style="display:none" class="c-op">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 110px 120px 140px 70px;gap:10px;font-size:11.5px;color:var(--c-grey);padding:0 10px 8px;border-bottom:1px solid var(--c-line2)"><span>Buying question</span><span>Asked to</span><span>Your position</span><span>Winning store</span><span>4 weeks</span></div>
+
+<div class="c-row" style="grid-template-columns:minmax(0,1fr) 110px 120px 140px 70px;border-bottom:1px solid var(--c-line2);border-radius:0;padding:11px 10px">
+<span style="font-size:13px;font-weight:500">wooden toys for toddlers</span>
+<span style="display:flex;gap:4px"><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">GPT</span><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">Gem</span></span>
+<span><span class="c-pill" style="background:#E7F6EF;color:#0B7C5E">#2</span></span>
+<span style="display:flex;align-items:center;gap:7px;font-size:12.5px"><span class="c-mono-tile" style="background:#0A0A0B">A</span>Store A</span>
+<svg width="60" height="18" viewBox="0 0 60 18"><polyline fill="none" stroke="#0B7C5E" stroke-width="1.6" points="0,12 12,12 24,11 36,10 48,10 60,9"></polyline></svg>
+</div>
+
+<div class="c-row" style="grid-template-columns:minmax(0,1fr) 110px 120px 140px 70px;border-bottom:1px solid var(--c-line2);border-radius:0;padding:11px 10px">
+<span style="font-size:13px;font-weight:500">montessori toys to buy</span>
+<span style="display:flex;gap:4px"><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">GPT</span><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">Gem</span></span>
+<span><span class="c-pill" style="background:#FFF1E8;color:#B4471A">Not named</span></span>
+<span style="display:flex;align-items:center;gap:7px;font-size:12.5px"><span class="c-mono-tile" style="background:#0A0A0B">A</span>Store A</span>
+<svg width="60" height="18" viewBox="0 0 60 18"><polyline fill="none" stroke="#0B7C5E" stroke-width="1.6" points="0,13 12,13 24,13 36,13 48,13 60,13"></polyline></svg>
+</div>
+
+<div class="c-row" style="grid-template-columns:minmax(0,1fr) 110px 120px 140px 70px;border-bottom:1px solid var(--c-line2);border-radius:0;padding:11px 10px">
+<span style="font-size:13px;font-weight:500">sustainable toy store</span>
+<span style="display:flex;gap:4px"><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">GPT</span><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">Gem</span></span>
+<span><span class="c-pill" style="background:#E7F6EF;color:#0B7C5E">#4</span></span>
+<span style="display:flex;align-items:center;gap:7px;font-size:12.5px"><span class="c-mono-tile" style="background:#7C5CDB">B</span>Store B</span>
+<svg width="60" height="18" viewBox="0 0 60 18"><polyline fill="none" stroke="#0B7C5E" stroke-width="1.6" points="0,13 12,13 24,12 36,12 48,11 60,10"></polyline></svg>
+</div>
+
+<div class="c-row" style="grid-template-columns:minmax(0,1fr) 110px 120px 140px 70px;border-bottom:1px solid var(--c-line2);border-radius:0;padding:11px 10px">
+<span style="font-size:13px;font-weight:500">gift for a 3 year old boy</span>
+<span style="display:flex;gap:4px"><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">GPT</span><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">Gem</span></span>
+<span><span class="c-pill" style="background:#FFF1E8;color:#B4471A">Not named</span></span>
+<span style="display:flex;align-items:center;gap:7px;font-size:12.5px"><span class="c-mono-tile" style="background:#D97706">C</span>Store C</span>
+<svg width="60" height="18" viewBox="0 0 60 18"><polyline fill="none" stroke="#B4471A" stroke-width="1.6" points="0,12 12,13 24,13 36,13 48,13 60,13"></polyline></svg>
+</div>
+
+<div class="c-row" style="grid-template-columns:minmax(0,1fr) 110px 120px 140px 70px;border-bottom:1px solid var(--c-line2);border-radius:0;padding:11px 10px">
+<span style="font-size:13px;font-weight:500">toys with fast delivery</span>
+<span style="display:flex;gap:4px"><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">GPT</span><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">Gem</span></span>
+<span><span class="c-pill" style="background:#E7F6EF;color:#0B7C5E">#6</span></span>
+<span style="display:flex;align-items:center;gap:7px;font-size:12.5px"><span class="c-mono-tile" style="background:#0A0A0B">A</span>Store A</span>
+<svg width="60" height="18" viewBox="0 0 60 18"><polyline fill="none" stroke="#0B7C5E" stroke-width="1.6" points="0,13 12,12 24,12 36,12 48,12 60,11"></polyline></svg>
+</div>
+
+<div class="c-row" style="grid-template-columns:minmax(0,1fr) 110px 120px 140px 70px;border-bottom:1px solid var(--c-line2);border-radius:0;padding:11px 10px">
+<span style="font-size:13px;font-weight:500">educational toys age 5</span>
+<span style="display:flex;gap:4px"><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">GPT</span><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">Gem</span></span>
+<span><span class="c-pill" style="background:#FFF1E8;color:#B4471A">Not named</span></span>
+<span style="display:flex;align-items:center;gap:7px;font-size:12.5px"><span class="c-mono-tile" style="background:#0E7490">D</span>Store D</span>
+<svg width="60" height="18" viewBox="0 0 60 18"><polyline fill="none" stroke="#0B7C5E" stroke-width="1.6" points="0,13 12,13 24,13 36,13 48,13 60,13"></polyline></svg>
+</div>
+
+<div class="c-row" style="grid-template-columns:minmax(0,1fr) 110px 120px 140px 70px;border-bottom:1px solid var(--c-line2);border-radius:0;padding:11px 10px">
+<span style="font-size:13px;font-weight:500">best toy shop Netherlands</span>
+<span style="display:flex;gap:4px"><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">GPT</span><span class="c-pill" style="background:#F2F2F0;color:var(--c-soft)">Gem</span></span>
+<span><span class="c-pill" style="background:#E7F6EF;color:#0B7C5E">#5</span></span>
+<span style="display:flex;align-items:center;gap:7px;font-size:12.5px"><span class="c-mono-tile" style="background:#0A0A0B">A</span>Store A</span>
+<svg width="60" height="18" viewBox="0 0 60 18"><polyline fill="none" stroke="#0B7C5E" stroke-width="1.6" points="0,13 12,12 24,12 36,11 48,10 60,10"></polyline></svg>
+</div>
+
+</div>
+
+<!-- TAB 3 why you lose -->
+<div data-k10-paneel="3" style="display:none" class="c-op">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px" class="c-g2">
+<div>
+<div style="font-size:12px;color:var(--c-grey)">Buying question · ChatGPT · 3 Oct</div>
+<div class="c-kt" style="font-size:22px;margin:4px 0 14px">"wooden toys for toddlers"</div>
+<div style="background:#F7F7F5;border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.65;color:#2A2A30">Good places to buy wooden toys for toddlers include <mark style="background:#ECECEA;padding:1px 4px;border-radius:4px;font-weight:500">Store A</mark>, with a large Montessori range and age labels on every product, and <mark style="background:#ECECEA;padding:1px 4px;border-radius:4px;font-weight:500">Store B</mark>, known for FSC wood and fast delivery …</div>
+<div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="c-pill" style="background:var(--c-loss-bg);color:var(--c-loss)">Not mentioned</span><span style="font-size:12.5px;color:var(--c-soft)">yourstore.com does not appear in this answer</span></div>
+</div>
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:14px 16px">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 64px 64px;font-size:11.5px;color:var(--c-grey);padding-bottom:8px"><span>What AI looks for</span><span style="text-align:center">Store A</span><span style="text-align:center">You</span></div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 64px 64px;align-items:center;padding:9px 0;border-top:1px solid var(--c-line2);font-size:13px">
+<span>Age shown per product</span><span style="text-align:center;color:var(--c-win);font-weight:600">✓</span><span style="text-align:center;color:#B4471A;font-weight:600">✕</span>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 64px 64px;align-items:center;padding:9px 0;border-top:1px solid var(--c-line2);font-size:13px">
+<span>Material and wood type</span><span style="text-align:center;color:var(--c-win);font-weight:600">✓</span><span style="text-align:center;color:#B4471A;font-weight:600">✕</span>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 64px 64px;align-items:center;padding:9px 0;border-top:1px solid var(--c-line2);font-size:13px">
+<span>Page for "Montessori"</span><span style="text-align:center;color:var(--c-win);font-weight:600">✓</span><span style="text-align:center;color:#B4471A;font-weight:600">✕</span>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 64px 64px;align-items:center;padding:9px 0;border-top:1px solid var(--c-line2);font-size:13px">
+<span>Reviews in the page</span><span style="text-align:center;color:var(--c-win);font-weight:600">✓</span><span style="text-align:center;color:#B4471A;font-weight:600">Late</span>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 64px 64px;align-items:center;padding:9px 0;border-top:1px solid var(--c-line2);font-size:13px">
+<span>Delivery terms readable</span><span style="text-align:center;color:var(--c-win);font-weight:600">✓</span><span style="text-align:center;color:#0B7C5E;font-weight:600">✓</span>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 64px 64px;align-items:center;padding:9px 0;border-top:1px solid var(--c-line2);font-size:13px">
+<span>Quoted by review sites</span><span style="text-align:center;color:var(--c-win);font-weight:600">2</span><span style="text-align:center;color:#B4471A;font-weight:600">0</span>
+</div>
+
+<a href="#" class="c-btn c-btn-z" style="height:36px;font-size:13px;margin-top:12px">Turn into 3 actions →</a>
+</div>
+</div>
+</div>
+
+<!-- TAB 4 actions -->
+<div data-k10-paneel="4" style="display:none" class="c-op">
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px" class="c-g4">
+
+<div style="background:#F7F7F5;border-radius:12px;padding:10px">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 4px 10px;font-size:12px;font-weight:600">Suggested<span style="font-weight:500;color:var(--c-grey)">2</span></div>
+
+<div style="background:#fff;border:1px solid var(--c-line);border-radius:10px;padding:11px 12px;margin-bottom:8px;box-shadow:0 1px 2px rgba(10,10,11,.04)">
+<div style="font-size:12.5px;font-weight:500;line-height:1.4">Add age and material to 40 products</div>
+<div style="font-size:11px;color:var(--c-grey);margin:5px 0 8px">Product fields</div>
+<span class="c-pill" style="background:#EEF1FD;color:#1B3FE0">High impact</span>
+</div>
+
+<div style="background:#fff;border:1px solid var(--c-line);border-radius:10px;padding:11px 12px;margin-bottom:8px;box-shadow:0 1px 2px rgba(10,10,11,.04)">
+<div style="font-size:12.5px;font-weight:500;line-height:1.4">One page for "montessori toys"</div>
+<div style="font-size:11px;color:var(--c-grey);margin:5px 0 8px">New collection page</div>
+<span class="c-pill" style="background:#EEF1FD;color:#1B3FE0">High impact</span>
+</div>
+
+</div>
+
+<div style="background:#F7F7F5;border-radius:12px;padding:10px">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 4px 10px;font-size:12px;font-weight:600">Needs approval<span style="font-weight:500;color:var(--c-grey)">1</span></div>
+
+<div style="background:#fff;border:1px solid var(--c-line);border-radius:10px;padding:11px 12px;margin-bottom:8px;box-shadow:0 1px 2px rgba(10,10,11,.04)">
+<div style="font-size:12.5px;font-weight:500;line-height:1.4">Delivery and returns in plain text</div>
+<div style="font-size:11px;color:var(--c-grey);margin:5px 0 8px">Footer and FAQ</div>
+<span class="c-pill" style="background:#FFF1E8;color:#B4471A">Approve</span>
+</div>
+
+</div>
+
+<div style="background:#F7F7F5;border-radius:12px;padding:10px">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 4px 10px;font-size:12px;font-weight:600">Live<span style="font-weight:500;color:var(--c-grey)">2</span></div>
+
+<div style="background:#fff;border:1px solid var(--c-line);border-radius:10px;padding:11px 12px;margin-bottom:8px;box-shadow:0 1px 2px rgba(10,10,11,.04)">
+<div style="font-size:12.5px;font-weight:500;line-height:1.4">Product data for AI</div>
+<div style="font-size:11px;color:var(--c-grey);margin:5px 0 8px">All product pages</div>
+<span class="c-pill" style="background:#E7F6EF;color:#0B7C5E">Live 2 Oct</span>
+</div>
+
+<div style="background:#fff;border:1px solid var(--c-line);border-radius:10px;padding:11px 12px;margin-bottom:8px;box-shadow:0 1px 2px rgba(10,10,11,.04)">
+<div style="font-size:12.5px;font-weight:500;line-height:1.4">Questions and answers page</div>
+<div style="font-size:11px;color:var(--c-grey);margin:5px 0 8px">/pages/faq</div>
+<span class="c-pill" style="background:#E7F6EF;color:#0B7C5E">Live 29 Sep</span>
+</div>
+
+</div>
+
+<div style="background:#F7F7F5;border-radius:12px;padding:10px">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 4px 10px;font-size:12px;font-weight:600">Measured again<span style="font-weight:500;color:var(--c-grey)">1</span></div>
+
+<div style="background:#fff;border:1px solid var(--c-line);border-radius:10px;padding:11px 12px;margin-bottom:8px;box-shadow:0 1px 2px rgba(10,10,11,.04)">
+<div style="font-size:12.5px;font-weight:500;line-height:1.4">"wooden toys for toddlers"</div>
+<div style="font-size:11px;color:var(--c-grey);margin:5px 0 8px">Now named at #2</div>
+<span class="c-pill" style="background:#0A0A0B;color:#fff">Won</span>
+</div>
+
+</div>
+
+</div>
+</div>
+
+<!-- TAB 5 sales -->
+<div data-k10-paneel="5" style="display:none" class="c-op">
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px" class="c-g3">
+
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:14px 16px"><div style="font-size:12px;color:var(--c-grey)">Orders from AI visitors</div><div class="c-kt" style="font-size:30px;margin-top:6px">3</div><div style="font-size:12px;color:var(--c-grey);margin-top:2px">this month</div></div>
+
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:14px 16px"><div style="font-size:12px;color:var(--c-grey)">Revenue from AI visitors</div><div class="c-kt" style="font-size:30px;margin-top:6px">€268</div><div style="font-size:12px;color:var(--c-grey);margin-top:2px">this month</div></div>
+
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:14px 16px"><div style="font-size:12px;color:var(--c-grey)">Visits from AI</div><div class="c-kt" style="font-size:30px;margin-top:6px">41</div><div style="font-size:12px;color:var(--c-grey);margin-top:2px">this month</div></div>
+
+</div>
+<div style="border:1px solid var(--c-line);border-radius:12px;padding:14px 16px;margin-top:10px">
+<div style="font-size:12px;color:var(--c-grey);margin-bottom:10px">Visits from AI assistants, by assistant</div>
+
+<div style="display:grid;grid-template-columns:110px minmax(0,1fr) 50px;gap:12px;align-items:center;padding:7px 0;font-size:13px"><span>ChatGPT</span><span style="height:10px;background:#F2F2F0;border-radius:6px;overflow:hidden"><i class="c-balk" style="display:block;height:100%;width:78%;background:#0A0A0B;border-radius:6px"></i></span><span style="text-align:right">32</span></div>
+
+<div style="display:grid;grid-template-columns:110px minmax(0,1fr) 50px;gap:12px;align-items:center;padding:7px 0;font-size:13px"><span>Gemini</span><span style="height:10px;background:#F2F2F0;border-radius:6px;overflow:hidden"><i class="c-balk" style="display:block;height:100%;width:17%;background:#1B3FE0;border-radius:6px"></i></span><span style="text-align:right">7</span></div>
+
+<div style="display:grid;grid-template-columns:110px minmax(0,1fr) 50px;gap:12px;align-items:center;padding:7px 0;font-size:13px"><span>Other</span><span style="height:10px;background:#F2F2F0;border-radius:6px;overflow:hidden"><i class="c-balk" style="display:block;height:100%;width:5%;background:#9A9BA3;border-radius:6px"></i></span><span style="text-align:right">2</span></div>
+
+<div style="font-size:11.5px;color:var(--c-faint);margin-top:8px">Measured by the Krillo sales pixel on your checkout. Counted per visit, not estimated.</div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+

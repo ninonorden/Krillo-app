@@ -1442,6 +1442,163 @@
   }
   @media (prefers-reduced-motion: reduce){ .k10-balken i, .k10-teken, .k10-land i{animation:none !important;} }
 </style>
+<style>
+  /* VERSIE 10, AVOND (8 oktober): de homepage is nu letterlijk het canvasbord
+     (zie _h10_*.html). Hieronder alleen wat de echte onderdelen (scan, uitslag,
+     prijzen, vragen, slotveld) nodig hebben om in dat ontwerp te passen. */
+  body{background:#F7F7F5;}
+  .k10-home{background:#F7F7F5;}
+  .k10-home .c-rail{max-width:1200px;}
+  .k10-home h1, .k10-home h2, .k10-home h3{font-family:'Inter Tight', Inter, system-ui, sans-serif; font-weight:500;}
+  .k10-home .k9-h1{font-size:66px; letter-spacing:-0.035em;}
+  .k10-scanveld{display:flex; gap:8px; max-width:560px; margin:0 auto; background:#fff; border:2px solid #0A0A0B; border-radius:16px; padding:6px;
+                box-shadow:0 20px 40px -22px rgba(10,10,11,.45);}
+  .k10-scanveld input{flex:1; border:0 !important; outline:0; box-shadow:none !important; background:transparent !important; font:inherit; font-size:17px !important;
+                      padding:0 12px !important; height:50px !important; min-width:0;}
+  .k10-scanveld button{height:50px !important; border:0; border-radius:11px !important; background:#0A0A0B !important; color:#fff !important; font:inherit;
+                       font-size:15.5px !important; font-weight:500 !important; padding:0 20px !important; cursor:pointer;
+                       box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5) !important;}
+  .k10-scanveld button:hover{transform:translateY(-1px);}
+  /* Alle logo's even groot: een vak van 22px met het teken van 16px erin. */
+  .k10-logo{width:22px; height:22px; border-radius:6px; display:inline-grid; place-items:center; flex:none;}
+  .k10-logo img{width:16px; height:16px; display:block;}
+  .k10-logo-groot{width:28px; height:28px; border:1px solid #E7E7E4; border-radius:8px; background:#fff;}
+  .k10-ai{display:flex; flex-wrap:wrap; gap:6px; align-items:center;}
+  .k10-ai .ai-chip{display:inline-flex; align-items:center; gap:4px; background:#fff; border:1px solid #E7E7E4; border-radius:9px; padding:3px 10px 3px 4px; font-size:13px; font-weight:500;}
+  .k10-ai .ai-chip.zacht{color:#9A9BA3;} .k10-ai .ai-chip.zacht img{opacity:.5;}
+  .k10-ai .ai-chip em{font-style:normal; font-family:'IBM Plex Mono', monospace; font-size:9.5px; text-transform:uppercase; margin-left:3px;}
+  .k10-leeg{display:inline-block; width:16px; height:16px; border-radius:4px; border:1px dashed #C9C9C4;}
+  .k9-landen{display:flex; gap:6px; align-items:center;}
+  .k10-uitslag{max-width:980px; margin:28px auto 0; text-align:left;}
+  .k10-uitslag:empty{display:none;}
+  .k10-bewijs-rij{display:grid; grid-template-columns:repeat(4,minmax(0,1fr));}
+  .k10-bewijs-rij .k10-cel{border-left:0;}
+  .k10-home .k9-rij.aan{background:#F7F7F5; box-shadow:inset 2px 0 0 #1B3FE0;}
+  .k10-home .k9-tabs{display:flex; gap:2px; background:#F2F2F0; border-radius:9px; padding:3px;}
+  .k10-home .k9-tabs button{border:0; background:transparent; color:#6E7079; font:inherit; font-size:12.5px; padding:5px 10px; border-radius:7px; cursor:pointer;}
+  .k10-home .k9-tabs button.aan{background:#fff; color:#0A0A0B; box-shadow:0 1px 2px rgba(10,10,11,.1);}
+  .k10-prijzen{background:#F7F7F5; padding:80px 0 72px !important; border-top:1px solid #E7E7E4;}
+  .k10-prijzen .price-grid{display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)) !important; gap:14px !important; margin-top:36px !important;}
+  .k10-prijzen .price-card{padding:24px !important;}
+  .k10-prijzen .periode-keuze{background:#F2F2F0; border-radius:12px; padding:4px; border:0;}
+  .k10-prijzen .periode-keuze button{border-radius:9px;}
+  .k10-prijzen .periode-keuze button.aan{background:#fff; color:#0A0A0B; box-shadow:0 1px 2px rgba(10,10,11,.1);}
+  .k10-prijzen .prijs-voet{text-align:center; margin-top:22px; color:#6E7079; font-size:14px;}
+  .k10-prijzen .k9-h2{max-width:none;} .k10-prijzen .k9-prijskop{max-width:none !important;}
+  .k10-prijzen .prijs-voet div{max-width:none; margin:0 auto;}
+  .c-k a.c-btn-z{color:#fff;} .c-k a.c-btn-w{color:#0A0A0B;}
+  .k10-faq button{width:100%; display:flex; justify-content:space-between; gap:16px; text-align:left; background:transparent; border:0; border-bottom:1px solid #E7E7E4;
+                  padding:20px 0; cursor:pointer; font:inherit; color:#0A0A0B;}
+  .k10-faq button b{display:block; font-size:16px; font-weight:500;}
+  .k10-faq button i{display:none; font-style:normal; font-size:15px; line-height:1.6; color:#4A4A55; margin-top:10px;}
+  .k10-faq button.aan i{display:block;}
+  .k10-faq button em{font-style:normal; color:#6E7079;}
+  .k10-faq{border-top:1px solid #E7E7E4;}
+  .k10-slot{display:inline-flex; gap:8px; width:100%; max-width:520px; background:#fff; border:2px solid #0A0A0B; border-radius:16px; padding:6px;
+            box-shadow:0 20px 40px -22px rgba(10,10,11,.45);}
+  .k10-slot input{flex:1; border:0; outline:0; font:inherit; font-size:17px; padding:0 12px; min-width:0; background:transparent;}
+  .k10-slot button{height:48px; border-radius:11px !important;}
+  @media(max-width:980px){
+    .k10-home .k9-h1{font-size:42px;}
+    .k10-bewijs-rij{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .k10-prijzen .price-grid{grid-template-columns:minmax(0,1fr) !important;}
+    .k10-home .c-g2, .k10-home .c-g3{grid-template-columns:minmax(0,1fr) !important;}
+    .k10-home .c-g4{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
+    .k10-home .c-hide-m{display:none !important;}
+    .k10-scanveld{flex-direction:column;} .k10-scanveld button{width:100%;}
+  }
+  /* DE GRATIS UITSLAG ALS MINI-RAPPORT (versie 10, canvasbord "Gratis uitslag"). */
+  .k10r-kaart{background:#fff; border:1px solid #E7E7E4; border-radius:20px; box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18); margin-bottom:16px;}
+  .k10r-oordeel{padding:26px 28px;}
+  .k10r-kop{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:14px;}
+  .k10r-tegel{width:26px; height:26px; border-radius:8px; background:#1B3FE0; color:#fff; display:inline-grid; place-items:center; font-size:12px; font-weight:600; flex:none;}
+  .k10r-tegel-z{background:#0A0A0B; width:22px; height:22px; font-size:10.5px; border-radius:6px;}
+  .k10r-grijs{color:#6E7079; font-size:12.5px;}
+  .k10r-titel{font-family:'Inter Tight', Inter, sans-serif; font-weight:500; letter-spacing:-0.03em; font-size:38px; line-height:1.06; margin:18px 0 6px;}
+  .k10r-sub{font-size:18px; color:#B4471A; font-weight:500;}
+  .k10r-tegels{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:20px;}
+  .k10r-tegels div{background:#F7F7F5; border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:4px;}
+  .k10r-tegels span{font-size:12px; color:#6E7079;}
+  .k10r-tegels b{font-family:'Inter Tight', Inter, sans-serif; font-weight:500; font-size:24px; letter-spacing:-0.03em;}
+  .k10r-rood{color:#B4471A;}
+  .k10r-blokkop{margin:30px 0 12px;}
+  .k10r-blokkop h3{font-family:'Inter Tight', Inter, sans-serif; font-weight:500; font-size:26px; letter-spacing:-0.03em; margin:0;}
+  .k10r-blokkop span{font-size:14px; color:#6E7079;}
+  .k10r-tabel{overflow:hidden;}
+  .k10r-rij{display:grid; grid-template-columns:minmax(0,1.4fr) 110px minmax(0,1.6fr); gap:12px; padding:14px 20px; border-top:1px solid #F0F0EE; align-items:center; font-size:14px;}
+  .k10r-tkop{background:#FAFAF9; border-top:0; font-size:12px; color:#6E7079;}
+  .k10r-vraag{font-weight:500;}
+  .k10r-vaag{filter:blur(3.5px); opacity:.6; user-select:none;}
+  .k10r-voet{display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; background:#FAFAF9; font-size:13.5px; color:#4A4A55;}
+  .k10r-voet a, .k10r-link{color:#1B3FE0; font-weight:500;}
+  .k10r-pil{font-style:normal; font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:.04em; text-transform:uppercase; padding:3px 7px; border-radius:6px; display:inline-block; margin:2px 0;}
+  .k10r-pil-rood{background:#FFF1E8; color:#B4471A;} .k10r-pil-groen{background:#E7F6EF; color:#0B7C5E; font-family:Inter, sans-serif; text-transform:none; letter-spacing:0; font-size:12px; font-weight:500;}
+  .k10r-voor{padding:20px 22px;}
+  .k10r-voor b{display:block; font-size:15px; margin-bottom:8px;}
+  .k10r-voorrij{display:grid; grid-template-columns:22px 22px minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 6px; border-radius:8px; font-size:14px;}
+  .k10r-jij{background:#EEF1FD; color:#142FA8; font-weight:600;}
+  .k10r-link{display:inline-block; margin-top:8px; font-size:13.5px;}
+  .k10r-kansen{margin-top:24px; border-radius:24px; padding:36px 32px; border:1px solid #E7E7E4; text-align:center;
+    background:radial-gradient(120% 90% at 20% 0%, #D6DEFA 0%, rgba(214,222,250,0) 55%), radial-gradient(90% 80% at 90% 100%, #F4EBDD 0%, rgba(244,235,221,0) 60%), linear-gradient(180deg, #E7ECFB 0%, #F3F1EC 100%);}
+  .k10r-kansen h3{font-family:'Inter Tight', Inter, sans-serif; font-weight:500; font-size:34px; letter-spacing:-0.03em; line-height:1.08; margin:0 0 8px;}
+  .k10r-kansen > p{font-size:16px; color:#4A4A55; margin:0 auto 22px; max-width:560px;}
+  .k10r-keuze{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:14px; max-width:760px; margin:0 auto; text-align:left;}
+  .k10r-plan{background:#fff; border:1px solid #E7E7E4; border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:6px;}
+  .k10r-plan > div{display:flex; justify-content:space-between; font-family:'Inter Tight', Inter, sans-serif; font-size:21px; font-weight:500;}
+  .k10r-plan em{font-style:normal; font-weight:500;}
+  .k10r-plan p{font-size:13.5px; color:#4A4A55; margin:0 0 10px; line-height:1.55; flex:1;}
+  .k10r-plan-donker{background:#0A0A0B; color:#fff; border-color:#0A0A0B; box-shadow:0 36px 70px -34px rgba(27,63,224,.6);}
+  .k10r-plan-donker p{color:#C4C5CC;}
+  .k10r-knop-wit, .k10r-knop-zwart{display:block; text-align:center; height:46px; line-height:46px; border-radius:11px; font-weight:500; text-decoration:none;}
+  .k10r-knop-wit{background:#fff; color:#0A0A0B; border:1px solid #E7E7E4;}
+  .k10r-plan-donker .k10r-knop-zwart{background:#fff; color:#0A0A0B;}
+  .k10r-feiten{margin-top:16px; font-size:13px; color:#4A4A55;}
+  .k10-uitslag .scan-check{background:#fff; border:1px solid #E7E7E4; border-radius:14px; padding:12px 14px; margin-bottom:8px;}
+  .k10-uitslag .scan-categorie-label{font-family:'Inter Tight', Inter, sans-serif; font-size:22px; font-weight:500; letter-spacing:-0.02em; margin:26px 0 10px;}
+  .k10-uitslag .scan-result-score{background:#fff; border:1px solid #E7E7E4; border-radius:20px;}
+  .k10-uitslag .scan-rang{border-radius:16px !important; background:#fff !important; border-color:#E7E7E4 !important;}
+  .k10-uitslag .scan-rang button, .k10-uitslag #handKnop, .k10-uitslag #wachtKnop{background:#0A0A0B !important;}
+  @media(max-width:760px){ .k10r-tegels{grid-template-columns:repeat(2,minmax(0,1fr));} .k10r-rij{grid-template-columns:minmax(0,1fr);} .k10r-keuze{grid-template-columns:minmax(0,1fr);} .k10r-titel{font-size:30px;} }
+</style>
+<script>
+  /* VERSIE 10: de tabs boven het product, de zes stappen en de knoppen die
+     naar de gratis check springen. Gewoon JavaScript; valt het om, dan staat
+     de eerste tab en de eerste stap open in de HTML zelf. */
+  document.addEventListener('DOMContentLoaded', function(){
+    function alle(sel, ouder){ return Array.prototype.slice.call((ouder || document).querySelectorAll(sel)); }
+    var tabs = alle('[data-k10-tab]');
+    tabs.forEach(function(k){
+      k.addEventListener('click', function(){
+        tabs.forEach(function(t){ t.classList.toggle('c-tab-on', t === k); });
+        alle('[data-k10-paneel]').forEach(function(p){
+          var aan = p.getAttribute('data-k10-paneel') === k.getAttribute('data-k10-tab');
+          p.style.display = aan ? 'block' : 'none';
+          if (aan){ p.classList.remove('c-op'); void p.offsetWidth; p.classList.add('c-op'); }
+        });
+      });
+    });
+    var stappen = alle('[data-k10-stap]');
+    stappen.forEach(function(k){
+      k.addEventListener('click', function(){
+        var n = k.getAttribute('data-k10-stap');
+        stappen.forEach(function(s){
+          var aan = s === k;
+          s.classList.toggle('c-step-on', aan);
+          var u = s.querySelector('[data-k10-uitleg]'); if (u) u.style.display = aan ? 'block' : 'none';
+        });
+        alle('[data-k10-vis]').forEach(function(v){ v.hidden = v.getAttribute('data-k10-vis') !== n; });
+      });
+    });
+    alle('[data-naar-scan]').forEach(function(a){
+      a.addEventListener('click', function(e){
+        var veld = document.getElementById('scanUrlInput'); if (!veld) return;
+        e.preventDefault();
+        document.getElementById('scan').scrollIntoView({behavior: 'smooth'});
+        setTimeout(function(){ veld.focus(); }, 450);
+      });
+    });
+  });
+</script>
 <script>
   /* Waarom Krillo: de schakelaar tussen Krillo en de andere tools (versie 10). */
   document.addEventListener('DOMContentLoaded', function(){
@@ -1506,185 +1663,69 @@
 
 {% include "_kop.html" %}
 
-<div class="k9">
+{# ======================================================================
+   HOMEPAGE VERSIE 10 (8 oktober 2026, avond). Nino: "verander het precies
+   zoals je had gestuurd". Dit is het canvasbord "Homepage" van het artefact
+   Krillo redesign, in dezelfde volgorde. Wat een VOORBEELD is staat er met
+   het label Example; wat echt is (de index, de cijfers, de prijzen) komt uit
+   de database en de code, net als in versie 9.
 
-{# 7 OKTOBER AVOND (Nino, na een review): korter en in deze volgorde:
-   kop met de index als bewijs, het probleem, het product, wat het oplevert, de
-   prijzen, en vertrouwen achter uitklappers. De zes kaarten en het kwadrant
-   zijn eruit: te veel lezen voor iemand die via een advertentie binnenkomt. #}
-{# DE HERO. Links de belofte en het invoerveld (de scan is nog steeds de
-   hoofdingang), rechts de index van vandaag met zwevende kaartjes. #}
-<section class="k9-hero" id="scan">
-  <div class="k9-binnen k9-hero-grid">
-    <div class="k9-hero-tekst">
-      {# 30 september, Nino: "het moet duidelijk zijn dat wij gaan groeien". Het
-         label zegt wat Krillo is (voor webshops, overal); waar we NU meten staat
-         in de regel onder de knop, uit markten.py. Komt er een land bij, dan
-         past die regel zich vanzelf aan. #}
-      <span class="k10-pil"><span class="k10-pil-tag">For online stores</span>AI shopping visibility</span>
-      {# 7 oktober middag (Nino, na een review): de kop zegt nu letterlijk wat
-         Krillo doet. "Make your store the answer..." blijft de positionering in
-         de paginatitel en voor Google. #}
-      {# 8 oktober (versie 10, goedgekeurd door Nino): de kop uit het ontwerp. #}
-      <h1 class="k9-h1">See who AI recommends.<br><span class="k10-zacht">Understand why.</span> Move up.</h1>
-      <p class="k9-intro">Shoppers now ask ChatGPT and Gemini where to buy. Krillo shows which stores they recommend in your category, who beats you, what to change, and what it brings in sales.</p>
-      <div class="scan-form">
-        <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
-        <button type="button" id="scanButton">Check my store free</button>
-      </div>
-      {# 7 oktober: de teller "used ... times" bleef op 215 staan (het tellen faalde soms). Een getal dat niet klopt, weg. #}
-      <div class="hero-note" id="scanNote">FREE &middot; NO ACCOUNT &middot; YOUR RANK + 13 CHECKS</div>
-      {# 7 oktober (Nino): welke assistenten we meten, eerlijk. Alleen namen als
-         tekst, geen logo's: die zijn van de bedrijven zelf, en wat we nog niet
-         meten staat er als "soon", niet als belofte. #}
-      {# 8 oktober (Nino): de officiele logo's, want die geven vertrouwen. Ze komen
-         uit static/logos; staat een bestand er (nog) niet, dan een neutraal vakje.
-         Wat we nog niet meten is "soon", nooit een belofte. #}
-      <div class="ai-rij k10-ai" aria-label="Assistants we measure"><span class="k9-mono">MEASURED IN</span>
-        {% for a in assistenten %}<span class="ai-chip{{ '' if a.gemeten else ' zacht' }}">{% if logo_bestaat is defined and logo_bestaat(a.logo) %}<img src="/static/logos/{{ a.logo }}.svg" alt="" width="14" height="14">{% else %}<i class="k10-leeg"></i>{% endif %}{{ a.naam }}{% if not a.gemeten %} <em>soon</em>{% endif %}</span>{% endfor %}</div>
-      <div class="k9-landen k9-mono" id="liveLanden"><span class="k9-landen-stip"></span>LIVE IN {{ index_landen_kaal_en | upper }} &middot; <a href="/index#wachtlijst" title="Leave your email and we tell you when your country goes live">MORE COUNTRIES SOON</a></div>
-      <div id="scanResult" class="scan-result"></div>
-    </div>
+   De vaste id's (scanUrlInput, scanButton, scanResult, scanNote,
+   watchCheckoutBtn, fixCheckoutBtn, slotForm, slotUrl, de periodeknoppen)
+   horen bij de scripts onderaan. Niet hernoemen: tests bewaken ze.
+   ====================================================================== #}
+{% include "_h10_stijl.html" %}
+<div class="c-k k10-home">
+<div class="c-rail">
 
-    <div class="k9-hero-rechts">
-      {% set tabs = index.tabs if index and index.tabs else [] %}
-      {% if tabs and tabs[0].stijger %}
-      <div class="k9-zwevend k9-zweef k9-stijger" data-tab-stijger>
-        <span class="k9-pijl">&#9650;{{ tabs[0].stijger.plekken }}</span>
-        <span><b>{{ tabs[0].stijger.naam }} moved up {{ tabs[0].stijger.plekken }} places</b>
-          <i>{{ tabs[0].naam }} &middot; now #{{ tabs[0].stijger.positie }}</i></span>
-      </div>
-      {% endif %}
-
-      <div class="indexkaart k9-kaart k9-laag">
-        <div class="k9-kaartkop">
-          <b>The index today</b>
-          <span class="k9-mono k9-grijs">{{ (index.landen[0].land if index and index.landen else 'nl') | upper }}</span>
-          {% if tabs | length > 1 %}
-          <div class="k9-tabs" role="tablist">
-            {% for t in tabs %}<button type="button" role="tab" class="{{ 'aan' if loop.first }}" data-tab="{{ loop.index0 }}">{{ t.naam }}</button>{% endfor %}
-          </div>
-          {% endif %}
-        </div>
-        {% if tabs %}
-        {% for t in tabs %}
-        <div class="k9-tab" data-paneel="{{ loop.index0 }}"{% if not loop.first %} hidden{% endif %}>
-          {# Kolommen: genoemd (met balk), aangeraden, en de beweging alleen als
-             er een vorige meting is. Zonder die kolom stonden er zeven puntjes. #}
-          <div class="k9-rij k9-rijkop k9-mono"><span>#</span><span>STORE</span><span>NAMED</span><span class="r">ADVISED</span><span class="r">{{ 'MOVE' if t.beweging else '' }}</span></div>
-          {% for r in t.rijen %}
-          <button type="button" class="k9-rij{{ ' aan' if loop.first }}" data-kies
-                  data-naam="{{ r.naam }}" data-genoemd="{{ r.genoemd }}/{{ t.telbaar }}"
-                  data-aanbevolen="{{ r.aanbevolen }}" data-telbaar="{{ t.telbaar }}" data-vorige="{{ ('last month #' ~ r.vorige) if r.vorige else 'first measurement' }}">
-            <span class="k9-pos">{{ r.positie }}</span>
-            <span class="k9-naam">{{ r.naam }}</span>
-            <span class="k9-balk"><i style="width:{{ r.breedte }}%"></i><em class="k9-mono">{{ r.genoemd }}/{{ t.telbaar }}</em></span>
-            <span class="r k9-mono">{{ r.aanbevolen }}</span>
-            <span class="r k9-mono {{ 'k9-op' if r.beweging.startswith('▲') }}">{{ r.beweging if t.beweging else '' }}</span>
-          </button>
-          {% endfor %}
-          <div class="k9-waarom op">
-            <span class="k9-mono k9-grijs" data-uit="kop">{{ t.rijen[0].naam | upper }}</span>
-            <span data-uit="tekst">Named in {{ t.rijen[0].genoemd }} of {{ t.telbaar }} questions &middot; recommended in {{ t.rijen[0].aanbevolen }} &middot; {{ ('last month #' ~ t.rijen[0].vorige) if t.rijen[0].vorige else 'first measurement' }}</span>
-          </div>
-          <div class="k9-kaartvoet">
-            <span>Top 7 of {{ t.winkels }} stores we measure in {{ t.naam }}, ranked by how often AI recommends a store, then how often it names it{% if t.niet_genoemd %}. {{ t.niet_genoemd }} other stores were named in none of the answers{% endif %}</span>
-            <a href="/index/{{ t.land }}/{{ t.categorie }}">Open this ranking &rarr;</a>
-          </div>
-        </div>
-        {% endfor %}
-        {% endif %}
-        <div class="k9-cijfers k9-mono">
-          {% if index and index.cijfers %}
-          {% if index.cijfers.categorieen %}<span><b>{{ index.cijfers.categorieen }}</b> CATEGORIES</span>{% endif %}
-          {% if index.cijfers.winkels %}<span><b>{{ index.cijfers.winkels }}</b> STORES RANKED</span>{% endif %}
-          {% if index.cijfers.antwoorden %}<span><b>{{ index.cijfers.antwoorden }}</b> ANSWERS KEPT</span>{% endif %}
-          {% endif %}
-          {# Ons eigen cijfer als het er is, anders iets dat altijd waar is. #}
-          {% if eigen_cijfer %}<span class="k9-gewoon"><b>{{ eigen_cijfer.deel }}%</b> never named, of {{ eigen_cijfer.gemeten }} stores in the index</span>
-          {% else %}<span class="k9-gewoon"><b>30+</b> Buying questions per store</span>{% endif %}
-          <span>{% if index and index.landen %}LIVE <b>{% for l in index.landen %}{{ l.land | upper }}{% if not loop.last %} {% endif %}{% endfor %}</b>{% endif %}</span>
-        </div>
-      </div>
-
-      {% if tabs and tabs[0].vraag %}
-      <div class="k9-zwevend k9-zweef2 k9-vraagkaart" aria-hidden="true">
-        <span class="k9-mono k9-grijs">A DUTCH SHOPPER ASKS CHATGPT</span>
-        <span class="k9-typ-vak"><span class="k9-typ">{{ tabs[0].vraag }}</span></span>
-        <span class="k9-chips k9-mono"><span>IN {{ vraagtaal_en(tabs[0].land) | upper }}, AS SHOPPERS ASK IT</span><span class="blauw">{{ tabs[0].naam | upper }}</span><span>1 OF {{ tabs[0].telbaar }} QUESTIONS</span></span>
-      </div>
-      {% endif %}
-    </div>
+<!-- HERO -->
+<section id="scan" style="padding:84px 24px 40px;text-align:center">
+  <div class="c-op" style="display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--c-line);border-radius:30px;padding:5px 12px 5px 6px;font-size:13px;color:var(--c-soft);box-shadow:0 1px 2px rgba(10,10,11,.04)"><span class="c-pill" style="background:var(--c-blue-bg);color:var(--c-blue)">For online stores</span>Live in {{ index_landen_en }}, more countries soon</div>
+  <h1 class="c-kt c-op2 c-h1 k9-h1" style="font-size:66px;line-height:1.02;margin:22px auto 18px;max-width:900px">See who AI recommends.<br><span style="color:var(--c-faint)">Understand why.</span> Move up.</h1>
+  <p class="c-op3" style="font-size:18.5px;line-height:1.55;color:var(--c-soft);margin:0 auto 30px;max-width:640px">Shoppers now ask ChatGPT and Gemini where to buy. Krillo shows which stores they recommend in your category, who beats you, what to change, and what it brings in sales.</p>
+  <div class="scan-form k10-scanveld c-op3">
+    <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
+    <button type="button" id="scanButton">Check my store free &rarr;</button>
   </div>
+  <div class="hero-note" id="scanNote" style="font-size:13px;color:var(--c-grey);margin-top:14px">Free &middot; No account &middot; Your rank, who beats you and 13 website checks</div>
+  <div class="k10-ai" aria-label="Assistants we measure" style="justify-content:center;margin-top:18px"><span class="c-km" style="font-size:10.5px;color:var(--c-grey)">MEASURED IN</span>
+    {% for a in assistenten %}<span class="ai-chip{{ '' if a.gemeten else ' zacht' }}"><span class="k10-logo">{% if logo_bestaat is defined and logo_bestaat(a.logo) %}<img src="/static/logos/{{ a.logo }}.svg" alt="" width="16" height="16">{% else %}<i class="k10-leeg"></i>{% endif %}</span>{{ a.naam }}{% if not a.gemeten %} <em>soon</em>{% endif %}</span>{% endfor %}
+  </div>
+  <div class="k9-landen k9-mono" id="liveLanden" style="justify-content:center;margin-top:12px"><span class="k9-landen-stip"></span>LIVE IN {{ index_landen_kaal_en | upper }} &middot; <a href="/index#wachtlijst" title="Leave your email and we tell you when your country goes live">MORE COUNTRIES SOON</a></div>
+  <div id="scanResult" class="scan-result k10-uitslag"></div>
 </section>
 
-{# BEWIJSSTROOK (8 oktober, versie 10). De vier cijfers van de index, elk met
-   een klein bewegend beeld (Nino: "wat minder statisch"). De cijfers zijn echt
-   en komen uit de index; de beeldjes zijn versiering en zeggen niets extra. #}
+{% include "_h10_product.html" %}
+
+{# BEWIJSSTROOK: de echte cijfers van de index, met bewegende beeldjes. #}
 {% if index and index.cijfers %}
-<section class="k10-bewijs" aria-label="The Krillo Index in numbers">
-  <div class="k9-binnen k10-bewijs-rij">
-    {% if index.cijfers.categorieen %}<div class="k10-cel"><b>{{ index.cijfers.categorieen }}</b><span>categories measured</span>
-      <div class="k10-vis k10-balken">{% for h in [40,65,50,85,55,95,70,60,80,45,75,90] %}<i style="height:{{ h }}%;animation-delay:{{ loop.index0 * 0.06 }}s"></i>{% endfor %}</div></div>{% endif %}
-    {% if index.cijfers.winkels %}<div class="k10-cel"><b>{{ index.cijfers.winkels }}</b><span>stores ranked</span>
-      <div class="k10-vis k10-tegels">{% set tabs0 = index.tabs[0].rijen if index.tabs else [] %}{% for r in tabs0[:5] %}<i style="background:{{ ['#0A0A0B','#7C5CDB','#D97706','#0E7490','#BE185D'][loop.index0] }}">{{ r.naam[:1] | upper }}</i>{% endfor %}<span>and every other store in each category</span></div></div>{% endif %}
-    {% if index.cijfers.antwoorden %}<div class="k10-cel"><b>{{ index.cijfers.antwoorden }}</b><span>AI answers kept</span>
-      <div class="k10-vis"><svg viewBox="0 0 200 44" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="k10g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#1B3FE0" stop-opacity=".16"/><stop offset="1" stop-color="#1B3FE0" stop-opacity="0"/></linearGradient></defs><polygon fill="url(#k10g)" points="0,40 25,36 50,37 75,30 100,27 125,22 150,18 175,10 200,6 200,44 0,44"/><polyline class="k10-teken" fill="none" stroke="#1B3FE0" stroke-width="2" stroke-linecap="round" points="0,40 25,36 50,37 75,30 100,27 125,22 150,18 175,10 200,6"/></svg></div></div>{% endif %}
-    <div class="k10-cel"><b>{{ index.landen | length if index.landen else 2 }}</b><span>countries live, more soon</span>
-      <div class="k10-vis k10-landen">{% for l in index.landen %}<span class="k10-land"><i></i>{{ {'nl':'Netherlands','be':'Belgium','de':'Germany','fr':'France','uk':'United Kingdom'}.get(l.land, l.land | upper) }}</span>{% endfor %}<a class="k10-land k10-land-later" href="/index#wachtlijst">+ soon</a></div></div>
-  </div>
-</section>
+<div class="c-sec k10-bewijs-rij" aria-label="The Krillo Index in numbers">
+  <span class="c-plus c-pl"></span><span class="c-plus c-pr"></span>
+  {% if index.cijfers.categorieen %}<div class="k10-cel"><b>{{ index.cijfers.categorieen }}</b><span>categories measured</span>
+    <div class="k10-vis k10-balken">{% for h in [40,65,50,85,55,95,70,60,80,45,75,90] %}<i style="height:{{ h }}%;animation-delay:{{ loop.index0 * 0.06 }}s"></i>{% endfor %}</div></div>{% endif %}
+  {% if index.cijfers.winkels %}<div class="k10-cel"><b>{{ index.cijfers.winkels }}</b><span>stores ranked</span>
+    <div class="k10-vis k10-tegels">{% set rijen0 = index.tabs[0].rijen if index.tabs else [] %}{% for r in rijen0[:5] %}<i style="background:{{ ['#0A0A0B','#7C5CDB','#D97706','#0E7490','#BE185D'][loop.index0] }}">{{ r.naam[:1] | upper }}</i>{% endfor %}<span>every store in each category</span></div></div>{% endif %}
+  {% if index.cijfers.antwoorden %}<div class="k10-cel"><b>{{ index.cijfers.antwoorden }}</b><span>AI answers kept</span>
+    <div class="k10-vis"><svg viewBox="0 0 200 44" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="k10g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#1B3FE0" stop-opacity=".16"/><stop offset="1" stop-color="#1B3FE0" stop-opacity="0"/></linearGradient></defs><polygon fill="url(#k10g)" points="0,40 25,36 50,37 75,30 100,27 125,22 150,18 175,10 200,6 200,44 0,44"/><polyline class="k10-teken" fill="none" stroke="#1B3FE0" stroke-width="2" stroke-linecap="round" points="0,40 25,36 50,37 75,30 100,27 125,22 150,18 175,10 200,6"/></svg></div></div>{% endif %}
+  <div class="k10-cel" style="border-right:0"><b>{{ index.landen | length if index.landen else 2 }}</b><span>countries live, more soon</span>
+    <div class="k10-vis k10-landen">{% for l in index.landen %}<span class="k10-land"><i></i>{{ {'nl':'Netherlands','be':'Belgium','de':'Germany','fr':'France','uk':'United Kingdom'}.get(l.land, l.land | upper) }}</span>{% endfor %}<a class="k10-land k10-land-later" href="/index#wachtlijst">+ soon</a></div></div>
+</div>
 {% endif %}
+{# Ons eigen cijfer als het er is (genoeg winkels gemeten), anders iets dat
+   altijd waar is. Nooit een extern cijfer waarvan we de bron niet kunnen
+   aanwijzen. Staat buiten het indexblok, zodat het ook zonder index klopt. #}
+<div class="c-sec" style="padding:14px 24px;font-size:12.5px;color:var(--c-grey);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><span>{% if eigen_cijfer %}<b style="color:var(--c-ink)">{{ eigen_cijfer.deel }}%</b> never named, of {{ eigen_cijfer.gemeten }} stores in the index.{% else %}<b style="color:var(--c-ink)">30+</b> Buying questions per store.{% endif %} Krillo Index, public and dated.{% if index and index.gemeten_op %} Updated {{ index.gemeten_op.strftime('%-d %b %Y') }}.{% endif %}</span><span>No paid positions. Every answer kept. <a href="/how-we-measure" style="color:var(--c-blue)">How we measure &rarr;</a></span></div>
 
-{# WAT AI ZEGT. De drie getallen die we tellen, met de echte top 3 van de
-   eerste categorie. Klik een getal en een winkel: het zwarte vak laat het
-   echte cijfer zien. Er staat geen verzonnen AI-tekst bij. #}
-{% if tabs and tabs[0].rijen | length >= 3 %}
-{% set t0 = tabs[0] %}
-<section class="k9-sectie" id="wat-ai-zegt">
-  <div class="k9-binnen">
-    <div class="k9-sectiekop">
-      <div><span class="k9-label">WHAT WE COUNT</span>
-        <h2 class="k9-h2">AI is already recommending stores. Is yours one of them?</h2></div>
-      <div><p>Real numbers from our latest measurement. Click a store.</p></div>
-    </div>
-    <div class="k9-tellen" data-tellen>
-      <div class="k9-tellen-links">
-        <button type="button" class="aan" data-maat="0"><span class="k9-mono">01</span><span><b>Named</b><i>How often AI mentions a store in its answer.</i></span></button>
-        <button type="button" data-maat="1"><span class="k9-mono">02</span><span><b>Recommended</b><i>How often AI advises buying there. This counts first.</i></span></button>
-        <button type="button" data-maat="2"><span class="k9-mono">03</span><span><b>Rank</b><i>The place among every store we measure in the category.</i></span></button>
-        <div class="k9-tellen-voet"><span class="k9-mono k9-grijs">IN YOUR DASHBOARD</span>For all {{ t0.telbaar }} questions, both assistants, every month.</div>
-      </div>
-      <div class="k9-tellen-rechts">
-        {% if t0.vraag %}<span class="k9-bubbel">{{ t0.vraag }}</span><span class="k9-taal k9-mono">ASKED IN {{ vraagtaal_en(t0.land) | upper }}, THE LANGUAGE OF THE MARKET</span>{% endif %}
-        <div class="k9-antwoord k9-laag">
-          <span class="k9-mono k9-grijs">THE INDEX &middot; {{ t0.naam | upper }} &middot; {{ t0.land | upper }}</span>
-          <span>The top 3 of the ranking, over {{ t0.telbaar }} buying questions like this one. Recommended counts first, then named.</span>
-          {% for r in t0.rijen[:3] %}
-          <div class="k9-antwoordrij"><span class="k9-mono k9-grijs">{{ loop.index }}.</span>
-            <button type="button" class="k9-winkelknop{{ ' aan' if loop.index0 == 1 }}" data-winkel="{{ loop.index0 }}"
-                    data-w0="{{ r.genoemd }} of {{ t0.telbaar }}" data-w1="{{ r.aanbevolen }} of {{ t0.telbaar }}" data-w2="#{{ r.positie }}">{{ r.naam }}</button></div>
-          {% endfor %}
-        </div>
-        <div class="k9-uitkomst op" data-uitkomst>
-          <span class="k9-mono" data-u="kop"></span><b data-u="getal"></b><span data-u="tekst"></span>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-{% endif %}
-
-{# WAAROM KRILLO (8 oktober, versie 10). Het verschil met de grote AI-SEO-tools,
-   met een schakelaar (Nino: "clean maar misschien interactief"). Over de anderen
-   zeggen we bewust "usually" en "mostly": we kennen niet elke tool van binnen. #}
-<section class="k9-sectie" id="waarom-krillo">
-  <div class="k9-binnen k10-waarom">
+{# WAAROM KRILLO: het verschil met de grote AI-SEO-tools, met een schakelaar.
+   Over de anderen bewust "usually" en "mostly": we kennen niet elke tool. #}
+<div class="c-sec" id="waarom-krillo" style="padding:80px 40px 64px">
+  <span class="c-plus c-pl"></span><span class="c-plus c-pr"></span>
+  <div class="c-g2 k10-waarom">
     <div>
-      <span class="k9-label">WHY KRILLO</span>
-      <h2 class="k9-h2">Other tools track brands for global SEO. Krillo is built for online stores.</h2>
-      <p class="k9-p">A shopper does not ask AI about your brand. She asks where to buy. Krillo measures exactly that: buying questions, per category, per country, in the shopper's own language.</p>
-      <a class="k-knop blauw groot" href="#scan" style="margin-top:24px">Check my store free &rarr;</a>
+      <div class="c-km" style="font-size:11px;color:var(--c-blue)">Why Krillo</div>
+      <h2 class="c-kt" style="font-size:44px;line-height:1.05;margin:14px 0 16px">Other tools track brands for global SEO. Krillo is built for online stores.</h2>
+      <p style="font-size:16.5px;line-height:1.6;color:var(--c-soft);margin:0 0 24px">A shopper does not ask AI about your brand. She asks where to buy. Krillo measures exactly that: buying questions, per category, per country, in the shopper's own language.</p>
+      <a href="#scan" class="c-btn c-btn-z" data-naar-scan>Check my store free &rarr;</a>
     </div>
     <div class="k10-vs" data-vs>
       <div class="k10-schakel" role="tablist">
@@ -1700,171 +1741,169 @@
         ('The fixes', 'Written for your store, or done by us', 'Mostly advice')] %}
       <div class="k10-vs-rij"><i class="k10-vs-ic">&check;</i><span>{{ r[0] }}</span><b data-k="{{ r[1] }}" data-a="{{ r[2] }}">{{ r[1] }}</b></div>
       {% endfor %}
-      <div class="k10-vs-voet" data-k="Built for online stores. Live in {{ index_landen_kaal_en }}, more countries soon." data-a="What most AI SEO tools focus on. Good for brands, less for stores.">Built for online stores. Live in {{ index_landen_kaal_en }}, more countries soon.</div>
+      <div class="k10-vs-voet" data-k="Built for online stores. Live in {{ index_landen_en }}, more countries soon." data-a="What most AI SEO tools focus on. Good for brands, less for stores.">Built for online stores. Live in {{ index_landen_en }}, more countries soon.</div>
     </div>
   </div>
-</section>
-
-{# HET DASHBOARD. Een plaat van het scherm dat een klant elke maand krijgt.
-   Bewust een VOORBEELD met nep-namen, met een knop naar het echte voorbeeld
-   (/demo) met echte cijfers. #}
-<section class="k9-sectie dash-blok" id="dashboard">
-  <div class="k9-binnen">
-    <div class="k9-sectiekop">
-      <div><span class="k9-label">THE DASHBOARD</span>
-        <h2 class="k9-h2">Know what AI says. Know what to change.</h2></div>
-      <div><p>Click around. An example with made-up names.</p>
-        <a class="k-knop wit" href="/demo">Open a live example: real store, real data &rarr;</a></div>
-    </div>
-    <div class="k9-dashlijst">
-      <div class="k9-dash k9-laag">
-        <div class="k9-dash-zij">
-          <span class="k9-dash-winkel">Your Store<i>Outdoor gear &middot; NL</i></span>
-          <span class="aan">Overview</span><span>Ranking</span><span>Questions</span><span>Fixes</span><span>Plan</span>
-        </div>
-        <div class="k9-dash-hoofd">
-          <div class="k9-dash-kop"><b>Overview</b><span class="k9-mono k9-grijs">EXAMPLE &middot; MEASURED 1 SEP</span>
-            <div class="k9-seg">{% for a in ['Both', 'ChatGPT', 'Gemini'] %}<button type="button" class="{{ 'aan' if loop.first }}" data-seg>{{ a }}</button>{% endfor %}</div></div>
-          <div class="k9-kpis">
-            <div><span class="k9-mono">RANK IN OUTDOOR GEAR</span><b>#6</b><em>&#9650;3</em></div>
-            <div><span class="k9-mono">VISIBILITY</span><b>27%</b><em>+9 PTS</em></div>
-            <div><span class="k9-mono">RECOMMENDED</span><b>3</b><em>+2</em></div>
-            <div><span class="k9-mono">QUESTIONS WON</span><b>8/30</b><em>+3</em></div>
-          </div>
-          {# 7 oktober (Nino, na Perplexity): de bedrijfscijfers naast de AI-cijfers.
-             Zelfde voorbeeldwinkel als in /demo, uit de eigen statistieken. #}
-          <div class="k9-kpis k9-kpis-geld" aria-label="Example: visits, orders and revenue from AI">
-            <div><span class="k9-mono">AI SESSIONS</span><b>96</b><em>+134%</em></div>
-            <div><span class="k9-mono">ORDERS FROM AI</span><b>4</b><em>+3</em></div>
-            <div><span class="k9-mono">REVENUE FROM AI</span><b>&euro;268</b><em>+&euro;204</em></div>
-            <div><span class="k9-mono">AI CONVERSION</span><b>4.2%</b><em>was 2.4%</em></div>
-          </div>
-          <div class="k9-mono k9-grijs" style="font-size:11px; margin:8px 16px 10px;">TOP ROW: MEASURED BY KRILLO &middot; BOTTOM ROW: COUNTED BY THE KRILLO PIXEL ON YOUR STORE</div>
-          <div class="k9-dash-twee">
-            <div class="k9-grafiek" data-grafiek>
-              <div class="k9-grafiektabs">
-                <button type="button" class="aan" data-reeks="0">Visibility</button><button type="button" data-reeks="1">Rank</button><button type="button" data-reeks="2">Recommended</button>
-                <span class="k9-mono k9-grijs">CLICK A MONTH</span>
-              </div>
-              <svg viewBox="0 0 600 270" role="img" aria-label="Example chart of six months for your store and four others"></svg>
-              <div class="k9-tip op" hidden></div>
-            </div>
-            <div class="k9-verloren">
-              <b>Questions you lose</b>
-              <div><span>best waterproof hiking jacket under 200 euros</span><i class="k9-mono">NAMED: NORTHPEAK, TRAILHAUS</i></div>
-              <div><span>where to buy a lightweight tent online</span><i class="k9-mono">NAMED: FERNVALE</i></div>
-              <div><span>outdoor shop with free returns</span><i class="k9-mono">NAMED: KITEWELL, TRAILHAUS</i></div>
-              <div><span>hiking boots with next day delivery</span><i class="k9-mono">NAMED: NORTHPEAK</i></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-      <h3 class="k9-h3-stappen">Detect, understand, fix, measure</h3>
-    <div class="vier-stappen">
-      <div><span class="k9-nr">01</span><b>Detect</b><p>Which buying questions you lose, and which store AI names instead.</p></div>
-      <div><span class="k9-nr">02</span><b>Understand</b><p>Why that store gets named: what its pages say that yours do not.</p></div>
-      <div><span class="k9-nr">03</span><b>Fix</b><p>The exact text and the page it goes on. You add it, or we do.</p></div>
-      <div><span class="k9-nr">04</span><b>Measure</b><p>Your five key questions every week, all buying questions every month, so you see when it works.</p></div>
-    </div>
-  </div>
-</section>
-
-{# DE ASSISTENTEN EN DE WINKELSYSTEMEN (8 oktober, versie 10). Wat we meten
-   staat aan; wat eraan komt staat grijs met "soon". In het dashboard kiest een
-   klant zelf welke nieuwe assistent hij erbij wil zodra die er is. #}
-<section class="k9-sectie" id="assistenten">
-  <div class="k9-binnen k10-twee">
-    <div>
-      <h3 class="k10-h3">Choose the assistants</h3>
-      <p class="k9-p" style="margin-top:8px">We ask the assistants your shoppers use. ChatGPT and Gemini are in every plan. Pick the next ones in your dashboard and we add them when they go live.</p>
-      <div class="k10-lijst k9-laag">
-        <div class="k10-lijstkop"><span>Assistants</span><span>Asked weekly</span></div>
-        {% for a in assistenten %}
-        <div class="k10-lijstrij{{ '' if a.gemeten else ' later' }}">
-          <span class="k10-ic">{% if logo_bestaat is defined and logo_bestaat(a.logo) %}<img src="/static/logos/{{ a.logo }}.svg" alt="" width="16" height="16">{% else %}<i class="k10-leeg"></i>{% endif %}</span>
-          <span>{{ a.naam }}{% if not a.gemeten %} <em>coming soon</em>{% endif %}</span>
-          <span class="k10-schuif{{ ' aan' if a.gemeten }}" aria-label="{{ 'Included' if a.gemeten else 'Coming soon' }}"><i></i></span>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    <div>
-      <h3 class="k10-h3">Works with any online store</h3>
-      <p class="k9-p" style="margin-top:8px">Type your address to start. Add the sales pixel in two minutes to see which AI visits turn into orders.</p>
-      <div class="k10-platformen">
-        {% for p in [('shopify','Shopify'),('woocommerce','WooCommerce'),('wix','Wix'),('prestashop','PrestaShop'),('bigcommerce','BigCommerce'),('','Any other store')] %}
-        <div class="k10-platform">{% if p[0] and logo_bestaat is defined and logo_bestaat(p[0]) %}<img src="/static/logos/{{ p[0] }}.svg" alt="" width="20" height="20">{% else %}<i class="k10-plus">+</i>{% endif %}{{ p[1] }}</div>
-        {% endfor %}
-      </div>
-      <p class="k9-klein" style="margin-top:14px">Logos show where Krillo measures and what it works with. No partnership is implied.</p>
-    </div>
-  </div>
-</section>
-
-{# 7 OKTOBER (Nino): wat Krillo doet, in vijf seconden, en het eerlijke antwoord op
-   "genoemd worden is nog geen verkoop". Kort: de uitleg staat op /proof. #}
-<section class="k9-sectie" id="werkwijze">
-  <div class="k9-binnen">
-    <div class="k9-sectiekop">
-      <div><span class="k9-label">WHAT IT BRINGS</span>
-        <h2 class="k9-h2">Proof it moved the business</h2></div>
-    </div>
-    {# 7 OKTOBER (Nino): de hele keten tonen, niet alleen "genoemd". Eerlijk wie
-       wat meet: de eerste schakel meet Krillo, de rest komt uit de eigen
-       statistieken van de winkel en staat naast elkaar in het dashboard. #}
-    <div class="keten" aria-label="From AI answer to revenue">
-      <div><b>Named by AI</b><span>Krillo measures</span></div>
-      <i>&rarr;</i>
-      <div><b>Visits from AI</b><span>your analytics</span></div>
-      <i>&rarr;</i>
-      <div><b>Engaged visits</b><span>your analytics</span></div>
-      <i>&rarr;</i>
-      <div><b>Orders</b><span>your shop</span></div>
-      <i>&rarr;</i>
-      <div><b>Revenue</b><span>your shop</span></div>
-    </div>
-    {# 7 oktober (Nino): een duidelijke case met de hele keten. Er is nog geen
-       klant met drie maanden cijfers, dus dit is de voorbeeldwinkel uit /demo,
-       en dat staat er groot bij. Zodra er een echte klant is, komt die hier. #}
-    <div class="voorbeeldcase">
-      <span class="k9-mono">EXAMPLE STORE &middot; NOT A CUSTOMER &middot; THREE MONTHS WITH FIX</span>
-      <div class="vc-rij">
-        <div><b>2.7x</b><span>named by ChatGPT and Gemini<br>8 of 30 questions, was 3</span></div>
-        <div><b>+134%</b><span>visits from AI<br>96 a month, was 41</span></div>
-        <div><b>+3</b><span>orders from AI a month<br>4, was 1</span></div>
-        <div><b>+&euro;204</b><span>revenue from AI a month<br>1.4x the cost of Fix</span></div>
-      </div>
-      <a href="/demo">See these numbers in the live example dashboard &rarr;</a>
-    </div>
-    <div class="bewijsregel">
-      <b>&ldquo;Being named is not a sale.&rdquo;</b> True. So you see the whole chain, in your own numbers. <a href="/proof">How we prove it pays &rarr;</a>
-    </div>
-    {# Een hoofdknop die terugkomt: dezelfde actie als bovenaan (7 oktober). #}
-    <div style="margin-top:22px;"><a class="k-knop blauw" href="#scan" onclick="setTimeout(function(){var v=document.getElementById('scanUrlInput');if(v)v.focus()},400)">Check my store free</a></div>
-  </div>
-</section>
-
 </div>
 
-<section id="pricing" class="k9-sectie k9-prijzen">
+{% include "_h10_probleem.html" %}
+{% include "_h10_stappen.html" %}
+
+{# DE ASSISTENTEN EN DE WINKELSYSTEMEN. Wat we meten staat aan; wat eraan komt
+   staat grijs met "soon". In het dashboard kiest een klant zelf welke nieuwe
+   assistent hij erbij wil zodra die er is. #}
+<div class="c-sec c-g2" id="assistenten" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+  <span class="c-plus c-pl"></span><span class="c-plus c-pr"></span>
+  <div style="padding:56px 40px;border-right:1px solid var(--c-line)">
+    <h3 class="c-kt" style="font-size:28px;margin:0 0 10px">Choose the assistants</h3>
+    <p style="font-size:15.5px;color:var(--c-soft);line-height:1.55;margin:0 0 28px;max-width:440px">We ask the assistants your shoppers use. ChatGPT and Gemini are in every plan. Pick the next ones in your dashboard and we add them when they go live.</p>
+    <div class="c-card c-lift" style="max-width:420px;padding:8px 8px 4px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;font-size:13px;color:var(--c-grey)"><span>Assistants</span><span>Asked weekly</span></div>
+      {% for a in assistenten %}
+      <div class="c-row" style="grid-template-columns:28px minmax(0,1fr) auto;padding:11px 12px">
+        <span class="k10-logo k10-logo-groot">{% if logo_bestaat is defined and logo_bestaat(a.logo) %}<img src="/static/logos/{{ a.logo }}.svg" alt="" width="16" height="16" style="{{ '' if a.gemeten else 'opacity:.55' }}">{% else %}<i class="k10-leeg"></i>{% endif %}</span>
+        <span style="font-size:14.5px;font-weight:500;color:{{ '#0A0A0B' if a.gemeten else '#9A9BA3' }}">{{ a.naam }}{% if not a.gemeten %} <span style="font-size:11.5px;font-weight:400">coming soon</span>{% endif %}</span>
+        <span class="c-toggle{{ ' c-toggle-on' if a.gemeten }}"><i></i></span>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="font-size:11.5px;color:var(--c-faint);margin-top:12px;max-width:420px">Logos show where Krillo measures. No partnership is implied.</div>
+  </div>
+  <div style="padding:56px 40px">
+    <h3 class="c-kt" style="font-size:28px;margin:0 0 10px">Works with any online store</h3>
+    <p style="font-size:15.5px;color:var(--c-soft);line-height:1.55;margin:0 0 28px;max-width:440px">Type your address to start. Add the sales pixel in two minutes to see which AI visits turn into orders.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:440px">
+      {% for p in [('shopify','Shopify'),('woocommerce','WooCommerce'),('wix','Wix'),('prestashop','PrestaShop'),('bigcommerce','BigCommerce'),('','Any other store')] %}
+      <div class="c-logo-slot c-lift"><span class="k10-logo">{% if p[0] and logo_bestaat is defined and logo_bestaat(p[0]) %}<img src="/static/logos/{{ p[0] }}.svg" alt="" width="16" height="16">{% else %}<b style="font-size:14px;color:#9A9BA3">+</b>{% endif %}</span>{{ p[1] }}</div>
+      {% endfor %}
+    </div>
+    <div class="c-card" style="max-width:440px;margin-top:16px;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <span class="c-puls"></span><div style="flex:1"><div style="font-size:13.5px;font-weight:500">Check the pixel yourself</div><div style="font-size:12px;color:var(--c-grey)">Your dashboard checks the pixel for you and turns green when it works.</div></div>
+    </div>
+  </div>
+</div>
+
+{% include "_h10_watchfix.html" %}
+
+{# VERBETEREN: de voorbeeldwinkel uit /demo, met de hele keten. Er is nog geen
+   klant met drie maanden cijfers, dus dit is een voorbeeld en dat staat er groot
+   bij. Zodra er een echte klant is, komt die hier. #}
+<div class="c-sec c-g2" id="werkwijze" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+  <span class="c-plus c-pl"></span><span class="c-plus c-pr"></span>
+  <div style="padding:72px 40px;border-right:1px solid var(--c-line)">
+    <div class="c-km" style="font-size:11px;color:var(--c-blue)">Improve</div>
+    <h2 class="c-kt" style="font-size:42px;line-height:1.06;margin:14px 0 16px">Every change is measured again.</h2>
+    <p style="font-size:16.5px;line-height:1.6;color:var(--c-soft);margin:0 0 20px">You see what moved after each fix: in AI answers, in visits from AI, in orders and revenue. Being named is not a sale, so you see the whole chain, in your own numbers.</p>
+    <span class="c-pill" style="background:var(--c-loss-bg);color:var(--c-loss)">EXAMPLE STORE &middot; NOT A CUSTOMER &middot; THREE MONTHS WITH FIX</span>
+    <p style="font-size:14px;margin:18px 0 0"><a href="/demo" style="color:var(--c-blue)">Open the live example dashboard: real store, real data &rarr;</a> &middot; <a href="/proof" style="color:var(--c-blue)">How we prove it pays &rarr;</a></p>
+  </div>
+  <div style="padding:56px 40px;display:grid;gap:12px">
+    {% for b in [('Named by ChatGPT and Gemini', '3 of 30', '8 of 30', '2.7x'), ('AI SESSIONS: visits from AI a month', '41', '96', '+134%'), ('ORDERS FROM AI a month', '1', '4', '+3'), ('REVENUE FROM AI a month', '&euro;64', '&euro;268', '+&euro;204, 1.4x the cost of Fix')] %}
+    <div class="c-card c-lift" style="padding:18px 22px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:22px;align-items:center">
+      <span style="font-size:14px;color:var(--c-soft)">{{ b[0] }}<br><span style="font-size:12px;color:var(--c-faint)">{{ b[3] | safe }}</span></span>
+      <span class="c-kt" style="font-size:22px;color:var(--c-faint);text-decoration:line-through">{{ b[1] | safe }}</span>
+      <span class="c-kt" style="font-size:32px;color:var(--c-win)">{{ b[2] | safe }}</span>
+    </div>
+    {% endfor %}
+    <div style="font-size:11.5px;color:var(--c-faint)">Example store, not a customer. Top row measured by Krillo, the rest counted by the Krillo pixel. Revenue from AI a month, compared with the cost of Fix.</div>
+  </div>
+</div>
+
+{# DE INDEX: echte ranglijst uit de database, met de knop naar de eigen plek. #}
+{% set tabs = index.tabs if index and index.tabs else [] %}
+<div class="c-sec" id="de-index" style="padding:80px 40px 56px">
+  <span class="c-plus c-pl"></span><span class="c-plus c-pr"></span>
+  <div style="display:flex;justify-content:space-between;align-items:end;gap:24px;flex-wrap:wrap">
+    <div><div class="c-km" style="font-size:11px;color:var(--c-blue)">The Krillo Index</div>
+      <h2 class="c-kt" style="font-size:44px;line-height:1.06;margin:14px 0 0;max-width:640px">See which stores AI recommends in your category.</h2></div>
+    <a href="/index" class="c-btn c-btn-w">Browse {{ index.cijfers.categorieen if index and index.cijfers and index.cijfers.categorieen else 'all' }} categories &rarr;</a>
+  </div>
+  {% if tabs %}
+  <div class="c-g2" style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;margin-top:40px">
+    <div class="c-card c-lift indexkaart" style="padding:20px 20px 14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap">
+        <div><div style="font-size:16px;font-weight:600">The index today</div><div style="font-size:12.5px;color:var(--c-grey)">Ranked by how often AI recommends a store, then how often it names it</div></div>
+        {% if tabs | length > 1 %}<div class="k9-tabs" role="tablist">{% for t in tabs %}<button type="button" role="tab" class="{{ 'aan' if loop.first }}" data-tab="{{ loop.index0 }}">{{ t.naam }}</button>{% endfor %}</div>{% endif %}
+      </div>
+      {% for t in tabs %}
+      <div class="k9-tab" data-paneel="{{ loop.index0 }}"{% if not loop.first %} hidden{% endif %}>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--c-grey);padding:4px 10px 6px"><span>{{ t.naam }} &middot; {{ t.land | upper }} &middot; {{ t.winkels }} stores &middot; {{ t.telbaar }} questions, asked in {{ vraagtaal_en(t.land) }} as shoppers ask them</span><span>Named</span></div>
+        {% for r in t.rijen %}
+        <button type="button" class="c-row k9-rij{{ ' aan' if loop.first }}" data-kies style="grid-template-columns:18px 20px minmax(0,1fr) 120px 48px;width:100%;border:0;background:transparent;text-align:left;cursor:pointer;font:inherit"
+                data-naam="{{ r.naam }}" data-genoemd="{{ r.genoemd }}/{{ t.telbaar }}" data-aanbevolen="{{ r.aanbevolen }}" data-telbaar="{{ t.telbaar }}" data-vorige="{{ ('last month #' ~ r.vorige) if r.vorige else 'first measurement' }}">
+          <span style="font-size:11.5px;color:var(--c-faint)">{{ r.positie }}</span>
+          <span class="c-mono-tile" style="background:{{ ['#0A0A0B','#7C5CDB','#D97706','#0E7490','#BE185D','#65A30D','#4A4A55'][loop.index0 % 7] }}">{{ r.naam[:1] | upper }}</span>
+          <span style="font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.naam }}</span>
+          <span style="height:7px;background:#F2F2F0;border-radius:5px;overflow:hidden"><i class="c-balk" style="display:block;height:100%;width:{{ r.breedte }}%;background:{{ '#0A0A0B' if loop.first else '#9A9BA3' }};border-radius:5px"></i></span>
+          <span style="font-size:12.5px;text-align:right">{{ r.genoemd }}/{{ t.telbaar }}</span>
+        </button>
+        {% endfor %}
+        <div class="k9-waarom op" style="margin:10px 0 4px;border:1px solid var(--c-line);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--c-soft);display:flex;flex-direction:column;gap:2px">
+          <span class="c-km" style="font-size:10px;color:var(--c-grey)" data-uit="kop">{{ t.rijen[0].naam | upper }}</span>
+          <span data-uit="tekst">Named in {{ t.rijen[0].genoemd }} of {{ t.telbaar }} questions &middot; recommended in {{ t.rijen[0].aanbevolen }} &middot; {{ ('last month #' ~ t.rijen[0].vorige) if t.rijen[0].vorige else 'first measurement' }}</span>
+        </div>
+        <a href="#scan" data-naar-scan class="c-row" style="grid-template-columns:18px 20px minmax(0,1fr) auto;background:var(--c-blue-bg);margin-top:6px">
+          <span style="font-size:11.5px;color:var(--c-blue)">?</span><span class="c-mono-tile" style="background:#1B3FE0">Y</span><span style="font-size:14px;font-weight:600;color:var(--c-blue-d)">Your store</span><span style="font-size:12.5px;color:var(--c-blue);font-weight:500">Where do I rank? &rarr;</span>
+        </a>
+        <div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--c-grey);margin-top:10px;flex-wrap:wrap">
+          <span>Top {{ t.rijen | length }} of {{ t.winkels }} stores{% if t.niet_genoemd %}. {{ t.niet_genoemd }} other stores were named in none of the answers{% endif %}</span>
+          <a href="/index/{{ t.land }}/{{ t.categorie }}" style="color:var(--c-blue);font-weight:500">Open this ranking &rarr;</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:grid;gap:12px;align-content:start">
+      {% for c in (index.uitgelicht if index.uitgelicht is defined and index.uitgelicht else tabs[1:4]) %}
+      <a class="c-card c-lift" href="/index/{{ c.land }}/{{ c.categorie }}" style="padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div><div style="font-size:15px;font-weight:600">{{ c.naam }} &middot; {{ c.land | upper }}</div><div style="font-size:12.5px;color:var(--c-grey);margin-top:2px">{{ c.winkels }} stores &middot; {{ c.telbaar }} questions</div></div>
+        <div style="text-align:right"><div class="c-kt" style="font-size:24px">{{ c.niet_genoemd if c.niet_genoemd is not none else '' }}</div><div style="font-size:11.5px;color:var(--c-grey)">never named</div></div>
+      </a>
+      {% endfor %}
+      {% if eigen_cijfer %}<div class="c-card" style="padding:18px 20px"><div class="c-kt" style="font-size:30px">{{ eigen_cijfer.deel }}%</div><div style="font-size:13px;color:var(--c-grey)">of the {{ eigen_cijfer.gemeten }} stores in the index were never named by AI</div></div>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+  <div class="c-g4" id="methode" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-top:28px;border:1px solid var(--c-line);border-radius:14px;background:#fff">
+    <div style="padding:16px 18px;border-right:1px solid var(--c-line)"><div style="font-size:14px;font-weight:500">Every question is published</div><div style="font-size:12.5px;color:var(--c-grey);margin-top:4px;line-height:1.5">The exact buying questions sit on each ranking, in the language of the market.</div></div>
+    <div style="padding:16px 18px;border-right:1px solid var(--c-line)"><div style="font-size:14px;font-weight:500">No paid positions</div><div style="font-size:12.5px;color:var(--c-grey);margin-top:4px;line-height:1.5">Nobody can buy a place. Customers do not rank higher because they pay.</div></div>
+    <div style="padding:16px 18px;border-right:1px solid var(--c-line)"><div style="font-size:14px;font-weight:500">Dated, never eternal</div><div style="font-size:12.5px;color:var(--c-grey);margin-top:4px;line-height:1.5">Every ranking carries the day it was measured.</div></div>
+    <div style="padding:16px 18px"><div style="font-size:14px;font-weight:500">Every answer kept in full</div><div style="font-size:12.5px;color:var(--c-grey);margin-top:4px;line-height:1.5">{% if index and index.cijfers and index.cijfers.antwoorden %}{{ index.cijfers.antwoorden }} complete answers are on record, each with its date.{% else %}Every answer is kept in full, with its date.{% endif %}</div></div>
+  </div>
+</div>
+
+{% include "_h10_voorwie.html" %}
+</div>
+</div>
+
+<section id="pricing" class="k9-sectie k9-prijzen k10-prijzen">
   {# Het oude anker, zodat links met #prijzen uit verstuurde mails blijven werken. #}
   <span id="prijzen" style="position:absolute;"></span>
   <div class="k9-binnen">
-    <div class="k9-prijskop">
-      <div><span class="k9-label">PRICING</span><h2 class="k9-h2">See the problem for free. Let Krillo fix it.</h2></div>
+    <div class="k9-prijskop" style="text-align:center;display:block">
+      <span class="k9-label">PRICING</span><h2 class="k9-h2">See the problem for free. Let Krillo fix it.</h2>
+      <p class="k9-p" style="margin:12px auto 20px">Watch: you do the work. Fix: Krillo does the work. Several stores: one plan. Cancel any month.</p>
       {# LET OP BIJ WIJZIGEN: de bedragen moeten gelijk zijn aan
          payments.PAKKETTEN, ook de jaarbedragen (test_jaarabonnement). Merken
          heeft GEEN jaarprijs; dat richten we samen in. #}
-      <div class="periode-keuze" role="group" aria-label="Billing period">
+      <div class="periode-keuze" role="group" aria-label="Billing period" style="display:inline-flex">
         <button type="button" class="aan" data-periode="maand">Monthly</button>
         <button type="button" data-periode="jaar">Yearly <span class="gratis">2 months free</span></button>
       </div>
     </div>
-
     <div class="price-grid">
-      {# 8 oktober (versie 10): Watch is "you do the work", Fix is "Krillo does
-         the work" en is het aanbevolen, donkere blok. #}
+      <div class="price-card">
+        <div class="price-top"><span class="price-name">Free check</span><span class="price-tag k9-mono">NO ACCOUNT</span></div>
+        <div class="price-rol">See where you stand today.</div>
+        <div class="price-amount">&euro;0</div>
+        <div class="price-amount proef-noot">No card, no account.</div>
+        <ul class="price-feats">
+          <li>Your place in the index, if your category is measured</li>
+          <li>The stores AI recommends instead of you</li>
+          <li>The buying questions you lose</li>
+          <li>13 checks of what AI can read on your site</li>
+        </ul>
+        <a class="price-btn ghost" href="#scan" data-naar-scan>Check my store</a>
+      </div>
       <div class="price-card">
         <div class="price-top"><span class="price-name">Watch</span><span class="price-tag blauw k9-mono">14 DAYS FREE</span></div>
         <div class="price-rol">You do the work.</div>
@@ -1872,14 +1911,13 @@
         <div class="price-amount proef-noot" data-maand="First 14 days free. Cancel before then and you pay nothing." data-jaar="Paid yearly. The free trial is for the monthly plan.">First 14 days free. Cancel before then and you pay nothing.</div>
         <ul class="price-feats">
           <li><strong>Your rank every month</strong>, and who passes you</li>
-          <li>Every buying question you lose, with the real AI answer</li>
+          <li>Every buying question you lose, with the real AI answer, and why you lose it</li>
           <li><strong>Every week</strong>, your five key questions by email; five questions of your own on your dashboard</li>
           <li>Your homepage and up to five key pages: can AI read them, and which products AI names</li>
           <li>Your visits and revenue from AI, next to what Krillo costs you</li>
         </ul>
         <a class="price-btn ghost" href="#scan" id="watchCheckoutBtn" data-maand="Start Watch free for 14 days" data-jaar="Start Watch">Start Watch free for 14 days</a>
       </div>
-
       <div class="price-card featured k10-donker">
         <div class="price-top"><span class="price-name">Fix</span><span class="price-tag blauw k9-mono">RECOMMENDED</span></div>
         <div class="price-rol">Krillo does the work.</div>
@@ -1893,9 +1931,9 @@
         </ul>
         <a class="price-btn solid" href="#scan" id="fixCheckoutBtn">Let Krillo fix it &rarr;</a>
       </div>
-
       <div class="price-card">
         <div class="price-top"><span class="price-name">Brands and agencies</span><span class="price-tag k9-mono">UP TO 25 STORES</span></div>
+        <div class="price-rol">For several stores at once.</div>
         <div class="price-amount">&euro;490 <span>/mo</span></div>
         <div class="price-amount proef-noot">Monthly only. We set it up together.</div>
         <ul class="price-feats">
@@ -1907,7 +1945,6 @@
         <a class="price-btn ghost" href="/agencies">Check your stores free</a>
       </div>
     </div>
-
     <div class="prijs-voet">
       {# 8 oktober (Nino, akkoord): Watch heeft de 14 gratis dagen als garantie; geld terug alleen bij Fix. #}
       <div><strong>Watch: 14 days free, cancel before day 15 and you pay nothing. Fix: not happy in the first 14 days, money back.</strong></div>
@@ -1915,63 +1952,34 @@
   </div>
 </section>
 
-<div class="k9">
-{# HOE JE ONS KAN CONTROLEREN. Geen keurmerk en geen bekende klanten: de
-   methode is het vertrouwen. #}
-<section class="k9-sectie" id="methode">
-  <div class="k9-binnen methode-blok k9-twee">
-    <div>
-      <span class="k9-label">HOW TO CHECK US</span>
-      <h2 class="k9-h2">A method you can verify</h2>
-      <p class="k9-p">Public rankings, the same questions for every store. Nobody can pay to rank higher.</p>
-    </div>
-    <div class="k9-accordeon" data-accordeon>
-      <button type="button" class="aan"><span class="k9-mono">01</span><span><b>Every question is published</b><i>The exact buying questions behind each ranking sit on the page, in the language of the market. Ask them yourself.</i></span><em>&minus;</em></button>
-      <button type="button"><span class="k9-mono">02</span><span><b>No paid positions</b><i>Nobody can buy a place. The order follows from the answers, nothing else. Customers do not rank higher because they pay.</i></span><em>+</em></button>
-      <button type="button"><span class="k9-mono">03</span><span><b>Dated, never eternal</b><i>AI answers change. Every ranking carries the day it was measured, and we measure again every month.</i></span><em>+</em></button>
-      <button type="button"><span class="k9-mono">04</span><span><b>Every answer kept in full</b><i>{% if index and index.cijfers and index.cijfers.antwoorden %}{{ index.cijfers.antwoorden }} complete answers are on record, each with the date it was given. That is how we show movement.{% else %}Every answer is kept in full, with the date it was given.{% endif %}</i></span><em>+</em></button>
-    </div>
+<div class="c-k k10-home">
+<div class="c-rail">
+<div class="c-sec c-g2" id="vragen" style="display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr);padding:72px 40px;gap:40px">
+  <span class="c-plus c-pl"></span><span class="c-plus c-pr"></span>
+  <div><h2 class="c-kt" style="font-size:40px;line-height:1.06;margin:0">Questions</h2>
+    <p style="font-size:15px;color:var(--c-soft);margin:14px 0 0;line-height:1.6">Something else? Email <a href="mailto:hello@krilloai.com" style="color:var(--c-blue)">hello@krilloai.com</a>, we answer within one working day. More in the <a href="/faq" style="color:var(--c-blue)">full list</a>.</p></div>
+  <div class="k9-faq k10-faq" data-accordeon>
+    <button type="button" class="aan"><span><b>How does Krillo measure my store?</b><i>Every month we ask ChatGPT and Gemini the same buying questions for every store in your category and country, and count who is named and who is recommended. Your five key questions we ask every week.</i></span><em>&minus;</em></button>
+    <button type="button"><span><b>Is my store already in the index?</b><i>If you sell in a category we measure in {{ index_landen_en }}, probably yes. Selling somewhere else? Leave your email on the index page and we tell you when your country goes live. Type your store at the top of this page: you see your rank for free, without an account.</i></span><em>+</em></button>
+    <button type="button"><span><b>What is the difference between Watch and Fix?</b><i>Watch shows your rank, the answers, why you lose and the fixes to do yourself. With Fix we put the changes live in your store, and the old text is kept so every change can be undone.</i></span><em>+</em></button>
+    <button type="button"><span><b>Can stores pay for a better position?</b><i>No. The index has no paid positions. The questions are published and every answer is kept.</i></span><em>+</em></button>
+    <button type="button"><span><b>Can I cancel any time?</b><i>Yes, every month, from the Plan page in your dashboard. The first 14 days of Watch are free: cancel before day 15 and you pay nothing. On Fix, if you cancel within fourteen days of your first payment, you get that month back.</i></span><em>+</em></button>
+    <button type="button"><span><b>Do you work with agencies?</b><i>Yes. Check up to ten client stores for free on the agencies page, and follow up to 25 stores in one plan.</i></span><em>+</em></button>
   </div>
-</section>
-
-<section class="k9-sectie" id="vragen">
-  <div class="k9-binnen k9-twee">
-    <div><span class="k9-label">QUESTIONS</span><h2 class="k9-h2">Before you start</h2>
-      <p class="k9-p">Something else? Email <a href="mailto:hello@krilloai.com">hello@krilloai.com</a>, we answer within one working day. More in the <a href="/faq">full list</a>.</p></div>
-    <div class="k9-faq" data-accordeon>
-      <button type="button" class="aan"><span><b>How does Krillo measure my store?</b><i>Every month we ask ChatGPT and Gemini the same buying questions for every store in your category and country, and count who is named and who is recommended.</i></span><em>&minus;</em></button>
-      <button type="button"><span><b>Is my store already in the index?</b><i>If you sell in a category we measure in {{ index_landen_en }}, probably yes. Selling somewhere else? Leave your email on the index page and we tell you when your country goes live. Type your store at the top of this page: you see your rank for free, without an account.</i></span><em>+</em></button>
-      <button type="button"><span><b>What is the difference between Watch and Fix?</b><i>Watch shows your rank, the answers and the fixes to do yourself. With Fix we put the changes live in your store, and the old text is kept so every change can be undone.</i></span><em>+</em></button>
-      <button type="button"><span><b>Can I cancel any time?</b><i>Yes, every month, from the Plan page in your dashboard. The first 14 days of Watch are free: cancel before day 15 and you pay nothing. On Fix, if you cancel within fourteen days of your first payment, you get that month back.</i></span><em>+</em></button>
-      <button type="button"><span><b>Do you work with agencies?</b><i>Yes. Check up to ten client stores for free on the agencies page, and follow up to 25 stores in one plan.</i></span><em>+</em></button>
-    </div>
-  </div>
-</section>
-
-{# GRATIS, ZONDER ACCOUNT. Wie nog niet koopt, kan hier iets gratis doen. #}
-<section class="k9-sectie k9-smal" id="gratis">
-  <div class="k9-binnen">
-    <div class="k9-gratis">
-      <a class="k9-kaart" href="/tools/ai-crawler-check"><span class="k9-mono k9-grijs">FREE TOOL</span><b>Can AI read your store?</b><span>Which AI robots your site lets in.</span></a>
-      <a class="k9-kaart" href="/tools/product-data-check"><span class="k9-mono k9-grijs">FREE TOOL</span><b>Does your product page give AI the facts?</b><span>The facts AI answers are built from.</span></a>
-      <a class="k9-kaart" href="/index"><span class="k9-mono k9-grijs">FREE</span><b>Where do you rank?</b><span>Every ranking, free to read.</span></a>
-      <a class="k9-kaart" href="/partners"><span class="k9-mono k9-grijs">PARTNERS</span><b>Agency or freelancer?</b><span>Earn 20 percent on every client.</span></a>
-    </div>
-  </div>
-</section>
-
-<section class="k9-sectie">
-  <div class="k9-binnen">
-    <div class="k9-slot">
-      <h2 class="k9-h2">Is your store one of the three AI names?</h2>
-      <form class="k9-slotveld k9-laag" id="slotForm">
-        <input type="text" id="slotUrl" placeholder="yourstore.com" aria-label="Your store address">
-        <button type="submit" class="k-knop blauw">Find my rank</button>
-      </form>
-    </div>
-  </div>
-</section>
 </div>
+
+<div class="c-sec c-sky" style="padding:96px 40px;text-align:center">
+  <span class="c-plus c-pl"></span><span class="c-plus c-pr"></span>
+  <h2 class="c-kt" style="font-size:54px;line-height:1.02;margin:0 auto 16px;max-width:760px;position:relative">Your competitors are being recommended right now.</h2>
+  <p style="font-size:17px;color:var(--c-soft);margin:0 0 30px;position:relative">Find out which ones, and for which questions. Free, no account.</p>
+  <form class="k9-slotveld k10-slot" id="slotForm" style="position:relative">
+    <input type="text" id="slotUrl" placeholder="yourstore.com" aria-label="Your store address">
+    <button type="submit" class="k-knop blauw">Check my store &rarr;</button>
+  </form>
+</div>
+</div>
+</div>
+
 
 <div class="checkout-overlay" id="checkoutOverlay">
   <div class="checkout-modal">
@@ -2123,16 +2131,52 @@
     // naar de ranglijst. Staat hij er niet in, dan zeggen wij dat eerlijk en
     // waarom, en komt daaronder het cijfer over de dertien punten.
     if(data.rang){
+      // VERSIE 10 (8 oktober): de uitslag als mini-rapport, zoals het canvasbord
+      // "Gratis uitslag". Alleen echte cijfers uit de index: plek, hoe vaak AI
+      // hem noemt, de winkels die voor hem staan en de vragen die hij verliest,
+      // met wie AI in zijn plaats noemt.
       var r = data.rang;
-      html += '<div class="scan-rang" style="border:1px solid var(--vermiljoen,#1B3FE0); border-radius:12px; padding:16px 18px; margin-bottom:18px; background:#F4F6FF;">';
-      html += '<div style="font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:#4A4A55;">Your rank in ' + veilig(r.categorie) + ', ' + veilig(r.land) + '</div>';
-      html += '<div style="font-size:32px; font-weight:700; line-height:1.2; margin:4px 0;">#' + r.positie + ' of ' + r.van + '</div>';
-      html += '<div style="font-size:14px; color:#4A4A55;">AI named you in ' + r.genoemd + ' of ' + r.telbaar + ' buying questions. <a href="' + r.link + '">See the full ranking &rarr;</a></div>';
-      // 7 oktober: wie AI aanraadt in plaats van jou, het hart van het concept.
-      if(r.voor && r.voor.length){
-        html += '<div style="font-size:14px; margin-top:8px;"><b>' + (r.positie === 1 ? 'Right behind you:' : 'AI names these stores most in your category:') + '</b> ' + r.voor.map(veilig).join(', ') + '.</div>';
+      var gemist = (r.telbaar || 0) - (r.genoemd || 0);
+      html += '<div class="k10r-kaart k10r-oordeel">';
+      html += '<div class="k10r-kop"><span class="k10r-tegel">' + veilig((data.url || '?').replace(/^https?:\/\/(www\.)?/, '').charAt(0).toUpperCase()) + '</span><b>' + veilig((data.url || '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')) + '</b><span class="k10r-grijs">Your free AI visibility report &middot; ' + veilig(r.categorie) + ', ' + veilig(r.land) + '</span></div>';
+      if(r.nul){
+        html += '<h3 class="k10r-titel">AI does not name your store yet in ' + veilig(r.categorie) + '.</h3>';
+      } else {
+        html += '<h3 class="k10r-titel">You are #' + r.positie + ' of ' + r.van + ' in ' + veilig(r.categorie) + '.</h3>';
       }
-      html += '</div>';
+      var voorAantal = r.nul ? (r.voor_rijen || []).length : Math.max(0, r.positie - 1);
+      if(voorAantal > 0){ html += '<div class="k10r-sub">ChatGPT and Gemini recommend ' + (r.nul ? 'other stores' : voorAantal + ' store' + (voorAantal === 1 ? '' : 's')) + ' before you.</div>'; }
+      html += '<div class="k10r-tegels">';
+      html += '<div><span>Category rank</span><b>' + (r.nul ? '&ndash;' : '#' + r.positie + ' / ' + r.van) + '</b></div>';
+      html += '<div><span>Questions lost</span><b class="k10r-rood">' + gemist + ' / ' + r.telbaar + '</b></div>';
+      html += '<div><span>Named in</span><b>' + r.genoemd + ' / ' + r.telbaar + '</b></div>';
+      if(data.checks && data.checks.length){
+        var okAantal = data.checks.filter(function(c){ return c.status === 'goed'; }).length;
+        html += '<div><span>Website checks</span><b>' + okAantal + ' / ' + data.checks.length + '</b></div>';
+      } else {
+        html += '<div><span>Website checks</span><b class="k10r-grijs">blocked</b></div>';
+      }
+      html += '</div></div>';
+      if(r.verloren && r.verloren.length){
+        html += '<div class="k10r-blokkop"><h3>You are missing from ' + gemist + ' buying questions</h3><span>These are questions where AI recommends other stores instead of you.' + (r.taal && r.taal !== 'English' ? ' Asked in ' + veilig(r.taal) + ', as shoppers in ' + veilig(r.land) + ' ask them.' : '') + '</span></div>';
+        html += '<div class="k10r-kaart k10r-tabel"><div class="k10r-rij k10r-tkop"><span>Buying question</span><span>You</span><span>Recommended instead</span></div>';
+        r.verloren.forEach(function(v, i){
+          html += '<div class="k10r-rij' + (i >= 3 ? ' k10r-vaag' : '') + '"><span class="k10r-vraag">' + veilig(v.vraag) + '</span><span><i class="k10r-pil k10r-pil-rood">&#10005; Not named</i></span><span>' +
+                  v.winnaars.map(function(w){ return '<i class="k10r-pil k10r-pil-groen">&#10003; ' + veilig(w) + '</i>'; }).join(' ') + '</span></div>';
+        });
+        html += '<div class="k10r-rij k10r-voet"><span>' + (gemist > r.verloren.length ? '+ ' + (gemist - r.verloren.length) + ' more questions you lose' : 'All your lost questions') + ', with the full AI answer and why you lose them</span><a href="#pricing" data-kies-plan="watch">See them all with Watch, 14 days free &rarr;</a></div></div>';
+      }
+      if(r.voor_rijen && r.voor_rijen.length){
+        html += '<div class="k10r-kaart k10r-voor"><b>AI names these stores most in your category</b>';
+        var jijGedaan = !!r.nul;
+        var jijRij = '<div class="k10r-voorrij k10r-jij"><span>' + r.positie + '</span><span class="k10r-tegel">Y</span><span>Your store</span><span>named ' + r.genoemd + '&times;</span></div>';
+        r.voor_rijen.forEach(function(w){
+          if(!jijGedaan && w.positie && w.positie > r.positie){ html += jijRij; jijGedaan = true; }
+          html += '<div class="k10r-voorrij"><span class="k10r-grijs">' + (w.positie || '') + '</span><span class="k10r-tegel k10r-tegel-z">' + veilig((w.naam || '?').charAt(0).toUpperCase()) + '</span><span>' + veilig(w.naam) + '</span><span class="k10r-grijs">named ' + w.genoemd + '&times;</span></div>';
+        });
+        if(!jijGedaan){ html += jijRij; }
+        html += '<a class="k10r-link" href="' + r.link + '">See the full ranking &rarr;</a></div>';
+      }
     } else if(data.buiten_markt){
       // Stap 165: een land dat de index nog niet meet. Eerlijk zeggen, en de
       // wachtlijst aanbieden: dan weet hij het als wij zijn land meten.
@@ -2246,25 +2290,25 @@
   // twee keuzes direct onder zijn eigen uitslag, met zijn adres al ingevuld:
   // Watch (volgen, standaard, gratis proef) en Fix (doe het voor mij).
   function volgendeStap(data, issueCount, totalCount){
-    var kop;
-    if(data.rang && data.rang.telbaar){
-      var gemist = data.rang.telbaar - data.rang.genoemd;
-      kop = gemist > 0
-        ? 'You are missing from ' + gemist + ' of ' + data.rang.telbaar + ' buying questions. Those shoppers get another store.'
-        : 'AI names you in every buying question we measured. Keep it that way.';
-    } else if(issueCount > 0){
-      kop = issueCount + ' of ' + totalCount + ' points make it harder for AI to read and recommend your store.';
+    // VERSIE 10: de kansen en de keuze, zoals het canvasbord. De knoppen openen
+    // meteen de kassa met het gecheckte adres (zetStapKnoppen hieronder).
+    var gemist = (data.rang && data.rang.telbaar) ? data.rang.telbaar - data.rang.genoemd : 0;
+    var kansen = gemist + (issueCount || 0);
+    var kop, tekst;
+    if(kansen > 0){
+      kop = 'You have ' + kansen + ' opportunit' + (kansen === 1 ? 'y' : 'ies') + ' to get recommended.';
+      tekst = (gemist ? gemist + ' buying question' + (gemist === 1 ? '' : 's') + ' you lose' : '') + (gemist && issueCount ? ' and ' : '') +
+              (issueCount ? issueCount + ' website check' + (issueCount === 1 ? '' : 's') + ' to fix' : '') + '. Krillo shows why, and can fix them for you.';
     } else {
-      kop = 'AI can read your store well. The question now is whether it recommends you.';
+      kop = 'AI names you and can read your store well.';
+      tekst = 'Keep it that way: Krillo checks your key questions every week and tells you when a competitor passes you.';
     }
-    var h = '<div class="scan-cta" style="display:block;">';
-    h += '<div class="scan-cta-text" style="margin-bottom:12px;"><strong>' + kop + '</strong></div>';
-    h += '<div style="display:flex; flex-wrap:wrap; gap:10px;">';
-    h += '<div style="flex:1 1 240px;"><div style="font-weight:600; margin-bottom:6px;">Want to improve it yourself?</div><a href="#pricing" class="scan-cta-btn" data-kies-plan="watch" style="display:block; text-align:center;">Start Watch free for 14 days &rarr;</a>';
-    h += '<div style="font-size:13px; margin-top:6px; opacity:.85;">Your rank, every lost question, and whether AI brings you sales. Then &euro;49/mo, cancel any time.</div></div>';
-    h += '<div style="flex:1 1 240px;"><div style="font-weight:600; margin-bottom:6px;">Rather have us do it?</div><a href="#pricing" class="scan-cta-btn" data-kies-plan="fix" style="display:block; text-align:center; background:transparent; border:1.5px solid currentColor;">Fix this for me &rarr;</a>';
-    h += '<div style="font-size:13px; margin-top:6px; opacity:.85;">We make the changes on your store and show the difference. &euro;149/mo.</div></div>';
-    h += '</div></div>';
+    var h = '<div class="k10r-kansen">';
+    h += '<h3>' + kop + '</h3><p>' + tekst + '</p>';
+    h += '<div class="k10r-keuze">';
+    h += '<div class="k10r-plan"><div><b>Watch</b><span>&euro;49 /mo</span></div><em>You do the work.</em><p>Your five key questions every week, all buying questions every month, why you lose them and every change written out.</p><a href="#pricing" class="k10r-knop-wit" data-kies-plan="watch">Start 14 days free</a></div>';
+    h += '<div class="k10r-plan k10r-plan-donker"><div><b>Fix</b><span>&euro;149 /mo</span></div><em>Krillo does the work.</em><p>We make the changes after your approval, measure again and show what improved.</p><a href="#pricing" class="k10r-knop-zwart" data-kies-plan="fix">Fix this for me &rarr;</a></div>';
+    h += '</div><div class="k10r-feiten">Cancel any month &middot; Watch: 14 days free &middot; Fix: 14 day refund</div></div>';
     return h;
   }
 

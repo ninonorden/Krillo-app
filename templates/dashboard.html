@@ -36,10 +36,25 @@
     {# ECHTE PAGINA'S sinds 28 september. Hiervoor sprong elke knop naar een
        stukje van dezelfde lange pagina; Nino: "amateuristisch". Nu heeft elke
        pagina een eigen adres, en de knop van de pagina waar je bent staat aan. #}
+    {% if pagina == 'overzicht' and beeld and vragen is defined and vragen and vragen.vragen %}
+    {# Versie 10: het zoekveld van het canvas. Het doet echt iets: het filtert de koopvragen op dit scherm. #}
+    <label class="cv-zoek"><span aria-hidden="true">&#9906;</span>
+      <input type="search" id="cvZoek" autocomplete="off" placeholder="{{ 'Zoek in je vragen' if taal == 'nl' else 'Search your questions' }}" aria-label="{{ 'Zoek in je vragen' if taal == 'nl' else 'Search your questions' }}"></label>
+    {% endif %}
     <div class="zijmenu" role="navigation">
+      {% if menu is defined and menu %}
+      {# Versie 10: de groepen Measure / Understand / Improve. Een badge staat er alleen met een echt cijfer. #}
+      {% for g in menu %}
+      <div class="cv-groep">{{ g.kop }}</div>
+      {% for l in g.knoppen %}
+      <a class="{{ 'aan' if l.aan }}" href="{{ l.href }}">{{ l.icoon }}<span class="cv-n">{{ l.label }}</span>{% if l.badge %}<span class="cv-badge {{ l.badge.kleur }}">{{ l.badge.tekst }}</span>{% endif %}</a>
+      {% endfor %}
+      {% endfor %}
+      {% else %}
       {% for l in links %}
       <a class="{{ 'aan' if l.aan }}" href="{{ l.href }}">{{ l.label }}</a>
       {% endfor %}
+      {% endif %}
       {% if beeld %}
       <a class="uit" href="/index/{{ beeld.land }}/{{ beeld.categorie }}" target="_blank" rel="noopener">
         {{ 'Openbare index' if taal == 'nl' else 'Public index' }} &#8599;</a>
@@ -47,6 +62,13 @@
     </div>
 
     <div style="flex-grow:1;"></div>
+    {% if gids_zij is defined and gids_zij %}
+    <a class="cv-maand" href="{{ (link_van.overzicht or '').split('?') | first }}#gids">
+      <span class="cv-maandkop"><b>{{ 'Je eerste maand' if taal == 'nl' else 'Your first month' }}</b><span>{{ gids_zij.klaar }}/{{ gids_zij.totaal }}</span></span>
+      <span class="cv-maandbalk"><i style="width:{{ gids_zij.deel }}%"></i></span>
+      {% if gids_zij.volgende %}<span class="cv-maandvolgende">{{ 'Volgende' if taal == 'nl' else 'Next' }}: {{ gids_zij.volgende }}{% if gids_zij.tijd %} &middot; {{ gids_zij.tijd }}{% endif %}</span>{% endif %}
+    </a>
+    {% endif %}
     <div class="zijvoet">
       {% if beeld and beeld.gemeten_op %}<span class="d8-mono">{{ 'VOLGENDE METING' if taal == 'nl' else 'NEXT MEASUREMENT' }}</span>
       <span class="d8-live"></span>{{ (beeld.gemeten_op + volgende_meting_na).strftime('%-d %b') }}
@@ -68,36 +90,42 @@
   </div>
 
   <div class="werkblad" id="overzicht">
-    <div class="werkkop">
-      <div style="display:flex; align-items:center; gap:0; flex-wrap:wrap;">
-        <span class="pad">{{ beeld.naam if beeld else winkelnaam }}</span><span class="schuin">/</span>
-        <h1>{{ paginanaam }}</h1>
+    {# Versie 10: de bovenbalk van het canvas. Winkel en markt als chips, de keuze per assistent,
+       en wanneer er voor het laatst en weer gemeten wordt. De titel van de pagina staat eronder. #}
+    {% set nl = taal == 'nl' %}
+    <div class="werkkop cv-bar">
+      <div class="cv-chips">
+        <span class="chip cv-winkelchip"><span class="cv-tile">{{ ((beeld.naam if beeld else winkelnaam) or '?')[:1] | upper }}</span>{{ beeld.naam if beeld else winkelnaam }}</span>
         {% if beeld %}
-        <div class="regel">
-          {{ beeld.naam | upper }} &middot;
-          {% if beeld.gemeten_op %}{{ t.gemeten_op | upper }} {{ beeld.gemeten_op.strftime('%d %b %Y') | upper }} &middot; {% endif %}
-          {{ beeld.telbaar }} {{ 'KOOPVRAGEN' if taal == 'nl' else 'BUYING QUESTIONS' }}
-          {% if modellen %} &middot; {{ modellen | length }} {{ 'ASSISTENTEN' if taal == 'nl' else 'ASSISTANTS' }}{% endif %}
-          &middot; {{ landnaam | upper }}
+        <span class="chip verberg-mobiel">{{ categorienaam }} &middot; {{ landnaam }}</span>
+        <span class="chip verberg-mobiel">{{ beeld.telbaar }} {{ 'koopvragen' if nl else 'buying questions' }}</span>
+        {% if pagina == 'overzicht' and vragen is defined and vragen and vragen.vragen and modellen | length > 1 %}
+        {# Dit schakelt echt: de lade en de kolom "jij" laten dan alleen die assistent zien. #}
+        <div class="cv-seg" role="group" aria-label="{{ 'Assistent' if nl else 'Assistant' }}">
+          <button type="button" class="aan" data-assistent="">{{ 'Alle assistenten' if nl else 'All assistants' }}</button>
+          {% for mn in modellen %}<button type="button" data-assistent="{{ mn }}">{% set lg = mn | lower %}{% if lg in ('chatgpt', 'gemini') and logo_bestaat is defined and logo_bestaat(lg) %}<img src="/static/logos/{{ lg }}.svg" width="13" height="13" alt="">{% endif %}{{ mn }}</button>{% endfor %}
         </div>
-        {% if beeld.gemeten_op %}<span class="chip stil" style="margin-left:12px;">{{ 'Gemeten op' if taal == 'nl' else 'Measured' }} {{ beeld.gemeten_op.strftime('%-d %b %Y') }}</span>{% endif %}
+        {% endif %}
         {% endif %}
       </div>
-      <div class="chips">
+      <div class="cv-rechts">
+        {% if beeld and beeld.gemeten_op %}<span class="cv-gemeten"><i class="d8-live"></i>{{ 'Gemeten' if nl else 'Measured' }} {{ beeld.gemeten_op.strftime('%-d %b') }} &middot; {{ 'volgende' if nl else 'next' }} {{ (beeld.gemeten_op + volgende_meting_na).strftime('%-d %b') }}</span>{% endif %}
         {% if beeld %}
-        <span class="chip verberg-mobiel">{{ beeld.telbaar }} {{ 'koopvragen' if taal == 'nl' else 'buying questions' }}</span>
-        {% if modellen %}<span class="chip">{{ modellen | join(', ') }}</span>{% endif %}
-        <span class="chip">{{ landnaam }}</span>
         {# Stap 184 (1 oktober): het maandrapport om door te sturen, alleen voor de klant zelf. #}
-        {% if request.path.startswith('/mijn/') %}<a class="chip" href="{{ (link_van.overzicht or '').split('?') | first }}/report.pdf" target="_blank">{{ 'Rapport (PDF)' if taal == 'nl' else 'Report (PDF)' }}</a>{% endif %}
+        {% if request.path.startswith('/mijn/') %}<a class="chip cv-donker" href="{{ (link_van.overzicht or '').split('?') | first }}/report.pdf" target="_blank">{{ 'Rapport (PDF)' if nl else 'Report (PDF)' }}</a>{% endif %}
         {% if request.path.startswith('/admin/voorbeeld') and beeld %}<a class="chip" href="/admin/rapport.pdf?url={{ beeld.webshop_url | urlencode }}" target="_blank">Maandrapport (PDF)</a>{% endif %}
         {% endif %}
         {% if proef %}
-        <a class="kopknop" href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Start gratis proef' if taal == 'nl' else 'Start free trial' }}</a>
+        <a class="kopknop" href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Start gratis proef' if nl else 'Start free trial' }}</a>
         {% elif voorbeeld %}
-        <a class="kopknop" href="/?plan=watch#pricing">{{ 'Probeer het voor je winkel' if taal == 'nl' else 'Try it for your store' }}</a>
+        <a class="kopknop" href="/?plan=watch#pricing">{{ 'Probeer het voor je winkel' if nl else 'Try it for your store' }}</a>
         {% endif %}
       </div>
+    </div>
+    <div class="cv-kruimel">
+      <span class="pad">{{ ('Overzicht' if nl else 'Overview') if pagina == 'overzicht' else (beeld.naam if beeld else winkelnaam) }}</span><span class="schuin">/</span>
+      <h1>{% if pagina == 'overzicht' and samenvatting is defined and samenvatting %}{{ samenvatting }}{% elif pagina == 'overzicht' and volgende %}{{ volgende }}{% else %}{{ paginanaam }}{% endif %}</h1>
+      {% if voorbeeld %}<span class="pill cv-voorbeeld">{{ 'Voorbeeld' if nl else 'Example data' }}</span>{% endif %}
     </div>
 
 
@@ -152,21 +180,21 @@
 
 
     {% set dicht_nu = wachtwoord is defined and wachtwoord %}
-    {% if eigen_categorie is defined and eigen_categorie and beeld and pagina in ('overzicht', 'ranglijst', 'vragen') %}
+    {% if eigen_categorie is defined and eigen_categorie and beeld and pagina in ('overzicht', 'ranglijst', 'vragen', 'waarom') %}
     {# 8 oktober: gekozen categorie nog niet gemeten; tot dan de ouder, en dat zeggen we. #}
     <div class="st-ok" style="background:#EEF1FD; color:#142FA8;">
       {% if taal == 'nl' %}<strong>Je koos {{ eigen_categorie.naam }}.</strong> {% if eigen_categorie.wordt_gemeten %}We meten die nu voor je, meestal binnen het uur.{% else %}We meten die zodra we {{ eigen_categorie.nodig }} winkels kennen; nu {{ eigen_categorie.aantal }}. We zoeken er elke nacht bij.{% endif %} Tot dan zie je {{ eigen_categorie.ouder }}, de categorie waar hij onder valt.
       {% else %}<strong>You chose {{ eigen_categorie.naam }}.</strong> {% if eigen_categorie.wordt_gemeten %}We are measuring it for you now, usually within the hour.{% else %}We measure it once we know {{ eigen_categorie.nodig }} stores in it; we know {{ eigen_categorie.aantal }} now and add stores every night.{% endif %} Until then you see {{ eigen_categorie.ouder }}, the category it belongs to.{% endif %}
     </div>
     {% endif %}
-    {% if wachtwoord is defined and wachtwoord and (beeld or pagina not in ('overzicht', 'ranglijst', 'vragen')) %}
+    {% if wachtwoord is defined and wachtwoord and (beeld or pagina not in ('overzicht', 'ranglijst', 'vragen', 'waarom')) %}
     <div class="st-let">
       <strong>{{ 'Je winkel staat achter een wachtwoord.' if taal == 'nl' else 'Your store is behind a password.' }}</strong>
       {{ 'AI kan hem daardoor niet lezen, en onze sitecheck ook niet. Haal het wachtwoord weg (in Shopify: Online winkel, Voorkeuren); we kijken binnen een dag opnieuw.' if taal == 'nl' else 'So AI cannot read it, and our site check cannot either. Remove the password (in Shopify: Online Store, Preferences); we check again within a day. A Shopify development store keeps its password until you pick a Shopify plan; Krillo starts as soon as the store is open.' }}
     </div>
     {% endif %}
 
-    {% if not beeld and start is defined and start and pagina in ('overzicht', 'ranglijst', 'vragen') and not buiten_markt %}
+    {% if not beeld and start is defined and start and pagina in ('overzicht', 'ranglijst', 'vragen', 'waarom') and not buiten_markt %}
     {# ================================================================
        DE STARTPAGINA (8 oktober). Een nieuwe klant zonder plek zag een
        kaartje met een zin en verder niets. Nu, zoals de beste dashboards
@@ -261,7 +289,7 @@
        of de pixelcode open heeft. #}
     <script>setTimeout(function(){ if(!document.querySelector('details[open]') && !document.activeElement.closest('form')) location.reload(); }, 60000);</script>
     {% endif %}
-    {% elif not beeld and pagina in ('overzicht', 'ranglijst', 'vragen') %}
+    {% elif not beeld and pagina in ('overzicht', 'ranglijst', 'vragen', 'waarom') %}
     {# Een betalende klant van wie de categorie nog niet gemeten is, of die
        buiten NL en BE verkoopt. Eerlijk zeggen waar hij aan toe is. #}
     <div class="kaartblok">
@@ -393,6 +421,57 @@
             <span class="rij"><span class="groot">{{ vr.gewonnen }}<small> / {{ vr.totaal }}</small></span></span>
             <span class="onder">{{ 'minstens een assistent noemt je' if nl else 'at least one assistant names you' }}</span>
           </div>
+          {# Versie 10: de vijfde tegel van het canvas, "Questions you lose". Hetzelfde cijfer als hierboven, andersom. #}
+          <div class="kpi d8-tegel stil">
+            <span class="label">{{ 'Vragen die je verliest' if nl else 'Questions you lose' }}</span>
+            <span class="rij"><span class="groot">{{ vr.verloren }}<small> / {{ vr.totaal }}</small></span></span>
+            <span class="onder">{{ 'een andere winkel wordt genoemd, jij niet' if nl else 'another store is named, you are not' }}</span>
+          </div>
+        </div>
+
+        {# ============ Versie 10 (canvas): Why you lose / What to do now / Sources AI quotes ============ #}
+        <div class="cv-rij3">
+          <div class="cv-donker-kaart">
+            <div class="cv-kaartkop"><span>{{ 'Waarom je verliest' if nl else 'Why you lose' }}</span><span class="pill cv-pilldonker">{{ 'Grootste verloren vraag' if nl else 'Top question lost' }}</span></div>
+            {% if waarom_kaart is defined and waarom_kaart %}
+            <div class="cv-groot kt" lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">&ldquo;{{ waarom_kaart.vraag }}&rdquo;{% if waarom_kaart.winnaar %}<span class="cv-wie">{{ ': AI noemt ' if nl else ': AI names ' }}{{ waarom_kaart.winnaar }}</span>{% endif %}</div>
+            {% if waarom_kaart.geladen and waarom_kaart.redenen %}
+            {% for r in waarom_kaart.redenen %}<div class="cv-reden"><span>{{ r.tekst }}</span><span>{{ r.soort }}</span></div>{% endfor %}
+            {% else %}
+            <div class="cv-reden"><span>{% if waarom_kaart.winnaar %}{{ ('Open de analyse om de pagina van ' ~ waarom_kaart.winnaar ~ ' naast die van jou te leggen.') if nl else ('Open the analysis to put the page of ' ~ waarom_kaart.winnaar ~ ' next to yours.') }}{% else %}{{ 'Bij deze vraag wordt geen winkel genoemd: de plek is vrij.' if nl else 'No store is named for this question: the spot is open.' }}{% endif %}</span><span></span></div>
+            {% endif %}
+            <div class="cv-knoppen"><a class="chip cv-licht" href="{{ waarom_kaart.href }}">{{ 'Bekijk waarom' if nl else 'See why' }} &rarr;</a>
+              {% if waarom_href %}<a class="chip cv-rand" href="{{ waarom_href }}">{{ 'Alle verloren vragen' if nl else 'All lost questions' }}</a>{% endif %}</div>
+            {% else %}
+            <div class="cv-groot kt">{{ 'Je wordt bij elke gemeten vraag genoemd.' if nl else 'You are named in every question we measured.' }}</div>
+            <div class="cv-reden"><span>{{ 'Geen verloren vragen om uit te leggen.' if nl else 'No lost questions to explain.' }}</span><span></span></div>
+            {% endif %}
+          </div>
+
+          <div class="cv-kaart">
+            <div class="cv-kaartkop"><b>{{ 'Wat nu te doen' if nl else 'What to do now' }}</b><span class="cv-zacht">{{ 'uit je verloren vragen' if nl else 'from your lost questions' }}</span></div>
+            {% for a in (acties_nu if acties_nu is defined and acties_nu else []) %}
+            <div class="cv-actie"><div><div class="cv-actiekop">{% if a.href %}<a href="{{ a.href }}">{{ a.kop }}</a>{% else %}{{ a.kop }}{% endif %}</div><div class="cv-zacht">{{ a.waar }}</div></div>
+              <span class="pill cv-st-{{ a.soort }}">{{ a.status }}</span></div>
+            {% else %}
+            <div class="cv-actie"><div class="cv-zacht">{{ 'Geen acties: je wordt bij elke gemeten vraag genoemd.' if nl else 'No actions: you are named in every question we measured.' }}</div></div>
+            {% endfor %}
+          </div>
+
+          <div class="cv-kaart cv-bronnen">
+            <div class="cv-kaartkop"><b>{{ 'Bronnen die AI noemt' if nl else 'Sources AI quotes' }}</b></div>
+            {% if bronnen_donut is defined and bronnen_donut %}
+            <div class="cv-zacht cv-sub">{{ 'In ' ~ bronnen_donut.van ~ ' antwoorden' if nl else ('In ' ~ bronnen_donut.van ~ ' answers') }}</div>
+            <div class="cv-donutrij">
+              <svg width="92" height="92" viewBox="0 0 42 42" role="img" aria-label="{{ 'Aandeel per soort bron' if nl else 'Share per kind of source' }}"><circle cx="21" cy="21" r="15.9" fill="none" stroke="#F0F0EE" stroke-width="5"/>
+              {% for d in bronnen_donut.stukken %}<circle cx="21" cy="21" r="15.9" fill="none" stroke="{{ d.kleur }}" stroke-width="5" stroke-dasharray="{{ d.da }}" stroke-dashoffset="{{ d.off }}" transform="rotate(-90 21 21)"/>{% endfor %}</svg>
+              <div class="cv-legenda">{% for d in bronnen_donut.stukken %}<div><i style="background:{{ d.kleur }}"></i><span>{{ d.naam }}</span><b>{{ d.procent }}%</b></div>{% endfor %}</div>
+            </div>
+            <div class="cv-zacht cv-voetje">{{ 'Meest genoemd' if nl else 'Named most' }}: {{ bronnen_donut.top | join(', ') }}. {{ 'AI geeft geen links; dit zijn sites die in de antwoorden staan.' if nl else 'AI gives no links; these are sites named in the answers.' }}</div>
+            {% else %}
+            <div class="cv-zacht cv-sub">{{ 'In de antwoorden werd geen review-, vergelijk- of communitysite genoemd.' if nl else 'No review, comparison or community site was named in the answers.' }}</div>
+            {% endif %}
+          </div>
         </div>
 
         {# 7 oktober avond: de bedrijfscijfers direct onder de AI-cijfers, net als
@@ -420,6 +499,79 @@
           {% endfor %}
         </div>
         {% if o.keer is defined %}<div class="d8-geldregel">{{ ('&euro;' ~ o.extra_omzet ~ ' meer omzet uit AI dan in je eerste maand: ' ~ o.keer ~ 'x wat Krillo kost.') | safe if nl else ('&euro;' ~ o.extra_omzet ~ ' more revenue from AI than in your first month: ' ~ o.keer ~ 'x what Krillo costs you.') | safe }} <span class="klein" style="font-weight:400; color:var(--zacht, #6E7079);">{{ 'Seizoen en acties tellen ook mee.' if nl else 'Seasons and sales count too.' }}</span></div>{% endif %}
+        {% endif %}
+
+        {# ============ Versie 10 (stap 336): What do you want to win? ============
+           Een doel is een koopvraag die de klant koos ("Add to my fixes") of een eigen vraag.
+           Alles komt uit bestaande gegevens; "redenen" staat er alleen als de scan van de
+           winnaar al bewaard is (zie waaromverlies.py). #}
+        {% if doelen is defined and (request.path.startswith('/mijn/') or voorbeeld or proef) %}
+        <div class="cv-doel" id="doel">
+          <div class="cv-doel-links">
+            <div class="cv-label">{{ 'Je doel' if nl else 'Your goal' }}</div>
+            <div class="cv-doeltitel kt">{{ 'Wat wil je winnen?' if nl else 'What do you want to win?' }}</div>
+            {% if eigen is defined and eigen and eigen.actie %}
+            {% set vol = eigen.lijst | length >= eigen.max %}
+            <form class="cv-doelveld" method="post" action="{{ eigen.actie }}">
+              <input type="hidden" name="terug" value="overzicht">
+              <input type="text" name="vraag" maxlength="200" required {{ 'disabled' if vol }} placeholder="{{ 'Typ een vraag zoals een koper hem stelt' if nl else 'Type a question the way a shopper asks it' }}" aria-label="{{ 'Eigen vraag als doel' if nl else 'Own question as a goal' }}">
+              <button type="submit" class="chip cv-donker" {{ 'disabled' if vol }}>{{ 'Zet als doel' if nl else 'Add as goal' }}</button>
+            </form>
+            <div class="cv-zacht cv-doelnoot">{% if eigen.melding %}{{ eigen.melding }} &middot; {% endif %}{{ eigen.lijst | length }} {{ 'van' if nl else 'of' }} {{ eigen.max }} {{ 'eigen vragen in je pakket' if nl else 'own questions in your plan' }}{% if vol %}. {{ 'Haal er een weg om een nieuwe toe te voegen.' if nl else 'Remove one to add another.' }}{% endif %}</div>
+            {% endif %}
+            {% if doel_voorstellen is defined and doel_voorstellen %}
+            <div class="cv-zacht cv-doelnoot" style="margin-top:12px;">{{ 'Je grootste verloren vragen, als doel:' if nl else 'Your biggest lost questions, as a goal:' }}</div>
+            <div class="cv-doelchips">
+              {% for q in doel_voorstellen %}
+              {% if werkblok and werkblok.klant_token and not werkblok.opgezegd %}
+              <button type="button" class="chip cv-voorstel" data-kies-url="/mijn/{{ werkblok.klant_token }}/kies" data-vraag="{{ q }}" title="{{ q }}">+ {{ q }}</button>
+              {% else %}
+              <a class="chip cv-voorstel" href="{{ '/uitkomst/' ~ proef ~ '/verder?plan=watch' if proef else '/?plan=watch#pricing' }}" title="{{ q }}">+ {{ q }}</a>
+              {% endif %}
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          <div class="cv-doel-rechts">
+            {% if doelen %}
+            <div class="cv-doelkeuze" role="tablist">{% for d in doelen %}<button type="button" class="chip{{ ' chip-on' if loop.first }}" data-doel="{{ loop.index0 }}" title="{{ d.vraag }}"><span class="cv-zacht">{{ d.soort_label }}</span> {{ d.vraag | truncate(46, True, '...') }}</button>{% endfor %}</div>
+            {% for d in doelen %}
+            <div class="cv-doelblok"{% if not loop.first %} hidden{% endif %} data-doelblok="{{ loop.index0 }}">
+              <div class="cv-doelkpi">
+                <div><span>{{ 'Waar je staat' if nl else 'Where you are' }}</span><b class="{{ 'slecht' if d.plek_goed == False }}">{{ d.plek }}</b></div>
+                <div><span>{{ 'Beste concurrent' if nl else 'Best competitor' }}</span><b>{{ d.beste or ('Geen' if nl else 'None named') }}</b></div>
+                <div><span>{{ 'Redenen' if nl else 'Reasons' }}</span><b>{% if d.redenen is not none %}{{ d.redenen }}{% else %}<em>{{ 'Open de analyse' if nl else 'Open the analysis' }}</em>{% endif %}</b></div>
+                <div><span>{{ 'Status' if nl else 'Goal status' }}</span><b class="goed">{{ d.meting }}</b></div>
+              </div>
+              <div class="cv-doelvoet"><span>{% if d.beste %}{{ ('Leg de pagina van ' ~ d.beste ~ ' naast de jouwe.') if nl else ('Put the page of ' ~ d.beste ~ ' next to yours.') }}{% else %}{{ 'Bij deze vraag wordt geen winkel genoemd.' if nl else 'No store is named for this question.' }}{% endif %}</span>
+                <a class="chip cv-donker" href="{{ d.href }}">{{ 'Waarom je verliest' if nl else 'Why you lose' }} &rarr;</a></div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="cv-leegdoel">{{ 'Je hebt nog geen doel. Kies een van je verloren vragen links, of typ je eigen vraag. We meten ze en laten zien waar je staat en wie je verslaat.' if nl else 'You have no goal yet. Pick one of your lost questions on the left, or type your own. We measure it and show where you stand and who beats you.' }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <script>
+        (function(){
+          var keuzes = document.querySelectorAll('[data-doel]'), blokken = document.querySelectorAll('[data-doelblok]');
+          keuzes.forEach(function(k){ k.addEventListener('click', function(){
+            keuzes.forEach(function(x){ x.classList.toggle('chip-on', x === k); });
+            blokken.forEach(function(b){ b.hidden = b.getAttribute('data-doelblok') !== k.getAttribute('data-doel'); });
+          }); });
+          // Een verloren vraag als doel zetten: dezelfde route als "Add to my fixes".
+          document.querySelectorAll('.cv-voorstel[data-kies-url]').forEach(function(b){
+            b.addEventListener('click', function(){
+              b.disabled = true;
+              fetch(b.getAttribute('data-kies-url'), {method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({vraag: b.getAttribute('data-vraag'), aan: true})})
+                .then(function(r){ return r.json(); })
+                .then(function(d){ if (d && d.ok) { location.hash = 'doel'; location.reload(); } else { b.disabled = false; } })
+                .catch(function(){ b.disabled = false; });
+            });
+          });
+        })();
+        </script>
         {% endif %}
 
         <div class="d8-kaart d8-twee">
@@ -454,6 +606,9 @@
           </div>
         </div>
 
+      </div>
+      <div class="cv-vragenrij">
+      <div class="cv-vragencol">
         <div class="d8-kaart d8-vragen" id="vragenlijst">
           <div class="d8-kop"><b>{{ 'Koopvragen' if nl else 'Buying questions' }}</b>
             <span class="d8-mono d8-hoofd">{{ 'de vragen die je verliest eerst' if nl else 'questions you lose first' }} &middot; {{ 'klik een vraag' if nl else 'click one' }}</span>
@@ -462,13 +617,16 @@
               <button type="button" data-filter="verloren">{{ 'Verloren' if nl else 'Lost' }} ({{ vr.verloren }})</button>
               <button type="button" data-filter="gewonnen">{{ 'Gewonnen' if nl else 'Won' }} ({{ vr.gewonnen }})</button>
             </span></div>
-          <div class="d8-vraagkop d8-mono"><span>{{ 'VRAAG' if nl else 'QUESTION' }}</span><span>{{ 'JIJ' if nl else 'YOU' }}</span><span>{{ 'WEL GENOEMD' if nl else 'NAMED INSTEAD' }}</span></div>
+          <div class="d8-vraagkop d8-mono"><span>{{ 'VRAAG' if nl else 'QUESTION' }}</span><span class="cv-kol-int">{{ 'SOORT' if nl else 'INTENT' }}</span><span class="cv-kol-ass">{{ 'ASSISTENTEN' if nl else 'ASSISTANTS' }}</span><span>{{ 'JIJ' if nl else 'YOUR POSITION' }}</span><span>{{ 'WINNENDE WINKEL' if nl else 'WINNING STORE' }}</span></div>
           {% for v in vr.vragen %}
           {% set anderen = [] %}{% for m in v.per_model %}{% for n in m.anderen %}{% if n not in anderen %}{% set _ = anderen.append(n) %}{% endif %}{% endfor %}{% endfor %}
-          <button type="button" class="d8-vraag{{ ' aan' if loop.first }}" data-vraag="{{ loop.index0 }}" data-stand="{{ 'gewonnen' if v.gewonnen else 'verloren' }}">
+          {% set lbl = {'prijs': ('Price', 'Prijs'), 'lokaal': ('Local', 'Lokaal'), 'service': ('Service', 'Service'), 'waarden': ('Values', 'Waarden'), 'product': ('Product', 'Product'), 'algemeen': ('General', 'Algemeen')} %}
+          <button type="button" class="d8-vraag{{ ' aan' if loop.first }}" data-vraag="{{ loop.index0 }}" data-stand="{{ 'gewonnen' if v.gewonnen else 'verloren' }}" data-zoek="{{ v.vraag | lower }}">
             <span class="t">{{ v.vraag }}</span>
+            <span class="cv-int cv-kol-int">{{ (lbl.get(v.label) or lbl.algemeen)[1 if nl else 0] }}</span>
+            <span class="cv-ass cv-kol-ass">{% for m in v.per_model %}{% set lg = m.assistent | lower %}<span class="cv-as {{ 'ja' if m.genoemd else '' }}" data-as="{{ m.assistent }}" title="{{ m.assistent }}: {{ ('genoemd' if nl else 'named') if m.genoemd else ('niet genoemd' if nl else 'not named') }}">{% if lg in ('chatgpt', 'gemini') and logo_bestaat is defined and logo_bestaat(lg) %}<img src="/static/logos/{{ lg }}.svg" width="12" height="12" alt="">{% else %}{{ m.assistent[:3] | upper }}{% endif %}</span>{% endfor %}</span>
             <span class="d8-mono jij {{ 'op' if v.gewonnen else 'nee' }}">{% if v.aanbevolen %}{{ 'AANGERADEN' if nl else 'ADVISED' }}{% elif v.gewonnen %}{{ 'GENOEMD' if nl else 'NAMED' }}{% else %}{{ 'NIET GENOEMD' if nl else 'NOT NAMED' }}{% endif %}</span>
-            <span class="w">{% if v.slot %}<em>{{ 'zichtbaar met Watch' if nl else 'visible with Watch' }}</em>{% elif anderen %}{{ anderen[:2] | join(', ') }}{% else %}<em>{{ 'geen winkel' if nl else 'no store' }}</em>{% endif %}</span>
+            <span class="w">{% if v.slot %}<em>{{ 'zichtbaar met Watch' if nl else 'visible with Watch' }}</em>{% elif anderen %}<span class="cv-tegel">{{ (anderen | first)[:1] | upper }}</span>{{ anderen[:2] | join(', ') }}{% else %}<em>{{ 'geen winkel' if nl else 'no store' }}</em>{% endif %}</span>
           </button>
           {% else %}
           <p class="d8-leeg">{{ 'Er zijn nog geen vragen gemeten.' if nl else 'No questions measured yet.' }}</p>
@@ -525,6 +683,7 @@
           {% endif %}
         </div>
       </aside>
+      </div>
     </div>
     <script type="application/json" id="d8Vragen">{{ vr.vragen | tojson }}</script>
     <script type="application/json" id="d8Tekst">{{ {
@@ -542,6 +701,47 @@
       "toegevoegd": ('Op je lijst &#10003;' if nl else 'Added to your fixes &#10003;'),
       "klaar": ('Gewonnen, niets te doen' if nl else 'Won, nothing to do')
     } | tojson }}</script>
+    <script>
+    /* Versie 10: het zoekveld in de zijbalk en de keuze per assistent in de bovenbalk.
+       Allebei werken op de koopvragen van dit scherm: het zoekveld verbergt rijen die
+       niet passen, de assistentkeuze laat in de lade en in de kolom "jij" alleen die
+       assistent zien. De cijfers komen uit hetzelfde gegevensblok als de lade. */
+    (function(){
+      var rijen = Array.prototype.slice.call(document.querySelectorAll('.d8-vraag'));
+      if (!rijen.length) return;
+      var data = []; try { data = JSON.parse(document.getElementById('d8Vragen').textContent) || []; } catch (x) {}
+      var tk = {}; try { tk = JSON.parse(document.getElementById('d8Tekst').textContent) || {}; } catch (x) {}
+      var zoek = document.getElementById('cvZoek');
+      if (zoek) zoek.addEventListener('input', function(){
+        var q = zoek.value.trim().toLowerCase();
+        rijen.forEach(function(r){ r.classList.toggle('cv-weg', !!q && (r.getAttribute('data-zoek') || '').indexOf(q) < 0); });
+      });
+      var tekst = tk.nl ? {aan: 'AANGERADEN', gen: 'GENOEMD', niet: 'NIET GENOEMD'} : {aan: 'ADVISED', gen: 'NAMED', niet: 'NOT NAMED'};
+      function zet(assistent){
+        rijen.forEach(function(r){
+          var v = data[+r.getAttribute('data-vraag')]; if (!v || v.slot) return;
+          var m = (v.per_model || []).filter(function(x){ return !assistent || x.assistent === assistent; });
+          var genoemd = m.some(function(x){ return x.genoemd; }), aan = m.some(function(x){ return x.aanbevolen; });
+          var jij = r.querySelector('.jij');
+          if (jij) { jij.textContent = aan ? tekst.aan : (genoemd ? tekst.gen : tekst.niet); jij.className = 'd8-mono jij ' + (genoemd ? 'op' : 'nee'); }
+          Array.prototype.slice.call(r.querySelectorAll('.cv-as')).forEach(function(c){
+            c.classList.toggle('cv-dim', !!assistent && c.getAttribute('data-as') !== assistent);
+          });
+        });
+        if (assistent) {
+          // De lade volgt: klik de knop met die assistent (de lade tekent zijn knoppen zelf).
+          var knop = Array.prototype.slice.call(document.querySelectorAll('.d8-seg button')).filter(function(b){ return b.textContent.trim() === assistent; }).shift();
+          if (knop) knop.click();
+        }
+      }
+      Array.prototype.slice.call(document.querySelectorAll('.cv-seg button')).forEach(function(b){
+        b.addEventListener('click', function(){
+          Array.prototype.slice.call(document.querySelectorAll('.cv-seg button')).forEach(function(x){ x.classList.toggle('aan', x === b); });
+          zet(b.getAttribute('data-assistent'));
+        });
+      });
+    })();
+    </script>
     <script>
     /* Dashboard versie 8: de tegels, de grafiek en de lade (30 september).
        Gewoon JavaScript. Alle cijfers komen uit de twee gegevensblokken
@@ -855,6 +1055,217 @@
     {% endif %}
 
     {# ================================================================ RANGLIJST #}
+    {# ================================================================
+       WHY YOU LOSE (8 oktober, stap 335). Bord: Diagnose.dc.html.
+       Per verloren koopvraag: het echte antwoord per assistent, wie er
+       genoemd werd, de sites die AI noemt, en hun pagina naast de jouwe.
+       De vergelijking met de winnaar wordt NIET hier opgebouwd (dat is een
+       scan van andermans site) maar met fetch geladen uit
+       /mijn/<token>/waarom/vergelijk, met een laadstaat.
+       Alleen wat we echt zien: geen verzonnen redenen.
+       ================================================================ #}
+    {% if pagina == 'waarom' and beeld %}
+    {% set nl = taal == 'nl' %}
+    {% if waarom is defined and waarom %}
+    {% set w = waarom %}
+    {% set eerste = w.antwoorden | first if w.antwoorden else none %}
+    <div class="wv">
+      <div class="wv-kop">
+        <div>
+          <div class="wv-titel kt" lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">&ldquo;{{ w.vraag }}&rdquo;</div>
+          <div class="wv-pills">
+            <span class="pill cv-grijs">{{ categorienaam }} &middot; {{ beeld.land | upper }}</span>
+            {% if w.eigen %}<span class="pill cv-grijs">{{ 'Eigen vraag' if nl else 'Your own question' }}</span>{% endif %}
+            {% if beeld.gemeten_op %}<span class="wv-klein">{{ 'Laatst gemeten' if nl else 'Last measured' }} {{ beeld.gemeten_op.strftime('%-d %b') }}</span>{% endif %}
+          </div>
+        </div>
+        {% if w.antwoorden | length > 1 %}
+        <div class="cv-seg wv-seg" role="group" aria-label="{{ 'Assistent' if nl else 'Assistant' }}">
+          {% for a in w.antwoorden %}<button type="button" class="{{ 'aan' if loop.first }}" data-wv-as="{{ loop.index0 }}">{% set lg = a.assistent | lower %}{% if lg in ('chatgpt', 'gemini') and logo_bestaat is defined and logo_bestaat(lg) %}<img src="/static/logos/{{ lg }}.svg" width="13" height="13" alt="">{% endif %}{{ a.assistent }}</button>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% if waarom_vragen is defined and waarom_vragen | length > 1 %}
+      <div class="wv-keuze" aria-label="{{ 'Kies een vraag' if nl else 'Choose a question' }}">
+        {% for q in waarom_vragen %}<a class="chip{{ ' chip-on' if q.vraag == w.vraag }}" href="{{ q.href }}" title="{{ q.vraag }}"><span class="cv-zacht">{{ ('Eigen' if nl else 'Own') if q.eigen else (('Gewonnen' if nl else 'Won') if q.gewonnen else ('Verloren' if nl else 'Lost')) }}</span> {{ q.vraag | truncate(44, True, '...') }}</a>{% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="wv-oordeel cv-box">
+        <div><span>{{ 'Jij' if nl else 'You' }}</span><b class="{{ 'goed' if w.gewonnen else 'slecht' }}">{% if w.aanbevolen %}{{ 'Aangeraden' if nl else 'Advised' }}{% elif w.gewonnen %}{{ 'Genoemd' if nl else 'Named' }}{% elif w.antwoorden %}{{ 'Niet genoemd' if nl else 'Not named' }}{% else %}{{ 'Wordt gemeten' if nl else 'Being measured' }}{% endif %}</b></div>
+        <div><span>{{ 'Winnaar' if nl else 'Winner' }}</span><b>{{ w.winnaar or ('Geen winkel genoemd' if nl else 'No store named') }}</b></div>
+        <div><span>{{ 'Winkels in het antwoord' if nl else 'Stores in the answer' }}</span><b>{{ (w.anderen | length) + (1 if w.gewonnen else 0) }} {{ 'van' if nl else 'of' }} {{ beeld.van }}</b></div>
+        <div><span>{{ 'Belangrijkste reden' if nl else 'Main reason' }}</span><b id="wvHoofdreden" class="wv-hoofd">{% if not w.vergelijk_url is defined or not w.vergelijk_url %}&ndash;{% else %}<em>{{ 'Wordt vergeleken...' if nl else 'Comparing...' }}</em>{% endif %}</b></div>
+      </div>
+
+      <div class="wv-twee">
+        <div class="cv-box wv-antwoord">
+          <div class="wv-boxkop"><b id="wvWie">{{ ('Wat ' ~ (eerste.assistent if eerste else 'AI') ~ ' antwoordde') if nl else ('What ' ~ (eerste.assistent if eerste else 'AI') ~ ' answered') }}</b><span class="cv-zacht">{{ 'bewaard antwoord' if nl else 'saved answer' }}{% if beeld.gemeten_op %} &middot; {{ beeld.gemeten_op.strftime('%-d %b') }}{% endif %}</span></div>
+          <div class="wv-vraagbel"><span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ w.vraag }}</span></div>
+          {% for a in w.antwoorden %}
+          <div class="wv-pane"{% if not loop.first %} hidden{% endif %} data-wv-pane="{{ loop.index0 }}" data-wie="{{ a.assistent }}">
+            {% if a.tekst %}<div class="wv-tekst" lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ a.html }}</div>
+            {% else %}<div class="wv-tekst cv-zacht">{{ 'Geen tekst bewaard bij dit antwoord.' if nl else 'No text kept for this answer.' }}</div>{% endif %}
+            <div class="wv-sleutel"><span><i class="jij"></i>{{ 'Jij' if nl else 'You' }}</span><span><i></i>{{ 'Andere winkels' if nl else 'Other stores' }}</span>
+              <span class="wv-genoemd">{% if a.anderen %}{{ 'Genoemd' if nl else 'Named' }}: {{ a.anderen | join(', ') }}{% else %}{{ 'Geen andere winkel genoemd' if nl else 'No other store named' }}{% endif %}</span></div>
+          </div>
+          {% else %}
+          <div class="wv-tekst cv-zacht">{{ 'Krillo heeft deze vraag nog niet gemeten. Het antwoord staat hier zodra hij gemeten is.' if nl else 'Krillo has not measured this question yet. The answer shows here as soon as it is.' }}</div>
+          {% endfor %}
+
+          <div class="wv-bronkop">{{ 'Sites die AI in de antwoorden noemt' if nl else 'Sites AI names in its answers' }}</div>
+          {% for b in w.bronnen %}
+          <div class="wv-bron"><div><b>{{ b.naam }}</b><div class="cv-zacht">{{ b.soort_en }} &middot; {{ ('in ' ~ b.aantal ~ ' van ' ~ b.van ~ ' antwoorden') if nl else ('in ' ~ b.aantal ~ ' of ' ~ b.van ~ ' answers') }}</div></div>
+            <span class="pill cv-grijs">{{ b.soort_en }}</span></div>
+          {% else %}
+          <div class="cv-zacht wv-leegbron">{{ 'Er werd geen review-, vergelijk- of communitysite genoemd bij deze vraag.' if nl else 'No review, comparison or community site was named for this question.' }}</div>
+          {% endfor %}
+          {% if w.bronnen %}<div class="cv-zacht wv-leegbron">{{ 'AI geeft geen links. Dit zijn sites die in de antwoorden staan. We weten niet of jij er staat: loop ze na.' if nl else 'AI gives no links. These are sites named in the answers. We do not know whether you are listed on them: check each one.' }}</div>{% endif %}
+
+          <div class="wv-lezing"><svg width="18" height="18" viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="6" fill="#1B3FE0"/><text x="13" y="19" text-anchor="middle" font-family="Space Grotesk, Inter, sans-serif" font-weight="700" font-size="16" fill="#fff">K</text></svg>
+            <div>{% if w.gewonnen %}<b>Krillo:</b> {{ 'Je wordt hier genoemd. Houd de pagina die AI citeert actueel.' if nl else 'You are named here. Keep the page AI quotes up to date.' }}
+              {% elif w.winnaar %}<b>Krillo:</b> {{ ('AI noemt ' ~ w.winnaar ~ ' en niet jou. Rechts leggen we hun pagina naast de jouwe: elke rij waar zij slagen en jij niet is een reden.') if nl else ('AI names ' ~ w.winnaar ~ ' and not you. On the right we put their page next to yours: every row where they pass and you do not is a reason.') }}
+              {% else %}<b>Krillo:</b> {{ 'Bij deze vraag wordt geen winkel genoemd. De eerste met een duidelijke pagina erover maakt een goede kans.' if nl else 'No store is named for this question. The first store with a clear page about it has a good chance.' }}{% endif %}</div></div>
+        </div>
+
+        <div class="cv-box wv-vergelijk" id="wvVergelijk"
+             {% if w.vergelijk_url %}data-url="{{ w.vergelijk_url }}"{% endif %}
+             data-nl="{{ '1' if nl else '0' }}" data-pagina-fout="{{ (('De wekelijkse paginacheck vond geen pagina van je winkel over “' ~ w.onderwerp ~ '”.') if nl else ('The weekly page check found no page of your store about “' ~ w.onderwerp ~ '”.')) if w.pagina_ontbreekt else '' }}">
+          <div class="wv-boxkop"><b>{{ 'Hun pagina naast die van jou' if nl else 'Their page next to yours' }}</b>{% if w.winnaar_url %}<a class="chip cv-rand" style="height:26px;" href="{{ w.winnaar_url }}" target="_blank" rel="noopener nofollow">{{ 'Open hun site' if nl else 'Open their site' }} &#8599;</a>{% endif %}</div>
+          <div class="wv-cmp wv-cmpkop"><span>{{ 'Waar AI naar kijkt' if nl else 'What AI looks for' }}</span><span><span class="cv-tegel">{{ (w.winnaar or '?')[:1] | upper }}</span> <span id="wvNaamW">{{ w.winnaar or '' }}</span></span><span><span class="cv-tegel jij">{{ (beeld.naam or '?')[:1] | upper }}</span> {{ beeld.naam }}</span></div>
+          <div id="wvRijen">
+            {% if not w.vergelijk_url %}
+            <div class="wv-status">{{ 'De paginavergelijking staat in je eigen dashboard.' if nl else 'The page comparison is part of your own dashboard.' }}
+              <a href="{{ '/uitkomst/' ~ proef ~ '/verder?plan=watch' if proef else '/?plan=watch#pricing' }}">{{ 'Start gratis proef' if nl else 'Start free trial' }} &rarr;</a></div>
+            {% elif not w.winnaar %}
+            <div class="wv-status">{{ 'Er wordt bij deze vraag geen winkel genoemd, dus er is geen pagina om naast de jouwe te leggen.' if nl else 'No store is named for this question, so there is no page to put next to yours.' }}</div>
+            {% else %}
+            <div class="wv-status wv-laden" id="wvLaden"><span class="wv-spin" aria-hidden="true"></span>{{ ('We lezen de website van ' ~ w.winnaar ~ ' (dertien checks). Dat duurt een paar seconden.') if nl else ('We are reading the website of ' ~ w.winnaar ~ ' (thirteen checks). This takes a few seconds.') }}</div>
+            {% endif %}
+          </div>
+          <div id="wvRedenen" class="wv-redenen" hidden></div>
+        </div>
+      </div>
+
+      {# WAT JE ERAAN DOET: de bestaande aanpak per vraag (vraagaanpak.py), met de status die we echt weten. #}
+      <div class="wv-actiekop" id="acties">
+        <div><div class="kt wv-h2">{{ 'Drie stappen om deze vraag te winnen' if nl else 'Three steps to win this question' }}</div>
+          <div class="cv-zacht">{{ 'Dezelfde aanpak als bij Fixes, voor deze vraag.' if nl else 'The same plan as on Fixes, for this question.' }}{% if w.pagina %} {{ 'Jouw pagina hiervoor' if nl else 'Your page for this' }}: <a href="{{ w.pagina }}" target="_blank" rel="noopener nofollow">{{ w.pagina | replace('https://', '') | replace('www.', '') }}</a>.{% endif %}</div></div>
+        <div>
+          {% if w.kies_url and not w.eigen and not w.gewonnen %}
+          <button type="button" class="chip cv-donker wv-kies{{ ' klaar' if w.al_gekozen }}" id="wvKies" data-kies-url="{{ w.kies_url }}" data-vraag="{{ w.vraag }}" data-aan="{{ '0' if w.al_gekozen else '1' }}" data-nl="{{ '1' if nl else '0' }}">{{ ('Op je lijst ✓' if nl else 'Added to your fixes ✓') if w.al_gekozen else ('Zet op mijn lijst' if nl else 'Add to my fixes') }}</button>
+          {% elif proef or voorbeeld %}
+          <a class="chip cv-donker" href="{{ '/uitkomst/' ~ proef ~ '/verder?plan=watch' if proef else '/?plan=watch#pricing' }}">{{ 'Start gratis proef om dit te bewaren' if nl else 'Start free trial to save this' }}</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="wv-acties">
+        {% for st in w.acties.stappen %}
+        <div class="cv-box wv-actie">
+          <div class="wv-actierij"><span class="pill cv-grijs">{{ 'Stap' if nl else 'Step' }} {{ st.nr }}</span><span class="pill cv-st-{{ st.soort }}" data-wv-status>{{ st.status }}</span></div>
+          <div class="wv-actietitel">{{ st.kop }}</div>
+          <div class="cv-zacht" style="margin-bottom:10px;">{{ st.waar }}</div>
+          <div class="wv-actietekst">{{ st.tekst }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <script>
+    (function(){
+      var nl = document.getElementById('wvVergelijk') && document.getElementById('wvVergelijk').getAttribute('data-nl') === '1';
+      // Het antwoord van de gekozen assistent.
+      var knoppen = document.querySelectorAll('[data-wv-as]'), panes = document.querySelectorAll('[data-wv-pane]');
+      knoppen.forEach(function(k){ k.addEventListener('click', function(){
+        var i = k.getAttribute('data-wv-as');
+        knoppen.forEach(function(x){ x.classList.toggle('aan', x === k); });
+        panes.forEach(function(p){ p.hidden = p.getAttribute('data-wv-pane') !== i; if (!p.hidden) {
+          var wie = document.getElementById('wvWie'); if (wie) wie.textContent = nl ? 'Wat ' + p.getAttribute('data-wie') + ' antwoordde' : 'What ' + p.getAttribute('data-wie') + ' answered'; } });
+      }); });
+
+      // Add to my fixes: dezelfde route als op het overzicht.
+      var kies = document.getElementById('wvKies');
+      if (kies) kies.addEventListener('click', function(){
+        var aan = kies.getAttribute('data-aan') === '1'; kies.disabled = true;
+        fetch(kies.getAttribute('data-kies-url'), {method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({vraag: kies.getAttribute('data-vraag'), aan: aan})})
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            kies.disabled = false;
+            if (!d || !d.ok) return;
+            var nu = aan;
+            kies.setAttribute('data-aan', nu ? '0' : '1');
+            kies.classList.toggle('klaar', nu);
+            kies.textContent = nu ? (nl ? 'Op je lijst ✓' : 'Added to your fixes ✓') : (nl ? 'Zet op mijn lijst' : 'Add to my fixes');
+            document.querySelectorAll('[data-wv-status]').forEach(function(s){
+              s.textContent = nu ? (nl ? 'Op je lijst' : 'On your list') : (nl ? 'Voorgesteld' : 'Suggested');
+              s.className = 'pill cv-st-' + (nu ? 'lijst' : 'voorstel');
+            });
+          }).catch(function(){ kies.disabled = false; });
+      });
+
+      // Hun pagina naast die van jou: de scan van de winnaar, los van het opbouwen van de pagina.
+      var vak = document.getElementById('wvVergelijk');
+      if (!vak || !vak.getAttribute('data-url') || !document.getElementById('wvLaden')) return;
+      var rijen = document.getElementById('wvRijen'), red = document.getElementById('wvRedenen');
+      function el(tag, klas, tekst){ var e = document.createElement(tag); if (klas) e.className = klas; if (tekst != null) e.textContent = tekst; return e; }
+      // Als object met namen (teken, klasse, zin) in plaats van een lijstje:
+      // leesbaarder, en de controle op plaatshouders tussen haken blijft scherp.
+      function tk(t, k, z){ return {t: t, k: k, z: z}; }
+      var tekens = {ok: tk('✓', 'goed', nl ? 'Slaagt' : 'Passes'), goed: tk('✓', 'goed', nl ? 'Slaagt' : 'Passes'),
+                    deels: tk('!', 'deels', nl ? 'Deels' : 'Partly'), probleem: tk('✕', 'slecht', nl ? 'Slaagt niet' : 'Fails'),
+                    onbekend: tk('–', 'stil', nl ? 'Niet gemeten' : 'Not measured')};
+      function teken(status){ return tekens[status] || tekens.onbekend; }
+      function fout(d){
+        rijen.textContent = '';
+        var b = el('div', 'wv-status', d && d.fout ? d.fout : (nl ? 'Dit lukte niet. Probeer het zo opnieuw.' : 'This did not work. Try again in a moment.'));
+        if (!d || d.soort === 'te_traag' || !d.soort) {
+          var knop = el('button', 'chip cv-rand', nl ? 'Probeer opnieuw' : 'Try again'); knop.type = 'button'; knop.style.marginLeft = '10px';
+          knop.addEventListener('click', laad); b.appendChild(knop);
+        }
+        rijen.appendChild(b);
+        var pf = vak.getAttribute('data-pagina-fout');
+        if (pf) { red.hidden = false; red.textContent = ''; red.appendChild(el('div', 'wv-redenkop', nl ? 'Wat we wel zien' : 'What we do see')); red.appendChild(el('div', 'wv-reden', pf)); }
+        var h = document.getElementById('wvHoofdreden'); if (h) h.textContent = pf ? (nl ? 'Geen pagina over dit onderwerp' : 'No page about this topic') : '–';
+      }
+      function toon(d){
+        if (!d || !d.ok) return fout(d);
+        rijen.textContent = '';
+        var nw = document.getElementById('wvNaamW'); if (nw && d.winnaar) nw.textContent = d.winnaar + (d.score_winnaar != null ? ' · ' + d.score_winnaar + '/100' : '');
+        d.rijen.forEach(function(r){
+          var rij = el('div', 'wv-cmp' + (r.verschil === 'jij_mist' ? ' mist' : ''));
+          var a = el('span'); a.appendChild(el('b', null, r.titel)); a.appendChild(el('div', 'cv-zacht', r.categorie)); rij.appendChild(a);
+          var w = teken(r.winnaar), j = teken(r.jij);
+          var cw = el('span', 'wv-st'); cw.appendChild(el('i', 'wv-ic ' + w.k, w.t)); cw.appendChild(el('span', null, w.z)); rij.appendChild(cw);
+          var cj = el('span', 'wv-st'); cj.appendChild(el('i', 'wv-ic ' + j.k, j.t)); cj.appendChild(el('span', null, j.z));
+          if (r.uitleg_jij) cj.appendChild(el('div', 'cv-zacht wv-uitleg', r.uitleg_jij));
+          rij.appendChild(cj);
+          rijen.appendChild(rij);
+        });
+        red.hidden = false; red.textContent = '';
+        red.appendChild(el('div', 'wv-redenkop', d.redenen.length ? (nl ? d.redenen.length + ' reden(en) die we echt zien' : d.redenen.length + (d.redenen.length === 1 ? ' reason we can see' : ' reasons we can see'))
+                              : (nl ? 'Geen verschil gevonden in de dertien checks' : 'No difference found in the thirteen checks')));
+        if (!d.redenen.length) red.appendChild(el('div', 'wv-reden', nl ? 'Op deze checks scoort jouw site niet slechter dan die van ' + d.winnaar + '. Het verschil zit dan in wat op de pagina staat, niet in hoe leesbaar de site is.' : 'On these checks your site does not score worse than ' + d.winnaar + '. The difference is then in what is on the page, not in how readable the site is.'));
+        d.redenen.forEach(function(r){ var x = el('div', 'wv-reden'); x.appendChild(el('span', null, r.tekst)); x.appendChild(el('span', 'pill cv-grijs', r.soort)); red.appendChild(x); });
+        var h = document.getElementById('wvHoofdreden');
+        if (h) h.textContent = d.redenen.length ? d.redenen.slice(0, 1).map(function(x){ return x.soort; }).join('') + (d.redenen.length > 1 ? ' +' + (d.redenen.length - 1) : '') : '–';
+      }
+      function laad(){
+        rijen.textContent = '';
+        var l = el('div', 'wv-status wv-laden'); l.appendChild(el('span', 'wv-spin')); l.appendChild(el('span', null, nl ? 'We lezen de website van de winnaar...' : 'We are reading the winner’s website...')); rijen.appendChild(l);
+        fetch(vak.getAttribute('data-url'), {headers: {'Accept': 'application/json'}})
+          .then(function(r){ return r.json(); }).then(toon).catch(function(){ fout(null); });
+      }
+      laad();
+    })();
+    </script>
+    {% else %}
+    <div class="kaartblok"><div class="kaartkop">{{ 'WAAROM JE VERLIEST' if taal == 'nl' else 'WHY YOU LOSE' }}</div>
+      <p>{{ 'Er zijn nog geen vragen gemeten, dus er is nog niets uit te leggen.' if taal == 'nl' else 'No questions are measured yet, so there is nothing to explain yet.' }}</p></div>
+    {% endif %}
+    {% endif %}
+
     {% if pagina == 'sitecheck' %}
     {# Stap 316 (8 oktober): de dertien controles binnen het dashboard. #}
     {% set snl = taal == 'nl' %}

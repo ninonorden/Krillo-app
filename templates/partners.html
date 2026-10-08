@@ -26,6 +26,16 @@
   .formulier button:disabled{opacity:.6; cursor:default;}
   .fout{color:#B42318;} .goed{color:var(--groen); font-weight:600;}
   ul.punten li{margin:0 0 10px 18px; color:var(--ink-zacht);}
+
+  /* VERSIE 10 (8 oktober 2026, Nino: "maak alles zo"). WAAROM: dit blok
+     overschrijft de oude waarden van deze pagina (blauwe knop, radius 8 en
+     12, rand #D8D8DE, Space Grotesk zwaar) zodat ze passen bij de gedeelde
+     laag in _stijl.html. Teksten, id's en scripts zijn niet aangeraakt. */
+  .formulier input, .formulier textarea{border:1px solid #E7E7E4; border-radius:10px; background:#fff;}
+  .formulier input:focus, .formulier textarea:focus{border-color:#1B3FE0;}
+  .formulier button{background:#0A0A0B; color:#fff; border-radius:10px; font-weight:500; transition:transform .2s;
+    box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5);}
+  .formulier button:hover:not(:disabled){transform:translateY(-1px);}
 </style>
 {% include "_k_stijl.html" %}
 </head>

@@ -196,3 +196,32 @@ def overzicht(webshop_url):
             "vorige_genoemd": sum(1 for r in vorige if r["genoemd"]) if vorige else None,
             "vorige_van": len(vorige) if vorige else None,
             "vragen": [vragen[v] for v in volgorde]}
+
+
+def verloren_per_assistent(webshop_url):
+    """Koopvragen waarbij een assistent de winkel de vorige meting WEL noemde en
+    nu NIET meer (8 oktober). Per assistent, want ChatGPT kan je nog noemen
+    terwijl Gemini je laat vallen, en dan wil de klant weten welke.
+
+    Geeft [{"vraag", "assistent", "anderen"}] (anderen: wie er nu genoemd wordt),
+    leeg als er maar een meting is. Dezelfde rijen als overzicht(), geen tweede
+    manier van tellen."""
+    maak_tabel()
+    rondes = _sql("""SELECT DISTINCT ronde_op FROM snelmetingen WHERE webshop_url = %s
+                     ORDER BY ronde_op DESC LIMIT 2""", (webshop_url,), alles=True) or []
+    if len(rondes) < 2:
+        return []
+    nu = _sql("SELECT * FROM snelmetingen WHERE webshop_url = %s AND ronde_op = %s ORDER BY id",
+              (webshop_url, rondes[0]["ronde_op"]), alles=True) or []
+    toen = _sql("SELECT * FROM snelmetingen WHERE webshop_url = %s AND ronde_op = %s",
+                (webshop_url, rondes[1]["ronde_op"]), alles=True) or []
+    was = {(r["vraag"], r["assistent"]) for r in toen if r["genoemd"]}
+    uit = []
+    for r in nu:
+        if r["genoemd"] or (r["vraag"], r["assistent"]) not in was:
+            continue
+        anderen = r.get("anderen") or []
+        if isinstance(anderen, str):
+            anderen = json.loads(anderen)
+        uit.append({"vraag": r["vraag"], "assistent": r["assistent"], "anderen": [a for a in anderen if a]})
+    return uit

@@ -19,7 +19,10 @@
   .klein{font-size:13px; color:var(--ink-grijs); margin-top:6px;}
   table.buren{width:100%; border-collapse:collapse; margin:12px 0; font-size:15px;}
   table.buren td{padding:10px; border-bottom:1px solid var(--lijn-licht);}
-  table.buren tr.jij td{background:#FFF4C2; font-weight:600;}
+  table.buren tr.jij td{background:#EEF1FD; color:#142FA8; font-weight:600;}
+  /* VERSIE 10 (8 oktober): de eigen rij is niet meer geel maar #EEF1FD met blauwe tekst; koppen en grote cijfers Inter Tight 500. */
+  .groot{font-weight:500; letter-spacing:-0.03em;}
+  table.buren{background:#fff; border-radius:18px; overflow:hidden;}
 </style>
 {% include "_k_stijl.html" %}
 </head>
@@ -75,12 +78,12 @@
   {% endif %}
 
   {# Stap 166: claim je plek. Alleen een mailadres, met dubbele bevestiging. #}
-  <div style="border:1px solid #E8E8EC; border-radius:12px; padding:18px 20px; margin:28px 0;">
+  <div style="border:1px solid #E7E7E4; border-radius:18px; background:#fff; box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18); padding:18px 20px; margin:28px 0;">
     <h2 style="font-size:22px; margin:0 0 6px;">Follow this rank</h2>
     <p style="margin:0 0 12px;">Get an email when {{ naam }} moves up or down in the next measurement. Free, one click to stop.</p>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <input id="plekEmail" type="email" placeholder="you@yourstore.com" autocomplete="email"
-             style="flex:1; min-width:200px; height:46px; border:1.5px solid #D8D8DE; border-radius:8px; padding:0 12px;">
+             style="flex:1; min-width:200px; height:46px; border:1px solid #E7E7E4; border-radius:10px; background:#fff; padding:0 12px;">
       <button id="plekKnop" type="button" class="knop vol" style="height:46px;">Follow</button>
     </div>
     <p id="plekUit" style="margin:8px 0 0; font-size:14px;"></p>

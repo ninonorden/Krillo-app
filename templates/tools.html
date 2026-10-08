@@ -41,6 +41,17 @@
   .fout{color:#B42318; margin:10px 0;}
   .uitleg-blok{max-width:720px; margin-top:44px;}
   .uitleg-blok h2{font-size:26px; margin-top:28px;}
+
+  /* VERSIE 10 (8 oktober 2026, Nino: "maak alles zo"). WAAROM: dit blok
+     overschrijft de oude waarden van deze pagina (blauwe knop, radius 8 en
+     12, rand #D8D8DE, Space Grotesk zwaar) zodat ze passen bij de gedeelde
+     laag in _stijl.html. Teksten, id's en scripts zijn niet aangeraakt. */
+  .toolform input{border:1px solid #E7E7E4; border-radius:10px; background:#fff;}
+  .toolform input:focus{border-color:#1B3FE0;}
+  .toolform button{background:#0A0A0B; color:#fff; border-radius:10px; font-weight:500; transition:transform .2s;
+    box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5);}
+  .toolform button:hover:not(:disabled){transform:translateY(-1px);}
+  .uitkomst .kop{font-weight:500; letter-spacing:-0.03em;}
 </style>
 {% include "_k_stijl.html" %}
 </head>

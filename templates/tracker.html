@@ -30,6 +30,17 @@
   .tr-meer{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
   .tr-meer a{border:1px solid #E4E2DA; border-radius:8px; padding:8px 12px; text-decoration:none; color:inherit;}
   @media (max-width:560px){ .tr-form button{width:100%;} }
+
+  /* VERSIE 10 (8 oktober 2026, Nino: "maak alles zo"). WAAROM: dit blok
+     overschrijft de oude waarden van deze pagina (blauwe knop, radius 8 en
+     12, rand #D8D8DE, Space Grotesk zwaar) zodat ze passen bij de gedeelde
+     laag in _stijl.html. Teksten, id's en scripts zijn niet aangeraakt. */
+  .tr-form input{border:1px solid #E7E7E4; border-radius:10px; background:#fff;}
+  .tr-form button{background:#0A0A0B; color:#fff; border-radius:10px; font-weight:500; transition:transform .2s;
+    box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5);}
+  .tr-cijfers{border:1px solid #E7E7E4; border-left:4px solid #1B3FE0; border-radius:18px;
+              box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18);}
+  .tr-meer a{border:1px solid #E7E7E4; border-radius:10px; background:#fff;}
 </style>
 {% include "_k_stijl.html" %}
 </head>

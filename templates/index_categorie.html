@@ -65,9 +65,9 @@
      analyse van deze winkel. Een knop die meer belooft dan de pagina erachter
      is de snelste weg naar een afhaker. #}
   {% if jij %}
-  <div class="jijbalk" style="border:1px solid var(--vermiljoen); border-radius:12px;
+  <div class="jijbalk" style="border:1px solid #1B3FE0; border-radius:18px;
        padding:16px 20px; margin:0 0 26px; display:flex; gap:16px; align-items:center;
-       justify-content:space-between; flex-wrap:wrap; background:#F4F6FF;">
+       justify-content:space-between; flex-wrap:wrap; background:#EEF1FD; box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18);">
     <div style="font-size:15px; line-height:1.5;">
       {# 8 oktober: nul keer genoemd is geen plek op alfabet (db.gelijk_bij_nul). #}
       {% if jij.genoemd == 0 and not jij.aanbevolen %}<b>{{ jij.naam }} is not named by AI yet</b> in {{ naam }}, {{ landnaam }}.
@@ -86,8 +86,8 @@
     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
       {% if jij.vragen %}<a href="{{ jij.vragen }}" style="white-space:nowrap; font-weight:600; font-size:14px;">
         {% if jij.positie == 1 %}See your questions{% else %}See the questions you lose{% endif %} &rarr;</a>{% endif %}
-      <a class="knop" href="{{ jij.proef or jij.verder }}" style="white-space:nowrap; background:var(--vermiljoen);
-         color:#fff; padding:11px 18px; border-radius:8px; text-decoration:none; font-weight:600;">
+      <a class="knop" href="{{ jij.proef or jij.verder }}" style="white-space:nowrap; background:#0A0A0B;
+         color:#fff; padding:11px 18px; border-radius:10px; text-decoration:none; font-weight:600;">
         Start free trial &middot; 14 days</a>
     </div>
   </div>
@@ -104,7 +104,7 @@
   {% endif %}
 
   {% if ranglijst %}
-  <style>tr:target td{background:#FFF4C2;}</style>
+  <style>/* VERSIE 10: de gekozen rij is #EEF1FD met blauwe tekst, geen geel meer. */ tr:target td{background:#EEF1FD; color:#142FA8;}</style>
   <table>
     <tr>
       <th>#</th><th>{{ t.webshop }}</th>
@@ -196,7 +196,7 @@
   <details style="margin:26px 0 0;">
     <summary style="cursor:pointer; font-weight:600;">Embed this ranking on your site</summary>
     <p style="font-size:14px; margin:10px 0 6px;">Paste this code in your article. It shows the top 5 and updates itself every month.</p>
-    <textarea readonly rows="3" onclick="this.select()" style="width:100%; font-family:var(--mono); font-size:12px; padding:10px; border:1px solid #D8D8DE; border-radius:8px;">{{ embed }}</textarea>
+    <textarea readonly rows="3" onclick="this.select()" style="width:100%; font-family:var(--mono); font-size:12px; padding:10px; border:1px solid #E7E7E4; border-radius:10px;">{{ embed }}</textarea>
   </details>
   {% endif %}
   <div class="cta">

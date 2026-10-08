@@ -80,6 +80,34 @@
   .logo .tag{font-family:var(--mono); font-size:10.5px; color:#6E7079;
              letter-spacing:0.1em; font-weight:400; text-transform:uppercase;}
   .logo-dot{display:none;}
+
+  /* ==================================================================
+     VERSIE 10 (8 oktober 2026, Nino: "ik vind het mooi, maak alles zo").
+     WAAROM: deze pagina heeft eigen CSS met oude waarden (witte achtergrond,
+     Space Grotesk 700, kaarten met radius 10 tot 14). Dit blok staat
+     onderaan zodat het die waarden overschrijft: papierwit #F7F7F5 met witte
+     kaarten, Inter / Inter Tight 500, zachte schaduw en zwarte hoofdknoppen.
+     Het woordmerk blijft Space Grotesk. Teksten, id's en scripts zijn niet
+     aangeraakt.
+     ================================================================== */
+  :root{--paper:#F7F7F5; --paper-raised:#FFFFFF; --line:#E7E7E4;
+        --disp:'Inter Tight', Inter, system-ui, sans-serif; --body:Inter, system-ui, sans-serif;
+        --v10-schaduw:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18);}
+  body{background:#F7F7F5;}
+  .logo, .merk{font-family:'Space Grotesk', system-ui, sans-serif;}
+  h1, h2{font-weight:500; letter-spacing:-0.03em;}
+  .cijfer .getal, .huidig-score, .teller-num, .score-num, .plan h2, .actie-nummer, .code{font-weight:500;}
+  body .kaart, body .card, body .bevinding, body .cijfer, body .methode, body .leeg, body .contact-card,
+  body .notice, body .categorie, body .waarom, body .vergelijk, body .taak, body .uitleg, body .huidig,
+  body .verloop, body .vermelding, body .fix, body .bewaar, body .plan, body details, body .vraag{
+    border-radius:18px; box-shadow:var(--v10-schaduw);}
+  body .cta, body .cta-blok, body .score-card{border-radius:20px;}
+  /* Hoofdknoppen zwart; blauw is alleen voor "jij" en voor links. */
+  body .cta a, body .cta-knop, body .nav-cta, body .knop.vol, body .artikel-cta a{background:#0A0A0B; color:#fff; border-radius:10px;
+    box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5);}
+  body .cta-blok .cta-knop, body .cta a{background:#fff; color:#0A0A0B;}
+  /* Op een zwarte strook is de hoofdknop wit, anders verdwijnt hij. */
+  body .cta a.tweede{background:none; color:#fff; box-shadow:none; border:1px solid rgba(255,255,255,.3);}
 </style>
 {% include "_k_stijl.html" %}
 </head>
