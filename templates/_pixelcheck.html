@@ -1,0 +1,56 @@
+{# De knop "Check my pixel" (8 oktober, Nino: "misschien een knop pixel is added,
+   en dat het dashboard het checkt en groen of rood laat zien").
+   Werkt zo: de knop opent de winkel in een nieuw tabblad met
+   ?utm_source=krillo-check. De pixel stuurt dan een testsignaal (telt NIET mee
+   als AI-bezoek). Deze pagina vraagt elke 3 seconden aan /pixelcheck of er
+   sinds de klik iets binnenkwam: binnen 90 seconden groen, anders rood met
+   wat je kunt nakijken. Verwacht: pixel, nl. #}
+{% if pixel.check and pixel.winkel %}
+<div class="px-check" id="pxCheck">
+  <button type="button" id="pxKnop" class="px-knop">{{ 'Ik heb de pixel geplaatst: check hem' if nl else 'I added the pixel: check it' }}</button>
+  <div class="px-uitleg">{{ 'Je winkel opent in een nieuw tabblad. Laat hem laden en kom hier terug.' if nl else 'Your store opens in a new tab. Let it load, then come back here.' }}</div>
+  <div id="pxUit" class="px-uit" hidden></div>
+</div>
+<style>
+  .px-check{margin:10px 0 4px;}
+  .px-knop{padding:9px 14px; border:0; border-radius:8px; background:#1B3FE0; color:#fff; font:inherit; font-weight:600; cursor:pointer;}
+  .px-knop[disabled]{opacity:.6; cursor:default;}
+  .px-uitleg{font-size:12.5px; color:#6E7079; margin-top:5px;}
+  .px-uit{margin-top:10px; padding:11px 14px; border-radius:9px; font-size:14px; line-height:1.5;}
+  .px-uit.bezig{background:#EEF1FD; color:#142FA8;}
+  .px-uit.goed{background:#E7F6EF; color:#0B5E47;}
+  .px-uit.fout{background:#FDECEC; color:#8A1C1C;}
+  .px-uit ol{margin:6px 0 0 18px; padding:0;}
+</style>
+<script>
+(function(){
+  var knop = document.getElementById('pxKnop'), uit = document.getElementById('pxUit');
+  if (!knop) return;
+  var winkel = {{ pixel.winkel | tojson }}, check = {{ pixel.check | tojson }};
+  var T = {
+    bezig: {{ ('We wachten op het testsignaal van je winkel…' if nl else 'Waiting for the test signal from your store…') | tojson }},
+    goed: {{ ('<strong>De pixel werkt.</strong> We kregen net een testsignaal van je winkel. Bezoek en bestellingen uit AI komen vanaf nu vanzelf binnen. Dit testbezoek telt niet mee.' if nl else '<strong>Your pixel works.</strong> We just received a test signal from your store. Visits and orders from AI now come in by themselves. This test visit does not count.') | tojson }},
+    order: {{ ('Testbestelling ontvangen: ' if nl else 'Test order received: ') | tojson }},
+    fout: {{ ('<strong>We kregen niets binnen.</strong> Kijk dit na en klik daarna opnieuw:<ol><li>In Shopify bij Klantgebeurtenissen staat de Krillo-pixel op <em>Verbonden</em> (eerst Opslaan, dan Verbinden).</li><li>Je plakte de nieuwste code van hierboven, helemaal.</li><li>Staat je winkel achter een wachtwoord? Vul het in in het tabblad dat openging en klik dan hier nog een keer.</li></ol>' if nl else '<strong>We received nothing.</strong> Check these and click again:<ol><li>In Shopify under Customer events, the Krillo pixel says <em>Connected</em> (first Save, then Connect).</li><li>You pasted the newest code from above, all of it.</li><li>Is your store behind a password? Enter it in the tab that opened, then click here once more.</li></ol>') | tojson }}
+  };
+  function toon(soort, html){ uit.hidden = false; uit.className = 'px-uit ' + soort; uit.innerHTML = html; }
+  knop.addEventListener('click', function(){
+    var sinds = Math.floor(Date.now()/1000) - 5, pogingen = 0;
+    var adres = winkel.replace(/\/+$/, '') + '/?utm_source=krillo-check';
+    window.open(adres, '_blank', 'noopener');
+    knop.disabled = true; toon('bezig', T.bezig);
+    var klok = setInterval(function(){
+      pogingen++;
+      fetch(check + '?sinds=' + sinds, {cache: 'no-store'}).then(function(r){ return r.json(); }).then(function(d){
+        if (d && d.gezien) {
+          clearInterval(klok); knop.disabled = false;
+          toon('goed', T.goed + (d.order != null ? '<br>' + T.order + 'EUR ' + Number(d.order).toFixed(2) : ''));
+        } else if (pogingen >= 30) {
+          clearInterval(klok); knop.disabled = false; toon('fout', T.fout);
+        }
+      }).catch(function(){ if (pogingen >= 30) { clearInterval(klok); knop.disabled = false; toon('fout', T.fout); } });
+    }, 3000);
+  });
+})();
+</script>
+{% endif %}

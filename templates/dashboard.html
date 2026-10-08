@@ -149,10 +149,11 @@
     {% endif %}
 
 
+    {% set dicht_nu = wachtwoord is defined and wachtwoord %}
     {% if wachtwoord is defined and wachtwoord and (beeld or pagina not in ('overzicht', 'ranglijst', 'vragen')) %}
     <div class="st-let">
       <strong>{{ 'Je winkel staat achter een wachtwoord.' if taal == 'nl' else 'Your store is behind a password.' }}</strong>
-      {{ 'AI kan hem daardoor niet lezen, en onze sitecheck ook niet. Haal het wachtwoord weg (in Shopify: Online winkel, Voorkeuren); we kijken binnen een dag opnieuw.' if taal == 'nl' else 'So AI cannot read it, and our site check cannot either. Remove the password (in Shopify: Online Store, Preferences); we check again within a day.' }}
+      {{ 'AI kan hem daardoor niet lezen, en onze sitecheck ook niet. Haal het wachtwoord weg (in Shopify: Online winkel, Voorkeuren); we kijken binnen een dag opnieuw.' if taal == 'nl' else 'So AI cannot read it, and our site check cannot either. Remove the password (in Shopify: Online Store, Preferences); we check again within a day. A Shopify development store keeps its password until you pick a Shopify plan; Krillo starts as soon as the store is open.' }}
     </div>
     {% endif %}
 
@@ -212,7 +213,7 @@
             {% if s.wijzig %}</details>{% endif %}
           {% endif %}
           {% if s.sleutel == 'pixel' and s.status != 'klaar' and pixel is defined and pixel %}
-            <details class="st-wijzig"><summary>{{ 'Laat zien hoe' if nl else 'Show me how' }}</summary>
+            <details class="st-wijzig"><summary>{{ 'Laat zien hoe, en check hem' if nl else 'Show me how, and check it' }}</summary>
               <div class="st-pixel">{% include "_pixel.html" %}</div>
             </details>
           {% endif %}
@@ -288,7 +289,7 @@
        meting geen lijn maar een zin, en geen bronnen per antwoord (die meten
        we niet per antwoord).
        ================================================================ #}
-    {% if volgende %}
+    {% if volgende and not dicht_nu %}
     <div class="volgende"><span class="pijl">&rarr;</span> {{ volgende }}</div>
     {% endif %}
 
@@ -981,7 +982,7 @@
        uitgeschreven met sjabloonzinnen die bij echte vragen geen sense maakten,
        en we geven de verbeteringen daar niet gratis weg. Nu: per vraag wie AI
        noemt, en eenmaal de vier stappen die een klant krijgt, op slot. #}
-    {% if pagina == 'verbeteringen' and aanpak %}
+    {% if pagina == 'verbeteringen' and aanpak and not dicht_nu %}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'VRAGEN OM EERST TE WINNEN' if taal == 'nl' else 'QUESTIONS TO WIN FIRST' }}
         <span class="uitleg">{{ 'uit de laatste meting' if taal == 'nl' else 'from the last measurement' }}</span></div>
@@ -1051,7 +1052,7 @@
     {# Verbeteringen: drie tegels bovenaan, ANDERS per pakket (28 september).
        Watch: wat klaarstaat om zelf te doen. Fix: wat wij deden en wat nog komt. #}
     {# 1 oktober: per verloren vraag wat je concreet doet (vraagaanpak.py). #}
-    {% if pagina == 'verbeteringen' and aanpak %}
+    {% if pagina == 'verbeteringen' and aanpak and not dicht_nu %}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'VRAGEN OM EERST TE WINNEN' if taal == 'nl' else 'QUESTIONS TO WIN FIRST' }}
         <span class="uitleg">{{ 'uit je laatste meting, je eigen lijst eerst' if taal == 'nl' else 'from your last measurement, your own list first' }}</span></div>
@@ -1076,7 +1077,7 @@
     {% endif %}
     {# Stap 255 (1 oktober): AI-gereedheid per pagina, uit de wekelijkse scan.
        Alleen pagina's met iets te doen; hoogstens drie acties per pagina. #}
-    {% if pagina == 'verbeteringen' and paginacheck is defined and paginacheck %}
+    {% if pagina == 'verbeteringen' and paginacheck is defined and paginacheck and not dicht_nu %}
     {% set te_doen = paginacheck.paginas | selectattr('acties') | list %}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'PER PAGINA: KAN AI HEM LEZEN?' if taal == 'nl' else 'PER PAGE: CAN AI READ IT?' }}
@@ -1132,7 +1133,7 @@
       {% endif %}
     </div>
     {% endif %}
-    {% if pagina == 'verbeteringen' and werkblok and not werkblok.afgelopen %}
+    {% if pagina == 'verbeteringen' and werkblok and not werkblok.afgelopen and not dicht_nu %}
     {% set acties = (werkblok.actieplan.acties if werkblok.actieplan else []) %}
     <div class="paneel">
       {% if werkblok.doet_werk %}
