@@ -1058,6 +1058,34 @@ def weekmail_uit(klant_token):
             f"<p>{escape(tekst)}</p>{knop}<p><a href='/mijn/{escape(klant_token)}'>Back to your dashboard</a></p>")
 
 
+@app.route("/api/pixel", methods=["POST", "OPTIONS"])
+def api_pixel():
+    """Stap 304: meldingen van de Krillo-pixel op de site van een klant.
+
+    Komt van een ander domein (de winkel), dus open voor elke herkomst. Neemt
+    alleen aan wat pixel.noteer goedkeurt: een bekende sleutel, sessie of
+    order, een redelijk bedrag. Altijd 204: een winkel mag nooit een fout zien
+    of trager worden door Krillo."""
+    if request.method == "POST":
+        try:
+            import pixel
+            import gratistools
+            ruw = request.get_data(cache=False, as_text=True)[:2000]
+            d = json.loads(ruw) if ruw else {}
+            # Rem per bezoeker (zelfde als de gratis tools): een bezoeker doet
+            # hooguit een sessie en een bestelling, meer is misbruik.
+            if isinstance(d, dict) and gratistools.mag_nu("pixel:" + (request.remote_addr or "?")):
+                pixel.noteer(d.get("k"), d.get("t"), bron=d.get("b"), bedrag=d.get("v"),
+                             valuta=d.get("c"), order_id=d.get("o"))
+        except Exception as e:
+            print(f"Pixelmelding mislukt: {e}")
+    antwoord = app.response_class(status=204)
+    antwoord.headers["Access-Control-Allow-Origin"] = "*"
+    antwoord.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    antwoord.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return antwoord
+
+
 @app.route("/mijn/<klant_token>/aiverkeer", methods=["POST"])
 def aiverkeer_bewaren(klant_token):
     """De klant zet zijn AI-bezoek, bestellingen en omzet van een maand in het
@@ -1070,6 +1098,42 @@ def aiverkeer_bewaren(klant_token):
     aiverkeer.bewaar(klant["webshop_url"], request.form.get("maand"), request.form.get("bezoek"),
                      request.form.get("orders"), request.form.get("omzet"))
     return redirect(f"/mijn/{klant_token}#aiverkeer", code=303)
+
+
+@app.route("/mijn/<klant_token>/categorie", methods=["POST"])
+def categorie_kiezen(klant_token):
+    """De klant kiest zelf zijn categorie en land (8 oktober).
+
+    Nino testte met een nieuwe winkel en zag "We have not placed your store in a
+    category yet. That happens within a night". Wie net betaald heeft, wacht
+    geen nacht. Het indelen gaat meestal vanzelf, maar lukt het niet (een
+    testwinkel, een winkel achter een wachtwoord, een te dunne pagina), dan
+    weet de eigenaar zelf in twee klikken wat hij verkoopt. Daarna meteen:
+    is de categorie al gemeten, dan plaatsen uit de antwoorden van deze maand
+    (kost niets); zo niet, dan voor in de klantmeetrij."""
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return render_template("fout.html", titel="This link no longer works",
+                               bericht="Open your dashboard and try again."), 404
+    slug = (request.form.get("categorie") or "").strip()
+    land = (request.form.get("land") or "nl").strip().lower()
+    terug = request.form.get("terug") or ""
+    terug = terug if terug in ("", "ranking", "questions") else ""
+    basis = f"/mijn/{klant_token}" + (f"/{terug}" if terug else "")
+    if slug not in categorieen.GELDIG or slug in categorieen.NIET_MEETBAAR or land not in ("nl", "be"):
+        return redirect(basis + "?categorie=fout", code=303)
+    url = scan_engine.normalize_url(klant["webshop_url"])
+    db.zet_klant_op_lijst(url, land=land)
+    db.zet_categorie(url, slug)
+    db.zet_land(url, land)
+    # Een eerdere mislukte poging mag deze nieuwe niet tegenhouden.
+    _plaatsen_bezig.pop(url, None)
+    _plaatsen_mislukt.pop(url, None)
+    if any(db.laatste_afgeronde_ronde(c) for c in categorieen.familie(slug)):
+        _plaats_in_ranglijst(url)
+    else:
+        zet_in_klantmeetrij(slug)
+    return redirect(basis + "?categorie=gekozen", code=303)
 
 
 # Stap-tellers van de kassa (7 oktober). 36 mensen gingen naar de prijzen en
@@ -2347,61 +2411,59 @@ def admin_voorstellen():
 # beheerpagina erin staat, zodat een nieuwe pagina niet stil ontbreekt.
 # ---------------------------------------------------------------------------
 BEHEER_GROEPEN = [
-    ("Vandaag", [
+    # 7 oktober (Nino: "teveel pagina's, veel kan samen"): wat je elke dag nodig
+    # hebt bovenaan; de rest ingeklapt onder "Minder vaak nodig".
+    ("Elke dag", [
         ("/admin/ochtendbericht", "Ochtendbericht", "Het bericht van vanochtend, nu bekijken"),
+        ("/admin/bezoek", "Trechter en bezoek", "Per dag: van bezoek tot betaald, en de koude mail"),
+        ("/admin/bezoekers", "Gratis checks", "Handmatige checks die wachten, mislukte checks, herkomst"),
+        ("/admin/benadering", "Benadering", "De lijst, de rem, en wat de mails opleveren"),
+        ("/admin/antwoorden", "Antwoorden", "Wie terugmailde, met een concept-antwoord"),
+        ("/admin/verkoop", "Verkoopagent", "Opvolgingen goedkeuren of overslaan"),
         ("/admin/voorstellen", "Voorstellen", "Ja of nee op wat de agents willen doen, en de bouwlijst voor Claude"),
-        ("/admin/klantblik", "Klantblik", "Alle pagina's nagelopen zoals een klant ze ziet: wat er niet klopt"),
-        ("/admin/snelmeting", "Snelmeting", "De wekelijkse meting van de vijf belangrijkste vragen per klant"),
-        ("/admin/agents", "Commandocentrum", "Alle agents met hun schakelaars"),
-        ("/admin/controle", "Nachtcontrole", "Wat de controleagent vond, en nu draaien"),
-        ("/admin/traag", "Trage pagina's", "Welke pagina's traag waren, en waarom"),
+        ("/admin/kosten", "Kosten", "Wat de metingen en modellen kosten"),
     ]),
-    ("Klanten en geld", [
+    ("Klanten", [
         ("/admin/bestellingen", "Bestellingen", "Wie betaald heeft"),
+        ("/admin/snelmeting", "Snelmeting", "De wekelijkse meting van de vijf belangrijkste vragen per klant"),
         ("/admin/uitvoeringen", "Werklijst Fix", "Wat wij in winkels van klanten doen"),
         ("/admin/werkbriefje", "Werkbriefje", "Wat jij precies doet in de winkel van een klant"),
         ("/admin/oplevering", "Oplevering", "Het overzicht dat de klant krijgt als het klaar is"),
         ("/admin/oplossingen", "Kant-en-klare teksten", "De teksten van het actieplan los schrijven"),
+        ("/admin/voorbeeld", "Klantpagina bekijken", "De klantpagina voor een winkel naar keuze"),
         ("/admin/shopify", "Shopify-app", "Welke winkels de app hebben"),
         ("/admin/wordpress", "WordPress-winkels", "Fix in gekoppelde WooCommerce-winkels"),
         ("/admin/doorverwijzen", "Partners", "Partneraanvragen goedkeuren"),
-        ("/admin/kosten", "Kosten", "Wat de metingen en modellen kosten"),
     ]),
-    ("Koude mail en verkoop", [
-        ("/admin/benadering", "Benadering", "De lijst, de rem, en wat de mails opleveren"),
-        ("/admin/antwoorden", "Antwoorden", "Wie terugmailde, met een concept-antwoord"),
-        ("/admin/verkoop", "Verkoopagent", "Opvolgingen goedkeuren of overslaan"),
+    ("Meer klanten vinden", [
         ("/admin/formulieren", "Contactformulieren", "Winkels zonder info@, bericht staat klaar"),
-        ("/admin/bureaus", "Bureaus", "Webbureaus uit de voettekst van winkels"),
-        ("/admin/merken", "Merken en platforms", "Wat het opschonen als merk aanmerkte"),
-        ("/admin/merkaanvragen", "Merkaanvragen", "Aanvragen via /agencies"),
         ("/admin/onderzoeksmail", "Onderzoeksmail", "Gemeten winkels met hun eigen uitkomst"),
+        ("/admin/bureaus", "Bureaus", "Webbureaus uit de voettekst van winkels"),
+        ("/admin/merkaanvragen", "Merkaanvragen", "Aanvragen via /agencies"),
         ("/admin/wachtlijst", "Wachtlijst per land", "Welke landen wachten, en hoeveel"),
-    ]),
-    ("Zichtbaar worden", [
         ("/admin/linkedin", "LinkedIn", "Posts van de LinkedIn-agent met plaatje"),
         ("/admin/persbericht", "Persbericht", "Klaar om te kopieren"),
         ("/admin/lijstjes", "Lijstjes", "Wat de lijstjesagent vond en mailde"),
         ("/admin/artikelen", "Artikelen", "Concepten van de artikelagent nakijken en plaatsen"),
     ]),
-    ("Index en metingen", [
+    ("Index", [
         ("/admin/ranglijst", "Ranglijst", "Een categorie meten en bekijken"),
         ("/admin/categorieen", "Categorieen", "Winkels indelen en tellen"),
         ("/admin/opschonen", "Opschonen", "De winkellijst schoon voor publicatie"),
         ("/admin/metingen", "Metingen", "Wat de modellen antwoordden"),
-        ("/admin/beoordelingen", "Beoordelingen", "Wat er uit de antwoorden gehaald is"),
         ("/admin/koopvragen", "Koopvragen", "De vragen per webshop"),
+    ]),
+    ("Minder vaak nodig", [
+        ("/admin/klantblik", "Klantblik", "Alle pagina's nagelopen zoals een klant ze ziet: wat er niet klopt"),
+        ("/admin/agents", "Commandocentrum", "Alle agents met hun schakelaars"),
+        ("/admin/controle", "Nachtcontrole", "Wat de controleagent vond, en nu draaien"),
+        ("/admin/traag", "Trage pagina's", "Welke pagina's traag waren, en waarom"),
+        ("/admin/merken", "Merken en platforms", "Wat het opschonen als merk aanmerkte"),
+        ("/admin/beoordelingen", "Beoordelingen", "Wat er uit de antwoorden gehaald is"),
         ("/admin/benchmark", "Benchmark", "Alle gemeten winkels bij elkaar"),
         ("/admin/bronnen", "Bronnen", "Welke externe pagina's gevonden zijn"),
         ("/admin/modellen", "Modellen", "Werken de ingestelde modelnamen nog"),
-    ]),
-    ("Site en bezoek", [
-        ("/admin/bezoek", "Bezoek", "Hoeveel mensen, welke pagina's, waarvandaan"),
-        ("/admin/bezoekers", "Gratis scans", "Scans en waar ze vandaan komen"),
-        ("/admin/voorbeeld", "Klantpagina bekijken", "De klantpagina voor een winkel naar keuze"),
         ("/admin/demo", "Demo-uitkomsten", "De volledige meting voor een niet-klant"),
-    ]),
-    ("Agents", [
         ("/admin/leren", "Leeragent", "Wat de agents onderzochten en doorvoerden"),
         ("/admin/wereld", "Agentendorp", "Het dorp van de agents, ververst vanzelf"),
     ]),
@@ -2421,7 +2483,11 @@ def admin_portaal():
         items = "".join(
             f"<a class='tegel' href='{pad}' data-zoek='{escape((naam + ' ' + uitleg + ' ' + pad).lower())}'>"
             f"<b>{escape(naam)}</b><span>{escape(uitleg)}</span></a>" for pad, naam, uitleg in paginas)
-        tegels += f"<section><h2>{escape(groep)}</h2><div class='raster'>{items}</div></section>"
+        if groep == "Minder vaak nodig":
+            tegels += (f"<section><details><summary><h2 style='display:inline'>{escape(groep)}</h2></summary>"
+                       f"<div class='raster'>{items}</div></details></section>")
+        else:
+            tegels += f"<section><h2>{escape(groep)}</h2><div class='raster'>{items}</div></section>"
     # Wat er te doen is komt los binnen (fetch): het zijn een stuk of tien
     # tellingen in de database, en het portaal zelf moet meteen open staan.
     return ("<!doctype html><html lang='nl'><meta charset='utf-8'>"
@@ -2447,6 +2513,7 @@ def admin_portaal():
             "<a href='/admin/uitloggen'>Uitloggen</a></p></div>"
             "<script>"
             "var z=document.getElementById('zoek');z.addEventListener('input',function(){var q=z.value.toLowerCase().trim();"
+            "document.querySelectorAll('details').forEach(function(d){d.open=!!q});"
             "document.querySelectorAll('.tegel').forEach(function(t){t.style.display=!q||t.dataset.zoek.indexOf(q)>-1?'':'none'});"
             "document.querySelectorAll('section').forEach(function(s){var z2=[].some.call(s.querySelectorAll('.tegel'),"
             "function(t){return t.style.display!=='none'});s.style.display=z2?'':'none'})});"
@@ -3234,7 +3301,23 @@ def _rang_voor_gratis_check(webshop_url):
         for kandidaat in dict.fromkeys(kandidaten):
             beeld = klantbeeld.bouw(kandidaat, max_vragen=0)
             if beeld and beeld.get("land") and (beeld.get("van") or 0) >= MINIMUM_PER_LAND:
+                # 7 oktober: het concept is "wie AI aanraadt in plaats van jou".
+                # Dus ook de namen: de bovenste drie winkels van dezelfde lijst,
+                # zonder de winkel zelf. Mislukt dat, dan gewoon zonder namen.
+                voor = []
+                try:
+                    lijst = db.ranglijst_per_land(beeld["categorie"], beeld["land"], limiet=6)
+                    eigen = scan_engine.normalize_url(kandidaat)
+                    for r in (lijst or {}).get("rijen") or []:
+                        if scan_engine.normalize_url(r.get("webshop_url") or "") == eigen:
+                            continue
+                        voor.append(r.get("naam") or re.sub(r"^https?://(www\.)?", "", r.get("webshop_url") or ""))
+                        if len(voor) == 3:
+                            break
+                except Exception as e:
+                    print(f"Namen voor de gratis check mislukt: {e}")
                 return {
+                    "voor": voor,
                     "positie": beeld["positie"], "van": beeld["van"],
                     "categorie": categorieen.naam_en(beeld["categorie"]),
                     "land": sitetaal.landnaam(beeld["land"], "en"),
@@ -3812,8 +3895,8 @@ def _leg_doorverwijzing_vast(metadata, webshop_url, payment_id):
                       f"{doorverwijzen.PROCENT_PARTNER} procent van wat deze klant betaalt, "
                       f"zolang de klant betaalt, hoogstens {doorverwijzen.MAANDEN_PARTNER} maanden.")
         else:
-            uitleg = (f"Klant {wie.get('webshop_url')} verwees door en krijgt een maand van zijn "
-                      f"eigen pakket terug, na {doorverwijzen.WACHTDAGEN} dagen als deze klant dan "
+            uitleg = (f"Klant {wie.get('webshop_url')} verwees door en krijgt zijn volgende maand "
+                      f"gratis (in Mollie de volgende afschrijving een maand opschuiven, niet terugbetalen), na {doorverwijzen.WACHTDAGEN} dagen als deze klant dan "
                       f"nog betaalt.")
         _meld_aan_beheer("Nieuwe klant via een doorverwijzing",
                          f"{webshop_url} werd klant via de link van {wie['code']}. {uitleg} "
@@ -4993,6 +5076,16 @@ def _benadering_ronde_werk():
         print(f"Benadering, herkansing mislukt: {e}")
 
     try:
+        # Stap 306: winkels zonder adres op hun site, via de zoekmachine.
+        via_zoek = benadering.adressen_via_zoekmachine()
+        if via_zoek.get("bekeken"):
+            verslag["zoekmachine"] = via_zoek
+            print(f"Benadering, adressen via de zoekmachine: {via_zoek}")
+    except Exception as e:
+        verslag["mislukt"].append(f"adressen via zoekmachine: {e}")
+        print(f"Benadering, zoekmachine mislukt: {e}")
+
+    try:
         # Winkels die geklikt hebben maar geen meting kregen omdat de dagpot op
         # was. Die staan vooraan in de rij: iemand die op zijn uitkomst klikt is
         # het beste wat er die dag gebeurt, en in de mail is hem een grotere
@@ -6051,6 +6144,17 @@ def afmelden(token):
             return "", 404
         return render_template("afgemeld.html", gelukt=False), 404
 
+    # 7 OKTOBER (gevonden in de trechter per dag: 11 tot 19 afmeldingen op 60
+    # mails, elke dag). Beveiligingsscanners van bedrijven (Microsoft, Mimecast,
+    # Proofpoint) openen ELKE link in een mail voordat de mens hem leest, ook
+    # de afmeldlink. Met afmelden op GET meldde de scanner de winkel dus af, en
+    # haalde hem ook nog uit de openbare index. Nu: een gewone klik (GET) toont
+    # een knop, de knop (POST) meldt af. De afmeldknop van Gmail zelf stuurt een
+    # POST en werkt dus nog steeds met een klik.
+    if request.method == "GET":
+        return render_template("afgemeld.html", vraag=True, token=token,
+                               winkel=webshop_url)
+
     # Kijken of het echt bewaard is. Een bevestigingsscherm tonen terwijl er
     # niets is opgeslagen is erger dan een foutmelding: hij denkt dat het
     # geregeld is en krijgt toch weer post.
@@ -6066,9 +6170,9 @@ def afmelden(token):
     # die net gezegd heeft dat hij niets meer van ons wil.
     benadering.haal_van_wachtlijst(webshop_url)
 
-    if request.method == "POST":
-        return "", 200
-    return render_template("afgemeld.html", gelukt=True, winkel=webshop_url)
+    if request.form.get("bevestig"):
+        return render_template("afgemeld.html", gelukt=True, winkel=webshop_url)
+    return "", 200
 
 
 def _benader_regels(alles=False, aantal=200):
@@ -6153,6 +6257,8 @@ def admin_benadering():
     bezig = _metingen_bezig()
     return render_template(
         "admin_benadering.html",
+        geen_adres=db.redenen_geen_adres(),
+        zoekmachine=benadering.zoekmachine_stand(),
         diagnose=benadering.waarom_gaat_er_niets_uit(
             moment_laatste_ronde=benadering.laatste_ronde(),
             meetruimte=kosten.ruimte_voor_benadering(),
@@ -6232,8 +6338,21 @@ def monitoring_pagina(klant_token):
                 c for c in laatste["checks"]
                 if c["status"] != "ok" and c["titel"] not in vorige_problemen
             ]
-        for c in laatste["checks"]:
-            checks_by_categorie.setdefault(c.get("categorie", "overig"), []).append(c)
+        # 8 oktober (Nino zag "TOEGANG" en "Gebruikt de site een beveiligde
+        # verbinding?" op een verder Engelse pagina): de dertien punten in de
+        # taal van de klant. scan_engine blijft Nederlands; hier vertalen.
+        engels = _mailtaal(klant["webshop_url"]) != "nl"
+        checks_hier = laatste["checks"]
+        if engels:
+            import checktaal
+            checks_hier = checktaal.naar_het_engels({"checks": laatste["checks"]})["checks"]
+        groepnaam = ({"toegang": "Access", "leesbaarheid": "Readability", "structuur": "Structure",
+                      "inhoud": "Content", "vertrouwen": "Trust", "overig": "Other"} if engels else {})
+        if engels and nieuwe_problemen:
+            nieuwe_problemen = checktaal.naar_het_engels({"checks": nieuwe_problemen})["checks"]
+        for c in checks_hier:
+            cat = c.get("categorie", "overig")
+            checks_by_categorie.setdefault(groepnaam.get(cat, cat), []).append(c)
 
     verloop = list(reversed(rapporten))[-8:]
 
@@ -8040,6 +8159,31 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             # Alleen "bezig" zeggen als het ook echt loopt (of net liep).
             if time.time() - _plaatsen_bezig.get(webshop_url, 0) < 600:
                 gegevens["geen_plek"]["bezig"] = True
+        # 8 oktober: de startpagina met stappen in plaats van een lege pagina.
+        if klant_token and not proef:
+            try:
+                klant_rij = db.get_klant(klant_token) or {}
+                wachtwoord = False if eigen_controle else _wachtwoord_nu(webshop_url, klant_rij)
+                gegevens["start"] = _startstappen(webshop_url, klant_token, gegevens["geen_plek"], taal,
+                                                  pakket=klant_rij.get("pakket"), wachtwoord=wachtwoord)
+                gegevens["wachtwoord"] = wachtwoord
+                gegevens["categorie_post"] = f"/mijn/{klant_token}/categorie"
+                gegevens["categoriekeuzes"] = _categoriekeuzes()
+                gegevens["gekozen_land"] = ((db.winkel_kort(webshop_url) or {}).get("land")
+                                            or categoriemeting._land_bij_domein(
+                                                categoriemeting._schoon_domein(webshop_url) or "") or "nl")
+                gegevens["categorie_melding"] = request.args.get("categorie") or ""
+                import pixel
+                sleutel = pixel.sleutel_voor(webshop_url)
+                gegevens["pixel"] = {"status": pixel.status(webshop_url),
+                                     "shopify": pixel.shopify_code(sleutel, get_base_url()),
+                                     "site": pixel.site_code(sleutel, get_base_url())}
+            except Exception as e:
+                print(f"Startpagina mislukt voor {webshop_url}: {e}")
+    elif klant_token and not proef:
+        # Wie wel een plek heeft maar intussen zijn winkel dichtzette: zeggen,
+        # want dan gaan zijn fixes over de wachtwoordpagina.
+        gegevens["wachtwoord"] = scan_engine.staat_achter_wachtwoord(webshop_url)
     if beeld:
         winkelnaam = beeld.get("naam")
         if pagina in ("overzicht", "vragen"):
@@ -8093,6 +8237,15 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 gegevens["aanpak"] = vraagaanpak.voor_dashboard(
                     vo, gekozen_lijst, sitetaal.landnaam(beeld.get("land"), taal) if beeld.get("land") else None,
                     en=(taal != "nl"), maximaal=(2 if proef else 3))
+                # Stap 290: per vraag de bronnen die AI noemt en de pagina die moet antwoorden.
+                if not proef:
+                    try:
+                        import paginacheck
+                        pc = paginacheck.laatste(webshop_url) or {}
+                        vraagaanpak.verrijk(gegevens["aanpak"], db.antwoorden_met_tekst_van_ronde(beeld["ronde"]),
+                                            pc.get("paginas"))
+                    except Exception as e:
+                        print(f"Bronnen en pagina per vraag mislukt voor {webshop_url}: {e}")
             except Exception as e:
                 print(f"Aanpak per vraag mislukt voor {webshop_url}: {e}")
         if pagina == "overzicht":
@@ -8121,6 +8274,15 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                     gegevens["aiverkeer"] = aiverkeer.overzicht(webshop_url, beeld.get("verloop"),
                                                                 maandprijs=prijs)
                     gegevens["aiverkeer_post"] = f"/mijn/{klant_token}/aiverkeer"
+                    # Stap 304: de pixel, met de code al ingevuld voor deze winkel.
+                    try:
+                        import pixel
+                        sleutel = pixel.sleutel_voor(webshop_url)
+                        gegevens["pixel"] = {"status": pixel.status(webshop_url),
+                                             "shopify": pixel.shopify_code(sleutel, get_base_url()),
+                                             "site": pixel.site_code(sleutel, get_base_url())}
+                    except Exception as e:
+                        print(f"Pixel voor het dashboard mislukt: {e}")
                 elif not beheer:
                     gegevens["aiverkeer"] = aiverkeer.voorbeeld()
                     gegevens["aiverkeer_voorbeeld"] = True
@@ -8414,6 +8576,146 @@ def _geen_plek_reden(webshop_url):
     except Exception as e:
         print(f"Reden zonder plek mislukt voor {webshop_url}: {e}")
         return {"soort": "onbekend"}
+
+
+_wachtwoord_gekeken = {}
+
+
+def _wachtwoord_nu(webshop_url, klant=None):
+    """Staat de winkel achter een wachtwoord? Een snelle controle hooguit eens
+    per zes uur per winkel (een verzoek, geen scan), anders wat de laatste scan
+    onthield. Alleen voor de startpagina van een klant zonder plek."""
+    nu = time.time()
+    if nu - _wachtwoord_gekeken.get(webshop_url, 0) > 6 * 3600:
+        _wachtwoord_gekeken[webshop_url] = nu
+        was_dicht = scan_engine.staat_achter_wachtwoord(webshop_url)
+        uitkomst = scan_engine.controleer_wachtwoord_nu(webshop_url)
+        if uitkomst is False and was_dicht:
+            # Net open gegaan: de laatste scan ging over de wachtwoordpagina.
+            # Meteen opnieuw scannen, niet een week wachten.
+            _herscan_op_achtergrond(webshop_url, klant or {})
+        if uitkomst is not None:
+            return uitkomst
+    return scan_engine.staat_achter_wachtwoord(webshop_url)
+
+
+def _herscan_op_achtergrond(webshop_url, klant):
+    """Een nieuwe sitecheck voor een klant, los van het verzoek. Kost niets
+    behalve een paar verzoeken aan zijn eigen winkel."""
+    def werk():
+        try:
+            uitslag = run_scan(webshop_url)
+            if "error" in uitslag:
+                return
+            db.save_report("monitoring", webshop_url, klant.get("email"), uitslag.get("score", 0),
+                           uitslag.get("checks", []), None, None, klant.get("klant_token"))
+            # En meteen de fixes over de echte winkel laten schrijven.
+            _oplossingen_bezig[webshop_url] = True
+            try:
+                _maak_taakoplossingen(webshop_url, _klantgegevens(webshop_url)["actieplan"])
+            finally:
+                _oplossingen_bezig.pop(webshop_url, None)
+        except Exception as e:
+            print(f"Herscan mislukt voor {webshop_url}: {e}")
+    threading.Thread(target=werk, daemon=True).start()
+
+
+def _categoriekeuzes():
+    """Alle meetbare categorieen voor de kiezer, op Engelse naam gesorteerd."""
+    return sorted(({"slug": s, "naam": categorieen.naam_en(s)} for s in categorieen.GELDIG
+                   if s not in categorieen.NIET_MEETBAAR), key=lambda c: c["naam"])
+
+
+def _startstappen(webshop_url, klant_token, geen_plek, taal, pakket=None, wachtwoord=False):
+    """De startpagina van een klant die nog geen plek heeft (8 oktober).
+
+    WAAROM. Nino betaalde als test en zag een overzicht met een kaartje en een
+    zin, verder leeg. Zo voelt het alsof er niets gebeurt, terwijl er wel van
+    alles loopt. Peec, Profound, Stripe en Shopify lossen dit op dezelfde manier
+    op: een lijst van een paar stappen met een vinkje bij wat klaar is, wat nu
+    loopt, en wat de klant zelf kan doen. Dus hier precies dat, met alleen wat
+    echt waar is: elk vinkje komt uit de database, niet uit een belofte.
+    Geeft een lijst stappen met status klaar, bezig, wacht, actie of let_op."""
+    nl = taal == "nl"
+    soort = (geen_plek or {}).get("soort")
+    stappen = []
+    pakketnaam = "Fix" if (pakket or "").lower() == "fix" else "Watch"
+    stappen.append({"sleutel": "plan", "status": "klaar",
+                    "titel": (f"{pakketnaam} staat aan" if nl else f"{pakketnaam} is active"),
+                    "tekst": ("Je betaling is binnen en je dashboard is van jou." if nl else
+                              "Your payment is in and this dashboard is yours.")})
+    # De sitecheck: de dertien punten uit de laatste scan.
+    score = None
+    try:
+        rapporten = db.get_klant_rapporten(klant_token, limit=1) if klant_token else []
+        score = rapporten[0].get("score") if rapporten else None
+    except Exception:
+        pass
+    if wachtwoord:
+        stappen.append({"sleutel": "site", "status": "let_op",
+                        "titel": "Je winkel staat achter een wachtwoord" if nl else "Your store is behind a password",
+                        "tekst": ("AI kan hem daardoor niet lezen, en wij ook niet. Haal het wachtwoord weg "
+                                  "(in Shopify: Online winkel, Voorkeuren) en we kijken binnen een dag opnieuw." if nl else
+                                  "So AI cannot read it, and neither can we. Remove the password "
+                                  "(in Shopify: Online Store, Preferences) and we check again within a day.")})
+    elif score is not None:
+        stappen.append({"sleutel": "site", "status": "klaar",
+                        "titel": (f"Sitecheck: {score} van 100" if nl else f"Site check: {score} of 100"),
+                        "tekst": ("Hoe goed AI je winkel kan lezen. Elke week opnieuw." if nl else
+                                  "How well AI can read your store. Checked again every week.")})
+    else:
+        stappen.append({"sleutel": "site", "status": "bezig",
+                        "titel": "Sitecheck" if nl else "Site check",
+                        "tekst": ("Loopt. Meestal binnen een paar minuten klaar." if nl else
+                                  "Running. Usually done within a few minutes.")})
+    # De categorie: kiezen kan altijd, ook als we hem zelf al bepaalden.
+    if soort in ("geen_categorie", "onbekend", None):
+        stappen.append({"sleutel": "categorie", "status": "actie",
+                        "titel": "Kies je categorie" if nl else "Choose your category",
+                        "tekst": ("Wat verkoop je vooral? Daarmee vergelijken we je met de winkels die AI "
+                                  "noemt voor dezelfde koopvragen." if nl else
+                                  "What do you mainly sell? We compare you with the stores AI names "
+                                  "for the same buying questions.")})
+    else:
+        stappen.append({"sleutel": "categorie", "status": "klaar",
+                        "titel": (f"Categorie: {geen_plek.get('categorie')}" if nl else
+                                  f"Category: {geen_plek.get('categorie')}"),
+                        "tekst": "", "wijzig": True})
+    # De plek in de index.
+    if soort in ("geen_categorie", "onbekend", None):
+        status, tekst = "wacht", ("Zodra je categorie gekozen is." if nl else "As soon as your category is set.")
+    elif geen_plek.get("bezig") or soort == "niet_in_meting":
+        status, tekst = "bezig", ("We rekenen je plek uit de antwoorden van deze maand. Een paar minuten." if nl else
+                                  "We are working out your rank from this month's answers. A few minutes.")
+    elif geen_plek.get("wordt_gemeten"):
+        status, tekst = "bezig", ("We meten je categorie nu voor je. Meestal binnen het uur; je krijgt een mail." if nl else
+                                  "We are measuring your category for you now. Usually within the hour; we email you.")
+    else:
+        status, tekst = "wacht", (f"We meten vanaf {geen_plek.get('nodig')} winkels en kennen er nu "
+                                  f"{geen_plek.get('aantal')}. We zoeken elke nacht bij en mailen je zodra het zover is." if nl else
+                                  f"We measure from {geen_plek.get('nodig')} stores and know {geen_plek.get('aantal')} now. "
+                                  "We add stores every night and email you when it is ready.")
+    stappen.append({"sleutel": "plek", "status": status,
+                    "titel": "Je plek in de index" if nl else "Your rank in the index", "tekst": tekst})
+    stappen.append({"sleutel": "fixes", "status": "wacht",
+                    "titel": "Je eerste fixes" if nl else "Your first fixes",
+                    "tekst": ("Per koopvraag waar AI een ander noemt: wat je verandert en waar. Komen met je plek." if nl else
+                              "For each buying question where AI names someone else: what to change and where. "
+                              "They arrive with your rank.")})
+    verbonden = False
+    try:
+        import pixel
+        verbonden = bool((pixel.status(webshop_url) or {}).get("verbonden"))
+    except Exception:
+        pass
+    stappen.append({"sleutel": "pixel", "status": "klaar" if verbonden else "actie",
+                    "titel": ("Verkoop gekoppeld" if verbonden else "Koppel je verkoop (2 minuten)") if nl else
+                             ("Sales connected" if verbonden else "Connect your sales (2 minutes)"),
+                    "tekst": ("" if verbonden else
+                              ("Dan zie je wat AI je oplevert aan bezoek, bestellingen en omzet." if nl else
+                               "Then you see what AI brings you in visits, orders and revenue."))})
+    klaar = sum(1 for s in stappen if s["status"] == "klaar")
+    return {"stappen": stappen, "klaar": klaar, "totaal": len(stappen)}
 
 
 def _doorverwijzing_voor(webshop_url, pagina, werkblok, proef):
@@ -9587,8 +9889,25 @@ def admin_bezoekers():
     totaal = overzicht["totaal"] or {}
     scans = totaal.get("scans") or 0
     betaald = totaal.get("betaald") or 0
+    # 7 oktober: wie na een mislukte check "Check it by hand" invulde, en welke
+    # checks mislukten. Dit zijn warme mensen: ze wilden hun uitslag.
+    try:
+        handchecks = list(reversed(json.loads(db.get_instelling("handchecks") or "[]")))[:30]
+    except Exception:
+        handchecks = []
+    try:
+        conn = db._get_connection()
+        with conn, conn.cursor() as cur:
+            cur.execute("""SELECT gedaan_op, webshop_url, coalesce(foutsoort, '') FROM gratis_scans
+                            WHERE NOT coalesce(gelukt, false) ORDER BY gedaan_op DESC LIMIT 20""")
+            mislukt = [{"op": r[0], "url": r[1], "fout": r[2]} for r in cur.fetchall()]
+        conn.close()
+    except Exception as e:
+        print(f"Mislukte checks ophalen mislukt: {e}")
+        mislukt = []
     return render_template(
         "admin_bezoekers.html",
+        handchecks=handchecks, mislukt=mislukt,
         dagen=dagen,
         totaal=totaal,
         # Bewust als "x van de y" en niet als percentage: bij kleine aantallen
@@ -9854,8 +10173,15 @@ def admin_bezoek():
         gemeten = (datetime.now(timezone.utc) - eerste).days + 1
         trechterdagen = max(1, min(dagen, gemeten))
     scantotaal = (db.scanoverzicht(trechterdagen)["totaal"] or {})
+    # 7 oktober (Nino): elke dag zien waar mensen heen gaan en afhaken.
+    try:
+        per_dag_trechter = db.trechter_volledig(14)
+    except Exception as e:
+        print(f"Trechter per dag mislukt: {e}")
+        per_dag_trechter = []
     return render_template(
         "admin_bezoek.html",
+        trechter_dag=per_dag_trechter,
         dagen=dagen,
         trechterdagen=trechterdagen,
         sinds=eerste,

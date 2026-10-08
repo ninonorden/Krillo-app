@@ -909,6 +909,107 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     return send_email(to_email, onderwerp, html, koppen=koppen)
 
 
+def welkom_v2_html(webshop_url, report_url, pakket="watch", score=None, gratis_tot=None,
+                   plek=None, wachtwoord=False):
+    """ONTWERP voor een nieuwe welkomstmail (8 oktober), NOG NIET IN GEBRUIK.
+
+    Nino: "de welkomstmail is nog te standaard, het is alleen tekst". De huidige
+    mail is zeven alinea's lopende tekst; de knop staat helemaal onderaan. Hoe
+    Peec, Semrush, Stripe en Linear het doen: een korte kop, meteen de knop,
+    dan een lijstje van drie stappen met nummers (wat wij nu doen, wat jij doet,
+    wat er elke maand komt), de proefperiode in een eigen kader, en klaar.
+    Dit is die opbouw, met dezelfde feiten als de oude mail en niets erbij.
+    Pas na akkoord van Nino gaat send_monitoring_welcome_email dit gebruiken.
+
+    Gebouwd met tabellen en inline stijlen: Gmail en Outlook negeren <style>
+    en flex, en dan valt een mail uit elkaar."""
+    winkel = veilig(_kaal_adres(webshop_url))
+    is_fix = (pakket or "").lower() not in ("watch", "")
+    naam = "Fix" if is_fix else "Watch"
+    groen, groen_bg, blauw_bg = "#0B7C5E", "#E7F6EF", "#EEF1FD"
+
+    def stap(nr, kop, tekst, kleur=BLAUW, bg=blauw_bg, knop=None):
+        knop_html = (f'<div style="margin-top:8px;"><a href="{knop[1]}" style="color:{BLAUW}; '
+                     f'font-weight:600; font-size:13.5px; text-decoration:none;">{knop[0]} &rarr;</a></div>'
+                     if knop else "")
+        return f"""
+        <tr><td style="padding:14px 0; border-top:1px solid {LIJN};">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+            <td valign="top" width="40" style="padding-right:12px;">
+              <div style="width:28px; height:28px; line-height:28px; border-radius:14px; background:{bg};
+                          color:{kleur}; font-weight:700; font-size:13px; text-align:center;">{nr}</div>
+            </td>
+            <td valign="top" style="font-size:14.5px; line-height:1.55; color:{INKT_ZACHT};">
+              <div style="font-weight:700; color:{INKT}; margin-bottom:2px;">{kop}</div>
+              {tekst}{knop_html}
+            </td>
+          </tr></table>
+        </td></tr>"""
+
+    if wachtwoord:
+        eerste = stap("!", "First: open your store",
+                      "Your store is behind a password, so AI cannot read it and neither can we. "
+                      "In Shopify: Online Store, Preferences, remove the password. We pick it up by ourselves.",
+                      kleur="#B4471A", bg="#FFF1E8")
+    elif plek and plek.get("positie"):
+        eerste = stap("&#10003;", f"You are #{plek['positie']} of {plek['van']} in your category",
+                      "From this month's measurement. Your dashboard shows each buying question "
+                      "where AI names another store, and which one.", kleur=groen, bg=groen_bg)
+    else:
+        eerste = stap("1", "Now: we place you in your category",
+                      "We work out your rank from the answers ChatGPT and Gemini gave this month, "
+                      "and write your first fixes. Usually within the hour. We email you when it is in.")
+    if is_fix:
+        tweede = stap("2", "We install your sales pixel",
+                      "So every month you see the visits, orders and revenue AI brings you. "
+                      "You get a separate email about access to your store.")
+    else:
+        tweede = stap("2", "You: connect your sales (2 minutes)",
+                      "Paste the Krillo pixel into Shopify (Settings, Customer events) or your site. "
+                      "Then you see what AI brings you in visits, orders and revenue. "
+                      "Rather not? Reply and we place it for you.",
+                      knop=("Show me how", f"{report_url}#start-pixel") if report_url else None)
+    derde = stap("3", "Every month: your rank and your fixes",
+                 "We measure your whole category again and send you your position. "
+                 + ("We put the fixes into your store and keep the old text, so it can always go back."
+                    if is_fix else
+                    "Your dashboard shows the three fixes that gain you the most, ready to copy."))
+
+    cijfer = (f'<td width="50%" style="padding:14px 16px; border:1px solid {LIJN}; border-radius:10px;">'
+              f'<div style="font-family:Courier New, monospace; font-size:10.5px; letter-spacing:.08em; color:#6E7079;">SITE CHECK TODAY</div>'
+              f'<div style="font-size:24px; font-weight:700; color:{INKT}; margin-top:4px;">{score}<span style="font-size:13px; color:#6E7079; font-weight:400;"> / 100</span></div>'
+              f'<div style="font-size:12.5px; color:{INKT_ZACHT};">How well AI can read your store</div></td>'
+              if score is not None and not wachtwoord else "")
+    proef = (f'<td width="50%" style="padding:14px 16px; background:#FAFAFB; border:1px solid {LIJN}; border-radius:10px;">'
+             f'<div style="font-family:Courier New, monospace; font-size:10.5px; letter-spacing:.08em; color:#6E7079;">FREE UNTIL</div>'
+             f'<div style="font-size:24px; font-weight:700; color:{INKT}; margin-top:4px;">{gratis_tot.strftime("%-d %b")}</div>'
+             f'<div style="font-size:12.5px; color:{INKT_ZACHT};">Then EUR 49 a month. Cancel any time on the Plan page.</div></td>'
+             if gratis_tot else "")
+    tegels = ""
+    if cijfer or proef:
+        tussen = '<td width="12">&nbsp;</td>' if (cijfer and proef) else ""
+        tegels = (f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" '
+                  f'style="margin:22px 0 6px;"><tr>{cijfer}{tussen}{proef}</tr></table>')
+
+    knop = (f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 4px;"><tr>'
+            f'<td style="background:{BLAUW}; border-radius:8px;"><a href="{report_url}" style="display:inline-block; '
+            f'padding:13px 24px; color:#FFFFFF; font-weight:600; font-size:15px; text-decoration:none;">'
+            f'Open your dashboard &rarr;</a></td></tr></table>'
+            f'<p style="font-size:12.5px; color:#6E7079; margin:6px 0 0;">No password: this link is your key, so keep this email.</p>'
+            if report_url else "")
+
+    body = (f'<p style="font-size:15px; line-height:1.6; color:{INKT_ZACHT}; margin:0;">'
+            f'Your {naam} plan for <strong style="color:{INKT};">{winkel}</strong> is live. '
+            f'Here is what happens next.</p>'
+            + knop + tegels
+            + f'<div style="font-family:Courier New, monospace; font-size:10.5px; letter-spacing:.08em; '
+              f'color:#6E7079; margin:26px 0 4px;">WHAT HAPPENS NEXT</div>'
+            + f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">'
+              f'{eerste}{tweede}{derde}</table>')
+    return _base_html(f"Welcome to Krillo {naam}", "", body).replace(
+        f'<p style="color:{INKT_ZACHT}; font-size:14.5px; line-height:1.6; margin:0 0 18px;"></p>', "")
+
+
 def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url=None,
                                   taal="en", pakket="fix", gratis_tot=None, plek=None):
     """De welkomstmail na de eerste betaling van Watch of Fix.
@@ -965,6 +1066,16 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
         + _p("<strong>Right now.</strong> We are putting thirty buying questions that shoppers "
              "in your category really ask to ChatGPT and Gemini, and writing your first fixes. "
              "That usually takes less than an hour; your dashboard fills itself.")
+        # 7 oktober (Nino): stap een voor de klant is de pixel, zodat hij na een
+        # maand vanzelf ziet wat AI hem oplevert (stap 304).
+        + (_p("<strong>Your sales, connected.</strong> We place the Krillo pixel in your store "
+              "for you, so you see every month the visits, orders and revenue AI brings you.")
+           if naam == "Fix" else
+           _p("<strong>Step 1 for you: connect your sales (2 minutes).</strong> In your dashboard, "
+              "under \u201cIs AI sending you visitors and sales?\u201d, copy the Krillo pixel and paste it "
+              "into Shopify (Settings, Customer events) or into your site. From then on you see every "
+              "month the visits, orders and revenue AI brings you. Rather not do it yourself? Reply "
+              "to this email and we place it for you."))
         + (_p(f"<strong>Your rank.</strong> You are already in the Krillo Index: "
               f"<strong>#{plek['positie']} of {plek['van']}</strong> in your category, from this "
               f"month's measurement. Your dashboard shows the questions where AI names another "

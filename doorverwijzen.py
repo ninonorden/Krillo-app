@@ -7,8 +7,9 @@ zijn omzet uit doorverwijzers. Het is bereik dat niets kost tot er betaald is.
 
 TWEE SOORTEN
 - klant: elke betalende klant heeft op zijn pagina Abonnement een eigen link.
-  Wordt een winkel via die link betalend klant, dan krijgt de doorverwijzer een
-  maand van zijn eigen pakket terug. Pas na WACHTDAGEN, zodat iemand niet een
+  Wordt een winkel via die link betalend klant, dan is de volgende maand van de
+  doorverwijzer gratis (8 oktober, Nino: niet terugbetalen, een maand vrij,
+  zodat hij klant blijft). Pas na WACHTDAGEN, zodat iemand niet een
   vriend laat aanmelden en na de bedenktijd laat stoppen.
 - partner: een bureau, freelancer of Shopify-partner meldt zich aan op
   /partners. Nino keurt goed (geen automatische goedkeuring: een partner
@@ -236,7 +237,7 @@ def verdiend(rij, soort, nu=None, prijzen=None, eigen_prijs=None):
             return {"bedrag": 0.0, "betalingen": 0,
                     "uitleg": f"wacht nog {WACHTDAGEN - dagen} dagen (tegen stoppen in de bedenktijd)"}
         return {"bedrag": float(eigen_prijs or 0), "betalingen": 1,
-                "uitleg": "een maand van zijn eigen pakket terug"}
+                "uitleg": "volgende maand gratis: schuif in Mollie zijn volgende afschrijving een maand op (niet terugbetalen)"}
     if prijzen is None:
         import payments
         prijzen = {p: (float(v["prijs"]["value"]), float(v.get("jaarprijs", v["prijs"])["value"]))

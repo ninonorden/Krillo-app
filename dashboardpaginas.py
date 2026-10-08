@@ -300,6 +300,15 @@ def volgende_stap(beeld, werkblok, taal="en"):
                     if en else f"Je steeg {v} plaats(en) sinds de vorige meting.")
         return (f"You dropped {-v} place{'s' if v != -1 else ''}. See Questions for where you lose."
                 if en else f"Je zakte {-v} plaats(en). Bij Vragen zie je waar je verliest.")
+    # Stap 286 (7 oktober): het aha-moment. Een nieuwe klant ziet meteen hoeveel
+    # koopvragen hij mist en waar de drie grootste kansen staan.
+    if beeld and beeld.get("telbaar"):
+        gemist = (beeld.get("telbaar") or 0) - (beeld.get("genoemd") or 0)
+        if gemist > 0:
+            return (f"You miss {gemist} of {beeld['telbaar']} buying questions. Your three biggest chances, "
+                    f"with what to change, are on Fixes." if en else
+                    f"Je mist {gemist} van de {beeld['telbaar']} koopvragen. Je drie grootste kansen, met wat je "
+                    f"verandert, staan bij Verbeteringen.")
     return ""
 
 

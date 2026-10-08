@@ -68,6 +68,10 @@ FOUTEN = {
         "from servers, mostly in the US, so they are most likely refused too, and AI cannot read your store. "
         "Ask your host whether traffic from abroad or from data centers is blocked. Want us to look with you? "
         "Email the address to hello@krilloai.com.",
+    "Deze winkel staat achter een wachtwoord":
+        "Your store is behind a password, so AI cannot read it either, and neither can we. When your "
+        "store is open (in Shopify: Online Store, Preferences, remove the password), run the check "
+        "again. Your dashboard picks it up by itself.",
     "Deze website stuurde ons een beveiligingscontrole":
         "This website sent us a security check instead of the real page, so we cannot "
         "give a reliable score. Try again in a few minutes.",

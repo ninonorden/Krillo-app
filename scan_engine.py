@@ -920,6 +920,76 @@ def find_product_page(base_url, html):
     return pages[0] if pages else None
 
 
+def achter_wachtwoord(resp, html):
+    """Een winkel die nog dicht is: Shopify stuurt door naar /password en toont
+    "Enter store using password"; WooCommerce en andere met een "coming soon"-
+    plugin tonen een vergelijkbare pagina."""
+    eind = (getattr(resp, "url", "") or "").lower()
+    if eind.rstrip("/").endswith("/password"):
+        return True
+    laag = (html or "")[:200000].lower()
+    # De tekens van de Shopify-wachtwoordpagina zelf: die komen op een open
+    # winkel nooit voor, dus een is genoeg.
+    if any(t in laag for t in ("enter store using password", "template-password",
+                               "password-page", "storefront_password")):
+        return True
+    # Algemene "coming soon"-pagina's: alleen als er ook een wachtwoordveld staat
+    # en GEEN winkelwagen. Een open winkel met een product dat "coming soon" is
+    # en een inlogformulier mag hier nooit op stranden.
+    algemeen = any(t in laag for t in ("opening soon", "coming soon", "binnenkort open"))
+    veld = 'type="password"' in laag or "type='password'" in laag
+    winkelwagen = any(t in laag for t in ("add to cart", "in winkelwagen", "winkelmand", "/cart"))
+    return algemeen and veld and not winkelwagen
+
+
+WACHTWOORD_SLEUTEL = "wachtwoord:"
+
+
+def _onthoud_wachtwoord(url, dicht):
+    """Onthoud dat een winkel achter een wachtwoord staat (of niet meer), zodat
+    het dashboard het de klant kan zeggen in plaats van fixes te tonen die over
+    de wachtwoordpagina gaan. Alleen schrijven als er iets verandert; nooit een
+    fout, want de scan zelf is belangrijker."""
+    try:
+        import db
+        sleutel = WACHTWOORD_SLEUTEL + normalize_url(url)
+        nu = db.get_instelling(sleutel) or ""
+        if dicht and not nu:
+            db.zet_instelling(sleutel, time.strftime("%Y-%m-%d"))
+            # Wat er eerder geschreven is, kan al over het inlogscherm gaan.
+            db.verwijder_alle_taakoplossingen(normalize_url(url))
+        elif not dicht and nu:
+            db.zet_instelling(sleutel, "")
+            # Net open: de oplossingen uit de dichte tijd gaan over het
+            # inlogscherm. Weg ermee; de volgende ronde schrijft ze opnieuw.
+            db.verwijder_alle_taakoplossingen(normalize_url(url))
+    except Exception:
+        pass
+
+
+def controleer_wachtwoord_nu(url, timeout=5):
+    """Een snelle losse controle (een verzoek, geen scan) voor de startpagina
+    van een nieuwe klant: zijn oude scan kan nog van voor deze controle zijn.
+    Geeft True, False, of None als de winkel niet te bereiken was."""
+    try:
+        resp = requests.get(normalize_url(url), timeout=timeout, allow_redirects=True,
+                            headers={"User-Agent": "Mozilla/5.0 (compatible; KrilloBot/1.0)"})
+        dicht = achter_wachtwoord(resp, resp.text)
+        _onthoud_wachtwoord(url, dicht)
+        return dicht
+    except Exception:
+        return None
+
+
+def staat_achter_wachtwoord(url):
+    """Volgens de laatste scan: staat deze winkel achter een wachtwoord?"""
+    try:
+        import db
+        return bool(db.get_instelling(WACHTWOORD_SLEUTEL + normalize_url(url)))
+    except Exception:
+        return False
+
+
 def run_scan(url):
     """Voert de volledige gratis scan uit over alle categorieen en geeft score + checks terug.
 
@@ -982,6 +1052,13 @@ def _run_scan(url):
             return {"error": "Deze website gaf ons geen antwoord", "weigering": "geen antwoord"}
         return {"error": "We konden deze website niet bereiken. Check of de URL klopt en of de site online is, en probeer het zo nogmaals."}
 
+    # 8 oktober (Nino testte met een Shopify-testwinkel): een winkel achter een
+    # wachtwoord (nog niet open, of een testwinkel) toont alleen een
+    # wachtwoordpagina. Die scoren levert onzin-fixes op. Eerlijk zeggen.
+    if achter_wachtwoord(resp, html):
+        _onthoud_wachtwoord(url, True)
+        return {"error": "Deze winkel staat achter een wachtwoord", "weigering": "wachtwoord"}
+    _onthoud_wachtwoord(url, False)
     if lijkt_op_blokkadepagina(html):
         return {"error": "Deze website stuurde ons een beveiligingscontrole in plaats van de echte pagina, waardoor we geen betrouwbare score kunnen geven. Probeer het over een paar minuten nogmaals."}
 

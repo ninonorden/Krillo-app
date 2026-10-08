@@ -157,6 +157,11 @@ def genereer_taakoplossing(webshop_url, taak_id, taak_titel, wat_moet_er_gebeure
     client = _get_client()
     if client is None:
         return {"gelukt": False, "fout": "Geen ANTHROPIC_API_KEY ingesteld in Render."}
+    # 8 oktober (Nino's testwinkel): achter een wachtwoord ziet het model alleen
+    # het inlogscherm en schrijft het "de winkel is beveiligd, vul zelf in wat
+    # je verkoopt". Dat is geen fix en het kost geld. Dan niet schrijven.
+    if scan_engine.staat_achter_wachtwoord(webshop_url):
+        return {"gelukt": False, "fout": "Winkel staat achter een wachtwoord."}
 
     pagina_context = _get_page_context(webshop_url, extra_page_urls)
 
@@ -225,6 +230,14 @@ zijn webshop gekeken. Bij "waar" leg je stap voor stap uit waar dit heen moet.
 
 Is het echt te technisch om zelf te doen, zeg dat dan eerlijk en schrijf de
 tekst die hij kan doorsturen naar de bouwer van zijn site.
+
+TWEE TALEN, BEWUST (8 oktober). "oplossing" is ALLEEN wat er letterlijk op de
+website komt of wordt doorgestuurd, in de taal van de winkel hierboven. Geen
+inleiding aan de eigenaar erin ("Dit is een technische aanpassing..."): die
+uitleg hoort in "waar". "waar" lees de eigenaar in zijn dashboard, en dat is
+Engels: schrijf "waar" daarom ALTIJD in het Engels, ook als de winkel
+Nederlands is. Noem menunamen van het platform zoals ze in de Engelse versie
+heten.
 
 Antwoord ALLEEN met geldige JSON, niets ervoor of erna:
 

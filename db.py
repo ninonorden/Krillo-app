@@ -2229,12 +2229,104 @@ def trechter_per_dag(dagen=7):
                            (SELECT COUNT(*) FROM benadering WHERE (gemaild_op AT TIME ZONE 'Europe/Amsterdam')::date = d.dag),
                            (SELECT COUNT(*) FROM benadering WHERE (bekeken_op AT TIME ZONE 'Europe/Amsterdam')::date = d.dag),
                            (SELECT COUNT(*) FROM benadering WHERE (mens_op AT TIME ZONE 'Europe/Amsterdam')::date = d.dag),
-                           (SELECT COUNT(*) FROM benadering WHERE (doorgeklikt_op AT TIME ZONE 'Europe/Amsterdam')::date = d.dag)
+                           (SELECT COUNT(*) FROM benadering WHERE mens_op IS NOT NULL AND (doorgeklikt_op AT TIME ZONE 'Europe/Amsterdam')::date = d.dag)
                       FROM dagen d ORDER BY d.dag DESC""", (int(dagen),))
                 return [{"dag": r[0], "gemaild": r[1] or 0, "geopend": r[2] or 0, "mensen": r[3] or 0,
                          "prijzen": r[4] or 0} for r in cur.fetchall()]
     except Exception as e:
         print(f"Trechter per dag ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def redenen_geen_adres(limiet=8):
+    """Waarom winkels op "geen adres" staan, gegroepeerd (7 oktober, Nino: "wat
+    doen we met de winkels zonder adres?"). Eerst weten waarom, dan kiezen wat
+    helpt. Plus hoeveel er wel een contactformulier hebben."""
+    conn = _get_connection()
+    if conn is None:
+        return {"redenen": [], "formulier": 0}
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT coalesce(nullif(left(notitie, 70), ''), 'geen reden genoteerd'), count(*)
+                                 FROM benadering WHERE stand = 'geen_adres'
+                                GROUP BY 1 ORDER BY 2 DESC LIMIT %s""", (int(limiet),))
+                redenen = [{"reden": r[0], "aantal": r[1]} for r in cur.fetchall()]
+                cur.execute("""SELECT count(*) FROM benadering
+                                WHERE stand = 'geen_adres' AND formulier_url IS NOT NULL""")
+                formulier = cur.fetchone()[0] or 0
+        return {"redenen": redenen, "formulier": formulier}
+    except Exception as e:
+        print(f"Redenen geen adres ophalen mislukt: {e}")
+        return {"redenen": [], "formulier": 0}
+    finally:
+        conn.close()
+
+
+def trechter_volledig(dagen=14):
+    """De hele trechter per dag (7 oktober, Nino: "we moeten zien waar mensen
+    heen gaan en afhaken, elke dag").
+
+    Site: echte mensen, gratis checks (gelukt/mislukt), handmatige checks, en de
+    kassa: venster open, verstuurd, betaling gestart bij Mollie (toestemmingen,
+    dus wat de server zag), betaalde klanten.
+    Mail: gemaild, geopend, echte mensen, naar de prijzen (alleen als het een
+    echt mens was, zie hieronder), afgemeld.
+
+    Naar de prijzen telde eerst elke klik op /uitkomst/<token>/verder. Ook een
+    beveiligingsscanner die alle links op een pagina opent telt dan mee. Nu
+    alleen als dezelfde winkel ook als echt mens gezien is (mens_op)."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    # Per kolom EEN vraag met GROUP BY dag: veertien reizen naar Neon, niet
+    # veertien keer veertien.
+    velden = [
+        ("mensen", "bezoek_mensen", "gezien_op", "TRUE"),
+        ("checks", "gratis_scans", "gedaan_op", "TRUE"),
+        ("checks_mis", "gratis_scans", "gedaan_op", "NOT coalesce(gelukt, false)"),
+        ("venster", "bezoeken", "gezien_op", "pad IN ('/stap/venster_watch','/stap/venster_fix')"),
+        ("verstuurd", "bezoeken", "gezien_op", "pad IN ('/stap/verstuurd_watch','/stap/verstuurd_fix')"),
+        ("kassafout", "bezoeken", "gezien_op", "pad IN ('/stap/fout_watch','/stap/fout_fix')"),
+        ("naar_bank", "toestemmingen", "vastgelegd_op", "TRUE"),
+        ("betaald", "klanten", "aangemaakt_op", "NOT coalesce(is_test, false)"),
+        ("gemaild", "benadering", "gemaild_op", "TRUE"),
+        ("geopend", "benadering", "bekeken_op", "TRUE"),
+        ("mail_mensen", "benadering", "mens_op", "TRUE"),
+        ("prijzen", "benadering", "doorgeklikt_op", "mens_op IS NOT NULL"),
+        ("prijzen_ruw", "benadering", "doorgeklikt_op", "TRUE"),
+        ("afgemeld", "winkelprofielen", "afgemeld_op", "TRUE"),
+    ]
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT (date_trunc('day', now() AT TIME ZONE 'Europe/Amsterdam')
+                                       - (n || ' days')::interval)::date
+                                 FROM generate_series(0, %s - 1) n ORDER BY 1 DESC""", (int(dagen),))
+                uit = [{"dag": r[0]} for r in cur.fetchall()]
+                per_dag = {r["dag"]: r for r in uit}
+                for naam, tabel, kolom, voorwaarde in velden:
+                    for r in uit:
+                        r[naam] = 0
+                    try:
+                        cur.execute("SAVEPOINT v")
+                        cur.execute(f"""SELECT ({kolom} AT TIME ZONE 'Europe/Amsterdam')::date, count(*)
+                                          FROM {tabel}
+                                         WHERE {kolom} > now() - (%s || ' days')::interval AND {voorwaarde}
+                                         GROUP BY 1""", (int(dagen) + 1,))
+                        for d_, n in cur.fetchall():
+                            if d_ in per_dag:
+                                per_dag[d_][naam] = n
+                        cur.execute("RELEASE SAVEPOINT v")
+                    except Exception:
+                        cur.execute("ROLLBACK TO SAVEPOINT v")
+                        for r in uit:
+                            r[naam] = None
+        return uit
+    except Exception as e:
+        print(f"Volledige trechter ophalen mislukt: {e}")
         return []
     finally:
         conn.close()
@@ -2252,7 +2344,7 @@ def trechter_benadering():
                 cur.execute("""SELECT
                         COUNT(*) FILTER (WHERE gemaild_op IS NOT NULL),
                         COUNT(*) FILTER (WHERE bekeken_op IS NOT NULL),
-                        COUNT(*) FILTER (WHERE doorgeklikt_op IS NOT NULL),
+                        COUNT(*) FILTER (WHERE doorgeklikt_op IS NOT NULL AND mens_op IS NOT NULL),
                         COUNT(*) FILTER (WHERE bounce_op IS NOT NULL),
                         COUNT(*) FILTER (WHERE klacht_op IS NOT NULL),
                         COUNT(*) FILTER (WHERE mens_op IS NOT NULL),
@@ -3339,6 +3431,25 @@ def verwijder_taakoplossing(webshop_url, taak_id):
                 return cur.rowcount
     except Exception as e:
         print(f"Taakoplossing verwijderen mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
+def verwijder_alle_taakoplossingen(webshop_url):
+    """Alle bewaarde oplossingen van een winkel weg (8 oktober). Voor als ze
+    geschreven zijn terwijl de winkel achter een wachtwoord stond: dan gaan ze
+    over het inlogscherm en moeten ze opnieuw, over de echte winkel."""
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM taakoplossingen WHERE webshop_url = %s", (webshop_url,))
+                return cur.rowcount
+    except Exception as e:
+        print(f"Taakoplossingen verwijderen mislukt: {e}")
         return 0
     finally:
         conn.close()
@@ -5659,6 +5770,26 @@ def zet_categorie(webshop_url, categorie):
         return True
     except Exception as e:
         print(f"Categorie vastleggen mislukt voor {webshop_url}: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def zet_land(webshop_url, land):
+    """Het land van een winkel, als de klant het zelf kiest (8 oktober: de
+    categoriekiezer in het dashboard). Het domein zegt niet altijd genoeg: een
+    .com of myshopify.com-winkel kan Nederlands of Belgisch zijn."""
+    conn = _get_connection()
+    if conn is None:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE benadering SET land = %s, bijgewerkt_op = now() "
+                            "WHERE webshop_url = %s", (land, webshop_url))
+        return True
+    except Exception as e:
+        print(f"Land vastleggen mislukt voor {webshop_url}: {e}")
         return False
     finally:
         conn.close()

@@ -101,7 +101,9 @@ EN = set("the and of to your you is are for with in on this that it be we our no
 
 def zichtbare_tekst(bron):
     """De tekst die een bezoeker leest: zonder scripts, stijl, opmerkingen en tags."""
-    t = re.sub(r"(?is)<(script|style|noscript|template)\b.*?</\1>", " ", bron or "")
+    # 8 oktober: ook <textarea>. Daar staat de pixelcode om te kopieren, en
+    # JavaScript heeft "}}" in zich; dat is geen rest van het sjabloon.
+    t = re.sub(r"(?is)<(script|style|noscript|template|textarea)\b.*?</\1>", " ", bron or "")
     t = re.sub(r"(?s)<!--.*?-->", " ", t)
     t = re.sub(r"(?s)<[^>]+>", " ", t)
     return " ".join(html.unescape(t).split())
