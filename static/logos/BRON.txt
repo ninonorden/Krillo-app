@@ -1,0 +1,7 @@
+Officiele merklogo's (8 oktober 2026), uit Simple Icons 16.30.0 (npm-pakket
+simple-icons), met de merkkleur die Simple Icons opgeeft. Gebruikt als
+"measured in" en "works with", nooit als partnerschap.
+
+ChatGPT (OpenAI) en Grok (xAI) staan niet in Simple Icons. Haal die bestanden
+van hun eigen merkpagina en zet ze hier neer als chatgpt.svg en grok.svg; de
+sjablonen tonen ze dan vanzelf zodra ze bestaan (zie logo_bestaat in app.py).

@@ -10,7 +10,7 @@
    Zie krillo-huisstijl in het project. #}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600&family=Space+Grotesk:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0A0A0B; --ink-zacht:#4A4A55; --ink-grijs:#6E7079;
@@ -142,4 +142,49 @@
     *, *::before, *::after{animation-duration:0.01ms !important;
       transition-duration:0.01ms !important; scroll-behavior:auto !important;}
   }
+
+  /* ==================================================================
+     VERSIE 10 (8 oktober 2026, goedgekeurd door Nino: "ik vind het mooi,
+     maak alles zo"). Ontwerp: artefact "Krillo redesign".
+
+     WAAROM: de site moest volwassener en duurder voelen, zoals Peec en Nimt,
+     maar van Krillo zelf. Dat doen vijf dingen: warm papierwit als achtergrond
+     met witte kaarten erop, Inter Tight in medium voor koppen en cijfers
+     (niet meer zwaar), zwart voor elke hoofdknop, blauw alleen voor het logo
+     en voor "jij", en zachte, diepe schaduwen. Het woordmerk KRILLO INDEX
+     blijft in Space Grotesk: zo staat het ook in de Shopify-app.
+
+     Dit blok staat ONDERAAN zodat het de oude regels hierboven overschrijft
+     zonder dat twintig sjablonen tegelijk aangepast moesten worden.
+     ================================================================== */
+  :root{
+    --papier:#F7F7F5; --zand:#FAFAF9; --lijn:#E7E7E4; --lijn-licht:#F0F0EE;
+    --disp:'Inter Tight', Inter, system-ui, sans-serif;
+    --body:Inter, system-ui, sans-serif;
+    --k-schaduw:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18);
+    --k-lucht:radial-gradient(120% 90% at 20% 0%, #D6DEFA 0%, rgba(214,222,250,0) 55%),
+              radial-gradient(90% 80% at 90% 100%, #F4EBDD 0%, rgba(244,235,221,0) 60%),
+              linear-gradient(180deg, #E7ECFB 0%, #F3F1EC 100%);
+  }
+  body{background:var(--papier); font-size:15.5px;}
+  .logo{font-family:'Space Grotesk', system-ui, sans-serif;}
+  h1{font-weight:500; letter-spacing:-0.035em; line-height:1.02;}
+  h2{font-weight:500; letter-spacing:-0.03em;}
+  td.pos, .kaart .naam, .strook .getal{font-weight:500;}
+  /* Elke hoofdknop is zwart. De oude namen (vol, donker) blijven, want ze
+     staan in veel sjablonen. */
+  .knop{border-radius:10px; font-weight:500; transition:transform .2s, box-shadow .2s;}
+  .knop.vol, .knop.donker{background:var(--ink); color:#fff;
+    box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5);}
+  .knop.vol:hover, .knop.donker:hover{background:var(--ink); color:#fff; transform:translateY(-1px);}
+  .knop.leeg{border:1px solid var(--lijn); background:#fff;}
+  nav{background:rgba(247,247,245,.85); backdrop-filter:saturate(1.6) blur(14px);
+      -webkit-backdrop-filter:saturate(1.6) blur(14px);}
+  table, .kaart, .blok, .leeg{border-radius:18px; box-shadow:var(--k-schaduw);}
+  .kaart{transition:transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s;}
+  .kaart:hover{border-color:var(--lijn); transform:translateY(-3px);
+    box-shadow:0 1px 2px rgba(10,10,11,.04), 0 36px 64px -28px rgba(10,10,11,.26);}
+  .strook, .cta{border-radius:20px;}
+  .marktkiezer a{border:1px solid var(--lijn); border-radius:9px;}
+  a:hover{color:var(--vermiljoen-tekst);}
 </style>

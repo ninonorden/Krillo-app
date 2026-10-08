@@ -152,6 +152,13 @@
 
 
     {% set dicht_nu = wachtwoord is defined and wachtwoord %}
+    {% if eigen_categorie is defined and eigen_categorie and beeld and pagina in ('overzicht', 'ranglijst', 'vragen') %}
+    {# 8 oktober: gekozen categorie nog niet gemeten; tot dan de ouder, en dat zeggen we. #}
+    <div class="st-ok" style="background:#EEF1FD; color:#142FA8;">
+      {% if taal == 'nl' %}<strong>Je koos {{ eigen_categorie.naam }}.</strong> {% if eigen_categorie.wordt_gemeten %}We meten die nu voor je, meestal binnen het uur.{% else %}We meten die zodra we {{ eigen_categorie.nodig }} winkels kennen; nu {{ eigen_categorie.aantal }}. We zoeken er elke nacht bij.{% endif %} Tot dan zie je {{ eigen_categorie.ouder }}, de categorie waar hij onder valt.
+      {% else %}<strong>You chose {{ eigen_categorie.naam }}.</strong> {% if eigen_categorie.wordt_gemeten %}We are measuring it for you now, usually within the hour.{% else %}We measure it once we know {{ eigen_categorie.nodig }} stores in it; we know {{ eigen_categorie.aantal }} now and add stores every night.{% endif %} Until then you see {{ eigen_categorie.ouder }}, the category it belongs to.{% endif %}
+    </div>
+    {% endif %}
     {% if wachtwoord is defined and wachtwoord and (beeld or pagina not in ('overzicht', 'ranglijst', 'vragen')) %}
     <div class="st-let">
       <strong>{{ 'Je winkel staat achter een wachtwoord.' if taal == 'nl' else 'Your store is behind a password.' }}</strong>
@@ -308,6 +315,45 @@
        ================================================================ #}
     {% if volgende and not dicht_nu %}
     <div class="volgende"><span class="pijl">&rarr;</span> {{ volgende }}</div>
+    {% endif %}
+    {% if gids is defined and gids %}
+    {# 8 oktober: "Your first month" (zie app._eerste_maand). #}
+    {% set gnl = taal == 'nl' %}
+    <div class="gids" id="gids">
+      <div class="gids-kop">
+        <div><div class="st-label">{{ 'JE EERSTE MAAND' if gnl else 'YOUR FIRST MONTH WITH KRILLO' }}</div>
+          <div class="gids-titel">{{ 'Vier stappen, dan doet Krillo de rest' if gnl else 'Four steps, then Krillo keeps watching for you' }}</div></div>
+        <div class="gids-rechts"><span class="gids-teller">{{ gids.klaar }}/{{ gids.totaal }}</span>
+          <button type="button" class="gids-weg" data-url="{{ gids.weg_url }}">{{ 'Verberg' if gnl else 'Hide' }}</button></div>
+      </div>
+      <div class="st-balk" style="margin:10px 0 4px;"><div style="width:{{ (gids.klaar / gids.totaal * 100) | round | int }}%"></div></div>
+      <ol class="gids-lijst">
+        {% for s in gids.stappen %}
+        <li class="{{ 'klaar' if s.klaar else ('info' if s.info else 'open') }}">
+          <span class="gids-bol">{% if s.klaar %}&#10003;{% elif s.info %}&#8635;{% else %}{{ loop.index }}{% endif %}</span>
+          <div>
+            <div class="gids-regel"><strong>{{ s.titel }}</strong>{% if s.tijd and not s.klaar %}<span class="gids-tijd">{{ s.tijd }}</span>{% endif %}</div>
+            {% if not s.klaar %}<p>{{ s.tekst }}
+              {% if s.link == 'vragen' %}<a href="#vragenlijst">{{ 'Naar de vragen' if gnl else 'Go to the questions' }} &darr;</a>
+              {% elif s.link == 'pixel' %}<a href="#aiverkeer">{{ 'Laat zien hoe' if gnl else 'Show me how' }} &darr;</a>
+              {% elif s.link == 'fixes' %}<a href="{{ link_van.verbeteringen }}">{{ 'Naar Fixes' if gnl else 'Open Fixes' }} &rarr;</a>{% endif %}
+              {% if s.afvinken %} &middot; <button type="button" class="gids-gedaan" data-url="{{ gids.afvink_url }}">{{ 'Gedaan' if gnl else 'I did this' }}</button>{% endif %}
+            </p>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+    <script>
+    document.querySelectorAll('.gids-weg, .gids-gedaan').forEach(function(b){
+      b.addEventListener('click', function(){
+        b.disabled = true;
+        fetch(b.getAttribute('data-url'), {method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({wat: b.classList.contains('gids-weg') ? 'weg' : 'gedaan'})})
+          .then(function(){ if (b.classList.contains('gids-weg')) { document.getElementById('gids').remove(); } else { location.reload(); } });
+      });
+    });
+    </script>
     {% endif %}
 
     {% set zicht = ((beeld.genoemd / beeld.telbaar * 100) | round | int) if beeld.telbaar else 0 %}
@@ -692,6 +738,7 @@
        plek bij AI (wij meten) naast bezoek, bestellingen en omzet uit AI (de
        klant zet ze uit Google Analytics of Shopify erin). Eerste maand is de
        nulmeting. Demo en voorproef zien een voorbeeld, duidelijk als voorbeeld. #}
+    {% if pagina == 'overzicht' and assistenten_keuze is defined %}{% include "_assistenten.html" %}{% endif %}
     {% if aiverkeer is defined and aiverkeer %}
     {% set nl = taal == 'nl' %}
     <div class="kaartblok" id="aiverkeer">
@@ -808,6 +855,38 @@
     {% endif %}
 
     {# ================================================================ RANGLIJST #}
+    {% if pagina == 'sitecheck' %}
+    {# Stap 316 (8 oktober): de dertien controles binnen het dashboard. #}
+    {% set snl = taal == 'nl' %}
+    {% if not (sitecheck is defined and sitecheck) %}
+    <div class="kaartblok"><div class="kaartkop">{{ 'SITECHECK' if snl else 'SITE CHECK' }}</div>
+      <p>{{ 'Elke week kijken we of AI je winkel goed kan lezen: dertien punten, met wat je eraan doet. Dat zit in Watch en Fix.' if snl else 'Every week we check whether AI can read your store well: thirteen points, with what to do about each. That is part of Watch and Fix.' }}</p></div>
+    {% elif sitecheck.leeg %}
+    <div class="kaartblok"><div class="kaartkop">{{ 'SITECHECK' if snl else 'SITE CHECK' }}</div>
+      <p>{% if dicht_nu %}{{ 'Je winkel staat achter een wachtwoord, dus er is nog niets te lezen.' if snl else 'Your store is behind a password, so there is nothing to read yet.' }}{% else %}{{ 'Je eerste sitecheck loopt. Meestal staat hij hier binnen een paar minuten.' if snl else 'Your first site check is running. It is usually here within a few minutes.' }}{% endif %}</p></div>
+    {% else %}
+    <div class="sc-boven">
+      <div class="sc-score"><div class="st-label">{{ 'LEESBAAR VOOR AI' if snl else 'READABLE FOR AI' }}</div>
+        <div class="sc-getal">{{ sitecheck.score }}<span>/100</span></div>
+        <div class="sc-onder">{{ sitecheck.goed }} {{ 'van' if snl else 'of' }} {{ sitecheck.totaal }} {{ 'punten in orde' if snl else 'points in order' }} &middot; {{ sitecheck.op.strftime('%-d %b %Y') if sitecheck.op else '' }}</div></div>
+      <div class="sc-verloop"><div class="st-label">{{ 'PER WEEK' if snl else 'WEEK BY WEEK' }}</div>
+        <div class="sc-balken">{% for r in sitecheck.verloop %}<div title="{{ r.score }}/100"><i style="height:{{ ((r.score or 0) * 0.6) | round | int + 4 }}px"></i><span>{{ r.op.strftime('%-d/%-m') if r.op else '' }}</span></div>{% endfor %}</div></div>
+      <div class="sc-uitleg">{{ 'Dit is hoe goed AI je winkel kan lezen, niet de kans dat je aangeraden wordt. Een lage score houdt je wel tegen: wat AI niet kan lezen, kan het niet aanraden.' if snl else 'This is how well AI can read your store, not your chance of being recommended. A low score does hold you back: what AI cannot read, it cannot recommend.' }}
+        <a href="{{ sitecheck.pdf }}">{{ 'De controles als PDF voor je webbouwer' if snl else 'The checks as a PDF for your web designer' }} &rarr;</a></div>
+    </div>
+    {% for groep, items in sitecheck.groepen.items() %}
+    <div class="kaartblok sc-groep">
+      <div class="kaartkop">{{ groep | upper }}</div>
+      {% for c in items %}
+      <div class="sc-rij">
+        <span class="sc-tag sc-{{ 'goed' if c.status in ('ok', 'goed') else ('niet' if c.status == 'onbekend' else 'werk') }}">{{ ('Goed' if snl else 'Good') if c.status in ('ok', 'goed') else (('Niet gemeten' if snl else 'Not measured') if c.status == 'onbekend' else ('Werk aan' if snl else 'Needs work')) }}</span>
+        <div><strong>{{ c.titel }}</strong><p>{{ c.uitleg }}</p></div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endif %}
     {% if pagina == 'ranglijst' and beeld and categorie_post is defined and categorie_post %}
     {# 8 oktober (Nino, snowboardwinkel in Sports and fitness): wie in een te
        brede of verkeerde categorie staat, kan hier zelf wisselen. #}
@@ -1028,9 +1107,36 @@
           {% if m.fragment %}<blockquote lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ m.fragment }}</blockquote>{% endif %}
         </div>
         {% endfor %}
+        {% if weg_url is defined and weg_url %}
+        {# 8 oktober (Nino: "ik kan geen vraag wegzetten" op deze pagina). #}
+        <div style="padding:0 0 14px;"><button type="button" class="vr-weg" data-vraag="{{ v.vraag }}"
+          style="border:0; background:none; color:#6E7079; font:inherit; font-size:13px; cursor:pointer; padding:0; text-decoration:underline;">{{ 'Deze vraag gaat niet over mijn winkel' if taal == 'nl' else 'This question is not about my store' }}</button></div>
+        {% endif %}
         {% endif %}
       </details>
       {% endfor %}
+      {% if niet_voor_mij is defined and niet_voor_mij %}
+      <details style="padding:14px 0 4px; font-size:13.5px;">
+        <summary style="cursor:pointer; color:#6E7079;">{{ (niet_voor_mij|length) ~ (' vraag weggezet als niet voor jouw winkel' if taal == 'nl' else (' question' if niet_voor_mij|length == 1 else ' questions') ~ ' hidden as not for your store') }}</summary>
+        <p class="klein" style="margin:8px 0;">{{ 'Je plek in de index telt nog wel alle vragen van de categorie mee.' if taal == 'nl' else 'Your rank in the index still counts every question in the category, so every store is measured the same way.' }}</p>
+        {% for q in niet_voor_mij %}
+        <div style="display:flex; justify-content:space-between; gap:12px; padding:4px 0;"><span>&ldquo;{{ q }}&rdquo;</span>
+          <button type="button" class="vr-terug" data-vraag="{{ q }}" style="border:0; background:none; color:#1B3FE0; font:inherit; cursor:pointer; white-space:nowrap;">{{ 'Terugzetten' if taal == 'nl' else 'Show again' }}</button></div>
+        {% endfor %}
+      </details>
+      {% endif %}
+      {% if weg_url is defined and weg_url %}
+      <script>
+      document.querySelectorAll('.vr-weg, .vr-terug').forEach(function(b){
+        b.addEventListener('click', function(){
+          b.disabled = true;
+          fetch({{ weg_url | tojson }}, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({vraag: b.getAttribute('data-vraag'), aan: b.classList.contains('vr-weg')})})
+            .then(function(){ location.reload(); }).catch(function(){ b.disabled = false; });
+        });
+      });
+      </script>
+      {% endif %}
     </div>
     <script>
     (function(){
@@ -1131,8 +1237,8 @@
         <a class="knop-vol" href="{{ '/uitkomst/' ~ proef ~ '/verder?plan=fix' if proef else '/?plan=fix#pricing' }}">{{ 'Start Fix' }}</a>
       </div>
     </div>
-    <p class="klein">{{ 'Maandelijks opzegbaar. Binnen 14 dagen opzeggen: je eerste maand terug.' if taal == 'nl'
-         else 'Cancel any month. Cancel within 14 days and you get your first month back.' }}</p>
+    <p class="klein">{{ 'Maandelijks opzegbaar. Watch: 14 dagen gratis. Fix: binnen 14 dagen opzeggen is je eerste maand terug.' if taal == 'nl'
+         else 'Cancel any month. Watch: 14 days free. Fix: cancel within 14 days and you get your first month back.' }}</p>
     {% if voorbeeld %}<p class="klein">{{ 'In het dashboard van een klant staat hier zijn eigen pakket, wanneer we meten, en opzeggen.' if taal == 'nl'
          else 'In a customer\'s own dashboard, this page shows their current plan, when we measure, and how to cancel.' }}</p>{% endif %}
     {% elif pagina in ('verbeteringen', 'abonnement') %}
@@ -1276,6 +1382,7 @@
       <ul class="planlijst">{% for punt in plan_uitleg.punten %}<li>{{ punt }}</li>{% endfor %}</ul>
       <p class="klein">{{ plan_uitleg.betaling }}</p>
     </div>
+    {% if assistenten_keuze is defined %}{% include "_assistenten.html" %}{% endif %}
 
     {# Stap 94: de eigen link. Een winkel die via deze link betalend klant wordt,
        geeft deze klant een maand van zijn pakket terug (na 30 dagen). #}
@@ -1283,7 +1390,7 @@
     <div class="kaartblok">
       <div class="kaartkop">{{ 'EEN MAAND GRATIS' if taal == 'nl' else 'A MONTH FREE' }}</div>
       <p style="margin:0 0 10px; font-size:15px;">{{ 'Ken je een andere webshop? Deel je eigen link. Neemt die winkel een betaald pakket, dan is jouw volgende maand gratis.' if taal == 'nl'
-           else 'Know another webshop? Share your own link. If that store takes a paid plan, your next month is free.' }}</p>
+           else 'Know another online store? Share your own link. If that store takes a paid plan, your next month is free.' }}</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <input id="eigenLink" readonly value="{{ basis_url }}/r/{{ doorverwijzing.code }}" onclick="this.select()"
                style="flex:1; min-width:220px; height:42px; border:1.5px solid #D8D8DE; border-radius:8px; padding:0 12px; font-family:var(--mono, monospace); font-size:14px;">

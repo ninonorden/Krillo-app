@@ -11,7 +11,7 @@
    knoppen) en groen alleen voor een stijging. Schaduwen zacht en in lagen. #}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600&family=Space+Grotesk:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{--k-inkt:#0A0A0B; --k-zacht:#4A4A55; --k-grijs:#6E7079; --k-grijs2:#A9AAB2;
         --k-zand:#F7F7F9; --k-lijn:#E8E8EC; --k-lijn2:#F1F1F4; --k-blauw:#1B3FE0;
@@ -73,4 +73,29 @@
   .kaart:hover{border-color:#D6D6DC; box-shadow:var(--k-schaduw-klein);}
   table{border-radius:10px;}
   @media (prefers-reduced-motion: reduce){ .k-zweef, .k-typ{animation:none !important;} }
+
+  /* VERSIE 10 (8 oktober 2026, Nino: "ik vind het mooi, maak alles zo").
+     Zie ook het blok onderaan _stijl.html. Kop van glas op papierwit, elke
+     hoofdknop zwart (de klasse heet nog "blauw" omdat hij in veel sjablonen
+     staat), een lichte voet in plaats van een zwarte, en ronde, zachte
+     kaarten. Het woordmerk blijft Space Grotesk, zoals in de Shopify-app. */
+  :root{--k-zand:#FAFAF9; --k-lijn:#E7E7E4; --k-lijn2:#F0F0EE; --k-papier:#F7F7F5;
+        --k-disp:'Inter Tight', Inter, system-ui, sans-serif; --k-body:Inter, system-ui, sans-serif;}
+  .k-merk b{font-family:'Space Grotesk', system-ui, sans-serif;}
+  header.k-kop{position:sticky; top:0; background:rgba(247,247,245,.85);
+    backdrop-filter:saturate(1.6) blur(14px); -webkit-backdrop-filter:saturate(1.6) blur(14px);
+    font-family:var(--k-body);}
+  .k-knop{font-family:var(--k-body); border-radius:10px;}
+  .k-knop.blauw, .k-knop.zwart{background:var(--k-inkt); color:#fff;
+    box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5);}
+  .k-knop.blauw:hover, .k-knop.zwart:hover{background:var(--k-inkt); color:#fff; transform:translateY(-1px);}
+  footer.k-voet{background:var(--k-papier); color:var(--k-inkt); border-top:1px solid var(--k-lijn); font-family:var(--k-body);}
+  .k-voet .k-merk b, .k-voet .k-merk{color:var(--k-inkt);}
+  .k-voet .k-merk i{color:var(--k-grijs);}
+  .k-voet p{color:var(--k-grijs);}
+  .k-voet a{color:var(--k-zacht);}
+  .k-voet a:hover{color:var(--k-inkt);}
+  .k-voet .k-onder{border-top:1px solid var(--k-lijn);}
+  .k-voet .k-onder a{color:var(--k-grijs);}
+  .kaart, .blok, .leeg, table{border-radius:18px;}
 </style>

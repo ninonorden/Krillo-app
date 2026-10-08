@@ -231,7 +231,7 @@
     </div>
   {% endif %}
 
-  <a class="werk-details" href="{% if beheer %}/admin/voorbeeld?url={{ webshop_url }}&details=ja{% else %}/monitoring/{{ klant_token }}/details{% endif %}">
+  <a class="werk-details" href="{% if beheer %}/admin/voorbeeld?url={{ webshop_url }}&details=ja{% else %}/mijn/{{ klant_token }}/site-check{% endif %}">
     <strong>{{ wt.details_kop }}</strong>
     <span>{{ wt.details_tekst }}</span>
   </a>

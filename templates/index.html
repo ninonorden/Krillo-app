@@ -1293,6 +1293,171 @@
 .k9-landen-stip{width:7px;height:7px;border-radius:50%;background:#16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.18)}
 </style>
 
+<style>
+  /* ================================================================
+     HOMEPAGE VERSIE 10 (8 oktober 2026). Goedgekeurd door Nino: "ik vind het
+     mooi, maak alles zo". Ontwerp: artefact "Krillo redesign", bord Homepage.
+     Staat NA versie 9, zodat de scan, de uitslag en het bestelvenster precies
+     blijven werken en alleen het uiterlijk verandert. Nieuwe onderdelen
+     beginnen met k10-.
+
+     De vijf keuzes: papierwit met witte kaarten, Inter Tight in medium voor
+     koppen en cijfers, zwart voor elke hoofdknop, blauw alleen voor het logo
+     en voor "jij", en de "Dutch sky" (zacht blauw naar zand) achter beelden
+     van het product.
+     ================================================================ */
+  body{background:#F7F7F5;}
+  .k9{font-family:var(--k-body);}
+  .k9-h1, .k9-h2, .k10-h3{font-family:var(--k-disp); font-weight:500; letter-spacing:-0.035em;}
+  .k9-h1{font-size:58px; line-height:1.02;}
+  .k9-h2{font-size:44px; line-height:1.05;}
+  .k10-h3{font-size:28px; margin:0;}
+  .k10-zacht{color:#9A9BA3;}
+  .k9-pos, .k9-kpis b{font-weight:500;}
+  .k9-label{color:var(--k-blauw);}
+  .k9-kaart, .k9-tellen, .k9-dashlijst{border-radius:20px;}
+  .k9-laag{box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18);}
+  .k9-sectie{border-top:1px solid #E7E7E4; padding-top:96px; padding-bottom:16px;}
+  .k9-sectie:first-of-type{border-top:0;}
+
+  .k10-pil{display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid #E7E7E4; border-radius:30px;
+           padding:5px 12px 5px 5px; font-size:13px; color:var(--k-zacht); margin-bottom:22px;}
+  .k10-pil-tag{font-family:var(--k-mono); font-size:10px; letter-spacing:.04em; text-transform:uppercase;
+               background:#EEF1FD; color:var(--k-blauw); padding:4px 8px; border-radius:20px;}
+
+  /* HERO: rasterlijnen weg, het product op de Dutch sky. */
+  .k9-hero{background:#F7F7F5; background-image:none; border-bottom:1px solid #E7E7E4;}
+  .k9 .scan-form{background:#fff; border:2px solid var(--k-inkt); border-radius:16px; padding:6px;
+                 box-shadow:0 20px 40px -22px rgba(10,10,11,.45);}
+  .k9 .scan-form input{border:0; box-shadow:none; background:transparent; font-size:17px;}
+  .k9 .scan-form button{background:var(--k-inkt); border-radius:11px;
+                        box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5);}
+  .k9 .scan-form button:hover{background:var(--k-inkt); transform:translateY(-1px);}
+  .k9-hero-rechts{border-radius:28px; padding:56px 44px; border:1px solid #E7E7E4;
+    background:radial-gradient(120% 90% at 20% 0%, #D6DEFA 0%, rgba(214,222,250,0) 55%),
+               radial-gradient(90% 80% at 90% 100%, #F4EBDD 0%, rgba(244,235,221,0) 60%),
+               linear-gradient(180deg, #E7ECFB 0%, #F3F1EC 100%);}
+  .k9-stijger{right:-18px; top:-18px;} .k9-vraagkaart{left:-36px; bottom:-22px;}
+  .k9-zwevend{border-radius:14px;}
+  .k10-ai{display:flex; flex-wrap:wrap; gap:6px; align-items:center;}
+  .k10-ai .ai-chip{display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid #E7E7E4; border-radius:8px; padding:4px 9px;}
+  .k10-ai .ai-chip img{display:block;}
+  .k10-ai .ai-chip.zacht{color:#9A9BA3;} .k10-ai .ai-chip.zacht img{opacity:.5;}
+  .k10-ai .ai-chip em{font-style:normal; font-family:var(--k-mono); font-size:10px; text-transform:uppercase;}
+  .k10-leeg{display:inline-block; width:14px; height:14px; border-radius:4px; border:1px dashed #C9C9C4;}
+
+  /* BEWIJSSTROOK */
+  .k10-bewijs{background:#F7F7F5; border-bottom:1px solid #E7E7E4;}
+  .k10-bewijs-rij{display:grid; grid-template-columns:repeat(4,minmax(0,1fr));}
+  .k10-cel{padding:28px 24px 22px; border-right:1px solid #E7E7E4; transition:background .3s;}
+  .k10-cel:first-child{border-left:1px solid #E7E7E4;}
+  .k10-cel:hover{background:#fff;}
+  .k10-cel b{display:block; font-family:var(--k-disp); font-weight:500; font-size:34px; letter-spacing:-0.03em;}
+  .k10-cel > span{font-size:13px; color:var(--k-grijs);}
+  .k10-vis{display:flex; height:44px; margin-top:16px; align-items:flex-end; gap:3px;}
+  .k10-vis svg{width:100%; height:44px;}
+  .k10-balken i{flex:1; background:linear-gradient(180deg,#1B3FE0,#8FA2F5); border-radius:3px; opacity:.85;
+                transform-origin:bottom; animation:k10groei .9s cubic-bezier(.2,.8,.2,1) both;}
+  @keyframes k10groei{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  .k10-tegels{align-items:center; gap:0; padding-left:6px;}
+  .k10-tegels i{width:24px; height:24px; border-radius:7px; border:2px solid #F7F7F5; margin-left:-6px; color:#fff; font-style:normal;
+                font-size:10.5px; font-weight:600; display:grid; place-items:center;}
+  .k10-tegels span{font-size:12px; color:var(--k-grijs); margin-left:8px;}
+  .k10-teken{stroke-dasharray:400; animation:k10teken 1.8s .3s cubic-bezier(.4,0,.2,1) both;}
+  @keyframes k10teken{from{stroke-dashoffset:400}to{stroke-dashoffset:0}}
+  .k10-landen{align-items:center; gap:6px; flex-wrap:wrap;}
+  .k10-land{font-family:var(--k-mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; padding:5px 9px; border-radius:6px;
+            background:#E7F6EF; color:#0B7C5E; text-decoration:none; display:inline-flex; align-items:center; gap:6px;}
+  .k10-land i{width:6px; height:6px; border-radius:50%; background:#0B7C5E; animation:k9puls 2s infinite;}
+  .k10-land-later{background:transparent; border:1px dashed #D4D4D0; color:#9A9BA3;}
+
+  /* WAAROM KRILLO */
+  .k10-waarom{display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr); gap:56px; align-items:center;}
+  .k10-vs{background:#fff; border:1px solid #E7E7E4; border-radius:24px; padding:8px;
+          box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18);}
+  .k10-schakel{display:flex; background:#F2F2F0; border-radius:14px; padding:4px; margin:6px 6px 10px;}
+  .k10-schakel button{flex:1; border:0; background:transparent; font:inherit; font-size:14px; font-weight:500; color:var(--k-grijs);
+                      padding:9px 12px; border-radius:11px; cursor:pointer; transition:all .25s;}
+  .k10-schakel button.aan{background:#fff; color:var(--k-inkt); box-shadow:0 1px 2px rgba(10,10,11,.08), 0 4px 12px -4px rgba(10,10,11,.15);}
+  .k10-vs-rij{display:grid; grid-template-columns:28px minmax(0,.9fr) minmax(0,1.2fr); gap:12px; align-items:center; padding:15px 16px; border-top:1px solid #F0F0EE;}
+  .k10-vs-rij span{font-size:13px; color:var(--k-grijs);}
+  .k10-vs-rij b{font-size:15px; font-weight:500; transition:color .3s;}
+  .k10-vs-ic{width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-style:normal; font-size:11px; font-weight:700;
+             background:#1B3FE0; color:#fff; transition:all .3s;}
+  .k10-vs.ander .k10-vs-ic{background:#ECECEA; color:#9A9BA3;}
+  .k10-vs.ander .k10-vs-rij b{color:var(--k-grijs);}
+  .k10-vs-voet{padding:12px 16px 10px; font-size:12px; color:#9A9BA3; border-top:1px solid #F0F0EE;}
+
+  /* ASSISTENTEN EN WINKELSYSTEMEN */
+  .k10-twee{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:64px;}
+  .k10-lijst{background:#fff; border:1px solid #E7E7E4; border-radius:20px; padding:6px; margin-top:24px; max-width:440px;}
+  .k10-lijstkop{display:flex; justify-content:space-between; padding:10px 12px; font-size:13px; color:var(--k-grijs);}
+  .k10-lijstrij{display:grid; grid-template-columns:28px minmax(0,1fr) auto; gap:12px; align-items:center; padding:11px 12px; border-radius:10px; font-size:14.5px; font-weight:500;}
+  .k10-lijstrij:hover{background:#F7F7F5;}
+  .k10-lijstrij.later{color:#9A9BA3;} .k10-lijstrij.later img{opacity:.5;}
+  .k10-lijstrij em{font-style:normal; font-weight:400; font-size:12px;}
+  .k10-ic{width:28px; height:28px; border-radius:8px; border:1px solid #E7E7E4; display:grid; place-items:center; background:#fff;}
+  .k10-schuif{width:34px; height:20px; border-radius:20px; background:#E3E3E0; position:relative;}
+  .k10-schuif i{position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25);}
+  .k10-schuif.aan{background:var(--k-blauw);} .k10-schuif.aan i{left:16px;}
+  .k10-platformen{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:24px; max-width:440px;}
+  .k10-platform{height:50px; border:1px solid #E7E7E4; border-radius:14px; background:#fff; display:flex; align-items:center; justify-content:center; gap:10px;
+                font-size:14px; font-weight:500; color:var(--k-zacht); box-shadow:0 1px 2px rgba(10,10,11,.04); transition:transform .3s, box-shadow .3s;}
+  .k10-platform:hover{transform:translateY(-3px); box-shadow:0 1px 2px rgba(10,10,11,.04), 0 20px 36px -22px rgba(10,10,11,.3);}
+  .k10-plus{width:20px; height:20px; border-radius:6px; background:#9A9BA3; color:#fff; font-style:normal; display:grid; place-items:center; font-size:12px;}
+
+  /* PRIJZEN: Fix is het donkere, aanbevolen blok. */
+  .k9-prijzen{background:#F7F7F5;}
+  .price-card{border-radius:22px !important; background:#fff;}
+  .price-card.k10-donker{background:#0A0A0B !important; color:#fff; border-color:#0A0A0B !important;
+                         box-shadow:0 40px 80px -36px rgba(27,63,224,.55) !important;}
+  .price-card.k10-donker .price-name, .price-card.k10-donker .price-amount, .price-card.k10-donker .price-rol{color:#fff;}
+  .price-card.k10-donker .price-feats li, .price-card.k10-donker .proef-noot{color:#C4C5CC;}
+  .price-card.k10-donker .price-feats li strong{color:#fff;}
+  .price-card.k10-donker .price-btn.solid{background:#fff !important; color:#0A0A0B !important;}
+  .price-btn.solid{background:var(--k-inkt) !important; color:#fff !important;}
+  .price-btn.ghost{background:#fff; border:1px solid #E7E7E4; color:var(--k-inkt);}
+  .price-rol{font-weight:500;}
+  .k9-prijzen .price-card.featured.k10-donker .price-name, .k9-prijzen .price-card.featured.k10-donker .price-amount,
+  .k9-prijzen .price-card.featured.k10-donker .price-feats li strong{color:#fff;}
+  .price-card.featured.k10-donker .price-amount span, .price-card.featured.k10-donker .price-feats li{color:#C4C5CC;}
+  .price-card.featured.k10-donker .price-feats li::before{color:#9EA8FF;}
+  .price-card.featured.k10-donker .price-feats{border-color:#23232A;}
+  .methode-blok{border:1px solid #E7E7E4; border-radius:24px; background:#fff;}
+  .methode-blok h2{font-weight:500;}
+  .k9-slot{border-radius:28px; background-image:none;
+    background:radial-gradient(120% 90% at 20% 0%, #D6DEFA 0%, rgba(214,222,250,0) 55%),
+               radial-gradient(90% 80% at 90% 100%, #F4EBDD 0%, rgba(244,235,221,0) 60%),
+               linear-gradient(180deg, #E7ECFB 0%, #F3F1EC 100%);}
+  .k9-slotveld{border-radius:14px;}
+  .k9-gratis .k9-kaart{border-radius:20px; transition:transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s;}
+  .k9-gratis .k9-kaart:hover{transform:translateY(-3px); box-shadow:0 1px 2px rgba(10,10,11,.04), 0 30px 54px -28px rgba(10,10,11,.26);}
+  .k-knop.blauw, .k-knop.zwart{background:var(--k-inkt);}
+
+  @media(max-width:980px){
+    .k10-bewijs-rij{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .k10-waarom, .k10-twee{grid-template-columns:minmax(0,1fr); gap:32px;}
+    .k9-h1{font-size:44px;} .k9-h2{font-size:34px;}
+    .k9-hero-rechts{padding:32px 18px;}
+  }
+  @media (prefers-reduced-motion: reduce){ .k10-balken i, .k10-teken, .k10-land i{animation:none !important;} }
+</style>
+<script>
+  /* Waarom Krillo: de schakelaar tussen Krillo en de andere tools (versie 10). */
+  document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('[data-vs]').forEach(function(vak){
+      vak.querySelectorAll('[data-vs-kies]').forEach(function(knop){
+        knop.addEventListener('click', function(){
+          var k = knop.getAttribute('data-vs-kies');
+          vak.querySelectorAll('[data-vs-kies]').forEach(function(b){ b.classList.toggle('aan', b === knop); });
+          vak.classList.toggle('ander', k === 'a');
+          vak.querySelectorAll('[data-k]').forEach(function(el){ el.textContent = el.getAttribute(k === 'a' ? 'data-a' : 'data-k'); });
+          vak.querySelectorAll('.k10-vs-ic').forEach(function(i){ i.textContent = k === 'a' ? '\u2013' : '\u2713'; });
+        });
+      });
+    });
+  });
+</script>
 </head>
 <body>
 
@@ -1356,12 +1521,13 @@
          label zegt wat Krillo is (voor webshops, overal); waar we NU meten staat
          in de regel onder de knop, uit markten.py. Komt er een land bij, dan
          past die regel zich vanzelf aan. #}
-      <span class="k9-label">AI VISIBILITY FOR WEBSHOPS</span>
+      <span class="k10-pil"><span class="k10-pil-tag">For online stores</span>AI shopping visibility</span>
       {# 7 oktober middag (Nino, na een review): de kop zegt nu letterlijk wat
          Krillo doet. "Make your store the answer..." blijft de positionering in
          de paginatitel en voor Google. #}
-      <h1 class="k9-h1">See how ChatGPT and Gemini recommend your webshop.</h1>
-      <p class="k9-intro">Find the buying questions where competitors are recommended instead of you. See what to change, and what it brings in sales.</p>
+      {# 8 oktober (versie 10, goedgekeurd door Nino): de kop uit het ontwerp. #}
+      <h1 class="k9-h1">See who AI recommends.<br><span class="k10-zacht">Understand why.</span> Move up.</h1>
+      <p class="k9-intro">Shoppers now ask ChatGPT and Gemini where to buy. Krillo shows which stores they recommend in your category, who beats you, what to change, and what it brings in sales.</p>
       <div class="scan-form">
         <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
         <button type="button" id="scanButton">Check my store free</button>
@@ -1371,10 +1537,11 @@
       {# 7 oktober (Nino): welke assistenten we meten, eerlijk. Alleen namen als
          tekst, geen logo's: die zijn van de bedrijven zelf, en wat we nog niet
          meten staat er als "soon", niet als belofte. #}
-      <div class="ai-rij" aria-label="Assistants we measure"><span class="k9-mono">WE ASK</span>
-        <span class="ai-chip"><i style="background:#10A37F"></i>ChatGPT</span>
-        <span class="ai-chip"><i style="background:#4285F4"></i>Gemini</span>
-        <span class="ai-chip zacht"><i style="background:#9A9AA3"></i>Perplexity soon</span></div>
+      {# 8 oktober (Nino): de officiele logo's, want die geven vertrouwen. Ze komen
+         uit static/logos; staat een bestand er (nog) niet, dan een neutraal vakje.
+         Wat we nog niet meten is "soon", nooit een belofte. #}
+      <div class="ai-rij k10-ai" aria-label="Assistants we measure"><span class="k9-mono">MEASURED IN</span>
+        {% for a in assistenten %}<span class="ai-chip{{ '' if a.gemeten else ' zacht' }}">{% if logo_bestaat is defined and logo_bestaat(a.logo) %}<img src="/static/logos/{{ a.logo }}.svg" alt="" width="14" height="14">{% else %}<i class="k10-leeg"></i>{% endif %}{{ a.naam }}{% if not a.gemeten %} <em>soon</em>{% endif %}</span>{% endfor %}</div>
       <div class="k9-landen k9-mono" id="liveLanden"><span class="k9-landen-stip"></span>LIVE IN {{ index_landen_kaal_en | upper }} &middot; <a href="/index#wachtlijst" title="Leave your email and we tell you when your country goes live">MORE COUNTRIES SOON</a></div>
       <div id="scanResult" class="scan-result"></div>
     </div>
@@ -1451,6 +1618,24 @@
   </div>
 </section>
 
+{# BEWIJSSTROOK (8 oktober, versie 10). De vier cijfers van de index, elk met
+   een klein bewegend beeld (Nino: "wat minder statisch"). De cijfers zijn echt
+   en komen uit de index; de beeldjes zijn versiering en zeggen niets extra. #}
+{% if index and index.cijfers %}
+<section class="k10-bewijs" aria-label="The Krillo Index in numbers">
+  <div class="k9-binnen k10-bewijs-rij">
+    {% if index.cijfers.categorieen %}<div class="k10-cel"><b>{{ index.cijfers.categorieen }}</b><span>categories measured</span>
+      <div class="k10-vis k10-balken">{% for h in [40,65,50,85,55,95,70,60,80,45,75,90] %}<i style="height:{{ h }}%;animation-delay:{{ loop.index0 * 0.06 }}s"></i>{% endfor %}</div></div>{% endif %}
+    {% if index.cijfers.winkels %}<div class="k10-cel"><b>{{ index.cijfers.winkels }}</b><span>stores ranked</span>
+      <div class="k10-vis k10-tegels">{% set tabs0 = index.tabs[0].rijen if index.tabs else [] %}{% for r in tabs0[:5] %}<i style="background:{{ ['#0A0A0B','#7C5CDB','#D97706','#0E7490','#BE185D'][loop.index0] }}">{{ r.naam[:1] | upper }}</i>{% endfor %}<span>and every other store in each category</span></div></div>{% endif %}
+    {% if index.cijfers.antwoorden %}<div class="k10-cel"><b>{{ index.cijfers.antwoorden }}</b><span>AI answers kept</span>
+      <div class="k10-vis"><svg viewBox="0 0 200 44" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="k10g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#1B3FE0" stop-opacity=".16"/><stop offset="1" stop-color="#1B3FE0" stop-opacity="0"/></linearGradient></defs><polygon fill="url(#k10g)" points="0,40 25,36 50,37 75,30 100,27 125,22 150,18 175,10 200,6 200,44 0,44"/><polyline class="k10-teken" fill="none" stroke="#1B3FE0" stroke-width="2" stroke-linecap="round" points="0,40 25,36 50,37 75,30 100,27 125,22 150,18 175,10 200,6"/></svg></div></div>{% endif %}
+    <div class="k10-cel"><b>{{ index.landen | length if index.landen else 2 }}</b><span>countries live, more soon</span>
+      <div class="k10-vis k10-landen">{% for l in index.landen %}<span class="k10-land"><i></i>{{ {'nl':'Netherlands','be':'Belgium','de':'Germany','fr':'France','uk':'United Kingdom'}.get(l.land, l.land | upper) }}</span>{% endfor %}<a class="k10-land k10-land-later" href="/index#wachtlijst">+ soon</a></div></div>
+  </div>
+</section>
+{% endif %}
+
 {# WAT AI ZEGT. De drie getallen die we tellen, met de echte top 3 van de
    eerste categorie. Klik een getal en een winkel: het zwarte vak laat het
    echte cijfer zien. Er staat geen verzonnen AI-tekst bij. #}
@@ -1489,6 +1674,36 @@
   </div>
 </section>
 {% endif %}
+
+{# WAAROM KRILLO (8 oktober, versie 10). Het verschil met de grote AI-SEO-tools,
+   met een schakelaar (Nino: "clean maar misschien interactief"). Over de anderen
+   zeggen we bewust "usually" en "mostly": we kennen niet elke tool van binnen. #}
+<section class="k9-sectie" id="waarom-krillo">
+  <div class="k9-binnen k10-waarom">
+    <div>
+      <span class="k9-label">WHY KRILLO</span>
+      <h2 class="k9-h2">Other tools track brands for global SEO. Krillo is built for online stores.</h2>
+      <p class="k9-p">A shopper does not ask AI about your brand. She asks where to buy. Krillo measures exactly that: buying questions, per category, per country, in the shopper's own language.</p>
+      <a class="k-knop blauw groot" href="#scan" style="margin-top:24px">Check my store free &rarr;</a>
+    </div>
+    <div class="k10-vs" data-vs>
+      <div class="k10-schakel" role="tablist">
+        <button type="button" class="aan" data-vs-kies="k">Krillo</button>
+        <button type="button" data-vs-kies="a">Global AI SEO tools</button>
+      </div>
+      {% for r in [
+        ('What is measured', 'Buying questions: where to buy', 'Brand mentions'),
+        ('Compared with', 'Every store in your category', 'A few brands you pick'),
+        ('Market', 'Per country, in its own language', 'One global set of prompts'),
+        ('Your products', 'Product data AI can read', 'Usually not checked'),
+        ('Sales', 'Orders from AI visitors, via the pixel', 'Usually not measured'),
+        ('The fixes', 'Written for your store, or done by us', 'Mostly advice')] %}
+      <div class="k10-vs-rij"><i class="k10-vs-ic">&check;</i><span>{{ r[0] }}</span><b data-k="{{ r[1] }}" data-a="{{ r[2] }}">{{ r[1] }}</b></div>
+      {% endfor %}
+      <div class="k10-vs-voet" data-k="Built for online stores. Live in {{ index_landen_kaal_en }}, more countries soon." data-a="What most AI SEO tools focus on. Good for brands, less for stores.">Built for online stores. Live in {{ index_landen_kaal_en }}, more countries soon.</div>
+    </div>
+  </div>
+</section>
 
 {# HET DASHBOARD. Een plaat van het scherm dat een klant elke maand krijgt.
    Bewust een VOORBEELD met nep-namen, met een knop naar het echte voorbeeld
@@ -1550,7 +1765,39 @@
       <div><span class="k9-nr">01</span><b>Detect</b><p>Which buying questions you lose, and which store AI names instead.</p></div>
       <div><span class="k9-nr">02</span><b>Understand</b><p>Why that store gets named: what its pages say that yours do not.</p></div>
       <div><span class="k9-nr">03</span><b>Fix</b><p>The exact text and the page it goes on. You add it, or we do.</p></div>
-      <div><span class="k9-nr">04</span><b>Measure</b><p>We ask the same questions again every week, so you see when it works.</p></div>
+      <div><span class="k9-nr">04</span><b>Measure</b><p>Your five key questions every week, all buying questions every month, so you see when it works.</p></div>
+    </div>
+  </div>
+</section>
+
+{# DE ASSISTENTEN EN DE WINKELSYSTEMEN (8 oktober, versie 10). Wat we meten
+   staat aan; wat eraan komt staat grijs met "soon". In het dashboard kiest een
+   klant zelf welke nieuwe assistent hij erbij wil zodra die er is. #}
+<section class="k9-sectie" id="assistenten">
+  <div class="k9-binnen k10-twee">
+    <div>
+      <h3 class="k10-h3">Choose the assistants</h3>
+      <p class="k9-p" style="margin-top:8px">We ask the assistants your shoppers use. ChatGPT and Gemini are in every plan. Pick the next ones in your dashboard and we add them when they go live.</p>
+      <div class="k10-lijst k9-laag">
+        <div class="k10-lijstkop"><span>Assistants</span><span>Asked weekly</span></div>
+        {% for a in assistenten %}
+        <div class="k10-lijstrij{{ '' if a.gemeten else ' later' }}">
+          <span class="k10-ic">{% if logo_bestaat is defined and logo_bestaat(a.logo) %}<img src="/static/logos/{{ a.logo }}.svg" alt="" width="16" height="16">{% else %}<i class="k10-leeg"></i>{% endif %}</span>
+          <span>{{ a.naam }}{% if not a.gemeten %} <em>coming soon</em>{% endif %}</span>
+          <span class="k10-schuif{{ ' aan' if a.gemeten }}" aria-label="{{ 'Included' if a.gemeten else 'Coming soon' }}"><i></i></span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <h3 class="k10-h3">Works with any online store</h3>
+      <p class="k9-p" style="margin-top:8px">Type your address to start. Add the sales pixel in two minutes to see which AI visits turn into orders.</p>
+      <div class="k10-platformen">
+        {% for p in [('shopify','Shopify'),('woocommerce','WooCommerce'),('wix','Wix'),('prestashop','PrestaShop'),('bigcommerce','BigCommerce'),('','Any other store')] %}
+        <div class="k10-platform">{% if p[0] and logo_bestaat is defined and logo_bestaat(p[0]) %}<img src="/static/logos/{{ p[0] }}.svg" alt="" width="20" height="20">{% else %}<i class="k10-plus">+</i>{% endif %}{{ p[1] }}</div>
+        {% endfor %}
+      </div>
+      <p class="k9-klein" style="margin-top:14px">Logos show where Krillo measures and what it works with. No partnership is implied.</p>
     </div>
   </div>
 </section>
@@ -1605,7 +1852,7 @@
   <span id="prijzen" style="position:absolute;"></span>
   <div class="k9-binnen">
     <div class="k9-prijskop">
-      <div><span class="k9-label">PRICING</span><h2 class="k9-h2">See where you stand. Or let us do the work.</h2></div>
+      <div><span class="k9-label">PRICING</span><h2 class="k9-h2">See the problem for free. Let Krillo fix it.</h2></div>
       {# LET OP BIJ WIJZIGEN: de bedragen moeten gelijk zijn aan
          payments.PAKKETTEN, ook de jaarbedragen (test_jaarabonnement). Merken
          heeft GEEN jaarprijs; dat richten we samen in. #}
@@ -1616,33 +1863,35 @@
     </div>
 
     <div class="price-grid">
-      <div class="price-card featured">
+      {# 8 oktober (versie 10): Watch is "you do the work", Fix is "Krillo does
+         the work" en is het aanbevolen, donkere blok. #}
+      <div class="price-card">
         <div class="price-top"><span class="price-name">Watch</span><span class="price-tag blauw k9-mono">14 DAYS FREE</span></div>
-        <div class="price-rol">You track it and improve it yourself</div>
+        <div class="price-rol">You do the work.</div>
         <div class="price-amount" data-maand="&euro;49 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;490 &lt;span&gt;/year&lt;/span&gt;">&euro;49 <span>/mo</span></div>
         <div class="price-amount proef-noot" data-maand="First 14 days free. Cancel before then and you pay nothing." data-jaar="Paid yearly. The free trial is for the monthly plan.">First 14 days free. Cancel before then and you pay nothing.</div>
         <ul class="price-feats">
           <li><strong>Your rank every month</strong>, and who passes you</li>
           <li>Every buying question you lose, with the real AI answer</li>
-          <li><strong>Every week</strong>, your five key questions by email, plus five questions of your own</li>
-          <li>Per page: which AI robots can read it, and which products AI names</li>
+          <li><strong>Every week</strong>, your five key questions by email; five questions of your own on your dashboard</li>
+          <li>Your homepage and up to five key pages: can AI read them, and which products AI names</li>
           <li>Your visits and revenue from AI, next to what Krillo costs you</li>
         </ul>
-        <a class="price-btn solid" href="#scan" id="watchCheckoutBtn" data-maand="Start Watch free for 14 days" data-jaar="Start Watch">Start Watch free for 14 days</a>
+        <a class="price-btn ghost" href="#scan" id="watchCheckoutBtn" data-maand="Start Watch free for 14 days" data-jaar="Start Watch">Start Watch free for 14 days</a>
       </div>
 
-      <div class="price-card">
-        <div class="price-top"><span class="price-name">Fix</span><span class="price-tag k9-mono">WE DO THE WORK</span></div>
-        <div class="price-rol">We make the changes for you</div>
+      <div class="price-card featured k10-donker">
+        <div class="price-top"><span class="price-name">Fix</span><span class="price-tag blauw k9-mono">RECOMMENDED</span></div>
+        <div class="price-rol">Krillo does the work.</div>
         <div class="price-amount" data-maand="&euro;149 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;1,490 &lt;span&gt;/year&lt;/span&gt;">&euro;149 <span>/mo</span></div>
         <div class="price-amount proef-noot" data-maand="Cancel within 14 days of your first payment and you get it back." data-jaar="Two months free compared to monthly.">Cancel within 14 days of your first payment and you get it back.</div>
         <ul class="price-feats">
           <li><strong>Everything in Watch</strong>, with fifteen questions of your own</li>
           <li><strong>We make the fixes in your store</strong>, with access you give us and can take back any time</li>
-          <li>The old text is kept, so it can always be rolled back</li>
-          <li>An llms.txt for Shopify and WordPress, kept up to date</li>
+          <li>The old text is kept, so we can put it back</li>
+          <li>Instructions for AI (llms.txt) on your store</li>
         </ul>
-        <a class="price-btn ghost" href="#scan" id="fixCheckoutBtn">Fix it for me</a>
+        <a class="price-btn solid" href="#scan" id="fixCheckoutBtn">Let Krillo fix it &rarr;</a>
       </div>
 
       <div class="price-card">
@@ -1660,7 +1909,8 @@
     </div>
 
     <div class="prijs-voet">
-      <div><strong>Not happy? Cancel within 14 days of your first payment and get that month back.</strong></div>
+      {# 8 oktober (Nino, akkoord): Watch heeft de 14 gratis dagen als garantie; geld terug alleen bij Fix. #}
+      <div><strong>Watch: 14 days free, cancel before day 15 and you pay nothing. Fix: not happy in the first 14 days, money back.</strong></div>
     </div>
   </div>
 </section>
@@ -1692,7 +1942,7 @@
       <button type="button" class="aan"><span><b>How does Krillo measure my store?</b><i>Every month we ask ChatGPT and Gemini the same buying questions for every store in your category and country, and count who is named and who is recommended.</i></span><em>&minus;</em></button>
       <button type="button"><span><b>Is my store already in the index?</b><i>If you sell in a category we measure in {{ index_landen_en }}, probably yes. Selling somewhere else? Leave your email on the index page and we tell you when your country goes live. Type your store at the top of this page: you see your rank for free, without an account.</i></span><em>+</em></button>
       <button type="button"><span><b>What is the difference between Watch and Fix?</b><i>Watch shows your rank, the answers and the fixes to do yourself. With Fix we put the changes live in your store, and the old text is kept so every change can be undone.</i></span><em>+</em></button>
-      <button type="button"><span><b>Can I cancel any time?</b><i>Yes, every month, from the Plan page in your dashboard. The first 14 days of Watch are free, and if you cancel within fourteen days of your first payment you get that month back.</i></span><em>+</em></button>
+      <button type="button"><span><b>Can I cancel any time?</b><i>Yes, every month, from the Plan page in your dashboard. The first 14 days of Watch are free: cancel before day 15 and you pay nothing. On Fix, if you cancel within fourteen days of your first payment, you get that month back.</i></span><em>+</em></button>
       <button type="button"><span><b>Do you work with agencies?</b><i>Yes. Check up to ten client stores for free on the agencies page, and follow up to 25 stores in one plan.</i></span><em>+</em></button>
     </div>
   </div>
@@ -2449,13 +2699,13 @@
         'First 14 days free, then cancel any time, no minimum term'
       ],
       delivery: 'Delivery: the link to your dashboard arrives within minutes, your rank usually within the hour. No password: the link is your key.',
-      garantie: 'Cancel within fourteen days of your first payment and you get that month back in full.'
+      garantie: 'Cancel before day 15 and you pay nothing. After that you can stop any month; the running month is not refunded.'
     },
     fix: {
       items: [
         'Everything in Watch',
         'We make the fixes in your store, with access you give us and can take back any time',
-        'The old text is kept, so it can always be rolled back',
+        'The old text is kept, so we can put it back',
         'At the next monthly measurement we show the difference',
         'A message when you drop three places or more',
         'Cancel any time, no minimum term'
@@ -2518,7 +2768,8 @@
     var garantieVeld = document.getElementById('checkoutGarantie');
     if(garantieVeld){
       garantieVeld.textContent = (periode === 'jaar' && (type === 'watch' || type === 'fix'))
-        ? 'Paid yearly, in advance. Cancel within fourteen days of your first payment and you get the full year back. After that your plan runs to the end of the year you paid for, and does not renew if you cancel.'
+        ? (type === 'fix' ? 'Paid yearly, in advance. Cancel within fourteen days of your first payment and you get the full year back. After that your plan runs to the end of the year you paid for, and does not renew if you cancel.'
+                          : 'Paid yearly, in advance. Your plan runs to the end of the year you paid for, and does not renew if you cancel. Want to try first? Start with the free 14 days of monthly Watch.')
         : (content.garantie || '');
     }
 

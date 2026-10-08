@@ -273,8 +273,88 @@
   .v2 .kaartblok > details:not(.kat-wissel), .v2 .kaartblok > form{margin:12px 16px;}
   .v2 .kaartblok > ol{margin:12px 16px 12px 36px;}
   .v2 .kaartblok > details:last-child{margin-bottom:16px !important;}
+  /* 8 oktober: de gids "Your first month". */
+  .gids{border:1px solid #E8E8EC; border-radius:12px; background:#fff; padding:18px 20px 8px; margin:0 0 16px;}
+  .gids-kop{display:flex; justify-content:space-between; align-items:flex-start; gap:16px;}
+  .gids-titel{font-size:17px; font-weight:700; margin-top:4px;}
+  .gids-rechts{display:flex; align-items:center; gap:12px;}
+  .gids-teller{font-family:var(--mono); font-size:13px; color:#6E7079;}
+  .gids-weg, .gids-gedaan{border:0; background:none; color:#1B3FE0; font:inherit; font-size:13px; font-weight:600; cursor:pointer; padding:0;}
+  .gids-weg{color:#6E7079; font-weight:400;}
+  .gids-lijst{list-style:none; margin:6px 0 0; padding:0;}
+  .gids-lijst li{display:flex; gap:12px; padding:10px 0; border-top:1px solid #F1F1F4;}
+  .gids-lijst li:first-child{border-top:0;}
+  .gids-bol{flex:0 0 24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; border:1.5px solid #1B3FE0; color:#1B3FE0;}
+  .gids-lijst li.klaar .gids-bol{background:#E7F6EF; border-color:#E7F6EF; color:#0B7C5E;}
+  .gids-lijst li.info .gids-bol{border-color:#D5D6DC; color:#6E7079;}
+  .gids-lijst li.klaar strong{color:#6E7079; font-weight:600;}
+  .gids-regel{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .gids-tijd{font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:5px; background:#EEF1FD; color:#1B3FE0;}
+  .gids-lijst p{margin:4px 0 0; font-size:14px; line-height:1.55; color:#5A5C66;}
+  .gids-lijst p a{color:#1B3FE0; font-weight:600; text-decoration:none;}
+  /* 8 oktober: de pagina Site check. */
+  .sc-boven{display:grid; grid-template-columns:1fr 1.3fr 1.4fr; gap:16px; margin:0 0 16px;}
+  .sc-boven > div{border:1px solid #E8E8EC; border-radius:12px; background:#fff; padding:18px 20px;}
+  .sc-getal{font-size:40px; font-weight:700; margin-top:6px; letter-spacing:-.02em;}
+  .sc-getal span{font-size:16px; color:#6E7079; font-weight:400;}
+  .sc-onder{font-size:13px; color:#6E7079; margin-top:4px;}
+  .sc-balken{display:flex; align-items:flex-end; gap:10px; height:84px; margin-top:12px;}
+  .sc-balken > div{display:flex; flex-direction:column; align-items:center; gap:4px; flex:1;}
+  .sc-balken i{display:block; width:100%; max-width:28px; background:#1B3FE0; border-radius:4px 4px 0 0;}
+  .sc-balken span{font-family:var(--mono); font-size:10px; color:#6E7079;}
+  .sc-uitleg{font-size:14px; line-height:1.6; color:#5A5C66;}
+  .sc-uitleg a{display:block; margin-top:10px; color:#1B3FE0; font-weight:600; text-decoration:none;}
+  .sc-rij{display:flex; gap:14px; padding:14px 16px; border-top:1px solid #F1F1F4; align-items:flex-start;}
+  .sc-groep .kaartkop + .sc-rij{border-top:0;}
+  .v2 .kaartblok.sc-groep > .sc-rij{margin:0 !important; padding:14px 16px !important;}
+  .sc-rij strong{font-size:15px;}
+  .sc-rij p{margin:4px 0 0 !important; padding:0 !important; font-size:14px; line-height:1.55; color:#5A5C66;}
+  .sc-tag{flex:0 0 auto; font-family:var(--mono); font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; padding:3px 8px; border-radius:5px; margin-top:2px; min-width:86px; text-align:center;}
+  .sc-goed{background:#E7F6EF; color:#0B7C5E;}
+  .sc-werk{background:#FFF1E8; color:#B4471A;}
+  .sc-niet{background:#F1F1F4; color:#6E7079;}
+  @media (max-width:900px){ .sc-boven{grid-template-columns:1fr;} }
   .kat-wissel{padding:14px 18px !important; margin:0 0 16px;}
   .kat-wissel summary{cursor:pointer; color:#1B3FE0; font-size:14px; font-weight:600;}
   .kat-wissel .st-form{margin-top:12px;}
   .kat-wissel > p.klein{padding:10px 0 0 !important; margin:0;}
+
+  /* ==================================================================
+     DASHBOARD VERSIE 10 (8 oktober 2026, Nino: "ik vind het mooi, maak
+     alles zo"). Dezelfde laag als de homepage: papierwit met witte kaarten,
+     Inter voor tekst en Inter Tight voor cijfers, zwart voor hoofdknoppen,
+     blauw alleen voor "jij" en het logo, ronde, zachte kaarten. Het woordmerk
+     blijft Space Grotesk, zoals in de Shopify-app.
+     ================================================================== */
+  body.v8{background:#F7F7F5; font-family:Inter, system-ui, sans-serif;}
+  .v8 .scherm, .v8 .zijkant{background:#F7F7F5;}
+  .v8 h1, .v8 h2, .v8 h3, .v8 .groot{font-family:'Inter Tight', Inter, system-ui, sans-serif; font-weight:500; letter-spacing:-0.03em;}
+  .v8 .zijkant .logo{font-family:'Space Grotesk', system-ui, sans-serif;}
+  .v8{--lijnv:#E7E7E4; --lijnz:#F0F0EE;}
+  .v8 .werkblad{border-color:#E7E7E4; border-radius:18px;
+                box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.16);}
+  .v8 .werkkop{border-radius:18px 18px 0 0; border-bottom-color:#E7E7E4;}
+  .v8 .kaartblok, .v8 .cijfer, .v8 .vragenblok, .v8 .paneel, .v8 .werkvlak{border-color:#E7E7E4; border-radius:16px;}
+  .v8 .winkelkaart{border-color:#E7E7E4; border-radius:12px;}
+  .v8 .zijmenu a:hover{background:#EFEFED;}
+  .v8 .kopknop, .v8 .knopdonker, .v8 .knop-vol, .v8 .proefbalk .knop-vol{background:#0A0A0B; border-radius:10px;
+    box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5);}
+  .v8 .kopknop:hover, .v8 .knopdonker:hover, .v8 .knop-vol:hover{background:#0A0A0B; transform:translateY(-1px);}
+  .v8 .chip{border-color:#E7E7E4;}
+  .v8 .kpi .waarde, .v8 .cijfer .waarde, .v8 .d8-getal{font-family:'Inter Tight', Inter, system-ui, sans-serif; font-weight:500;}
+
+  /* KIES DE ASSISTENTEN */
+  .k10-assistenten .uitleg{margin-left:8px;}
+  .k10-arij{display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:12px; align-items:center; padding:10px 4px; border-top:1px solid #F0F0EE;}
+  .k10-arij.later .k10-anaam{color:#6E7079;}
+  .k10-arij.later img{opacity:.55;}
+  .k10-aic{width:30px; height:30px; border-radius:9px; border:1px solid #E7E7E4; display:grid; place-items:center; background:#fff;}
+  .k10-aic i{width:14px; height:14px; border-radius:4px; border:1px dashed #C9C9C4;}
+  .k10-anaam{font-size:14.5px; font-weight:500; display:flex; flex-direction:column;}
+  .k10-anaam em{font-style:normal; font-weight:400; font-size:12px; color:#9A9BA3;}
+  .k10-schakelaar{width:38px; height:22px; border-radius:22px; border:0; background:#E3E3E0; position:relative; cursor:pointer; transition:background .2s;}
+  .k10-schakelaar i{position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff;
+                    box-shadow:0 1px 3px rgba(0,0,0,.25); transition:left .2s;}
+  .k10-schakelaar.aan{background:#1B3FE0;} .k10-schakelaar.aan i{left:18px;}
+  .k10-schakelaar:disabled{cursor:default; opacity:.9;}
 </style>
