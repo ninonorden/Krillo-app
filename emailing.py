@@ -144,8 +144,12 @@ def send_email(to_email, subject, html_body, koppen=None):
 # voor goed); geen rood of oranje meer, dat kent de huisstijl niet.
 INKT = "#0A0A0B"
 INKT_ZACHT = "#4A4A55"
-LIJN = "#E8E8EC"
-VLAK = "#F7F7F9"
+LIJN = "#E7E7E4"
+VLAK = "#F7F7F5"
+# 8 oktober (versie 10, Nino: "pas alles aan naar de huidige look, ook de mail"):
+# de knop is zwart, net als elke hoofdknop op de site; papierwit achter de kaart.
+KNOP = "#0A0A0B"
+PAPIER = "#F7F7F5"
 BLAUW = "#1B3FE0"
 BLAUW_TEKST = "#142FA8"
 GOED = "#0B7C5E"
@@ -175,16 +179,16 @@ def _base_html(title, intro, body_html, taal="en"):
     intro_html = (f'<p style="color:{INKT_ZACHT}; font-size:15px; line-height:1.6; margin:0 0 22px;">{intro}</p>'
                   if intro else '<div style="height:10px; line-height:10px;">&nbsp;</div>')
     return f"""
-    <div style="background:#F4F5F7; padding:32px 12px; margin:0;">
+    <div style="background:{PAPIER}; padding:32px 12px; margin:0;">
     <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">{voorvertoning}&#8199;&#65279;&#847; &#8199;&#65279;&#847; &#8199;&#65279;&#847;</div>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px; margin:0 auto;">
       <tr><td style="padding:0 4px 16px; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;">
-        <span style="font-weight:700; font-size:18px; letter-spacing:-0.04em; color:{INKT};">KRILLO</span>
+        <span style="font-family:'Space Grotesk', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; font-weight:700; font-size:18px; letter-spacing:-0.04em; color:{INKT};">KRILLO</span>
         <span style="font-family:'Courier New', monospace; font-size:10px; color:#6E7079; letter-spacing:0.12em; margin-left:6px;">INDEX</span>
       </td></tr>
-      <tr><td style="background:#FFFFFF; border:1px solid {LIJN}; border-radius:14px; padding:32px 32px 28px;
+      <tr><td style="background:#FFFFFF; border:1px solid {LIJN}; border-radius:18px; padding:34px 34px 30px;
                      font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; color:{INKT};">
-        <h1 style="font-size:22px; line-height:1.3; margin:0 0 8px; letter-spacing:-0.01em; color:{INKT};">{title}</h1>
+        <h1 style="font-size:24px; line-height:1.25; margin:0 0 8px; letter-spacing:-0.02em; font-weight:600; color:{INKT};">{title}</h1>
         {intro_html}
         {body_html}
       </td></tr>
@@ -394,14 +398,14 @@ def send_opzegging_bevestiging(to_email, webshop_url, tot=None, terug=False, pro
 
 
 def _score_button(report_url, label="Open your dashboard"):
-    """De knop. Blauw, zoals op de site. 8 oktober: als tabel, dan houdt
-    Outlook het blauwe vlak en de afronding."""
+    """De knop. Zwart, zoals elke hoofdknop op de site sinds versie 10 (8
+    oktober). Als tabel, dan houdt Outlook het vlak en de afronding."""
     if not report_url:
         return ""
     return f"""
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 4px;"><tr>
-      <td style="background:{BLAUW}; border-radius:8px;">
-        <a href="{report_url}" style="display:inline-block; padding:13px 24px; color:#FFFFFF;
+      <td style="background:{KNOP}; border-radius:10px;">
+        <a href="{report_url}" style="display:inline-block; padding:14px 24px; color:#FFFFFF;
            text-decoration:none; font-weight:600; font-size:15px;">{label} &rarr;</a></td></tr></table>
     """
 
@@ -914,7 +918,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
           {klant_regel}
 
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
-            <tr><td style="background:#1B3FE0; border-radius:8px;">
+            <tr><td style="background:#0A0A0B; border-radius:10px;">
               <a href="{link_url}" style="display:inline-block; padding:13px 26px;
                  color:#FFFFFF; text-decoration:none; font-size:14.5px; font-weight:600;">
                 See my Krillo page</a>
@@ -1054,7 +1058,7 @@ def welkom_v2_html(webshop_url, report_url, pakket="watch", score=None, gratis_t
                   f'style="margin:22px 0 6px;"><tr>{cijfer}{tussen}{proef}</tr></table>')
 
     knop = (f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 4px;"><tr>'
-            f'<td style="background:{BLAUW}; border-radius:8px;"><a href="{report_url}" style="display:inline-block; '
+            f'<td style="background:{KNOP}; border-radius:10px;"><a href="{report_url}" style="display:inline-block; '
             f'padding:13px 24px; color:#FFFFFF; font-weight:600; font-size:15px; text-decoration:none;">'
             f'Open your dashboard &rarr;</a></td></tr></table>'
             f'<p style="font-size:12.5px; color:#6E7079; margin:6px 0 0;">No password: this link is your key, so keep this email.</p>'

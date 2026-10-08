@@ -182,6 +182,36 @@ def _labelnaam(sleutel, taal="en"):
     return vraaglabels.naam(sleutel, taal)
 
 
+def logo_bestaat(naam):
+    """Of er een officieel merklogo staat in static/logos (8 oktober, versie 10).
+
+    Waarom: Nino wil de echte logo's van ChatGPT, Gemini, Shopify en de rest,
+    want dat geeft vertrouwen. Een deel kon ik uit Simple Icons halen; OpenAI
+    en xAI staan daar niet in. Die moet Nino zelf van hun merkpagina halen. Tot
+    dan toont het sjabloon een neutraal vakje in plaats van een kapot plaatje,
+    en zodra het bestand er staat verschijnt het logo vanzelf."""
+    import re as _re
+    if not _re.fullmatch(r"[a-z0-9-]+", naam or ""):
+        return False
+    return os.path.exists(os.path.join(app.root_path, "static", "logos", naam + ".svg"))
+
+
+# De assistenten (8 oktober, versie 10). "gemeten" zijn de assistenten die we
+# nu echt vragen; de rest komt eraan en een klant kan zich ervoor aanmelden in
+# het dashboard. Staat hier op EEN plek, zodat homepage en dashboard nooit
+# verschillende dingen zeggen.
+ASSISTENTEN = [
+    {"sleutel": "chatgpt", "naam": "ChatGPT", "logo": "chatgpt", "gemeten": True},
+    {"sleutel": "gemini", "naam": "Gemini", "logo": "gemini", "gemeten": True},
+    {"sleutel": "perplexity", "naam": "Perplexity", "logo": "perplexity", "gemeten": False},
+    {"sleutel": "google_ai", "naam": "Google AI Mode", "logo": "google", "gemeten": False},
+    {"sleutel": "grok", "naam": "Grok", "logo": "grok", "gemeten": False},
+]
+# Ook als globale waarde in Jinja: sommige pagina's en tests renderen een
+# sjabloon buiten een verzoek om, en dan draait de context processor niet.
+app.jinja_env.globals.update(logo_bestaat=logo_bestaat, assistenten=ASSISTENTEN)
+
+
 @app.context_processor
 def zet_basis_url_klaar():
     """Maakt basis_url in ELK sjabloon beschikbaar.
@@ -200,6 +230,8 @@ def zet_basis_url_klaar():
             "index_landen_kaal_en": markten.index_landen_kaal_en(),
             "vraagtaal_en": markten.vraagtaal_en,
             "labelnaam": _labelnaam,
+            "logo_bestaat": logo_bestaat,
+            "assistenten": ASSISTENTEN,
             "wachtlijst_landen": {c: n for c, n in markten.WACHTLIJST_LANDEN.items() if not markten.in_index(c)}}
 
 
@@ -8288,6 +8320,11 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
     # Stap 316: de pagina Site check, met of zonder plek.
     if pagina == "sitecheck":
         gegevens["sitecheck"] = _sitecheck(webshop_url, klant_token, taal) if klant_token and not proef else None
+    # 8 oktober (versie 10, Nino: "choose the assistants is een mooie
+    # functie, voeg die toe"): welke nieuwe assistenten deze klant erbij wil.
+    if pagina in ("overzicht", "abonnement") and klant_token and not proef:
+        gegevens["assistenten_keuze"] = _assistenten_keuze(webshop_url)
+        gegevens["assistenten_url"] = f"/mijn/{klant_token}/assistenten"
     if beeld:
         winkelnaam = beeld.get("naam")
         if pagina in ("overzicht", "vragen"):
@@ -9427,6 +9464,56 @@ def klant_dashboard(klant_token, pad=""):
         print(f"Bekeken bijhouden mislukt: {e}")
     return _dashboard(klant["webshop_url"], klant_token=klant_token,
                       pagina=dp.PAD_NAAR_PAGINA.get(pad, "overzicht"))
+
+
+ASSISTENTKEUZE = "assistenten:"
+
+
+def _assistenten_keuze(webshop_url):
+    """De assistenten die nog niet gemeten worden en die deze klant erbij wil.
+
+    Waarom zo: ChatGPT en Gemini meten we bij iedereen, die staan altijd aan.
+    Perplexity, Google AI Mode en Grok meten we nog niet. Een klant zet ze aan
+    in zijn dashboard; dat is een aanmelding: zodra we die assistent meten,
+    komt hij in zijn metingen. Tot dan beloven we niets anders, en Nino ziet
+    welke assistent het meest gevraagd wordt (een eerlijk signaal voor stap 188)."""
+    try:
+        lijst = json.loads(db.get_instelling(ASSISTENTKEUZE + webshop_url) or "[]")
+        later = {a["sleutel"] for a in ASSISTENTEN if not a["gemeten"]}
+        return [k for k in lijst if k in later] if isinstance(lijst, list) else []
+    except Exception:
+        return []
+
+
+@app.route("/mijn/<klant_token>/assistenten", methods=["POST"])
+def klant_assistenten(klant_token):
+    """Een nieuwe assistent aan- of uitzetten (8 oktober, versie 10)."""
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return jsonify({"ok": False}), 404
+    gegevens = request.get_json(silent=True) or {}
+    sleutel = (gegevens.get("sleutel") or "").strip()
+    aan = bool(gegevens.get("aan", True))
+    later = {a["sleutel"]: a["naam"] for a in ASSISTENTEN if not a["gemeten"]}
+    if sleutel not in later:
+        # ChatGPT en Gemini kun je niet uitzetten: die zitten in elk pakket en
+        # tellen mee voor de plek in de index.
+        return jsonify({"ok": False, "error": "This assistant is always included."}), 400
+    lijst = _assistenten_keuze(klant["webshop_url"])
+    if aan and sleutel not in lijst:
+        lijst.append(sleutel)
+    if not aan:
+        lijst = [k for k in lijst if k != sleutel]
+    db.zet_instelling(ASSISTENTKEUZE + klant["webshop_url"], json.dumps(lijst))
+    if aan:
+        try:
+            if db.claim_moment(f"assistent_melding:{klant['webshop_url']}:{sleutel}", 30 * 24 * 3600):
+                _meld_aan_beheer(f"Klant wil {later[sleutel]} erbij",
+                                 f"{klant['webshop_url']} zette {later[sleutel]} aan in het dashboard. "
+                                 "Dat is een aanmelding: meet die assistent zodra hij in Krillo zit (stap 188).")
+        except Exception as e:
+            print(f"Melding assistentkeuze mislukt: {e}")
+    return jsonify({"ok": True, "gekozen": lijst})
 
 
 NIETVOORMIJ = "nietvoormij:"

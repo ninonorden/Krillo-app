@@ -273,11 +273,20 @@ def stap_landen_vullen():
     if rommel:
         verslag["rommel_overgeslagen"] = sorted(rommel)
         gemeten = [(slug, naam) for slug, naam in gemeten if slug not in rommel]
+    # 8 oktober (Nino: "als we meer mailen raken de winkels op; meten moet
+    # sneller dan mailen"): de voorraadregelaar. Minder dan VOORRAAD_KRAP dagen
+    # aan mailbare winkels: deze nacht twee keer zoveel zoeken. Kost per
+    # zoekopdracht een halve cent; boven tien dagen stopt het vanzelf (hierboven).
+    dagen = voorraad.get("dagen")
+    krap = dagen is not None and dagen < VOORRAAD_KRAP
+    per_nacht = VULLEN_PER_NACHT * (2 if krap else 1)
+    if krap:
+        verslag["voorraad_krap"] = f"nog {dagen} dagen: dubbel zoeken ({per_nacht} zoekopdrachten per land)"
     for land in vraaglanden.VRAAGLANDEN:
         try:
             verslag[land] = winkelvinder.vul_land(
                 land, gemeten, db.winkels_per_categorie_in_land(land),
-                doel=VULLEN_DOEL, max_zoekopdrachten=VULLEN_PER_NACHT)
+                doel=VULLEN_DOEL, max_zoekopdrachten=per_nacht)
         except Exception as e:
             verslag[land] = {"fout": str(e)[:160]}
     # 29 SEPTEMBER: NIEUWE CATEGORIEEN. Nino zag "gemeten categorieen" op 29
@@ -304,6 +313,7 @@ def stap_landen_vullen():
 # nieuwe winkels om te mailen. Met 6 per nacht duurde het weken voor de 34
 # categorieen zonder ranglijst aan de beurt waren.
 NIEUWE_CATEGORIEEN_PER_NACHT = int(os.environ.get("ONDERHOUD_NIEUWE_CATEGORIEEN", "15"))
+VOORRAAD_KRAP = float(os.environ.get("VOORRAAD_KRAP_DAGEN", "5"))
 
 
 def nog_te_vullen(gemeten):
