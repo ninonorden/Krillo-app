@@ -287,6 +287,7 @@
   {% endif %}
 </div>
 
+{% include "_bevestig.html" %}
 <script>
 (function(){
   // Kopieerknop bij elk plakblok. Zonder deze knop moet iemand een lap tekst
@@ -315,7 +316,11 @@
   var melding = document.getElementById('opzegMelding');
   if(!knop) return;
   knop.addEventListener('click', function(){
-    if(!window.confirm({{ wt.d_opzeg_bevestig|tojson }})) return;
+    window.krilloBevestig({titel: {{ wt.d_opzeg_titel|tojson }}, tekst: {{ wt.d_opzeg_bevestig|tojson }},
+                           ja: {{ wt.d_opzeg_ja|tojson }}, nee: {{ wt.d_opzeg_nee|tojson }}, gevaar: true})
+      .then(function(ok){ if (ok) opzeggen(); });
+  });
+  function opzeggen(){
     knop.disabled = true;
     knop.textContent = {{ wt.abo_bezig|tojson }};
     fetch('/api/opzeggen/{{ klant_token }}', {method: 'POST'})
@@ -336,6 +341,6 @@
         melding.textContent = {{ wt.d_opzeg_fout|tojson }};
         knop.disabled = false; knop.textContent = {{ wt.abo_knop|tojson }};
       });
-  });
+  }
 })();
 </script>

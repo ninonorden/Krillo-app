@@ -6,7 +6,7 @@
 {# Stap 90 (28 september): een pagina per winkel die AI noemt. Alleen wat op de
    categoriepagina ook al staat. Zie openbare_winkel in app.py voor de regels. #}
 <title>Does ChatGPT recommend {{ naam }}? {{ categorie }}, {{ landnaam }} | Krillo Index</title>
-<meta name="description" content="{{ naam }} is number {{ rij.positie }} of {{ totaal }} stores for {{ categorie }} in {{ landnaam }} in the Krillo Index: named in {{ rij.genoemd }} of {{ telbaar }} buying questions to AI assistants{% if maand %} ({{ maand }}){% endif %}.">
+<meta name="description" content="{{ naam }}{% if rij.nul %} is not named by AI yet among {{ totaal }} stores{% else %} is number {{ rij.positie }} of {{ totaal }} stores{% endif %} for {{ categorie }} in {{ landnaam }} in the Krillo Index: named in {{ rij.genoemd }} of {{ telbaar }} buying questions to AI assistants{% if maand %} ({{ maand }}){% endif %}.">
 <link rel="canonical" href="{{ basis_url }}/index/{{ land }}/{{ slug }}/{{ winkel }}">
 <link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
 {% include "_stijl.html" %}
@@ -36,7 +36,8 @@
      is {{ naam }} named? This is the answer from our latest monthly measurement{% if maand %}, {{ maand }}{% endif %}.</p>
 
   <div class="cijfers">
-    <div><div class="groot">#{{ rij.positie }}</div><div class="klein">of {{ totaal }} stores measured</div></div>
+    {% if rij.nul %}<div><div class="groot">&ndash;</div><div class="klein">not named by AI this month, of {{ totaal }} stores measured</div></div>
+    {% else %}<div><div class="groot">#{{ rij.positie }}</div><div class="klein">of {{ totaal }} stores measured</div></div>{% endif %}
     <div><div class="groot">{{ rij.genoemd }}/{{ telbaar }}</div><div class="klein">buying questions where AI names it</div></div>
     <div><div class="groot">{{ rij.aanbevolen or 0 }}</div><div class="klein">questions where AI recommends it outright</div></div>
     {% if rij.vorige_positie %}<div><div class="groot">#{{ rij.vorige_positie }}</div><div class="klein">the month before</div></div>{% endif %}

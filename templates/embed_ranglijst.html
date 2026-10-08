@@ -28,7 +28,7 @@
   <h1>Who AI recommends: {{ categorie }}, {{ landnaam }}</h1>
   <table>
     {% for r in rijen %}
-    <tr><td class="p">{{ r.positie }}</td>
+    <tr><td class="p">{{ '&ndash;'|safe if r.nul else r.positie }}</td>
       <td><a href="{{ basis_url }}/index/{{ land }}/{{ slug }}/{{ winkel_slug(r.webshop_url) }}" target="_blank" rel="noopener">{{ winkel_naam(r) }}</a></td>
       <td class="g">{{ r.genoemd }}/{{ telbaar }} questions</td></tr>
     {% endfor %}

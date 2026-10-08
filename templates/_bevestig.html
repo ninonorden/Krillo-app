@@ -1,0 +1,40 @@
+{# Een eigen bevestigingsvenster (8 oktober, Nino: "het blokje als je wil
+   opzeggen is een standaard Safari-blokje, dat moet anders"). Vervangt
+   window.confirm. Gebruik: krilloBevestig({titel, tekst, ja, nee, gevaar})
+   geeft een Promise met true of false. Esc en klikken naast het venster is nee. #}
+<style>
+  .kb-scherm{position:fixed; inset:0; background:rgba(10,10,11,.42); display:flex; align-items:center; justify-content:center; z-index:9999; padding:16px; opacity:0; transition:opacity .15s;}
+  .kb-scherm.kb-aan{opacity:1;}
+  .kb-venster{background:#fff; border-radius:14px; max-width:420px; width:100%; padding:24px 24px 20px; box-shadow:0 20px 60px rgba(10,10,11,.25); font-family:inherit; transform:translateY(6px); transition:transform .15s;}
+  .kb-scherm.kb-aan .kb-venster{transform:none;}
+  .kb-titel{font-size:18px; font-weight:700; margin:0 0 8px; color:#0A0A0B;}
+  .kb-tekst{font-size:14.5px; line-height:1.55; color:#4A4A55; margin:0 0 20px;}
+  .kb-knoppen{display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;}
+  .kb-knoppen button{font:inherit; font-size:14px; font-weight:600; border-radius:8px; padding:10px 16px; cursor:pointer;}
+  .kb-nee{background:#1B3FE0; color:#fff; border:1px solid #1B3FE0;}
+  .kb-ja{background:#fff; color:#0A0A0B; border:1px solid #D5D6DC;}
+  .kb-ja.kb-gevaar{color:#B42318; border-color:#F2C4C0;}
+  @media (prefers-reduced-motion: reduce){ .kb-scherm, .kb-venster{transition:none;} }
+</style>
+<script>
+if (!window.krilloBevestig) window.krilloBevestig = function(o){
+  return new Promise(function(klaar){
+    var s = document.createElement('div'); s.className = 'kb-scherm'; s.setAttribute('role', 'dialog'); s.setAttribute('aria-modal', 'true');
+    var v = document.createElement('div'); v.className = 'kb-venster';
+    var t = document.createElement('p'); t.className = 'kb-titel'; t.textContent = o.titel || '';
+    var x = document.createElement('p'); x.className = 'kb-tekst'; x.textContent = o.tekst || '';
+    var k = document.createElement('div'); k.className = 'kb-knoppen';
+    var ja = document.createElement('button'); ja.type = 'button'; ja.className = 'kb-ja' + (o.gevaar ? ' kb-gevaar' : ''); ja.textContent = o.ja || 'OK';
+    var nee = document.createElement('button'); nee.type = 'button'; nee.className = 'kb-nee'; nee.textContent = o.nee || 'Cancel';
+    k.appendChild(ja); k.appendChild(nee); v.appendChild(t); v.appendChild(x); v.appendChild(k); s.appendChild(v);
+    document.body.appendChild(s); requestAnimationFrame(function(){ s.classList.add('kb-aan'); });
+    nee.focus();
+    function sluit(antwoord){ document.removeEventListener('keydown', toets); s.remove(); klaar(antwoord); }
+    function toets(e){ if (e.key === 'Escape') sluit(false); }
+    document.addEventListener('keydown', toets);
+    ja.addEventListener('click', function(){ sluit(true); });
+    nee.addEventListener('click', function(){ sluit(false); });
+    s.addEventListener('click', function(e){ if (e.target === s) sluit(false); });
+  });
+};
+</script>

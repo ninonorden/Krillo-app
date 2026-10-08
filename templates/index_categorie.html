@@ -69,7 +69,9 @@
        padding:16px 20px; margin:0 0 26px; display:flex; gap:16px; align-items:center;
        justify-content:space-between; flex-wrap:wrap; background:#F4F6FF;">
     <div style="font-size:15px; line-height:1.5;">
-      <b>{{ jij.naam }} is #{{ jij.positie }} of {{ jij.van }}</b> in {{ naam }}, {{ landnaam }}.
+      {# 8 oktober: nul keer genoemd is geen plek op alfabet (db.gelijk_bij_nul). #}
+      {% if jij.genoemd == 0 and not jij.aanbevolen %}<b>{{ jij.naam }} is not named by AI yet</b> in {{ naam }}, {{ landnaam }}.
+      {% else %}<b>{{ jij.naam }} is #{{ jij.positie }} of {{ jij.van }}</b> in {{ naam }}, {{ landnaam }}.{% endif %}
       {% if jij.positie == 1 %}
         Staying there is the hard part: we measure every month, and the stores below you are moving too.
       {% elif jij.genoemd == 0 %}
@@ -113,7 +115,7 @@
     {# id per regel (stap 36): de link in de mail springt naar de eigen regel
        van de winkel, en de gele achtergrond laat zien welke het is. #}
     <tr id="p{{ r.positie }}" {% if r.positie <= 3 %}class="top"{% endif %}>
-      <td class="pos">{{ r.positie }}</td>
+      <td class="pos">{{ '&ndash;'|safe if r.nul else r.positie }}</td>
       <td>
         {# Nooit "https://..." als naam. Hebben we (nog) geen naam, dan het
            domein zonder https: mediamarkt.nl leest als een winkel, een

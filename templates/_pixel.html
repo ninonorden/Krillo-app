@@ -5,6 +5,11 @@
         {% if pixel.status.verbonden %}
         <div style="font-weight:600; color:#0A7F55;">&#10003; {{ 'Verbonden. De cijfers komen vanzelf binnen.' if nl else 'Connected. Your numbers now come in by themselves.' }}</div>
         <div class="klein">{{ 'Laatste signaal' if nl else 'Last signal' }}: {{ pixel.status.laatst.strftime('%d %b %Y %H:%M') if pixel.status.laatst else '-' }}</div>
+        {% if pixel.status.testorder %}
+        <div class="klein">{{ 'Testbestelling ontvangen' if nl else 'Test order received' }}: {{ pixel.status.testorder.valuta or 'EUR' }} {{ '%.2f' % pixel.status.testorder.bedrag if pixel.status.testorder.bedrag is not none else '' }} {{ 'om' if nl else 'at' }} {{ pixel.status.testorder.op.strftime('%d %b %H:%M') }}. {{ 'Telt niet mee als omzet uit AI.' if nl else 'Not counted as revenue from AI.' }}</div>
+        {% else %}
+        <div class="klein">{{ 'Bestellingen in een testbezoek (na de checkknop) zie je hier; ze tellen niet mee als omzet uit AI.' if nl else 'Orders placed in a test visit (after the check button) show here; they do not count as revenue from AI.' }}</div>
+        {% endif %}
         {% else %}
         <div style="font-weight:600;">{{ 'Koppel je verkoop automatisch' if nl else 'Connect your sales automatically' }}</div>
         <div class="klein" style="margin-bottom:6px;">{{ 'Eén keer een stukje code plaatsen. Daarna telt Krillo zelf bezoek, bestellingen en omzet uit AI. Kies je platform:' if nl else 'Paste a small piece of code once. Krillo then counts visits, orders and revenue from AI by itself. Choose your platform:' }}</div>

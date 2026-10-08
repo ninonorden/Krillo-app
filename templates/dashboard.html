@@ -121,7 +121,9 @@
           {{ 'Watch laat elke maand zien wie dichterbij komt, en Fix wint de vragen die je nog mist.' if taal == 'nl' else 'Watch shows every month who is coming closer, and Fix wins the questions you still miss.' }}
           {% else %}
           {% if gemist %}{{ 'Vraag' if taal == 'nl' else 'Question' }}: <span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">&ldquo;{{ (gemist | first).vraag }}&rdquo;</span><br>{% endif %}
-          {% if taal == 'nl' %}{{ beeld.naam }} staat op <strong>#{{ beeld.positie }}</strong> van {{ beeld.van }} in {{ categorienaam }}. Watch of Fix zet je hoger.
+          {% if beeld.nul %}{% if taal == 'nl' %}AI noemt {{ beeld.naam }} nog niet in {{ categorienaam }}; {{ beeld.genoemde_winkels }} van de {{ beeld.van }} winkels wel. Watch of Fix brengt je erbij.
+          {% else %}AI does not name {{ beeld.naam }} in {{ categorienaam }} yet; {{ beeld.genoemde_winkels }} of {{ beeld.van }} stores are named. Watch or Fix gets you in.{% endif %}
+          {% elif taal == 'nl' %}{{ beeld.naam }} staat op <strong>#{{ beeld.positie }}</strong> van {{ beeld.van }} in {{ categorienaam }}. Watch of Fix zet je hoger.
           {% else %}{{ beeld.naam }} is <strong>#{{ beeld.positie }}</strong> of {{ beeld.van }} in {{ categorienaam }}. Watch or Fix moves you up.{% endif %}
           {% endif %}
         </div>
@@ -178,6 +180,8 @@
 
     {% if categorie_melding == 'gekozen' %}
     <div class="st-ok">{{ 'Bewaard. We zetten je nu in de ranglijst; dit scherm werkt zichzelf bij.' if nl else 'Saved. We are placing you in the ranking now; this page updates by itself.' }}</div>
+    {% elif categorie_melding == 'verzoek' %}
+    <div class="st-ok">{{ 'Ontvangen. We kijken welke categorie bij je past en mailen je binnen een werkdag.' if nl else 'Got it. We look at which category fits you and email you within one working day.' }}</div>
     {% elif categorie_melding == 'fout' %}
     <div class="st-let">{{ 'Kies een categorie uit de lijst en Nederland of België.' if nl else 'Choose a category from the list, and the Netherlands or Belgium.' }}</div>
     {% endif %}
@@ -200,7 +204,11 @@
                 <select name="categorie" required>
                   <option value="">{{ 'Kies een categorie' if nl else 'Choose a category' }}</option>
                   {% for c in categoriekeuzes %}<option value="{{ c.slug }}">{{ c.naam }}</option>{% endfor %}
+                  <option value="anders">{{ 'Mijn categorie staat er niet bij' if nl else 'My category is not here' }}</option>
                 </select>
+              </label>
+              <label class="st-anders" hidden>{{ 'Wat verkoop je? (bijvoorbeeld: snowboards en ski-spullen)' if nl else 'What do you sell? (for example: snowboards and ski gear)' }}
+                <input name="wat" maxlength="200" style="padding:9px 10px; border:1px solid #D5D6DC; border-radius:8px; font:inherit; min-width:280px;">
               </label>
               <label>{{ 'Waar verkoop je?' if nl else 'Where do you sell?' }}
                 <select name="land">
@@ -231,7 +239,16 @@
       </div>
       <a class="st-demo" href="/demo" target="_blank" rel="noopener">{{ 'Bekijk alvast een voorbeeld van een gevuld dashboard' if nl else 'See an example of a filled dashboard' }} &rarr;</a>
     </div>
-    {% if start.stappen | selectattr('status', 'equalto', 'bezig') | list %}
+    <script>
+    {# "My category is not here": dan het vrije veld laten zien. #}
+    document.querySelectorAll('.st-form select[name=categorie]').forEach(function(s){
+      s.addEventListener('change', function(){
+        var veld = s.closest('form').querySelector('.st-anders');
+        if (veld) { veld.hidden = s.value !== 'anders'; var i = veld.querySelector('input'); if (i) i.required = s.value === 'anders'; }
+      });
+    });
+    </script>
+    {% if start.stappen | selectattr('status', 'equalto', 'bezig') | rejectattr('sleutel', 'equalto', 'categorie') | list %}
     {# Loopt er iets, dan ververst de pagina zichzelf rustig (elke 60 seconden),
        zodat Nino niet zelf hoeft te verversen. Niet als iemand een formulier
        of de pixelcode open heeft. #}
@@ -301,10 +318,16 @@
         <div class="kpis d8-tegels">
           <button type="button" class="kpi d8-tegel{{ ' aan' if reeksen }}" data-maat="positie"{% if not reeksen %} disabled{% endif %}>
             <span class="label">{{ 'Plek in' if nl else 'Rank in' }} {{ categorienaam }}</span>
+            {# 8 oktober: nul keer genoemd is geen plek op alfabet maar een beginpunt. #}
+            {% if beeld.nul %}
+            <span class="rij"><span class="groot" style="font-size:24px; line-height:1.25;">{{ 'Nog niet genoemd' if nl else 'Not named yet' }}</span></span>
+            <span class="onder">{{ (beeld.genoemde_winkels ~ ' van ' ~ beeld.van ~ ' winkels worden wel genoemd') if nl else (beeld.genoemde_winkels ~ ' of ' ~ beeld.van ~ ' stores are named') }}</span>
+            {% else %}
             <span class="rij"><span class="groot">#{{ beeld.positie }}</span>
               {% if beeld.verschil and beeld.verschil > 0 %}<span class="delta op">&#9650;{{ beeld.verschil }}</span>
               {% elif beeld.verschil and beeld.verschil < 0 %}<span class="delta af">&#9660;{{ -beeld.verschil }}</span>{% endif %}</span>
             <span class="onder">{{ t.van_de_gemeten.replace('{n}', beeld.van | string) }}{% if not beeld.vorige_positie %} &middot; {{ 'eerste meting' if nl else 'first measurement' }}{% endif %}</span>
+            {% endif %}
             {% if vonkjes and vonkjes.positie %}<svg class="d8-vonk" viewBox="0 0 200 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ vonkjes.positie }}"/></svg>{% endif %}
           </button>
           <button type="button" class="kpi d8-tegel" data-maat="zicht"{% if not reeksen %} disabled{% endif %}>
@@ -341,7 +364,12 @@
           <div class="kpi d8-tegel stil">
             <span class="label">{{ label_nl if nl else label_en }}</span>
             <span class="rij"><span class="groot">{{ waarde if waarde is not none else '–' }}</span></span>
-            <span class="onder">{% if waarde is none %}<a href="#aiverkeer">{{ 'Koppel je verkoop' if nl else 'Connect your sales' }} &darr;</a>{% elif onder %}{{ onder }} {{ 'tegen je eerste maand' if nl else 'vs your first month' }}{% else %}{{ l.maand }}{% endif %}</span>
+            {# 8 oktober (Nino): met een verbonden pixel stond er bij conversie nog
+               "Connect your sales" (er was alleen nog geen AI-bezoek), en de maand
+               stond er als "2026-10". #}
+            {% set px_aan = pixel is defined and pixel and pixel.status.verbonden %}
+            {% set maandnaam = ((['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'] if nl else ['January','February','March','April','May','June','July','August','September','October','November','December'])[(l.maand[5:7] | int) - 1] ~ ' ' ~ l.maand[:4]) if l and l.maand else '' %}
+            <span class="onder">{% if waarde is none and px_aan %}{{ 'Nog geen bezoek uit AI' if nl else 'No visits from AI yet' }}{% elif waarde is none %}<a href="#aiverkeer">{{ 'Koppel je verkoop' if nl else 'Connect your sales' }} &darr;</a>{% elif onder %}{{ onder }} {{ 'tegen je eerste maand' if nl else 'vs your first month' }}{% else %}{{ maandnaam }}{% endif %}</span>
           </div>
           {% endfor %}
         </div>
@@ -371,7 +399,7 @@
             {% for r in top %}
             {% if r.gat %}<div class="d8-rangrij gat"><span></span><span>&middot;&middot;&middot;</span><span></span><span></span></div>{% endif %}
             <div class="d8-rangrij{{ ' jij' if r.jij }}">
-              <span class="d8-mono">{{ r.positie }}</span>
+              <span class="d8-mono">{{ '&ndash;'|safe if r.nul else r.positie }}</span>
               <span class="naam">{{ r.naam }}{% if r.jij %} <em>{{ 'jij' if nl else 'you' }}</em>{% endif %}</span>
               <span class="d8-balk"><i style="width:{{ r.zicht }}%"></i></span><span class="d8-mono">{{ r.zicht }}%</span>
               <span class="d8-mono beweging{{ ' op' if r.beweging and r.beweging.startswith('▲') }}">{{ r.beweging }}</span>
@@ -401,6 +429,17 @@
           {% endfor %}
           <div class="d8-vraagvoet"><span>{{ vr.totaal }} {{ 'vragen' if nl else 'questions' }}</span>
             <a href="{{ link_van.vragen }}">{{ 'Alle vragen en antwoorden' if nl else 'All questions and answers' }} &rarr;</a></div>
+          {% if niet_voor_mij is defined and niet_voor_mij %}
+          {# 8 oktober: wat de klant wegzette, met een weg terug. #}
+          <details class="d8-weglijst" style="padding:10px 16px 14px; font-size:13.5px; border-top:1px solid #F1F1F4;">
+            <summary style="cursor:pointer; color:#6E7079;">{{ (niet_voor_mij|length) ~ (' vraag weggezet als niet voor jouw winkel' if nl else (' question' if niet_voor_mij|length == 1 else ' questions') ~ ' hidden as not for your store') }}</summary>
+            <p class="klein" style="margin:8px 0;">{{ 'Je plek in de index telt nog wel alle vragen van de categorie mee, zodat elke winkel in dezelfde ranglijst met dezelfde maat gemeten wordt.' if nl else 'Your rank in the index still counts every question in the category, so every store in the same ranking is measured the same way.' }}</p>
+            {% for q in niet_voor_mij %}
+            <div style="display:flex; justify-content:space-between; gap:12px; padding:4px 0;"><span>&ldquo;{{ q }}&rdquo;</span>
+              <button type="button" class="d8-terug" data-vraag="{{ q }}" style="border:0; background:none; color:#1B3FE0; font:inherit; cursor:pointer; white-space:nowrap;">{{ 'Terugzetten' if nl else 'Show again' }}</button></div>
+            {% endfor %}
+          </details>
+          {% endif %}
         </div>
       </div>
 
@@ -429,6 +468,10 @@
           <span data-l="advies"></span>
           {% if werkblok and werkblok.klant_token and not werkblok.opgezegd %}
           <button type="button" class="d8-kies" data-kies-url="/mijn/{{ werkblok.klant_token }}/kies">{{ 'Zet op mijn lijst' if nl else 'Add to my fixes' }}</button>
+          {% if weg_url is defined and weg_url %}
+          {# 8 oktober: een vraag die niet over zijn winkel gaat, kan hij wegzetten. #}
+          <button type="button" class="d8-weg" data-weg-url="{{ weg_url }}" style="display:block; margin-top:10px; border:0; background:none; color:#C9CBD6; font:inherit; font-size:13px; cursor:pointer; padding:0; text-decoration:underline;">{{ 'Deze vraag gaat niet over mijn winkel' if nl else 'This question is not about my store' }}</button>
+          {% endif %}
           {% elif proef %}
           <a class="d8-kies" href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Start gratis proef om dit te bewaren' if nl else 'Start free trial to save this' }}</a>
           {% elif voorbeeld %}
@@ -623,6 +666,21 @@
             }).catch(function(){ kies.disabled = false; });
         });
       }
+      // 8 oktober: "This question is not about my store" en "Show again".
+      var weg = lade && lade.querySelector('button.d8-weg');
+      function stuurWeg(url, vraag, aan){
+        return fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                           body: JSON.stringify({vraag: vraag, aan: aan})}).then(function(){ location.reload(); });
+      }
+      if (weg) {
+        weg.addEventListener('click', function(){
+          var v = vragen[huidig]; if (!v) return;
+          weg.disabled = true; stuurWeg(weg.getAttribute('data-weg-url'), v.vraag, true);
+        });
+        alle('button.d8-terug').forEach(function(b){
+          b.addEventListener('click', function(){ b.disabled = true; stuurWeg(weg.getAttribute('data-weg-url'), b.getAttribute('data-vraag'), false); });
+        });
+      }
       vulLade();
     })();
     </script>
@@ -750,6 +808,36 @@
     {% endif %}
 
     {# ================================================================ RANGLIJST #}
+    {% if pagina == 'ranglijst' and beeld and categorie_post is defined and categorie_post %}
+    {# 8 oktober (Nino, snowboardwinkel in Sports and fitness): wie in een te
+       brede of verkeerde categorie staat, kan hier zelf wisselen. #}
+    {% set nl = taal == 'nl' %}
+    <details class="st-wijzig" style="margin:0 0 16px;">
+      <summary>{{ 'Past ' ~ categorienaam ~ ' niet bij je winkel? Kies een andere categorie' if nl else 'Does ' ~ categorienaam ~ ' not fit your store? Choose another category' }}</summary>
+      <form method="post" action="{{ categorie_post }}" class="st-form">
+        <input type="hidden" name="terug" value="ranking">
+        <label>{{ 'Wat verkoop je vooral?' if nl else 'What do you mainly sell?' }}
+          <select name="categorie" required>
+            <option value="">{{ 'Kies een categorie' if nl else 'Choose a category' }}</option>
+            {% for c in categoriekeuzes %}<option value="{{ c.slug }}">{{ c.naam }}</option>{% endfor %}
+            <option value="anders">{{ 'Mijn categorie staat er niet bij' if nl else 'My category is not here' }}</option>
+          </select>
+        </label>
+        <label>{{ 'Waar verkoop je?' if nl else 'Where do you sell?' }}
+          <select name="land">
+            <option value="nl" {{ 'selected' if gekozen_land != 'be' }}>{{ 'Nederland' if nl else 'Netherlands' }}</option>
+            <option value="be" {{ 'selected' if gekozen_land == 'be' }}>{{ 'België' if nl else 'Belgium' }}</option>
+          </select>
+        </label>
+        <label class="st-anders" hidden>{{ 'Wat verkoop je?' if nl else 'What do you sell?' }}
+          <input name="wat" maxlength="200" style="padding:9px 10px; border:1px solid #D5D6DC; border-radius:8px; font:inherit; min-width:280px;">
+        </label>
+        <button type="submit">{{ 'Bewaar' if nl else 'Save' }}</button>
+      </form>
+      <p class="klein" style="margin-top:8px;">{{ 'Is die categorie al gemeten, dan sta je er binnen een paar minuten in. Zo niet, dan meten we hem voor je zodra we genoeg winkels kennen; dat zie je op je overzicht.' if nl else 'If that category is already measured, you are in it within minutes. If not, we measure it for you once we know enough stores; your overview shows where it stands.' }}</p>
+    </details>
+    <script>document.querySelectorAll('.st-form select[name=categorie]').forEach(function(s){s.addEventListener('change',function(){var v=s.closest('form').querySelector('.st-anders');if(v){v.hidden=s.value!=='anders';var i=v.querySelector('input');if(i)i.required=s.value==='anders';}});});</script>
+    {% endif %}
     {% if pagina == 'ranglijst' and beeld %}
     <div class="kaartblok">
       <div class="kaartkop">{% if beeld.boven_is_achter %}{{ 'JIJ EN DE WINKELS VLAK ACHTER JE, PER METING' if taal == 'nl' else 'YOU AND THE STORES RIGHT BEHIND YOU, PER MEASUREMENT' }}{% else %}{{ 'JIJ EN DE WINKELS BOVEN JE, PER METING' if taal == 'nl' else 'YOU AND THE STORES ABOVE YOU, PER MEASUREMENT' }}{% endif %}</div>
@@ -778,7 +866,7 @@
         {% if not ranglijst %}<tr><td colspan="4" style="color:var(--ink-grijs);">{{ 'De lijst laadt nu even niet. Ververs de pagina over een minuut.' if taal == 'nl' else 'The list does not load right now. Refresh the page in a minute.' }}</td></tr>{% endif %}
         {% for r in ranglijst %}
         <tr class="{{ 'jij' if r.webshop_url == beeld.webshop_url }}">
-          <td class="p">{{ r.positie }}</td>
+          <td class="p">{{ '&ndash;'|safe if r.nul else r.positie }}</td>
           <td>{{ r.naam or r.webshop_url | replace('https://','') }}{% if r.webshop_url == beeld.webshop_url %} <span class="jijlabel">{{ 'jij' if taal == 'nl' else 'you' }}</span>{% endif %}</td>
           <td class="r"><strong>{{ r.aanbevolen }}</strong></td>
           <td class="r">{{ r.genoemd }} / {{ beeld.telbaar }}</td>
@@ -1252,7 +1340,12 @@
         <script>
           document.getElementById('naarfix').addEventListener('click', function(){
             var knop = this, uit = document.getElementById('naarfix-uit');
-            if (!confirm({{ ('Overstappen naar Fix? Je volgende betaling wordt €' ~ prijzen.fix ~ '.') | tojson if taal == 'nl' else ('Switch to Fix? Your next payment becomes €' ~ prijzen.fix ~ '.') | tojson }})) return;
+            window.krilloBevestig({titel: {{ ('Overstappen naar Fix?' if taal == 'nl' else 'Switch to Fix?') | tojson }},
+                                   tekst: {{ ('Wij zetten de fixes voortaan in je winkel. Je volgende betaling wordt €' ~ prijzen.fix ~ '; voor de rest van deze periode betaal je niets extra.') | tojson if taal == 'nl' else ('From now on we put the fixes into your store. Your next payment becomes €' ~ prijzen.fix ~ '; for the rest of this period you pay nothing extra.') | tojson }},
+                                   ja: {{ ('Ja, naar Fix' if taal == 'nl' else 'Yes, switch to Fix') | tojson }},
+                                   nee: {{ ('Niet nu' if taal == 'nl' else 'Not now') | tojson }}}).then(function(ok){ if (ok) naarFix(knop, uit); });
+          });
+          function naarFix(knop, uit){
             knop.disabled = true;
             fetch('/api/naar-fix/' + {{ ((link_van.overzicht or '').split('?') | first).replace('/mijn/', '') | tojson }}, {method:'POST'})
               .then(function(r){ return r.json(); })
@@ -1260,7 +1353,7 @@
                 if (d.ok) { uit.textContent = {{ 'Gelukt. Je krijgt een mail over de toegang tot je winkel.' | tojson if taal == 'nl' else 'Done. You get an email about access to your store.' | tojson }}; knop.style.display = 'none'; }
                 else { uit.textContent = d.error || 'Something went wrong.'; knop.disabled = false; }
               }).catch(function(){ uit.textContent = 'Something went wrong. Email hello@krilloai.com.'; knop.disabled = false; });
-          });
+          }
         </script>
         {% endif %}
         {% else %}
@@ -1327,5 +1420,6 @@
 
   </div>
 </div>
+{% include "_bevestig.html" %}
 </body>
 </html>
