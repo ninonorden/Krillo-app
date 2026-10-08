@@ -106,3 +106,23 @@ def beeld(webshop_url, naam=None, antwoorden=(), max_citaten=3):
                 break
     kenmerken = sorted(telling.items(), key=lambda kv: -kv[1])
     return {"kenmerken": kenmerken, "citaten": citaten, "antwoorden": aantal}
+
+
+def vergelijk(jij, leider, max_rijen=6):
+    """Stap 244 (8 oktober): de woorden die AI aan jou koppelt naast die van de
+    winkel die AI het vaakst noemt. Waarom: "AI noemt bij jou prijs" zegt een
+    winkelier weinig; "de nummer 1 wordt 5 keer om snelle levering genoemd en
+    jij nooit" zegt hem wat er in zijn teksten ontbreekt. Zelfde telling als
+    beeld(), dus zonder model en nooit verzonnen.
+
+    Geeft [{"label", "jij", "leider", "gat"}], de gaten (leider wel, jij niet)
+    bovenaan. Leeg als er van de leider niets te tellen is."""
+    j = dict((jij or {}).get("kenmerken") or [])
+    l = dict((leider or {}).get("kenmerken") or [])
+    if not l:
+        return []
+    rijen = [{"label": label, "jij": j.get(label, 0), "leider": l.get(label, 0),
+              "gat": l.get(label, 0) > 0 and j.get(label, 0) == 0}
+             for label in set(j) | set(l)]
+    rijen.sort(key=lambda r: (not r["gat"], -(r["leider"] - r["jij"]), -r["leider"], r["label"]))
+    return rijen[:max_rijen]

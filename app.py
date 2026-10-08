@@ -8568,6 +8568,18 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             except Exception as e:
                 print(f"Kaart voor het dashboard mislukt: {e}")
             gegevens["imago"] = _imago(beeld["ronde"], webshop_url, winkelnaam)
+            # Stap 244 (8 oktober): dezelfde telling voor de winkel die AI het vaakst
+            # noemt, zodat de klant ziet om welke woorden die gekozen wordt en hij niet.
+            try:
+                import imago as _im
+                leider = next((r for r in gegevens.get("ranglijst") or []
+                               if not scan_engine.is_eigen_winkel(webshop_url, r.get("webshop_url") or "")), None)
+                if leider and gegevens.get("imago") is not None:
+                    gegevens["imago_leider"] = leider.get("naam") or leider.get("webshop_url")
+                    gegevens["imago_vergelijk"] = _im.vergelijk(
+                        gegevens["imago"], _imago(beeld["ronde"], leider["webshop_url"], leider.get("naam")))
+            except Exception as e:
+                print(f"Imago-vergelijking mislukt voor {webshop_url}: {e}")
             # Stap 178 (1 oktober): waar AI kopers in deze categorie naartoe stuurt.
             gegevens["bronnen"] = _bronnen_van_ronde(beeld["ronde"])
             buren = dp.buren_verloop(beeld)
