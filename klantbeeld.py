@@ -83,6 +83,9 @@ def bouw(webshop_url, land=None, max_vragen=MAX_VRAGEN, categorie=None):
         "vorige_positie": vorige,
         "verschil": (vorige - mij["positie"]) if vorige else None,
         "genoemd": mij.get("genoemd") or 0,
+        # 8 oktober: nul keer genoemd is geen echte plek (zie db.gelijk_bij_nul).
+        "nul": bool(mij.get("nul")),
+        "genoemde_winkels": sum(1 for r in rijen if not r.get("nul")),
         "aanbevolen": mij.get("aanbevolen") or 0,
         "telbaar": lijst.get("telbaar") or 0,
         "gemeten_op": mij.get("gemeten_op"),

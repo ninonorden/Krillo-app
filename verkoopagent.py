@@ -239,6 +239,8 @@ def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam
             onderwerp = f"{naam}: #1 in {cat}, and how to keep it"
         elif vraag and vraag.get("concurrenten"):
             onderwerp = f"{naam}: the one question you could win"
+        elif beeld.get("nul"):
+            onderwerp = f"{naam}: AI names {beeld.get('genoemde_winkels')} stores in {cat}, not you"
         else:
             onderwerp = f"{naam}: #{positie} of {van} in {cat}"
         alineas.append("Hi,")
@@ -258,8 +260,13 @@ def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam
         # 1 oktober: wat er op zijn winkel ontbreekt voor die vraag (vraagaanpak.wat_ontbreekt).
         if ontbreekt:
             alineas.append(ontbreekt)
-    alineas.append(f"You are #{positie} of {van} in {cat}."
-                   + (f" The stores just above you are {' and '.join(boven)}." if boven and positie > 1 else ""))
+    if beeld.get("nul"):
+        # 8 oktober: nul keer genoemd is geen plek (db.gelijk_bij_nul).
+        alineas.append(f"This month AI did not name {naam} for any buying question in {cat}; "
+                       f"{beeld.get('genoemde_winkels')} of {van} stores were named.")
+    else:
+        alineas.append(f"You are #{positie} of {van} in {cat}."
+                       + (f" The stores just above you are {' and '.join(boven)}." if boven and positie > 1 else ""))
     if positie == 1:
         alineas.append("Staying #1 is the hard part: we measure again every month, and the stores "
                        "below you are working on it.")

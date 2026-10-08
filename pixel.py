@@ -156,8 +156,29 @@ def status(webshop_url):
         rij = _sql("SELECT max(op), count(*) FROM pixel_meldingen WHERE webshop_url = %s", (webshop_url,))
     except Exception:
         return {"verbonden": False}
-    return {"verbonden": bool(rij and rij[1]), "laatst": rij[0] if rij else None,
-            "meldingen": (rij[1] if rij else 0)}
+    # 8 oktober (Nino: "ik zie niet dat er is besteld"). Een testbestelling telt
+    # bewust niet mee als omzet uit AI; dus apart laten zien dat hij binnenkwam.
+    # Tijden in Amsterdamse tijd: "08:37" terwijl het 10:37 was, verwarde.
+    try:
+        test = _sql("""SELECT op, bedrag, valuta FROM pixel_meldingen
+                        WHERE webshop_url = %s AND soort = 'testorder' ORDER BY op DESC LIMIT 1""",
+                    (webshop_url,))
+    except Exception:
+        test = None
+    return {"verbonden": bool(rij and rij[1]), "laatst": _amsterdam(rij[0]) if rij else None,
+            "meldingen": (rij[1] if rij else 0),
+            "testorder": ({"op": _amsterdam(test[0]), "bedrag": float(test[1]) if test[1] is not None else None,
+                           "valuta": test[2]} if test else None)}
+
+
+def _amsterdam(moment):
+    if not moment:
+        return moment
+    try:
+        from zoneinfo import ZoneInfo
+        return moment.astimezone(ZoneInfo("Europe/Amsterdam"))
+    except Exception:
+        return moment
 
 
 # ---------------------------------------------------------------------------

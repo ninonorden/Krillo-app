@@ -307,6 +307,9 @@ TEKSTEN = {
         "d_voorbeeld_kop": "Voorbeeldweergave",
         "d_voorbeeld_tekst": ("Dit is hoe een abonnee zijn eigen pagina ziet. Alleen zichtbaar "
                               "met de beheersleutel."),
+        "d_opzeg_titel": "Je abonnement opzeggen?",
+        "d_opzeg_ja": "Ja, opzeggen",
+        "d_opzeg_nee": "Houden",
         "d_opzeg_bevestig": ("Weet je zeker dat je je abonnement wil opzeggen? Je houdt toegang "
                              "tot het einde van de al betaalde periode."),
         "d_opzeg_mislukt": ("Het opzeggen is niet gelukt. Mail hello@krilloai.com, dan regelen we "
@@ -587,6 +590,9 @@ TEKSTEN = {
         "d_voorbeeld_kop": "Preview",
         "d_voorbeeld_tekst": ("This is how a subscriber sees his own page. Only visible with "
                               "the admin key."),
+        "d_opzeg_titel": "Cancel your plan?",
+        "d_opzeg_ja": "Yes, cancel",
+        "d_opzeg_nee": "Keep my plan",
         "d_opzeg_bevestig": ("Are you sure you want to cancel your subscription? You keep access "
                              "until the end of the period you already paid for."),
         "d_opzeg_mislukt": ("Cancelling did not work. Email hello@krilloai.com and we will sort it "

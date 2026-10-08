@@ -17,6 +17,7 @@ Optioneel:
 from urllib.parse import quote
 import html as _html
 import os
+import re
 import requests
 from datetime import datetime
 
@@ -156,28 +157,55 @@ VOETTEKST = ("Questions? Just reply to this email, a person reads it.<br>"
 
 
 def _base_html(title, intro, body_html, taal="en"):
-    """Het kader om elke mail: het woordmerk, een kop, een inleiding, en de
-    voettekst. Zelfde woordmerk als op de site (KRILLO met INDEX erachter), niet
-    meer de rode stip van het ontwerp van voor 18 september."""
+    """Het kader om ELKE mail (herschreven 8 oktober).
+
+    Nino: "alle mails moeten dezelfde stijl hebben en niet zo standaard eruit
+    zien, het is gewoon AI-generated". Gekeken naar hoe Stripe, Linear, Peec
+    en Shopify hun mails opbouwen. Wat ze gemeen hebben, en wat hier nu ook zo is:
+    - een rustige grijze achtergrond met een witte kaart in het midden, zodat
+      de mail er in elk mailprogramma uitziet als een product en niet als tekst;
+    - bovenaan alleen het woordmerk, dan een korte kop en een zin eronder;
+    - een duidelijke knop (als tabel gebouwd, dan werkt hij ook in Outlook);
+    - feiten in een rustig vak (_feiten), niet verstopt in lopende tekst;
+    - de voettekst klein en grijs onder de kaart, met adres en KVK;
+    - een verborgen voorvertoning: de zin die Gmail naast het onderwerp toont.
+    Alle mails gebruiken dit kader, dus ze veranderen in een keer mee.
+    Tabellen en inline stijlen: Gmail en Outlook negeren <style> en flex."""
+    voorvertoning = (re.sub(r"<[^>]+>", "", intro or title) if (intro or title) else "")
+    intro_html = (f'<p style="color:{INKT_ZACHT}; font-size:15px; line-height:1.6; margin:0 0 22px;">{intro}</p>'
+                  if intro else '<div style="height:10px; line-height:10px;">&nbsp;</div>')
     return f"""
-    <div style="background:#FFFFFF; padding:8px 0;">
-    <div style="font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width:560px;
-                margin:0 auto; color:{INKT}; padding:0 16px;">
-      <div style="padding:24px 0 8px;">
-        <span style="font-weight:700; font-size:19px; letter-spacing:-0.04em; color:{INKT};">KRILLO</span>
-        <span style="font-family:'Courier New', monospace; font-size:10.5px; color:#6E7079;
-                     letter-spacing:0.1em; margin-left:6px;">INDEX</span>
-      </div>
-      <h1 style="font-size:22px; line-height:1.3; margin:22px 0 8px; letter-spacing:-0.01em;">{title}</h1>
-      <p style="color:{INKT_ZACHT}; font-size:14.5px; line-height:1.6; margin:0 0 18px;">{intro}</p>
-      {body_html}
-      <p style="color:{INKT_ZACHT}; font-size:12.5px; line-height:1.6; margin-top:36px;
-                padding-top:16px; border-top:1px solid {LIJN};">
+    <div style="background:#F4F5F7; padding:32px 12px; margin:0;">
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">{voorvertoning}&#8199;&#65279;&#847; &#8199;&#65279;&#847; &#8199;&#65279;&#847;</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px; margin:0 auto;">
+      <tr><td style="padding:0 4px 16px; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;">
+        <span style="font-weight:700; font-size:18px; letter-spacing:-0.04em; color:{INKT};">KRILLO</span>
+        <span style="font-family:'Courier New', monospace; font-size:10px; color:#6E7079; letter-spacing:0.12em; margin-left:6px;">INDEX</span>
+      </td></tr>
+      <tr><td style="background:#FFFFFF; border:1px solid {LIJN}; border-radius:14px; padding:32px 32px 28px;
+                     font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; color:{INKT};">
+        <h1 style="font-size:22px; line-height:1.3; margin:0 0 8px; letter-spacing:-0.01em; color:{INKT};">{title}</h1>
+        {intro_html}
+        {body_html}
+      </td></tr>
+      <tr><td style="padding:18px 6px 0; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+                     color:#8A8C96; font-size:12px; line-height:1.6;">
         {VOETTEKST}
-      </p>
-    </div>
+      </td></tr>
+    </table>
     </div>
     """
+
+
+def _feiten(rijen):
+    """Een rustig vak met feiten, een per regel: [("Store", "x.nl"), ...].
+    Zoals Stripe een betaling samenvat: links het label, rechts het feit."""
+    regels = "".join(
+        f'<tr><td style="padding:9px 0; font-size:13.5px; color:#6E7079; border-top:{"0" if n == 0 else "1px solid " + LIJN};">{label}</td>'
+        f'<td align="right" style="padding:9px 0; font-size:13.5px; color:{INKT}; font-weight:600; border-top:{"0" if n == 0 else "1px solid " + LIJN};">{waarde}</td></tr>'
+        for n, (label, waarde) in enumerate(rijen))
+    return (f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" '
+            f'style="background:{VLAK}; border-radius:10px; padding:6px 16px; margin:4px 0 22px;">{regels}</table>')
 
 
 def _p(tekst, zacht=False):
@@ -319,48 +347,62 @@ def send_herroeping_melding(beheerder_email, klant_email, webshop_url, toelichti
     return send_email(beheerder_email, "Herroeping bij Krillo, actie nodig", html)
 
 
-def send_opzegging_bevestiging(to_email, webshop_url, tot=None, terug=False):
+def send_opzegging_bevestiging(to_email, webshop_url, tot=None, terug=False, proef_tot=None,
+                               dashboard_url=None):
     """De bevestiging van een opzegging. Kort, en zonder poging om iemand
     over te halen: wie opzegt en dan een verkoopmail krijgt, komt niet terug.
 
     Sinds 28 september met de datum tot wanneer hij toegang houdt (tot), of
-    dat hij zijn geld terugkrijgt (terug, binnen de veertien dagen). Zonder
-    datum wist een klant niet of zijn betaalde maand of jaar nog telde."""
-    winkel = _kaal_adres(webshop_url)
-    if terug:
-        einde = _p("Because you cancelled within fourteen days of your first payment, we refund "
-                   "that payment in full. You will see it back within a few working days. You will "
-                   "not get your monthly position email anymore.")
+    dat hij zijn geld terugkrijgt (terug, binnen de veertien dagen).
+    8 oktober (Nino stopte zijn proef): bij een gratis proef stond er "the end
+    of the period you already paid for", terwijl er niets betaald is. Nu een
+    eigen tekst voor de proef (proef_tot), en de feiten in een vak."""
+    winkel = veilig(_kaal_adres(webshop_url))
+    if proef_tot:
+        titel = "Your free trial is stopped"
+        intro = "You pay nothing. No payment will be taken."
+        feiten = [("Store", winkel), ("Plan", "Watch, free trial"), ("Charged", "Nothing"),
+                  ("Access until", f"{proef_tot.day} {proef_tot.strftime('%B %Y')}")]
+        slot = ("Until then your dashboard works as usual. After that it keeps your last "
+                "measurement, and we stop emailing you.")
+    elif terug:
+        titel = "Your subscription is cancelled"
+        intro = "Your first payment comes back in full."
+        feiten = [("Store", winkel), ("Refund", "Your first payment, in full"),
+                  ("Back on your account", "Within a few working days"), ("From now on", "Nothing is charged")]
+        slot = "You will not get your monthly position email anymore."
     elif tot:
-        # Tot die datum loopt alles door, ook de maandmail (klanten_in_ronde
-        # telt opgezegd_op in de toekomst als klant). Dus dat zeggen we ook.
-        einde = _p(f"You keep full access until <strong>{tot.day} {tot.strftime('%B %Y')}</strong>, the "
-                   "end of the period you already paid for, including your monthly position email. "
-                   "After that it simply stops.")
+        titel = "Your subscription is cancelled"
+        intro = "Nothing more is charged from now on."
+        feiten = [("Store", winkel), ("Charged from now on", "Nothing"),
+                  ("Access until", f"{tot.day} {tot.strftime('%B %Y')}")]
+        slot = ("Until then everything keeps running, including your monthly position email. "
+                "After that it simply stops.")
     else:
-        einde = _p("You will not get your monthly position email anymore.")
-    body = (
-        _p(f"Your subscription for <strong>{veilig(winkel)}</strong> has been cancelled.")
-        + _p("Nothing more is charged from now on.")
-        + einde
-        + _p("Your dashboard link keeps working, with your last measurement on it.")
-        + _p("Want to start again later? You can, at krilloai.com.", zacht=True)
-    )
-    html = _base_html("Your subscription is cancelled", "Thank you for using Krillo.", body)
-    return send_email(to_email, "Confirmation: your Krillo subscription is cancelled", html)
+        titel = "Your subscription is cancelled"
+        intro = "Nothing more is charged from now on."
+        feiten = [("Store", winkel), ("Charged from now on", "Nothing")]
+        slot = "You will not get your monthly position email anymore."
+    body = (_feiten(feiten) + _p(slot)
+            + _p("Changed your mind? You can start again any time from your dashboard or at krilloai.com.",
+                 zacht=True)
+            + _score_button(dashboard_url, "Open your dashboard"))
+    html = _base_html(titel, intro, body)
+    onderwerp = ("Confirmation: your Krillo trial is stopped, you pay nothing" if proef_tot
+                 else "Confirmation: your Krillo subscription is cancelled")
+    return send_email(to_email, onderwerp, html)
 
 
 def _score_button(report_url, label="Open your dashboard"):
-    """De knop. Blauw, zoals op de site, en een gewone link eronder voor wie
-    in een mailprogramma zit dat knoppen niet goed toont."""
+    """De knop. Blauw, zoals op de site. 8 oktober: als tabel, dan houdt
+    Outlook het blauwe vlak en de afronding."""
     if not report_url:
         return ""
     return f"""
-    <p style="margin:22px 0 6px;">
-      <a href="{report_url}" style="display:inline-block; background:{BLAUW}; color:#FFFFFF;
-         text-decoration:none; padding:12px 22px; border-radius:8px; font-weight:600;
-         font-size:14px;">{label} &rarr;</a>
-    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 4px;"><tr>
+      <td style="background:{BLAUW}; border-radius:8px;">
+        <a href="{report_url}" style="display:inline-block; padding:13px 24px; color:#FFFFFF;
+           text-decoration:none; font-weight:600; font-size:15px;">{label} &rarr;</a></td></tr></table>
     """
 
 
@@ -685,6 +727,8 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     cat = e(categorienaam or beeld.get("categorie") or "your category")
     land = e(landnaam or (beeld.get("land") or "").upper())
     positie, van = beeld["positie"], beeld.get("van") or 0
+    # 8 oktober: nul keer genoemd is geen plek op alfabet (db.gelijk_bij_nul).
+    groot_plek = ("Not named by AI yet" if beeld.get("nul") else f"#{positie} of {van}")
     genoemd, telbaar = beeld.get("genoemd") or 0, beeld.get("telbaar") or 0
 
     # Sinds 28 september dezelfde handtekening als elke persoonlijke mail.
@@ -854,7 +898,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                           text-transform:uppercase; margin-bottom:8px;">
                 Your place in {cat}, {land}</div>
               <div style="font-size:30px; font-weight:700; color:#0A0A0B; line-height:1.2;">
-                #{positie} of {van}</div>
+                {groot_plek}</div>
               <div style="font-size:13.5px; color:#4A4A55; margin-top:8px; line-height:1.55;">
                 {onder}</div>
               {voorbeeld}
@@ -905,7 +949,9 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     elif variant == "d":
         onderwerp = f"{onderwerp_voor}{_kaal_adres(webshop_url)}: AI names you, but rarely recommends you"
     else:
-        onderwerp = f"{onderwerp_voor}{_kaal_adres(webshop_url)}: #{positie} of {van} in the Krillo index"
+        onderwerp = (f"{onderwerp_voor}{_kaal_adres(webshop_url)}: AI names {beeld.get('genoemde_winkels')} stores in your category, not you"
+                     if beeld.get("nul") else
+                     f"{onderwerp_voor}{_kaal_adres(webshop_url)}: #{positie} of {van} in the Krillo index")
     return send_email(to_email, onderwerp, html, koppen=koppen)
 
 
@@ -951,6 +997,11 @@ def welkom_v2_html(webshop_url, report_url, pakket="watch", score=None, gratis_t
                       "Your store is behind a password, so AI cannot read it and neither can we. "
                       "In Shopify: Online Store, Preferences, remove the password. We pick it up by ourselves.",
                       kleur="#B4471A", bg="#FFF1E8")
+    elif plek and plek.get("positie") and plek.get("nul"):
+        eerste = stap("&#10003;", "Your starting point: AI does not name you yet",
+                      f"{plek.get('genoemde_winkels')} of {plek['van']} stores in your category are named. "
+                      "Your dashboard shows who, for which question, and what to change first.",
+                      kleur=groen, bg=groen_bg)
     elif plek and plek.get("positie"):
         eerste = stap("&#10003;", f"You are #{plek['positie']} of {plek['van']} in your category",
                       "From this month's measurement. Your dashboard shows each buying question "
@@ -1076,7 +1127,12 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
               "into Shopify (Settings, Customer events) or into your site. From then on you see every "
               "month the visits, orders and revenue AI brings you. Rather not do it yourself? Reply "
               "to this email and we place it for you."))
-        + (_p(f"<strong>Your rank.</strong> You are already in the Krillo Index: "
+        # 8 oktober: nul keer genoemd is geen plek; dan zeggen we dat eerlijk.
+        + (_p(f"<strong>Your rank.</strong> This month AI did not name your store in any buying "
+              f"question in your category; {plek.get('genoemde_winkels')} of {plek['van']} stores were "
+              f"named. That is your starting point. Your dashboard shows who AI names instead, and "
+              f"what to change first.") if plek and plek.get("positie") and plek.get("nul") else
+           _p(f"<strong>Your rank.</strong> You are already in the Krillo Index: "
               f"<strong>#{plek['positie']} of {plek['van']}</strong> in your category, from this "
               f"month's measurement. Your dashboard shows the questions where AI names another "
               f"store, and who.") if plek and plek.get("positie") else
@@ -1140,7 +1196,7 @@ def send_opvolging_gratis_test(to_email, webshop_url, site_url=None, taal="en"):
 
 
 def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None, taal="en",
-                             onderwerp=None, kop=None):
+                             onderwerp=None, kop=None, intro=None, feiten=None):
     """Een bericht over je positie of je vermeldingen bij AI.
 
     Wordt gebruikt voor het maandbericht (meldingen.py, met zijn eigen
@@ -1168,8 +1224,9 @@ def send_vermeldingen_update(to_email, webshop_url, tekst, monitoring_url=None, 
     alineas = "".join(_p(veilig(stuk)) for stuk in tekst.split("\n\n") if stuk.strip())
     # De knop wijst naar het dashboard, met het werk erin. Iemand die dit
     # opent wil weten wat hij eraan doet, niet nog een tabel zien.
-    body = alineas + _score_button(monitoring_url, "Open your dashboard")
-    html = _base_html(kop or standaard_kop, f"The latest on {veilig(winkel)}.", body)
+    # 8 oktober: feiten (plek, vragen) in een vak boven de tekst, zoals Stripe.
+    body = (_feiten(feiten) if feiten else "") + alineas + _score_button(monitoring_url, "Open your dashboard")
+    html = _base_html(kop or standaard_kop, intro or f"The latest on {veilig(winkel)}.", body)
     return send_email(to_email, onderwerp or standaard_onderwerp, html)
 
 

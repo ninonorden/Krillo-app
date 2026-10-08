@@ -266,7 +266,10 @@ def index_check(url):
     return {"gevonden": True, "winkel": urlparse(url).netloc, "positie": beeld["positie"],
             "van": beeld.get("van"), "categorie": categorieen.naam_en(beeld["categorie"]),
             "land": land.upper(), "pagina": f"/index/{land}/{beeld['categorie']}" if land else "/index",
-            "kop": f"#{beeld['positie']} of {beeld.get('van')} in {categorieen.naam_en(beeld['categorie'])}."}
+            # 8 oktober: nul keer genoemd is geen plek (zie db.gelijk_bij_nul).
+            "kop": (f"Not named by AI yet in {categorieen.naam_en(beeld['categorie'])}: "
+                    f"{beeld.get('genoemde_winkels')} of {beeld.get('van')} stores are." if beeld.get("nul") else
+                    f"#{beeld['positie']} of {beeld.get('van')} in {categorieen.naam_en(beeld['categorie'])}.")}
 
 
 def bewaar_gebruik(tool, url, oordeel):

@@ -882,6 +882,8 @@ def maak_ranglijst(telling, winkels):
         key=lambda r: (-r["aanbevolen"], -r["genoemd"], r["webshop_url"]))
     for plek, rij in enumerate(rangen, start=1):
         rij["positie"] = plek
+    # 8 oktober: nul keer genoemd is een gedeelde plek, geen plek op alfabet.
+    db.gelijk_bij_nul(rangen)
     return rangen
 
 

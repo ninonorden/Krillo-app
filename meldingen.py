@@ -170,6 +170,11 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
         stand = (f"You are number {p} of {van} in {categorienaam}. {beweging} "
                  f"You were named in {genoemd} of {telbaar} buying questions, "
                  f"and recommended in {aanbevolen}.{voor_stand}")
+        if not genoemd and not aanbevolen:
+            # 8 oktober: nul keer genoemd is geen plek op alfabet (db.gelijk_bij_nul).
+            stand = (f"AI did not name you in any of the {telbaar} buying questions in "
+                     f"{categorienaam} this month. Your dashboard shows who it names instead, "
+                     f"and what to change first.{voor_stand}")
         # 21 september: "four weeks ago" en "you will get the fixes for
         # approval" eruit. De nameting is de eerstvolgende maandmeting na een
         # oplevering (26 tot 70 dagen, zie hierboven), en een goedkeurknop
@@ -190,6 +195,9 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
     stand = (f"Je staat op plaats {p} van de {van} in {categorienaam}. {beweging} "
              f"Je werd genoemd bij {genoemd} van de {telbaar} koopvragen, "
              f"en aanbevolen bij {aanbevolen}.{voor_stand}")
+    if not genoemd and not aanbevolen:
+        stand = (f"AI noemde je deze maand bij geen van de {telbaar} koopvragen in "
+                 f"{categorienaam}. Op je dashboard zie je wie wel, en wat je eerst verandert.{voor_stand}")
     if soort == "nameting":
         return (f"{voor}Vier weken geleden hebben wij je webshop aangepast. We hebben nu "
                 f"opnieuw gemeten, met precies dezelfde vragen.\n\n{stand}\n\n"

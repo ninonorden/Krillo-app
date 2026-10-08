@@ -1121,6 +1121,9 @@ def aiverkeer_bewaren(klant_token):
     return redirect(f"/mijn/{klant_token}#aiverkeer", code=303)
 
 
+CATEGORIEVERZOEK = "categorieverzoek:"
+
+
 @app.route("/mijn/<klant_token>/categorie", methods=["POST"])
 def categorie_kiezen(klant_token):
     """De klant kiest zelf zijn categorie en land (8 oktober).
@@ -1141,6 +1144,24 @@ def categorie_kiezen(klant_token):
     terug = request.form.get("terug") or ""
     terug = terug if terug in ("", "ranking", "questions") else ""
     basis = f"/mijn/{klant_token}" + (f"/{terug}" if terug else "")
+    # 8 oktober (Nino: "als iemands categorie er niet in staat, wat dan?").
+    # "My category is not here": bewaren wat hij verkoopt en Nino een mail
+    # sturen. Nino kiest dan in het dashboard van de klant een bestaande
+    # categorie, of laat Claude een nieuwe toevoegen. Geen belofte van een
+    # meting morgen: de klant hoort binnen een werkdag wat er gebeurt.
+    if slug == "anders":
+        wat = (request.form.get("wat") or "").strip()[:200]
+        if len(wat) < 3:
+            return redirect(basis + "?categorie=fout", code=303)
+        db.zet_instelling(CATEGORIEVERZOEK + scan_engine.normalize_url(klant["webshop_url"]),
+                          json.dumps({"wat": wat, "land": land, "op": datetime.now(timezone.utc).isoformat()}))
+        _meld_aan_beheer("Klant mist zijn categorie",
+                         f"{klant['webshop_url']} schrijft: \"{wat}\" ({land.upper()}).\n\n"
+                         f"Kies voor hem een bestaande categorie in zijn dashboard: "
+                         f"{get_base_url().rstrip('/')}/mijn/{klant_token} (stap 3, Not right? Choose it yourself), "
+                         f"of vraag Claude een nieuwe categorie toe te voegen. De klant ziet dat hij binnen "
+                         f"een werkdag hoort wat er gebeurt.")
+        return redirect(basis + "?categorie=verzoek", code=303)
     if slug not in categorieen.GELDIG or slug in categorieen.NIET_MEETBAAR or land not in ("nl", "be"):
         return redirect(basis + "?categorie=fout", code=303)
     url = scan_engine.normalize_url(klant["webshop_url"])
@@ -1150,6 +1171,7 @@ def categorie_kiezen(klant_token):
     # Een eerdere mislukte poging mag deze nieuwe niet tegenhouden.
     _plaatsen_bezig.pop(url, None)
     _plaatsen_mislukt.pop(url, None)
+    db.zet_instelling(CATEGORIEVERZOEK + url, "")
     if any(db.laatste_afgeronde_ronde(c) for c in categorieen.familie(slug)):
         _plaats_in_ranglijst(url)
     else:
@@ -1206,7 +1228,9 @@ def api_opzeggen(klant_token):
     if gratis_tot and gratis_tot >= datetime.now(timezone.utc).date():
         tot = datetime.combine(gratis_tot, datetime.min.time(), tzinfo=timezone.utc) + timedelta(days=1)
         db.zet_klant_opgezegd(klant["webshop_url"], tot=tot)
-        emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"], tot=tot, terug=False)
+        emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"], tot=tot, terug=False,
+                                            proef_tot=gratis_tot,
+                                            dashboard_url=f"{get_base_url().rstrip('/')}/mijn/{klant_token}")
         _meld_aan_beheer("Gratis proef gestopt",
                          f"{klant['email']} stopte de gratis proef van {klant['webshop_url']}. "
                          f"Er is niets betaald en niets terug te betalen.")
@@ -1219,7 +1243,8 @@ def api_opzeggen(klant_token):
     else:
         db.zet_klant_opgezegd(klant["webshop_url"])
     emailing.send_opzegging_bevestiging(klant["email"], klant["webshop_url"], tot=tot,
-                                        terug=(dagen is not None and dagen <= 14))
+                                        terug=(dagen is not None and dagen <= 14),
+                                        dashboard_url=f"{get_base_url().rstrip('/')}/mijn/{klant_token}")
     if dagen is not None and dagen <= 14:
         terug = (f"<p><b>Actie nodig: geld terug.</b> Deze klant is {dagen} dagen klant, dus "
                  f"binnen de veertien dagen. Ga in Mollie naar Betalingen, zoek {klant['email']}, "
@@ -4725,6 +4750,7 @@ def _draai_wekelijkse_scans(base_url, alles=False):
         print(f"{len(customers)} actieve klant(en), {len(aan_de_beurt)} vandaag aan de beurt.")
         for c in aan_de_beurt:
             try:
+                was_dicht = scan_engine.staat_achter_wachtwoord(c["webshop_url"])
                 scan_result = run_scan(c["webshop_url"])
                 if "error" in scan_result:
                     print(f"Scan mislukt voor {c['webshop_url']}, overgeslagen.")
@@ -4737,6 +4763,8 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                 _zet_in_index(c["webshop_url"])
                 db.save_report("monitoring", c["webshop_url"], c["email"], scan_result.get("score", 0),
                                 scan_result.get("checks", []), None, None, klant_token)
+                if was_dicht:
+                    _meld_winkel_open(c["webshop_url"], c["email"], klant_token, scan_result.get("score", 0))
                 # Hier stonden tot 21 september de eigen AI-meting van deze
                 # winkel en de wekelijkse mail. De reden stond erbij: "waar een
                 # klant voor betaalt is of AI hem noemt." Dat klopt nog steeds,
@@ -8206,6 +8234,10 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         # Wie wel een plek heeft maar intussen zijn winkel dichtzette: zeggen,
         # want dan gaan zijn fixes over de wachtwoordpagina.
         gegevens["wachtwoord"] = scan_engine.staat_achter_wachtwoord(webshop_url)
+        # 8 oktober: ook met een plek kan de klant van categorie wisselen (Ranking).
+        gegevens["categorie_post"] = f"/mijn/{klant_token}/categorie"
+        gegevens["categoriekeuzes"] = _categoriekeuzes()
+        gegevens["gekozen_land"] = (beeld.get("land") or "nl")
     if beeld:
         winkelnaam = beeld.get("naam")
         if pagina in ("overzicht", "vragen"):
@@ -8225,6 +8257,11 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                                            "aanbevolen": False, "anderen": [], "fragment": ""}
                                           for m in v["per_model"]]
                         v["slot"] = True
+            # 8 oktober: vragen die de klant als "niet voor mijn winkel" wegzette.
+            if klant_token and not proef:
+                gegevens["niet_voor_mij"] = _niet_voor_mij(webshop_url)
+                gegevens["vragen"] = _zonder_niet_voor_mij(gegevens["vragen"], set(gegevens["niet_voor_mij"]))
+                gegevens["weg_url"] = f"/mijn/{klant_token}/niet-voor-mij"
             gegevens["balken"] = dp.balken_per_assistent(gegevens["vragen"]["per_assistent"])
             # 1 oktober: de vragen met de minste concurrentie, om eerst over te schrijven.
             gegevens["open_plekken"] = [] if proef else dp.open_plekken(gegevens["vragen"])
@@ -8255,6 +8292,8 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             try:
                 import vraagaanpak
                 vo = dp.vragen_overzicht(beeld["ronde"], webshop_url, winkelnaam)
+                if klant_token:
+                    vo = _zonder_niet_voor_mij(vo, set(_niet_voor_mij(webshop_url)))
                 gekozen_lijst = db.gekozen_vragen(webshop_url) if klant_token else []
                 gegevens["aanpak"] = vraagaanpak.voor_dashboard(
                     vo, gekozen_lijst, sitetaal.landnaam(beeld.get("land"), taal) if beeld.get("land") else None,
@@ -8502,8 +8541,16 @@ def _meld_eerste_plek(webshop_url):
             return False
         naam = categorieen.naam_en(beeld["categorie"])
         gemist = beeld.get("gemiste_vragen") or []
-        tekst = (f"Your store is in the Krillo Index: #{beeld['positie']} of {beeld['van']} in {naam}, "
-                 f"from this month's measurement.")
+        # 8 oktober: bij nul keer genoemd geen "#35 of 69" (een plek op
+        # alfabet) maar eerlijk zeggen dat AI je nog niet noemt.
+        if beeld.get("nul"):
+            tekst = (f"This month, AI did not name your store in any of the "
+                     f"{beeld.get('telbaar') or 'measured'} buying questions in {naam}. "
+                     f"{beeld.get('genoemde_winkels')} of {beeld['van']} stores in your category were named. "
+                     f"That is your starting point, and from here your dashboard shows every step up.")
+        else:
+            tekst = (f"Your store is in the Krillo Index: #{beeld['positie']} of {beeld['van']} in {naam}, "
+                     f"from this month's measurement.")
         if gemist:
             v = gemist[0]
             anderen = ", ".join((v.get("concurrenten") or [])[:2])
@@ -8513,7 +8560,13 @@ def _meld_eerste_plek(webshop_url):
         return emailing.send_vermeldingen_update(
             klant["email"], webshop_url, tekst,
             monitoring_url=f"{get_base_url().rstrip('/')}/mijn/{klant['klant_token']}",
-            onderwerp=f"Your rank in the Krillo Index: #{beeld['positie']}", kop="Your rank is in")
+            onderwerp=("Your rank is in: AI does not name you yet" if beeld.get("nul")
+                       else f"Your rank in the Krillo Index: #{beeld['positie']}"), kop="Your rank is in",
+            intro=f"From this month's measurement of {naam}, with ChatGPT and Gemini.",
+            feiten=[("Category", naam),
+                    ("Your place", "Not named yet" if beeld.get("nul") else f"#{beeld['positie']} of {beeld['van']}"),
+                    ("Questions where AI names you", f"{beeld.get('genoemd') or 0} of {beeld.get('telbaar') or 0}"),
+                    ("Stores AI names", f"{beeld.get('genoemde_winkels')} of {beeld['van']}")])
     except Exception as e:
         print(f"Mail eerste plek mislukt voor {webshop_url}: {e}")
         return False
@@ -8622,6 +8675,24 @@ def _wachtwoord_nu(webshop_url, klant=None):
     return scan_engine.staat_achter_wachtwoord(webshop_url)
 
 
+def _meld_winkel_open(webshop_url, email, klant_token, score):
+    """De winkel stond achter een wachtwoord en is nu open (8 oktober): de klant
+    een mail met zijn eerste echte sitecheck. Een keer per winkel per maand."""
+    try:
+        if not email or not klant_token or not db.claim_moment(f"winkel_open:{webshop_url}", 30 * 24 * 3600):
+            return False
+        tekst = (f"Your store is open, so AI can read it now, and so can we. Your first real site check "
+                 f"scores {score} of 100. We are writing your fixes for your own pages now; they are in "
+                 f"your dashboard within the hour.")
+        return emailing.send_vermeldingen_update(
+            email, webshop_url, tekst,
+            monitoring_url=f"{get_base_url().rstrip('/')}/mijn/{klant_token}",
+            onderwerp="Your store is open: your first site check is in", kop="Your store is open")
+    except Exception as e:
+        print(f"Mail winkel open mislukt voor {webshop_url}: {e}")
+        return False
+
+
 def _herscan_op_achtergrond(webshop_url, klant):
     """Een nieuwe sitecheck voor een klant, los van het verzoek. Kost niets
     behalve een paar verzoeken aan zijn eigen winkel."""
@@ -8632,6 +8703,7 @@ def _herscan_op_achtergrond(webshop_url, klant):
                 return
             db.save_report("monitoring", webshop_url, klant.get("email"), uitslag.get("score", 0),
                            uitslag.get("checks", []), None, None, klant.get("klant_token"))
+            _meld_winkel_open(webshop_url, klant.get("email"), klant.get("klant_token"), uitslag.get("score", 0))
             # En meteen de fixes over de echte winkel laten schrijven.
             _oplossingen_bezig[webshop_url] = True
             try:
@@ -8693,7 +8765,20 @@ def _startstappen(webshop_url, klant_token, geen_plek, taal, pakket=None, wachtw
                         "tekst": ("Loopt. Meestal binnen een paar minuten klaar." if nl else
                                   "Running. Usually done within a few minutes.")})
     # De categorie: kiezen kan altijd, ook als we hem zelf al bepaalden.
-    if soort in ("geen_categorie", "onbekend", None):
+    verzoek = None
+    try:
+        ruw = db.get_instelling(CATEGORIEVERZOEK + scan_engine.normalize_url(webshop_url))
+        verzoek = json.loads(ruw) if ruw else None
+    except Exception:
+        verzoek = None
+    if verzoek and soort in ("geen_categorie", "onbekend", None):
+        stappen.append({"sleutel": "categorie", "status": "bezig",
+                        "titel": "We zetten een categorie voor je klaar" if nl else "We are setting up a category for you",
+                        "tekst": (f"Je schreef: \u201c{verzoek.get('wat')}\u201d. Binnen een werkdag hoor je van ons "
+                                  "wat er gebeurt." if nl else
+                                  f"You wrote: \u201c{verzoek.get('wat')}\u201d. Within one working day we email you "
+                                  "what happens next."), "wijzig": True})
+    elif soort in ("geen_categorie", "onbekend", None):
         stappen.append({"sleutel": "categorie", "status": "actie",
                         "titel": "Kies je categorie" if nl else "Choose your category",
                         "tekst": ("Wat verkoop je vooral? Daarmee vergelijken we je met de winkels die AI "
@@ -9163,6 +9248,67 @@ def klant_dashboard(klant_token, pad=""):
                       pagina=dp.PAD_NAAR_PAGINA.get(pad, "overzicht"))
 
 
+NIETVOORMIJ = "nietvoormij:"
+
+
+def _niet_voor_mij(webshop_url):
+    """De koopvragen die een klant wegzette als "niet voor mijn winkel"."""
+    try:
+        lijst = json.loads(db.get_instelling(NIETVOORMIJ + webshop_url) or "[]")
+        return lijst if isinstance(lijst, list) else []
+    except Exception:
+        return []
+
+
+@app.route("/mijn/<klant_token>/niet-voor-mij", methods=["POST"])
+def klant_niet_voor_mij(klant_token):
+    """"Not for my store" bij een koopvraag (8 oktober, Nino: een snowboardwinkel
+    kreeg vragen over yogamatten in de brede categorie Sport en fitness).
+
+    De vraag verdwijnt uit ZIJN vragenlijst en fixes. Zijn plek in de index
+    blijft over de hele categorie gerekend: anders vergelijken we winkels in
+    dezelfde ranglijst met verschillende maten. Dat staat er ook bij."""
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return jsonify({"ok": False}), 404
+    gegevens = request.get_json(silent=True) or {}
+    vraag = (gegevens.get("vraag") or "").strip()
+    aan = bool(gegevens.get("aan", True))
+    lijst = _niet_voor_mij(klant["webshop_url"])
+    if aan:
+        beeld = klantbeeld.bouw(klant["webshop_url"])
+        if not beeld or not vraag:
+            return jsonify({"ok": False}), 400
+        import dashboardpaginas as dp
+        try:
+            bekend = {v["vraag"] for v in dp.vragen_overzicht(beeld["ronde"], klant["webshop_url"],
+                                                             beeld.get("naam"))["vragen"]}
+        except Exception:
+            bekend = set()
+        if vraag not in bekend:
+            return jsonify({"ok": False}), 400
+        if vraag not in lijst:
+            lijst.append(vraag)
+    else:
+        lijst = [v for v in lijst if v != vraag]
+    db.zet_instelling(NIETVOORMIJ + klant["webshop_url"], json.dumps(lijst[:200]))
+    if aan:
+        db.zet_gekozen_vraag(klant["webshop_url"], vraag, False)
+    return jsonify({"ok": True, "aantal": len(lijst)})
+
+
+def _zonder_niet_voor_mij(vo, weg):
+    """Een vragenoverzicht zonder de weggezette vragen; telt opnieuw."""
+    if not vo or not weg:
+        return vo
+    uit = dict(vo)
+    uit["vragen"] = [v for v in vo.get("vragen", []) if v["vraag"] not in weg]
+    uit["gewonnen"] = sum(1 for v in uit["vragen"] if v.get("gewonnen"))
+    uit["verloren"] = len(uit["vragen"]) - uit["gewonnen"]
+    uit["totaal"] = len(uit["vragen"])
+    return uit
+
+
 @app.route("/mijn/<klant_token>/kies", methods=["POST"])
 def klant_kies_vraag(klant_token):
     """"Add to my fixes" in het dashboard (30 september, het idee bij dashboard 8).
@@ -9246,11 +9392,13 @@ def link_opnieuw():
             if klant:
                 emailing.send_vermeldingen_update(
                     klant["email"], klant["webshop_url"],
-                    "Here is the link to your Krillo dashboard. Keep it, because "
-                    "it is your key: there is no password.",
+                    "Keep this email: the link is your key, so there is no password to remember. "
+                    "Did you not ask for this? Then you can ignore it; nothing changes.",
                     monitoring_url=f"{get_base_url().rstrip('/')}/mijn/{klant['klant_token']}",
                     taal="en", onderwerp="Your Krillo dashboard link",
-                    kop="Your dashboard link")
+                    kop="Your dashboard link", intro="One click and you are in.",
+                    feiten=[("Store", klant["webshop_url"].replace("https://", "").replace("www.", "").rstrip("/")),
+                            ("Plan", (klant.get("pakket") or "watch").capitalize())])
         except Exception as e:
             print(f"Link opnieuw sturen mislukt: {e}")
         return redirect(("/login" if request.path == "/login" else "/get-my-link") + "?m=verstuurd")

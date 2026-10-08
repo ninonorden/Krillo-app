@@ -6736,7 +6736,8 @@ def _ranglijst_per_land_vers(categorie, land, limiet=200):
                 cur.execute("""
                     SELECT u.webshop_url, u.genoemd, u.aanbevolen, u.telbaar,
                            u.gemeten_op, b.naam, lower(b.land) AS land,
-                           v.positie AS vorige_ruwe_positie
+                           v.positie AS vorige_ruwe_positie,
+                           (coalesce(v.genoemd, 0) + coalesce(v.aanbevolen, 0)) AS vorige_telling
                       FROM categorie_uitkomsten u
                  LEFT JOIN benadering b ON b.webshop_url = u.webshop_url
                  LEFT JOIN categorie_uitkomsten v
@@ -6776,6 +6777,19 @@ def _ranglijst_per_land_vers(categorie, land, limiet=200):
             key=lambda r: r["vorige_ruwe_positie"])
         for plek, rij in enumerate(vorige_orde, start=1):
             rij["vorige_positie"] = plek
+        # 8 oktober (Nino: "hoe kan een testwinkel op 35 staan?"). Winkels die
+        # AI bij geen enkele vraag noemde, kregen een plek op alfabet: een
+        # winkel met een k stond op 35, een met een z op 69, met precies
+        # dezelfde nul. Nu delen ze een plek (de eerste na de genoemde
+        # winkels) en staat er "nul" bij, zodat elk scherm "Not named yet" kan
+        # zeggen. Hetzelfde voor de vorige meting, anders lijkt een winkel die
+        # van alfabetplek 50 naar de gedeelde plek 35 gaat 15 plekken gestegen.
+        gelijk_bij_nul(rijen)
+        nul_vorig = [r for r in vorige_orde if not r.get("vorige_telling")]
+        if nul_vorig:
+            gedeeld = len(vorige_orde) - len(nul_vorig) + 1
+            for rij in nul_vorig:
+                rij["vorige_positie"] = gedeeld
         return {"ronde": nu, "land": land,
                 "telbaar": (rijen[0]["telbaar"] if rijen else 0),
                 "rijen": rijen}
@@ -7918,6 +7932,18 @@ def vergeet_onthouden():
     """Na een meting of herberekening: alles opnieuw ophalen."""
     with _ONTHOUD_SLOT:
         _ONTHOUD.clear()
+
+
+def gelijk_bij_nul(rijen):
+    """Winkels met nul keer genoemd en nul keer aanbevolen delen een plek: de
+    eerste na de winkels die wel genoemd zijn. Zet ook rij["nul"]. Werkt op de
+    lijst zelf en geeft hem terug. Zie _ranglijst_per_land_vers (8 oktober)."""
+    genoemd = sum(1 for r in rijen if (r.get("genoemd") or 0) or (r.get("aanbevolen") or 0))
+    for rij in rijen:
+        rij["nul"] = not ((rij.get("genoemd") or 0) or (rij.get("aanbevolen") or 0))
+        if rij["nul"]:
+            rij["positie"] = genoemd + 1
+    return rijen
 
 
 def ranglijst_per_land(categorie, land, limiet=200):

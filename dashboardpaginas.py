@@ -328,7 +328,7 @@ def topkaart(rijen, eigen_url, telbaar, aantal=5):
         # Versie 8: de beweging sinds de vorige meting, net als op /index.
         beweging = ("" if not vorige or not nu else
                     (f"▲{vorige - nu}" if vorige > nu else (f"▼{nu - vorige}" if nu > vorige else "=")))
-        return {"positie": r.get("positie"), "naam": naam, "jij": jij, "beweging": beweging,
+        return {"positie": r.get("positie"), "nul": bool(r.get("nul")), "naam": naam, "jij": jij, "beweging": beweging,
                 "zicht": int(round(100 * (r.get("genoemd") or 0) / telbaar)) if telbaar else 0,
                 "kleur": KLEUR_JIJ if jij else KLEUREN_TOP[i % len(KLEUREN_TOP)], "gat": False}
     uit = [regel(r, i) for i, r in enumerate(rijen[:aantal])]

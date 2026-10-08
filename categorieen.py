@@ -112,6 +112,9 @@ CATEGORIEEN = [
     ("hardlopen", "Hardlopen", "sport-fitness"),
     ("yoga", "Yoga en pilates", "sport-fitness"),
     ("watersport", "Watersport", "sport-fitness"),
+    # 8 oktober (Nino's testwinkel verkoopt snowboards en kreeg vragen over
+    # yogamatten): wintersport als eigen categorie onder sport.
+    ("wintersport", "Wintersport, ski en snowboard", "sport-fitness"),
     ("outdoor-kamperen", "Outdoor en kamperen", None),
     ("fietsonderdelen", "Fietsen en onderdelen", None),
     ("wielrennen", "Wielrennen en fietskleding", "fietsonderdelen"),
@@ -172,7 +175,7 @@ NAMEN_EN = {
     "chocolade-snoep": "Chocolate and sweets", "babyspullen": "Baby products",
     "kraamcadeaus": "Baby gifts", "speelgoed": "Toys", "speelgoed-educatief": "Educational toys",
     "sport-fitness": "Sports and fitness", "hardlopen": "Running", "yoga": "Yoga and pilates",
-    "watersport": "Water sports", "outdoor-kamperen": "Outdoor and camping",
+    "watersport": "Water sports", "wintersport": "Winter sports, ski and snowboard", "outdoor-kamperen": "Outdoor and camping",
     "fietsonderdelen": "Bikes and parts", "wielrennen": "Road cycling",
     "elektronica": "Electronics", "audio": "Audio and headphones",
     "computers-accessoires": "Computers and accessories", "telefoon-accessoires": "Phone accessories",

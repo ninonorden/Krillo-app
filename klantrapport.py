@@ -47,7 +47,9 @@ def pdf(beeld, categorienaam, landnaam, imago=None, maand=""):
     y += 70
     vak = (R - L) // 4
     telbaar = beeld.get("telbaar") or 0
-    cijfers = [(f"#{beeld['positie']}", f"of {beeld.get('van')} stores"),
+    cijfers = [(("0" if beeld.get("nul") else f"#{beeld['positie']}"),
+                (f"named, {beeld.get('genoemde_winkels')} of {beeld.get('van')} stores are" if beeld.get("nul")
+                 else f"of {beeld.get('van')} stores")),
                (f"{beeld.get('genoemd') or 0}/{telbaar}", "questions where AI names you"),
                (str(beeld.get("aanbevolen") or 0), "where AI recommends you"),
                ((f"{'+' if beeld['verschil'] > 0 else ''}{beeld['verschil']}" if beeld.get("verschil") else "="),
