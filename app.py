@@ -468,10 +468,15 @@ def _tel_bezoek(antwoord):
     return antwoord
 
 
+# 8 oktober (Nino: "40 mensen naar de kassa en evenveel echte mensen als
+# doorklikken, dat klopt niet"): virusscanners van mailprogramma's openen elke
+# link, draaien het script en scrollen de pagina met een programma (scroll- en
+# mousemove-gebeurtenissen). Die telden als mens. Nu alleen wat een hand doet:
+# klikken of tikken, een toets, of het wieltje van een echte muis.
 MENS_SCRIPT = ("<script>(function(){var s=0;function m(){if(s)return;s=1;try{"
                "if(navigator.sendBeacon){navigator.sendBeacon('/api/mens')}"
                "else{fetch('/api/mens',{method:'POST',keepalive:true})}}catch(e){}}"
-               "['scroll','pointerdown','keydown','touchstart','mousemove'].forEach("
+               "['pointerdown','keydown','touchstart','wheel'].forEach("
                "function(e){addEventListener(e,m,{once:true,passive:true})})})();</script>")
 
 
@@ -1183,7 +1188,7 @@ def categorie_kiezen(klant_token):
 # niemand betaalde, maar wij wisten niet WAAR ze afhaakten: openden ze het
 # venster niet, vulden ze het niet in, of haakten ze af bij de bank? Elke stap
 # telt nu als bezoek aan een vast pad, en verschijnt zo vanzelf op /admin/bezoek.
-KASSA_STAPPEN = {"venster_watch", "venster_fix", "verstuurd_watch", "verstuurd_fix",
+KASSA_STAPPEN = {"venster_watch", "venster_fix", "auto_watch", "auto_fix", "verstuurd_watch", "verstuurd_fix",
                  "fout_watch", "fout_fix", "naar_bank_watch", "naar_bank_fix"}
 
 

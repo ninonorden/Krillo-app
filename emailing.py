@@ -1008,8 +1008,9 @@ def welkom_v2_html(webshop_url, report_url, pakket="watch", score=None, gratis_t
                       "where AI names another store, and which one.", kleur=groen, bg=groen_bg)
     else:
         eerste = stap("1", "Now: we place you in your category",
-                      "We work out your rank from the answers ChatGPT and Gemini gave this month, "
-                      "and write your first fixes. Usually within the hour. We email you when it is in.")
+                      "We are adding your store to this month's ranking, from the answers ChatGPT and "
+                      "Gemini already gave, and writing your first fixes. Usually within the hour; "
+                      "we email you when your rank is in.")
     if is_fix:
         tweede = stap("2", "We install your sales pixel",
                       "So every month you see the visits, orders and revenue AI brings you. "
@@ -1020,9 +1021,12 @@ def welkom_v2_html(webshop_url, report_url, pakket="watch", score=None, gratis_t
                       "Then you see what AI brings you in visits, orders and revenue. "
                       "Rather not? Reply and we place it for you.",
                       knop=("Show me how", f"{report_url}#start-pixel") if report_url else None)
-    derde = stap("3", "Every month: your rank and your fixes",
-                 "We measure your whole category again and send you your position. "
-                 + ("We put the fixes into your store and keep the old text, so it can always go back."
+    derde = stap("3", "Every week and every month",
+                 "Every week your five most important buying questions are asked again, so you see "
+                 "whether a change works. Every month we measure your whole category and send you "
+                 "your position. "
+                 + ("We pick the fixes that gain you the most and we install them in your store, "
+                    "keeping the old text so it can always go back."
                     if is_fix else
                     "Your dashboard shows the three fixes that gain you the most, ready to copy."))
 
@@ -1036,6 +1040,12 @@ def welkom_v2_html(webshop_url, report_url, pakket="watch", score=None, gratis_t
              f'<div style="font-size:24px; font-weight:700; color:{INKT}; margin-top:4px;">{gratis_tot.strftime("%-d %b")}</div>'
              f'<div style="font-size:12.5px; color:{INKT_ZACHT};">Then EUR 49 a month. Cancel any time on the Plan page.</div></td>'
              if gratis_tot else "")
+    if score is None and not wachtwoord:
+        # Geen gelukte scan bij de start: geen verzonnen cijfer, wel wanneer hij komt.
+        cijfer = (f'<td width="50%" style="padding:14px 16px; border:1px solid {LIJN}; border-radius:10px;">'
+                  f'<div style="font-family:Courier New, monospace; font-size:10.5px; letter-spacing:.08em; color:#6E7079;">SITE CHECK</div>'
+                  f'<div style="font-size:15px; font-weight:700; color:{INKT}; margin-top:6px;">Coming up</div>'
+                  f'<div style="font-size:12.5px; color:{INKT_ZACHT};">The first one follows within a week.</div></td>')
     tegels = ""
     if cijfer or proef:
         tussen = '<td width="12">&nbsp;</td>' if (cijfer and proef) else ""
@@ -1077,6 +1087,18 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
 
     De eerste eigen meting bij de start (dertig koopvragen, ongeveer een
     kwartier) is gebleven: een nieuwe klant moet meteen iets zien."""
+    # 8 OKTOBER (Nino: "doe maar nieuwe welkomstmail, kijk naar de beste
+    # manier"): het nieuwe ontwerp (welkom_v2_html) is nu de mail: de knop
+    # bovenaan, sitecheck en proefdatum in twee vakken, drie genummerde
+    # stappen. Dezelfde feiten als hieronder, minder tekst. Het oude ontwerp
+    # blijft staan voor het pakket voor merken en bureaus.
+    if (pakket or "").lower() in ("watch", "fix"):
+        score = (scan_result or {}).get("score") if (scan_result or {}).get("checks") else None
+        wachtwoord = (scan_result or {}).get("weigering") == "wachtwoord"
+        naam = "Watch" if (pakket or "").lower() == "watch" else "Fix"
+        html = welkom_v2_html(webshop_url, report_url, pakket, score=score, gratis_tot=gratis_tot,
+                              plek=plek, wachtwoord=wachtwoord)
+        return send_email(to_email, f"Welcome to Krillo {naam}", html)
     winkel = _kaal_adres(webshop_url)
     score = (scan_result or {}).get("score", 0)
     is_watch = (pakket or "").lower() == "watch"
