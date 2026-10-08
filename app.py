@@ -1086,6 +1086,27 @@ def api_pixel():
     return antwoord
 
 
+@app.route("/mijn/<klant_token>/pixelcheck")
+def pixelcheck(klant_token):
+    """De knop "Check my pixel" (8 oktober, Nino). Het dashboard opent de winkel
+    met ?utm_source=krillo-check en vraagt hier elke paar seconden of er sinds
+    het klikken iets van de pixel binnenkwam. Alleen ja of nee, geen gegevens."""
+    import pixel
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return jsonify({"fout": "onbekend"}), 404
+    try:
+        vanaf = datetime.fromtimestamp(float(request.args.get("sinds") or 0), tz=timezone.utc)
+    except (TypeError, ValueError, OverflowError):
+        vanaf = datetime.now(timezone.utc) - timedelta(minutes=5)
+    # Nooit verder terug dan een uur: dan zegt de knop iets over nu.
+    vanaf = max(vanaf, datetime.now(timezone.utc) - timedelta(hours=1))
+    uit = pixel.sinds(klant["webshop_url"], vanaf)
+    antwoord = jsonify(uit)
+    antwoord.headers["Cache-Control"] = "no-store"
+    return antwoord
+
+
 @app.route("/mijn/<klant_token>/aiverkeer", methods=["POST"])
 def aiverkeer_bewaren(klant_token):
     """De klant zet zijn AI-bezoek, bestellingen en omzet van een maand in het
@@ -8177,7 +8198,8 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 sleutel = pixel.sleutel_voor(webshop_url)
                 gegevens["pixel"] = {"status": pixel.status(webshop_url),
                                      "shopify": pixel.shopify_code(sleutel, get_base_url()),
-                                     "site": pixel.site_code(sleutel, get_base_url())}
+                                     "site": pixel.site_code(sleutel, get_base_url()),
+                                     "winkel": webshop_url, "check": f"/mijn/{klant_token}/pixelcheck"}
             except Exception as e:
                 print(f"Startpagina mislukt voor {webshop_url}: {e}")
     elif klant_token and not proef:
@@ -8280,7 +8302,8 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                         sleutel = pixel.sleutel_voor(webshop_url)
                         gegevens["pixel"] = {"status": pixel.status(webshop_url),
                                              "shopify": pixel.shopify_code(sleutel, get_base_url()),
-                                             "site": pixel.site_code(sleutel, get_base_url())}
+                                             "site": pixel.site_code(sleutel, get_base_url()),
+                                             "winkel": webshop_url, "check": f"/mijn/{klant_token}/pixelcheck"}
                     except Exception as e:
                         print(f"Pixel voor het dashboard mislukt: {e}")
                 elif not beheer:
@@ -8657,7 +8680,8 @@ def _startstappen(webshop_url, klant_token, geen_plek, taal, pakket=None, wachtw
                         "tekst": ("AI kan hem daardoor niet lezen, en wij ook niet. Haal het wachtwoord weg "
                                   "(in Shopify: Online winkel, Voorkeuren) en we kijken binnen een dag opnieuw." if nl else
                                   "So AI cannot read it, and neither can we. Remove the password "
-                                  "(in Shopify: Online Store, Preferences) and we check again within a day.")})
+                                  "(in Shopify: Online Store, Preferences) and we check again within a day. "
+                                  "A Shopify development store keeps its password until you pick a plan.")})
     elif score is not None:
         stappen.append({"sleutel": "site", "status": "klaar",
                         "titel": (f"Sitecheck: {score} van 100" if nl else f"Site check: {score} of 100"),

@@ -34,6 +34,12 @@ AI_BRONNEN = {
     "copilot.microsoft.com": "Copilot",
 }
 SOORTEN = ("sessie", "order")
+# 8 oktober (Nino: "hoe weet ik dat de pixel erin staat?"). Een testbezoek met
+# ?utm_source=krillo-check komt binnen als soort "test" (en een bestelling in
+# dat bezoek als "testorder"). Zo kan de knop "Check my pixel" zien dat de
+# pixel werkt, zonder dat het testbezoek meetelt als bezoek uit AI.
+TEST_BRON = "krillo-check"
+TEST_NAAM = "Test"
 
 
 def _sql(opdracht, waarden=None, alles=False):
@@ -106,13 +112,16 @@ def noteer(sleutel, soort, bron=None, bedrag=None, valuta=None, order_id=None):
     webshop_url = winkel_bij_sleutel(sleutel)
     if not webshop_url or soort not in SOORTEN:
         return False
-    bron = bron if bron in set(AI_BRONNEN.values()) else None
+    test = bron == TEST_NAAM
+    bron = bron if (bron in set(AI_BRONNEN.values()) or test) else None
     if soort == "order":
         bedrag = _bedrag(bedrag)
         if bedrag is None:
             return False
     else:
         bedrag = None
+    if test:
+        soort = "testorder" if soort == "order" else "test"
     try:
         _sql("""INSERT INTO pixel_meldingen (webshop_url, soort, bron, bedrag, valuta, order_id)
                 VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING""",
@@ -156,7 +165,23 @@ def status(webshop_url):
 # ---------------------------------------------------------------------------
 
 def _bronnen_js():
-    return "{" + ",".join(f'"{h}":"{n}"' for h, n in AI_BRONNEN.items()) + "}"
+    alle = dict(AI_BRONNEN, **{TEST_BRON: TEST_NAAM})
+    return "{" + ",".join(f'"{h}":"{n}"' for h, n in alle.items()) + "}"
+
+
+def sinds(webshop_url, vanaf):
+    """Wat de pixel binnenstuurde na een tijdstip (voor de knop "Check my
+    pixel"). Geeft {"gezien": bool, "test": bool, "order": bedrag of None}."""
+    try:
+        maak_tabel()
+        rijen = _sql("""SELECT soort, bedrag FROM pixel_meldingen
+                         WHERE webshop_url = %s AND op >= %s ORDER BY op""",
+                     (webshop_url, vanaf), alles=True) or []
+    except Exception as e:
+        print(f"Pixelcheck mislukt voor {webshop_url}: {e}")
+        return {"gezien": False, "test": False, "order": None}
+    order = next((float(b) for s, b in rijen if s in ("order", "testorder") and b is not None), None)
+    return {"gezien": bool(rijen), "test": any(s == "test" for s, _ in rijen), "order": order}
 
 
 def shopify_code(sleutel, basis="https://krilloai.com"):
