@@ -426,37 +426,3 @@ def zoek_adres(webshop_url, timeout=12, max_paginas=None):
 
     return dict(leeg, alles=[x["adres"] for x in uniek],
                 reden="Alleen persoonlijke adressen gevonden. Die slaan wij over.")
-
-
-def zoek_via_zoekmachine(webshop_url, zoek=None):
-    """Stap 306 (7 oktober): het algemene adres van een winkel buiten zijn eigen site.
-
-    Waarom. 2.218 winkels hebben op hun eigen site geen mailadres staan, terwijl
-    de site grondig doorzocht is. Vaak staat het adres wel elders: bij de
-    KvK-vermelding, op een marktplaats- of reviewprofiel, in een bedrijvengids.
-    Een zoekopdracht naar "@winkel.nl" vindt die plekken.
-
-    Strenger dan op de eigen site, want de tekst komt van een andere pagina:
-    - alleen een adres op het EIGEN domein van de winkel (geen gmail: een
-      gmail-adres in een zoekresultaat kan van iedereen zijn);
-    - alleen een ALGEMEEN adres (info@, contact@), nooit een naam;
-    - nooit raden: staat het niet letterlijk in het resultaat, dan niets.
-    Een zoekopdracht kost ongeveer een halve cent (bronnen.zoek telt de kosten)."""
-    domein = _domein(webshop_url)
-    if not domein:
-        return {"adres": None, "reden": "Geen domein."}
-    if zoek is None:
-        import bronnen
-        zoek = bronnen.zoek
-    try:
-        resultaten = zoek(f'"@{domein}"', webshop_url=webshop_url) or []
-    except Exception as e:
-        return {"adres": None, "reden": f"Zoeken mislukt: {type(e).__name__}"}
-    for r in resultaten:
-        tekst = " ".join([r.get("titel") or "", r.get("omschrijving") or ""])
-        kandidaten = ADRES.findall(tekst) + list(_ontwarren(tekst))
-        for adres in kandidaten:
-            oordeel = _bruikbaar(adres, domein)
-            if oordeel and oordeel.get("eigen_domein") and oordeel.get("algemeen"):
-                return {"adres": oordeel["adres"], "vandaan": f"zoekmachine: {r.get('url', '')[:120]}"}
-    return {"adres": None, "reden": "Ook via de zoekmachine geen algemeen adres gevonden."}

@@ -148,33 +148,3 @@ def wat_ontbreekt(webshop_url, vraag, haal=None):
                 f"questions and answers. With Watch you get that text written out; with Fix we put it in your store.")
     return (f"We could not find a page about “{o}” in the menu of {naam}. AI needs one clear page "
             f"to point to. With Watch you get that page written out; with Fix we put it in your store.")
-
-
-def verrijk(aanpak_lijst, antwoorden=None, paginas=None, maximaal_bronnen=3):
-    """Stap 290 (7 oktober, Nino: "maak van elke insight een actie").
-
-    Per verloren vraag erbij:
-    - "bronnen": de sites die AI in de antwoorden op DEZE vraag noemt (reviews,
-      vergelijkers, marktplaatsen), uit bronnenkaart. Daar moet je staan.
-    - "pagina": welke pagina van de winkel het antwoord moet geven. Uit de pagina's
-      die de wekelijkse paginacheck vond: de pagina waarvan het adres de woorden
-      van het onderwerp bevat. Geen match: None, en dan zegt het dashboard dat
-      die pagina er nog niet is.
-    Verandert niets als er geen antwoorden of pagina's zijn."""
-    import bronnenkaart
-    per_vraag = {}
-    for r in antwoorden or []:
-        per_vraag.setdefault(r.get("vraag"), []).append(r)
-    paden = [(p.get("pad") or "/", p.get("url")) for p in (paginas or []) if p.get("url")]
-    for a in aanpak_lijst or []:
-        rijen = per_vraag.get(a.get("vraag")) or []
-        a["bronnen"] = [b["naam"] for b in bronnenkaart.bronnen(rijen, maximaal=maximaal_bronnen)] if rijen else []
-        woorden = [w for w in re.findall(r"[a-z0-9]+", (a.get("onderwerp") or "").lower()) if len(w) > 3]
-        beste, score = None, 0
-        for pad, url in paden:
-            p = pad.lower()
-            n = sum(1 for w in woorden if w in p or w[:-1] in p)
-            if n > score and pad != "/":
-                beste, score = url, n
-        a["pagina"] = beste
-    return aanpak_lijst

@@ -162,9 +162,6 @@ def tekst(klant, keuze, categorienaam, taal="nl"):
         voor_stand = "\n\n" + " ".join(klant["concurrenten"])
     else:
         voor_stand = ""
-    # Stap 292: wat er deze maand veranderde (gewonnen, verloren, fixes live).
-    if klant.get("groei"):
-        voor_stand += "\n\n" + " ".join(klant["groei"])
 
     if taal == "en":
         stand = (f"You are number {p} of {van} in {categorienaam}. {beweging} "
@@ -352,12 +349,6 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
             import emailing
             taal = _taal_van(klant["webshop_url"])
             klant["rendement"] = rendement_regel(klant["webshop_url"], taal, klant.get("pakket"))
-            # Stap 292: gewonnen en verloren vragen, en fixes die live gingen.
-            try:
-                import groeirapport
-                klant["groei"] = groeirapport.voor_klant(ronde, klant["webshop_url"], klant.get("naam"), taal)
-            except Exception as e:
-                print(f"Groeirapport in de maandmail mislukt: {e}")
             try:
                 import concurrentalarm
                 klant["concurrenten"] = concurrentalarm.zinnen_maand(
