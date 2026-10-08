@@ -81,6 +81,13 @@ def maak_tabellen(cur):
                        op TIMESTAMPTZ NOT NULL DEFAULT now(),
                        uitbetaald NUMERIC(10,2) NOT NULL DEFAULT 0,
                        uitbetaald_op TIMESTAMPTZ)""")
+    # De gratis maand (8 oktober): per doorverwezen klant precies een keer.
+    # maand_gegeven_op wordt EERST gezet (claim), pas daarna gaat Mollie
+    # aan; zo kan een tweede ronde nooit een tweede maand opschuiven.
+    # maand_mislukt wordt gezet als Mollie faalde: dan doet de code niets meer
+    # en handelt Nino het met de hand af (liever een melding dan dubbel).
+    cur.execute("ALTER TABLE doorverwijzingen ADD COLUMN IF NOT EXISTS maand_gegeven_op TIMESTAMPTZ")
+    cur.execute("ALTER TABLE doorverwijzingen ADD COLUMN IF NOT EXISTS maand_mislukt TEXT")
     # Welke winkel via welke link binnenkwam, voordat er betaald is.
     cur.execute("""CREATE TABLE IF NOT EXISTS doorverwijs_kliks (
                        webshop_url TEXT PRIMARY KEY,
@@ -299,3 +306,62 @@ def voor_klant(webshop_url):
     tel = _sql("SELECT count(*) AS n FROM doorverwijzingen WHERE code = %s", (code,)) or {}
     rij = _sql("SELECT bezoeken FROM doorverwijzers WHERE code = %s", (code,)) or {}
     return {"code": code, "klanten": int(tel.get("n") or 0), "bezoeken": int(rij.get("bezoeken") or 0)}
+
+
+def geef_gratis_maanden(meld=None):
+    """Elke dag vanuit de wachtklok: de gratis maand voor doorverwijzers (klanten).
+
+    Belofte op de site: 'Your free month starts once the new store has been a
+    customer for 30 days: we simply skip your next payment.' Dus: de nieuwe
+    winkel is WACHTDAGEN betalend klant, niet opgezegd, geen testklant, niet
+    terugbetaald. Dan schuift de volgende Mollie-afschrijving van de
+    doorverwijzer een maand op. Partners krijgen een percentage, geen maand.
+    Geeft {"gegeven", "mislukt", "overgeslagen"} (aantallen)."""
+    import payments
+    import emailing
+    uitslag = {"gegeven": 0, "mislukt": 0, "overgeslagen": 0}
+    rijen = _sql("""SELECT v.id, v.webshop_url, v.payment_id, d.webshop_url AS door_winkel, d.email AS door_email,
+                           k.opgezegd_op, coalesce(k.is_test, false) AS is_test
+                    FROM doorverwijzingen v
+                    JOIN doorverwijzers d ON d.code = v.code AND d.soort = 'klant'
+                    LEFT JOIN klanten k ON k.webshop_url = v.webshop_url
+                    WHERE v.maand_gegeven_op IS NULL AND v.maand_mislukt IS NULL
+                      AND v.op <= now() - make_interval(days => %s)""", (WACHTDAGEN,), alles=True) or []
+    for r in rijen:
+        if r.get("opgezegd_op") or r.get("is_test") or not r.get("door_winkel"):
+            uitslag["overgeslagen"] += 1
+            continue
+        # Terugbetaald of teruggeboekt: dan was het geen echte betalende klant.
+        info = payments.betaling_nakijken(r["payment_id"]) if r.get("payment_id") else None
+        if info and info.get("terugbetaald"):
+            uitslag["overgeslagen"] += 1
+            continue
+        # Eerst claimen (een keer), dan pas Mollie. Wie de claim niet wint, doet niets.
+        if not _sql("""UPDATE doorverwijzingen SET maand_gegeven_op = now()
+                       WHERE id = %s AND maand_gegeven_op IS NULL AND maand_mislukt IS NULL""", (r["id"],)):
+            continue
+        res = payments.schuif_volgende_betaling_op(r["door_winkel"])
+        if res.get("ok"):
+            uitslag["gegeven"] += 1
+            if meld:
+                meld("Gratis maand doorverwijzer gegeven",
+                     f"{r['door_winkel']} verwees {r['webshop_url']} door, die is nu {WACHTDAGEN} dagen klant. "
+                     f"De volgende afschrijving in Mollie schoof van {res['oud']} naar {res['nieuw']}. "
+                     f"Je hoeft niets te doen.")
+            if r.get("door_email"):
+                try:
+                    emailing.send_gratis_maand(r["door_email"], r["door_winkel"], r["webshop_url"], res["nieuw"])
+                except Exception as e:
+                    print(f"Mail gratis maand mislukt: {e}")
+        else:
+            # Terug laten staan als mislukt: niets dubbel, Nino doet het met de hand.
+            _sql("""UPDATE doorverwijzingen SET maand_gegeven_op = NULL, maand_mislukt = %s WHERE id = %s""",
+                 ((res.get("error") or "onbekend")[:300], r["id"]))
+            uitslag["mislukt"] += 1
+            if meld:
+                meld("Gratis maand NIET gelukt: doe het met de hand",
+                     f"{r['door_winkel']} heeft een gratis maand verdiend met {r['webshop_url']}, maar Mollie "
+                     f"gaf een fout: {res.get('error')}. Doe zelf: open het abonnement van {r['door_winkel']} in "
+                     f"Mollie en zet de volgende betaaldatum een maand later (of geef hem een maand terug). "
+                     f"De code probeert het niet nog eens, dus er komt niets dubbel.")
+    return uitslag

@@ -109,3 +109,54 @@ def stuur_voor(webshop_url, email, klant_token, basis_url="https://krilloai.com"
     stuur = stuur or emailing.send_klantbericht
     return bool(stuur(email, "Your week in AI answers", tekst, f"{basis}/mijn/{klant_token}",
                       knop="Open my dashboard"))
+
+
+def verloren_alineas(verloren, maximaal=5):
+    """De alinea's van de 'werd genoemd, nu niet meer'-mail, of None.
+
+    Een regel per vraag en assistent, met wie er nu in jouw plaats genoemd
+    wordt. Hoogstens `maximaal` regels, zodat het een seintje blijft."""
+    if not verloren:
+        return None
+    uit = ["Hi,", "Since last week, AI stopped naming your store for "
+           + (f"{len(verloren)} buying question{'s' if len(verloren) != 1 else ''}"
+              + (f" (the first {maximaal} are below)" if len(verloren) > maximaal else "")) + "."]
+    for v in verloren[:maximaal]:
+        wie = v.get("anderen") or []
+        instead = (f" It now names {', '.join(wie[:3])} instead." if wie else " It names other stores instead.")
+        uit.append(f"{v['assistent']} named you for “{v['vraag']}” last time, but not now.{instead}")
+    uit.append("Open the question in your dashboard to see why you lost it and what to change.")
+    return uit
+
+
+def stuur_verloren(webshop_url, email, klant_token, basis_url="https://krilloai.com", stuur=None, verloren=None):
+    """Na de snelmeting: een korte mail als een vraag is weggevallen. Geeft True
+    als er een mail uitging.
+
+    Dezelfde regels als de weekmail (betalend, niet opgezegd, geen test, niet
+    uitgezet), plus: geen mail tijdens de gratis proef (gratis_tot), en hoogstens
+    een per klant per zes dagen (claim in de database)."""
+    import emailing
+    from urllib.parse import quote
+    if not email or staat_uit(webshop_url):
+        return False
+    klant = db.klant_bij_url(webshop_url) or {}
+    if klant.get("opgezegd_op") or klant.get("is_test"):
+        return False
+    import datetime as _dt
+    if klant.get("gratis_tot") and klant["gratis_tot"] >= _dt.date.today():
+        return False
+    if verloren is None:
+        import snelmeting
+        verloren = snelmeting.verloren_per_assistent(webshop_url)
+    tekst = verloren_alineas(verloren)
+    if not tekst:
+        return False
+    # Pas claimen als er echt iets te melden is, anders blokkeert een lege week de volgende.
+    if not db.claim_moment(f"verlorenmail:{webshop_url}", 6 * 24 * 3600):
+        return False
+    basis = basis_url.rstrip("/")
+    link = f"{basis}/mijn/{klant_token}/why-you-lose?vraag={quote(verloren[0]['vraag'])}"
+    stuur = stuur or emailing.send_klantbericht
+    return bool(stuur(email, "AI stopped naming your store for some questions", tekst, link,
+                      knop="See why you lost it"))

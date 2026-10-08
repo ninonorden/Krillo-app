@@ -1616,6 +1616,18 @@ def send_partner_welkom(to_email, naam, link, procent=20, maanden=12):
     return send_email(to_email, "Your Krillo partner link", html)
 
 
+def send_gratis_maand(to_email, webshop_url, nieuwe_winkel, volgende_datum):
+    """Doorverwijzen: de doorverwijzer hoort dat zijn volgende maand gratis is.
+    Kort, met de datum waarop hij weer betaalt, zodat het geen verrassing is."""
+    body = (_p(f"The store you referred, {_html.escape(nieuwe_winkel)}, has now been a customer for 30 days. "
+               f"As promised, your next month is free.")
+            + _feiten([("Your store", _html.escape(webshop_url)), ("Your next payment", _html.escape(str(volgende_datum)))])
+            + _p("We simply skipped one payment, there is nothing for you to do. Thank you for spreading the word.", zacht=True)
+            + handtekening_html())
+    html = _base_html("Your next month is free", "Thank you for the referral.", body)
+    return send_email(to_email, "Your next month with Krillo is free", html)
+
+
 def send_bureau_mail(to_email, onderwerp, alineas, link_url, afmeld_url, partners_url="https://krilloai.com/partners"):
     """Stap 115: de mail aan een bureau. Zelfde kale, persoonlijke vorm als de
     opvolging, met een link naar zijn pagina en afmelden met een klik."""

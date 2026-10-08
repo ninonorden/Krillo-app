@@ -73,6 +73,46 @@ AFZENDER_AUTOMATISCH = re.compile(r"^(no-?reply|do-?not-?reply|noreply|mailer-da
                                   r"notifications?|autoresponder|auto)@", re.I)
 
 
+# Een helpdesksysteem of AI-bot van de winkel antwoordt namens de eigenaar (8
+# oktober: tuinshop.nl kreeg onze koude mail en hun helpdesk-AI schreef terug
+# "Based on the text you shared..."). Dat is geen gesprek met de eigenaar en
+# ook geen afwezigheidsmelding: het is een deur waar we langs moeten. Daarom een
+# eigen soort met een concept dat vraagt om doorsturen, in plaats van een
+# gewoon verkoopconcept aan een bot.
+HELPDESK_DOMEINEN = ("trengomail.com", "trengo.com", "zendesk.com", "zendesk.net", "freshdesk.com",
+                     "freshdesk.net", "freshservice.com", "gorgias.com", "gorgias.io", "helpscout.net",
+                     "helpscout.com", "intercom.io", "intercom-mail.com", "intercom.com", "kustomer.com",
+                     "kustomerapp.com", "helpshift.com", "front.com", "frontapp.com", "reamaze.com",
+                     "hubspot.com", "hs-inbox.com", "deskpro.com", "tidio.net", "crisp.chat", "gladly.com",
+                     "richpanel.com", "livechat.com", "teamwork.com", "customerly.io", "ada.cx")
+# Zinnen die alleen een bot schrijft die inhoudelijk antwoordt.
+HELPDESK_ZINNEN = re.compile(
+    r"based on the text you shared|(i am|i'm|this is) (an? )?(ai|virtual) (assistant|agent)|"
+    r"our (ai|virtual) assistant|onze (ai|virtuele)[- ]?(assistent|medewerker)|"
+    r"powered by (zendesk|freshdesk|gorgias|intercom|trengo|help ?scout|kustomer)", re.I)
+# Zinnen van een kale ontvangstbevestiging (ticketnummer, 'dit is een automatisch
+# bericht'). Een korte bevestiging blijft 'automatisch' (stil weggeklikt, zoals
+# sinds 29 september); pas als de bot er een echt antwoord omheen schrijft (een
+# langer bericht) willen we dat Nino het ziet en vragen om door te sturen.
+HELPDESK_BEVESTIGING = re.compile(
+    r"this is an automated|dit is een automatisch|ticket ?(#|number|nr)|your ticket|case (number|id)|referentienummer",
+    re.I)
+HELPDESK_LANG = 200
+
+
+def is_helpdesk(van, onderwerp, tekst):
+    """Komt dit uit een helpdesksysteem of van een AI-bot van de winkel?
+    Op het domein van de afzender (ook subdomeinen), of op zinnen die een mens
+    niet zo schrijft."""
+    domein = (van or "").lower().split("@")[-1]
+    if any(domein == d or domein.endswith("." + d) for d in HELPDESK_DOMEINEN):
+        return True
+    if HELPDESK_ZINNEN.search(onderwerp or "") or HELPDESK_ZINNEN.search((tekst or "")[:800]):
+        return True
+    return len((tekst or "").strip()) >= HELPDESK_LANG and bool(
+        HELPDESK_BEVESTIGING.search(onderwerp or "") or HELPDESK_BEVESTIGING.search((tekst or "")[:800]))
+
+
 def _kop_automatisch(it):
     """De kopregels van de mail zelf zeggen het soms al (RFC 3834)."""
     koppen = it.get("Headers") or it.get("headers") or {}
@@ -195,11 +235,32 @@ def zoek_winkel(adres):
     return None
 
 
+def winkel_uit_tekst(onderwerp, tekst):
+    """Bij een helpdeskantwoord zegt het afzenderdomein (trengomail.com) niets
+    over de winkel. De bot noemt de winkel wel bij naam ("tuinshop.nl is not one
+    of..."), dus zoeken we een adres uit onze benaderlijst in zijn tekst. Zonder
+    dit blijft de winkel 'niet beantwoord' en gaan de opvolgmails gewoon door."""
+    ruimte = f"{onderwerp or ''} {tekst or ''}".lower()
+    for naam in set(re.findall(r"[a-z0-9][a-z0-9\-]*(?:\.[a-z0-9\-]+)*\.[a-z]{2,}", ruimte)):
+        for r in _sql("SELECT webshop_url FROM benadering WHERE lower(webshop_url) LIKE %s LIMIT 20",
+                      ("%" + naam + "%",), alles=True) or []:
+            host = re.sub(r"^https?://(www\.)?", "", r["webshop_url"].lower()).split("/")[0]
+            if host == naam.removeprefix("www."):
+                return r["webshop_url"]
+    return None
+
+
 def soort_van(onderwerp, tekst, model=None, van=None, kop_automatisch=False):
     """Wat voor mail het is. Automatisch en afmelden op vaste woorden; de rest
     mag een model inschatten, en zonder model is het een vraag."""
     if onderwerp and TEST_ONDERWERP.lower() in onderwerp.lower():
         return "test"
+    # Helpdesk vooraan (eerder dan 'automatisch', want hun ontvangstbevestiging
+    # en bot-antwoorden hebben woorden als 'ticket #' en 'automated'). Wie
+    # daarin toch duidelijk afmeldt, valt door naar afmelden: dat moet altijd werken.
+    if is_helpdesk(van, onderwerp, tekst) and not AFMELDEN.search(tekst or "") \
+            and not AFMELDEN.search(onderwerp or ""):
+        return "helpdesk"
     if AUTOMATISCH.search(onderwerp or "") or AUTOMATISCH.search((tekst or "")[:300]):
         return "automatisch"
     kaal = re.sub(r"[^a-z]", "", (tekst or "").lower())
@@ -266,6 +327,40 @@ def vast_concept(soort, naam, f):
             f"AI assistants place your store and what to fix. Fix is EUR {f['fix_prijs']} a "
             f"month and we carry out those fixes in your store. You can cancel every month."
             f"{pagina}")
+
+
+def _nederlandse_winkel(webshop_url, van, tekst):
+    """Antwoorden in het Nederlands als de winkel Nederlands is: .nl of .be, of
+    de bot zelf schreef Nederlands."""
+    host = re.sub(r"^https?://(www\.)?", "", (webshop_url or "").lower()).split("/")[0]
+    if host.endswith((".nl", ".be")):
+        return True
+    if re.search(r"\b(een|het|niet|wij|jullie|bedankt|geen|webwinkel|onze)\b", (tekst or "").lower()):
+        return True
+    return False
+
+
+def helpdesk_concept(naam, f, nederlands=False):
+    """Kort verzoek aan de bot of medewerker: stuur dit door naar de eigenaar of
+    marketing. Alleen vaste feiten, geen verkooppraatje richting een bot."""
+    winkel = f.get("winkel") or ("your store" if not nederlands else "jullie winkel")
+    pagina = f.get("pagina")
+    if nederlands:
+        plek = (f" Op dit moment staat {winkel} op plek {f['plek']} in onze index voor {f.get('categorie') or 'jullie categorie'}."
+                if f.get("plek") else "")
+        link = f"\n\nDe uitslag voor jullie winkel staat hier: {pagina}" if pagina else ""
+        return (f"Hallo,\n\nDit antwoord kwam van een automatisch helpdesksysteem, dus ik weet niet of er "
+                f"een mens meeleest. Zou u deze mail willen doorsturen naar de eigenaar of naar degene die "
+                f"de marketing doet?\n\nKort waar het om gaat: wij meten of AI-assistenten zoals ChatGPT "
+                f"en Gemini {winkel} aanbevelen bij vragen van kopers.{plek}{link}\n\n"
+                f"Alvast bedankt voor het doorsturen.")
+    plek = (f" Right now {winkel} is number {f['plek']} in our index for {f.get('categorie') or 'its category'}."
+            if f.get("plek") else "")
+    link = f"\n\nThe result for your store is here: {pagina}" if pagina else ""
+    return (f"Hi,\n\nThis reply came from an automatic helpdesk system, so I am not sure a person reads it. "
+            f"Could you please forward this email to the owner or to whoever handles marketing?\n\n"
+            f"In short: we measure whether AI assistants such as ChatGPT and Gemini recommend {winkel} "
+            f"when shoppers ask buying questions.{plek}{link}\n\nThank you for passing it on.")
 
 
 def schrijf_concept(bericht, f, soort, client=None):
@@ -384,6 +479,8 @@ def verwerk(data, basis_url, melden, client=None):
             verslag.append({"van": b["van"], "soort": "eigen"})
             continue
         url = zoek_winkel(b["van"])
+        if not url and soort == "helpdesk":
+            url = winkel_uit_tekst(b["onderwerp"], b["tekst"])
         rij = _sql("""INSERT INTO antwoorden (bericht_id, van, naam, onderwerp, tekst, webshop_url, soort)
                       VALUES (%s, %s, %s, %s, %s, %s, %s)
                       ON CONFLICT (bericht_id) DO NOTHING RETURNING id""",
@@ -407,6 +504,18 @@ def verwerk(data, basis_url, melden, client=None):
             melden("Afgemeld via een antwoord",
                    f"{_html.escape(b['van'])} ({_html.escape(url or 'winkel niet gevonden')}) schreef terug "
                    f"en is afgemeld. Hun tekst:<br><em>{_html.escape(b['tekst'][:600])}</em>")
+        elif soort == "helpdesk":
+            # Geen model en geen verkooptekst: een kort verzoek om door te sturen.
+            # Nino moet het nog steeds goedkeuren (een antwoord gaat nooit vanzelf weg).
+            f = feiten(url, basis_url)
+            concept = helpdesk_concept(b["naam"], f, _nederlandse_winkel(url, b["van"], b["tekst"]))
+            _sql("UPDATE antwoorden SET concept = %s, stand = 'concept' WHERE id = %s", (concept, nr))
+            melden("Automatisch helpdeskantwoord (geen mens)",
+                   f"<strong>{_html.escape(b['van'])}</strong> ({_html.escape(url or b['van'])}) antwoordde met een "
+                   f"AUTOMATISCH HELPDESKANTWOORD, waarschijnlijk een AI-bot en geen eigenaar. Hun tekst:<br>"
+                   f"<em>{_html.escape(b['tekst'][:800])}</em><br><br>Er staat een kort concept klaar op "
+                   f"{basis_url}/admin/antwoorden dat vraagt om door te sturen naar de eigenaar of marketing. "
+                   f"Opvolgmails naar dit adres zijn gestopt. Het is geen warme lead, geen haast.")
         else:
             try:
                 concept = schrijf_concept(b, feiten(url, basis_url), soort, client=client)

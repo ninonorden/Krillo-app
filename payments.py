@@ -434,6 +434,37 @@ def wissel_naar(webshop_url, nieuw="fix"):
         return {"error": "Switching did not work. Email hello@krilloai.com and we switch it by hand today."}
 
 
+def schuif_volgende_betaling_op(webshop_url, maanden=1):
+    """Doorverwijzen (8 oktober): de gratis maand. De volgende afschrijving van
+    deze klant schuift `maanden` maand op, zodat hij een maand niets betaalt
+    zonder dat we iets terugbetalen (Nino: de klant blijft zo klant).
+
+    Mollie laat bij een lopend abonnement de startDate (de eerstvolgende
+    incasso) verzetten. Lukt dat niet, dan geven we een fout terug en handelt
+    Nino het met de hand af; we proberen het nooit op een andere manier.
+    Geeft {"ok", "oud", "nieuw"} of {"error"}."""
+    import calendar
+    from datetime import date
+    ab = zoek_abonnement(webshop_url)
+    if not ab or not ab.get("next_payment_date"):
+        return {"error": "geen actief abonnement of geen volgende betaaldatum gevonden"}
+    if ab.get("periode") == "jaar":
+        return {"error": "jaarabonnement: een maand opschuiven kan niet, geef de maand op een andere manier terug"}
+    try:
+        oud = date.fromisoformat(str(ab["next_payment_date"])[:10])
+        m0 = oud.month - 1 + maanden
+        jaar, maand = oud.year + m0 // 12, m0 % 12 + 1
+        nieuw = date(jaar, maand, min(oud.day, calendar.monthrange(jaar, maand)[1]))
+        client = get_mollie_client()
+        if client is None:
+            return {"error": "Mollie niet geconfigureerd"}
+        customer = client.customers.get(ab["customer_id"])
+        customer.subscriptions.update(ab["subscription_id"], {"startDate": nieuw.isoformat()})
+        return {"ok": True, "oud": oud.isoformat(), "nieuw": nieuw.isoformat()}
+    except (MollieError, Exception) as e:
+        return {"error": str(e)}
+
+
 def zeg_abonnement_op(customer_id, subscription_id):
     """Zegt het abonnement op bij Mollie. De klant houdt toegang tot het einde
     van de al betaalde periode, er wordt alleen niet opnieuw geincasseerd."""
@@ -596,6 +627,10 @@ def betaling_nakijken(payment_id):
         p = client.payments.get(payment_id)
         return {"status": p.status, "mode": getattr(p, "mode", None),
                 "bedrag": (p.amount or {}).get("value"),
+                # Terugbetaald of teruggeboekt telt niet als betalende klant
+                # (doorverwijzen.py: de gratis maand).
+                "terugbetaald": float((getattr(p, "amount_refunded", None) or {}).get("value") or 0) > 0
+                                or bool(getattr(p, "amount_charged_back", None)),
                 "checkout_url": getattr(p, "checkout_url", None),
                 "webhook_url": getattr(p, "webhook_url", None),
                 "redirect_url": getattr(p, "redirect_url", None)}

@@ -24,10 +24,14 @@ PAGINAS = [
     ("overzicht", "", {"en": "Overview", "nl": "Overzicht"}),
     ("ranglijst", "ranking", {"en": "Ranking", "nl": "Ranglijst"}),
     ("vragen", "questions", {"en": "Questions", "nl": "Vragen"}),
-    ("verbeteringen", "fixes", {"en": "Fixes", "nl": "Verbeteringen"}),
+    # 8 oktober (stap 335): per verloren vraag het echte antwoord, de winnaar en
+    # hun pagina naast die van jou. Hoort in de zijbalkgroep "Understand", dus
+    # tussen Vragen en Sitecheck (de groepen staan in dashboardcanvas.GROEPEN).
+    ("waarom", "why-you-lose", {"en": "Why you lose", "nl": "Waarom je verliest"}),
     # 8 oktober (stap 316): de dertien sitecontroles in het dashboard zelf, in
     # plaats van op een losse pagina met de kop van de website.
     ("sitecheck", "site-check", {"en": "Site check", "nl": "Sitecheck"}),
+    ("verbeteringen", "fixes", {"en": "Fixes", "nl": "Verbeteringen"}),
     ("abonnement", "plan", {"en": "Plan", "nl": "Abonnement"}),
 ]
 PAD_NAAR_PAGINA = {pad: naam for naam, pad, _ in PAGINAS}

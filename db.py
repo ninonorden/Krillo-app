@@ -6981,6 +6981,49 @@ def voorbeeldwinkel():
         conn.close()
 
 
+def index_unieke_winkels(minimum_winkels=5):
+    """Hoeveel VERSCHILLENDE winkels er in de openbare index staan, en hoeveel
+    daarvan bij geen enkele koopvraag genoemd werden (8 oktober).
+
+    WAAROM: de homepage zei "3,503 stores ranked" en een regel verder "of 2,517
+    stores in the index". Allebei waar, maar iets anders geteld: het eerste
+    telde elke plek in elke ranglijst (een winkel in drie categorieen telde
+    drie keer), het tweede telde winkels. Twee getallen voor hetzelfde lijkt op
+    gesjoemel. Nu tellen beide uit deze ene functie: elke winkel een keer, uit
+    de nieuwste afgeronde ronde per categorie en land, alleen ranglijsten die
+    groot genoeg zijn om openbaar te staan."""
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    WITH nieuwste AS (
+                        SELECT DISTINCT ON (categorie, coalesce(land, '')) id
+                          FROM categorie_rondes
+                         WHERE afgerond_op IS NOT NULL
+                      ORDER BY categorie, coalesce(land, ''), id DESC
+                    ),
+                    groot AS (
+                        SELECT n.id FROM nieuwste n JOIN categorie_uitkomsten u ON u.ronde = n.id
+                      GROUP BY n.id HAVING count(u.id) >= %s
+                    ),
+                    per_winkel AS (
+                        SELECT u.webshop_url, max(coalesce(u.genoemd, 0)) AS genoemd
+                          FROM categorie_uitkomsten u JOIN groot g ON g.id = u.ronde
+                      GROUP BY u.webshop_url
+                    )
+                    SELECT count(*), count(*) FILTER (WHERE genoemd = 0) FROM per_winkel""", (minimum_winkels,))
+                totaal, nooit = cur.fetchone()
+                return {"gemeten": totaal or 0, "nooit": nooit or 0}
+    except Exception as e:
+        print(f"Unieke winkels in de index ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
 def openbare_categorieen(minimum_winkels=5):
     """De categorieen die een openbare ranglijstpagina verdienen.
 

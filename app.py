@@ -205,6 +205,7 @@ ASSISTENTEN = [
     {"sleutel": "gemini", "naam": "Gemini", "logo": "gemini", "gemeten": True},
     {"sleutel": "perplexity", "naam": "Perplexity", "logo": "perplexity", "gemeten": False},
     {"sleutel": "google_ai", "naam": "Google AI Mode", "logo": "google", "gemeten": False},
+    {"sleutel": "claude", "naam": "Claude", "logo": "claude", "gemeten": False},
     {"sleutel": "grok", "naam": "Grok", "logo": "grok", "gemeten": False},
 ]
 # Ook als globale waarde in Jinja: sommige pagina's en tests renderen een
@@ -713,6 +714,12 @@ def _bereken_thuis():
                 cijfers = dict(cijfers or {})
                 cijfers["categorieen"] = len({r["categorie"] for r in openbaar})
                 cijfers["winkels"] = sum(int(r.get("winkels") or 0) for r in openbaar)
+            # 8 oktober: elke winkel een keer (zie db.index_unieke_winkels), zodat
+            # "stores ranked" en "stores in the index" hetzelfde getal zijn.
+            uniek = db.index_unieke_winkels(MINIMUM_PER_LAND)
+            if uniek and uniek.get("gemeten"):
+                cijfers = dict(cijfers or {})
+                cijfers["winkels"] = uniek["gemeten"]
         except Exception as e:
             print(f"Openbare telling voor de homepage mislukt: {e}")
         voorbeeldland = landen[0]["land"] if landen else None
@@ -877,7 +884,8 @@ def _eigen_benchmarkcijfer():
     dus vanzelf aan zodra het klopt, zonder dat er iemand aan te pas komt."""
     # Sinds 28 september uit de hele index (alle landen), niet uit de oude
     # proefmetingen van 209 Nederlandse winkels.
-    cijfers = db.index_nooit_genoemd()
+    # 8 oktober: dezelfde telling als "stores ranked" op de homepage.
+    cijfers = db.index_unieke_winkels(MINIMUM_PER_LAND) or db.index_nooit_genoemd()
     if not cijfers or not cijfers.get("gemeten"):
         try:
             cijfers = benchmark.tel_op(db.benchmark_regels())
@@ -3403,23 +3411,54 @@ def _rang_voor_gratis_check(webshop_url):
                 # 7 oktober: het concept is "wie AI aanraadt in plaats van jou".
                 # Dus ook de namen: de bovenste drie winkels van dezelfde lijst,
                 # zonder de winkel zelf. Mislukt dat, dan gewoon zonder namen.
-                voor = []
+                voor, voor_rijen = [], []
                 try:
-                    lijst = db.ranglijst_per_land(beeld["categorie"], beeld["land"], limiet=6)
+                    lijst = db.ranglijst_per_land(beeld["categorie"], beeld["land"], limiet=8)
                     eigen = scan_engine.normalize_url(kandidaat)
                     for r in (lijst or {}).get("rijen") or []:
                         if scan_engine.normalize_url(r.get("webshop_url") or "") == eigen:
                             continue
-                        voor.append(r.get("naam") or re.sub(r"^https?://(www\.)?", "", r.get("webshop_url") or ""))
-                        if len(voor) == 3:
-                            break
+                        naam = r.get("naam") or re.sub(r"^https?://(www\.)?", "", r.get("webshop_url") or "")
+                        if len(voor) < 3:
+                            voor.append(naam)
+                        # 8 oktober (versie 10, de gratis uitslag als mini-rapport):
+                        # de vijf winkels die AI het vaakst noemt, met hun telling.
+                        if len(voor_rijen) < 5:
+                            voor_rijen.append({"naam": naam, "positie": r.get("positie"),
+                                               "genoemd": r.get("genoemd") or 0})
                 except Exception as e:
                     print(f"Namen voor de gratis check mislukt: {e}")
+                # De koopvragen die de winkel verliest, met wie AI in zijn plaats
+                # noemt. Komt uit de opgeslagen antwoorden, dus geen extra kosten.
+                # Alleen wat er echt in de antwoorden staat; maximaal vijf.
+                verloren, aantal_verloren = [], None
+                try:
+                    import dashboardpaginas as _dp
+                    vo = _dp.vragen_overzicht(beeld["ronde"], kandidaat, beeld.get("naam"))
+                    aantal_verloren = vo.get("verloren")
+                    for v in vo.get("vragen") or []:
+                        if v.get("gewonnen"):
+                            continue
+                        winnaars = []
+                        for m in v.get("per_model") or []:
+                            for n in m.get("anderen") or []:
+                                if n not in winnaars:
+                                    winnaars.append(n)
+                        if winnaars:
+                            verloren.append({"vraag": v["vraag"], "winnaars": winnaars[:3]})
+                        if len(verloren) == 5:
+                            break
+                except Exception as e:
+                    print(f"Verloren vragen voor de gratis check mislukt: {e}")
                 return {
-                    "voor": voor,
+                    "voor": voor, "voor_rijen": voor_rijen,
+                    "verloren": verloren, "aantal_verloren": aantal_verloren,
+                    "nul": bool(beeld.get("nul")),
                     "positie": beeld["positie"], "van": beeld["van"],
                     "categorie": categorieen.naam_en(beeld["categorie"]),
                     "land": sitetaal.landnaam(beeld["land"], "en"),
+                    # De vragen staan in de taal van de markt; de uitslag zegt dat erbij.
+                    "taal": markten.vraagtaal_en(beeld["land"]),
                     "genoemd": beeld.get("genoemd") or 0,
                     "telbaar": beeld.get("telbaar") or 0,
                     "link": f"/index/{beeld['land']}/{beeld['categorie']}#p{beeld['positie']}",
@@ -4843,6 +4882,11 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                     if v.get("gemeten"):
                         import weekmail
                         weekmail.stuur_voor(c["webshop_url"], c.get("email"), klant_token, base_url)
+                        # 8 oktober: apart seintje als een vraag is weggevallen.
+                        try:
+                            weekmail.stuur_verloren(c["webshop_url"], c.get("email"), klant_token, base_url)
+                        except Exception as e:
+                            print(f"Weggevallen-vragen mail mislukt voor {c['webshop_url']}: {e}")
                 except Exception as e:
                     print(f"Snelmeting mislukt voor {c['webshop_url']}: {e}")
                 # Stap 255: de product- en categoriepagina's, per pagina wat AI mist.
@@ -6183,6 +6227,19 @@ def _wachtklok_tik(nu=None):
                 print(f"Klantnieuws mislukt: {e}")
         threading.Thread(target=_nieuws, daemon=True).start()
         gedaan.append("klantnieuws")
+    # 8 oktober: de gratis maand voor doorverwijzers. Eens per dag overdag; de
+    # code zelf is idempotent (een keer per doorverwezen klant), zie doorverwijzen.py.
+    if 9 <= nu.hour < 18 and db.claim_moment("gratis_maand_klok", 20 * 3600):
+        def _gratis_maand():
+            try:
+                import doorverwijzen
+                v = doorverwijzen.geef_gratis_maanden(meld=_meld_aan_beheer)
+                if v["gegeven"] or v["mislukt"]:
+                    print(f"Gratis maanden: {v}")
+            except Exception as e:
+                print(f"Gratis maand mislukt: {e}")
+        threading.Thread(target=_gratis_maand, daemon=True).start()
+        gedaan.append("gratis maand")
     # Stap 88 (30 september): het opleveroverzicht vanzelf, overdag, hooguit
     # een keer per uur (zie opleveragent.py).
     if 9 <= nu.hour < 19 and db.claim_moment("oplevering_auto", 55 * 60):
@@ -8396,7 +8453,8 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                         print(f"Bronnen en pagina per vraag mislukt voor {webshop_url}: {e}")
             except Exception as e:
                 print(f"Aanpak per vraag mislukt voor {webshop_url}: {e}")
-        if pagina == "overzicht" and klant_token and not proef:
+        if klant_token and not proef:
+            # Versie 10: ook buiten het overzicht, voor "Your first month" onderaan de zijbalk.
             try:
                 gegevens["gids"] = _eerste_maand(webshop_url, klant_token, beeld, taal,
                                                  pakket=(db.get_klant(klant_token) or {}).get("pakket"))
@@ -8521,6 +8579,12 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
     # "Add to my fixes" (30 september): de lijst van de klant, op het overzicht
     # voor de knoppen en op Verbeteringen bovenaan.
     gegevens["gekozen"] = db.gekozen_vragen(webshop_url) if klant_token else []
+    # Versie 10 (8 oktober): zijbalk met groepen, en de blokken van het canvas.
+    try:
+        gegevens.update(_canvas_gegevens(webshop_url, beeld, pagina, links, taal, klant_token, proef,
+                                         werkblok, gegevens))
+    except Exception as e:
+        print(f"Canvasgegevens mislukt voor {webshop_url}: {e}")
     return render_template(
         "dashboard.html",
         t=sitetaal.teksten(taal), taal=taal, beeld=beeld, pagina=pagina,
@@ -8745,6 +8809,113 @@ def _sitecheck(webshop_url, klant_token, taal):
     return {"score": laatste.get("score"), "op": laatste.get("aangemaakt_op"), "groepen": groepen,
             "verloop": verloop, "goed": sum(1 for c in checks if c.get("status") in ("ok", "goed")),
             "totaal": len(checks), "pdf": f"/mijn/{klant_token}/checks.pdf"}
+
+
+def _canvas_gegevens(webshop_url, beeld, pagina, links, taal, klant_token, proef, werkblok, gegevens):
+    """De gegevens voor het dashboard in de vorm van het canvas (8 oktober, versie 10).
+
+    Alleen de bedrading: de zijbalk met groepen en badges, en per pagina wat het
+    sjabloon extra nodig heeft (overzicht: samenvatting, Why you lose, What to do
+    now, bronnen, doelkaart; Why you lose: de vraag met antwoorden, winnaar,
+    bronnen en acties). De logica zelf staat in dashboardcanvas.py en
+    waaromverlies.py. Een fout hier mag het dashboard nooit breken."""
+    import dashboardcanvas as dc
+    import dashboardpaginas as dp
+    import waaromverlies as wv
+    uit = {}
+    gekozen = gegevens.get("gekozen") or []
+    sitescore = None
+    if klant_token and not proef:
+        try:
+            rap = db.get_klant_rapporten(klant_token, limit=1) or []
+            sitescore = rap[0].get("score") if rap else None
+        except Exception:
+            sitescore = None
+    uit["menu"] = dc.menu(links, dc.badges(beeld, gekozen, sitescore, taal), taal)
+    uit["gids_zij"] = dc.gids_regel(gegevens.get("gids"), taal)
+    if not beeld or pagina not in ("overzicht", "waarom"):
+        return uit
+    waarom_href = next((l["href"] for l in links if l["naam"] == "waarom"), None)
+    uit["waarom_href"] = waarom_href
+    mijn = bool(klant_token and not proef)
+    try:
+        rijen = (_ranglijst_bewaard(beeld["categorie"], beeld.get("land")) or {}).get("rijen") or []
+    except Exception:
+        rijen = []
+    eigen_checks = wv.klant_checks(klant_token) if mijn else None
+    paginas = None
+    if mijn:
+        try:
+            import paginacheck
+            paginas = (paginacheck.laatste(webshop_url) or {}).get("paginas")
+        except Exception:
+            paginas = None
+    if pagina == "overzicht":
+        vr = gegevens.get("vragen") or {}
+        uit["samenvatting"] = dc.samenvatting(beeld, vr, taal)
+        uit["bronnen_donut"] = dc.bronnen_donut(_bronnen_van_ronde(beeld["ronde"]), taal)
+        verloren = wv.verloren_vragen(vr)
+        uit["acties_nu"] = dc.acties_nu(verloren, gekozen, werkblok, taal, href_waarom=waarom_href)
+        if verloren:
+            q = verloren[0]
+            kaart = {"vraag": q["vraag"], "winnaar": wv.winnaar_naam(q), "redenen": [], "geladen": False,
+                     "href": f"{waarom_href}{'&' if '?' in waarom_href else '?'}vraag={quote(q['vraag'])}"}
+            url = wv.winnaar_url(kaart["winnaar"], rijen)
+            cache = wv.lees_cache(url) if (url and eigen_checks) else None
+            if cache:
+                onderwerp, ontbreekt = wv.pagina_ontbreekt(q["vraag"], paginas)
+                rij = wv.vergelijk(cache["checks"], eigen_checks["checks"], taal)
+                kaart["redenen"] = wv.redenen(rij, kaart["winnaar"], onderwerp, ontbreekt, taal)[:4]
+                kaart["geladen"] = True
+            uit["waarom_kaart"] = kaart
+        eigen = gegevens.get("eigen") or {}
+        uit["doelen"] = dc.doelen(vr, gekozen, eigen.get("lijst") or [], taal, waarom_href, rijen,
+                                  eigen_checks["checks"] if eigen_checks else None, paginas) if mijn else []
+        uit["doel_voorstellen"] = dc.voorstellen(vr, gekozen)
+        return uit
+    # pagina == "waarom"
+    try:
+        vo = dp.vragen_overzicht(beeld["ronde"], webshop_url, beeld.get("naam"))
+    except Exception as e:
+        print(f"Vragen voor Why you lose mislukt voor {webshop_url}: {e}")
+        return uit
+    if mijn:
+        vo = _zonder_niet_voor_mij(vo, set(_niet_voor_mij(webshop_url)))
+    if proef:
+        # In de voorproef zijn alleen de eerste vragen open; de rest laten we niet eens zien.
+        vo = dict(vo, vragen=vo["vragen"][:dp.PROEF_OPEN_VRAGEN])
+    eigen_lijst = []
+    if mijn:
+        try:
+            import eigenvragen
+            eigen_lijst = eigenvragen.overzicht(webshop_url)
+        except Exception:
+            eigen_lijst = []
+    v = wv.kies_vraag(vo, request.args.get("vraag"), eigen_lijst)
+    uit["waarom_vragen"] = [{"vraag": q["vraag"], "gewonnen": q.get("gewonnen"), "eigen": False,
+                             "href": f"{waarom_href}{'&' if '?' in waarom_href else '?'}vraag={quote(q['vraag'])}"}
+                            for q in vo.get("vragen", [])[:8]]
+    uit["waarom_vragen"] += [{"vraag": e["vraag"], "gewonnen": False, "eigen": True,
+                              "href": f"{waarom_href}{'&' if '?' in waarom_href else '?'}vraag={quote(e['vraag'])}"}
+                             for e in eigen_lijst]
+    if not v:
+        return uit
+    try:
+        antwoord_rijen = db.antwoorden_met_tekst_van_ronde(beeld["ronde"]) if not v.get("eigen") else []
+        w = wv.pagina_gegevens(v, antwoord_rijen, rijen, beeld.get("naam") or webshop_url, webshop_url, gekozen, taal,
+                               sitetaal.landnaam(beeld.get("land"), taal) if beeld.get("land") else None,
+                               paginas, dp.assistent_naam, dp.zonder_opmaak)
+        w["verloren_aantal"] = vo.get("verloren")
+        w["totaal"] = vo.get("totaal")
+        if mijn:
+            w["vergelijk_url"] = f"/mijn/{klant_token}/waarom/vergelijk?vraag={quote(v['vraag'])}" + (
+                f"&taal={taal}" if request.args.get("taal") else "")
+            w["kies_url"] = f"/mijn/{klant_token}/kies" if (werkblok and not werkblok.get("opgezegd")) else None
+        w["eigen_check_er"] = bool(eigen_checks)
+        uit["waarom"] = w
+    except Exception as e:
+        print(f"Pagina Why you lose mislukt voor {webshop_url}: {e}")
+    return uit
 
 
 GIDS_WEG = "gids_weg:"
@@ -9608,6 +9779,52 @@ def klant_kies_vraag(klant_token):
     return jsonify({"ok": aantal is not None, "aantal": aantal or 0, "aan": aan})
 
 
+@app.route("/mijn/<klant_token>/waarom/vergelijk")
+def klant_waarom_vergelijk(klant_token):
+    """"Their page next to yours" (8 oktober, stap 335), als JSON.
+
+    De scan van de winnaar (dertien checks, andermans website) duurt seconden en
+    mag dus niet in het opbouwen van de pagina zitten. De pagina Why you lose
+    laadt dit met fetch en toont zolang een laadstaat. De scan zelf, met zeven
+    dagen geheugen en een tijdslimiet, staat in waaromverlies.py. Alleen met een
+    geldige klantlink."""
+    import dashboardpaginas as dp
+    import waaromverlies as wv
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return jsonify({"ok": False, "fout": "This link no longer works."}), 404
+    taal = sitetaal.kies_taal(pad_taal=request.args.get("taal"))
+    url = klant["webshop_url"]
+    beeld = klantbeeld.bouw(url)
+    if not beeld:
+        return jsonify({"ok": False, "soort": "geen_meting",
+                        "fout": "There is no measurement for your store yet."}), 200
+    try:
+        vo = _zonder_niet_voor_mij(dp.vragen_overzicht(beeld["ronde"], url, beeld.get("naam")),
+                                   set(_niet_voor_mij(url)))
+        import eigenvragen
+        eigen = eigenvragen.overzicht(url)
+    except Exception as e:
+        print(f"Vergelijken: vragen ophalen mislukt voor {url}: {e}")
+        return jsonify({"ok": False, "fout": "Something went wrong. Try again in a minute."}), 200
+    v = wv.kies_vraag(vo, request.args.get("vraag"), eigen)
+    if not v:
+        return jsonify({"ok": False, "soort": "geen_vraag", "fout": "That question is not in your measurement."}), 200
+    try:
+        import paginacheck
+        paginas = (paginacheck.laatste(url) or {}).get("paginas")
+    except Exception:
+        paginas = None
+    onderwerp, ontbreekt = wv.pagina_ontbreekt(v["vraag"], paginas)
+    try:
+        rijen = (_ranglijst_bewaard(beeld["categorie"], beeld.get("land")) or {}).get("rijen") or []
+    except Exception:
+        rijen = []
+    uit = wv.vergelijking_json(v, rijen, wv.klant_checks(klant_token), taal=taal,
+                               onderwerp=onderwerp, pagina_ontbreekt=ontbreekt)
+    return jsonify(uit)
+
+
 @app.route("/mijn/<klant_token>/eigen-vragen", methods=["POST"])
 def klant_eigen_vragen(klant_token):
     """Een eigen vraag toevoegen of weghalen (2 oktober, stap 180). Na toevoegen
@@ -9632,6 +9849,10 @@ def klant_eigen_vragen(klant_token):
             melding = "Added. We ask ChatGPT and Gemini now; refresh in a minute."
         else:
             melding = uit["fout"]
+    # 8 oktober (stap 336): de doelkaart op het overzicht gebruikt deze route ook en
+    # wil na het toevoegen terug naar het overzicht, niet naar Questions.
+    if request.form.get("terug") == "overzicht":
+        return redirect(f"/mijn/{klant_token}?eigen={quote(melding)}#doel")
     return redirect(f"/mijn/{klant_token}/questions?eigen={quote(melding)}#eigen")
 
 
