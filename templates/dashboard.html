@@ -149,12 +149,99 @@
     {% endif %}
 
 
-    {% if not beeld and pagina in ('overzicht', 'ranglijst', 'vragen') %}
+    {% if wachtwoord is defined and wachtwoord and (beeld or pagina not in ('overzicht', 'ranglijst', 'vragen')) %}
+    <div class="st-let">
+      <strong>{{ 'Je winkel staat achter een wachtwoord.' if taal == 'nl' else 'Your store is behind a password.' }}</strong>
+      {{ 'AI kan hem daardoor niet lezen, en onze sitecheck ook niet. Haal het wachtwoord weg (in Shopify: Online winkel, Voorkeuren); we kijken binnen een dag opnieuw.' if taal == 'nl' else 'So AI cannot read it, and our site check cannot either. Remove the password (in Shopify: Online Store, Preferences); we check again within a day.' }}
+    </div>
+    {% endif %}
+
+    {% if not beeld and start is defined and start and pagina in ('overzicht', 'ranglijst', 'vragen') and not buiten_markt %}
+    {# ================================================================
+       DE STARTPAGINA (8 oktober). Een nieuwe klant zonder plek zag een
+       kaartje met een zin en verder niets. Nu, zoals de beste dashboards
+       het doen (Peec, Profound, Stripe, Shopify): een korte lijst stappen
+       met wat klaar is, wat nu loopt en wat hij zelf kan doen, en een balk
+       die laat zien hoe ver het is. Elk vinkje komt uit de database.
+       ================================================================ #}
+    {% set nl = taal == 'nl' %}
+    <div class="st-kop">
+      <div>
+        <div class="st-label">{{ 'AAN DE SLAG' if nl else 'GETTING STARTED' }}</div>
+        <h2 class="st-titel">{{ 'We zetten je dashboard klaar' if nl else 'We are setting up your dashboard' }}</h2>
+        <p class="st-sub">{{ 'Meestal staat alles er binnen het uur. Je hoeft niets te verversen om het te volgen: we mailen je zodra je plek er is.' if nl else 'Most of it is here within the hour. No need to keep refreshing: we email you as soon as your rank is in.' }}</p>
+      </div>
+      <div class="st-teller"><span>{{ start.klaar }}</span>/{{ start.totaal }}<div>{{ 'klaar' if nl else 'done' }}</div></div>
+    </div>
+    <div class="st-balk"><div style="width:{{ (start.klaar / start.totaal * 100) | round | int }}%"></div></div>
+
+    {% if categorie_melding == 'gekozen' %}
+    <div class="st-ok">{{ 'Bewaard. We zetten je nu in de ranglijst; dit scherm werkt zichzelf bij.' if nl else 'Saved. We are placing you in the ranking now; this page updates by itself.' }}</div>
+    {% elif categorie_melding == 'fout' %}
+    <div class="st-let">{{ 'Kies een categorie uit de lijst en Nederland of België.' if nl else 'Choose a category from the list, and the Netherlands or Belgium.' }}</div>
+    {% endif %}
+
+    <ol class="st-lijst">
+      {% for s in start.stappen %}
+      <li class="st-stap st-{{ s.status }}" id="start-{{ s.sleutel }}">
+        <span class="st-bol" aria-hidden="true">{% if s.status == 'klaar' %}&#10003;{% elif s.status == 'let_op' %}!{% elif s.status == 'bezig' %}<i></i>{% else %}{{ loop.index }}{% endif %}</span>
+        <div class="st-inhoud">
+          <div class="st-regel">
+            <strong>{{ s.titel }}</strong>
+            <span class="st-tag">{% if s.status == 'klaar' %}{{ 'Klaar' if nl else 'Done' }}{% elif s.status == 'bezig' %}{{ 'Loopt nu' if nl else 'In progress' }}{% elif s.status == 'actie' %}{{ 'Jij' if nl else 'Your turn' }}{% elif s.status == 'let_op' %}{{ 'Let op' if nl else 'Needs you' }}{% else %}{{ 'Straks' if nl else 'Up next' }}{% endif %}</span>
+          </div>
+          {% if s.tekst %}<p>{{ s.tekst }}</p>{% endif %}
+          {% if s.sleutel == 'categorie' and categoriekeuzes is defined %}
+            {% if s.wijzig %}<details class="st-wijzig"><summary>{{ 'Klopt niet? Kies zelf' if nl else 'Not right? Choose it yourself' }}</summary>{% endif %}
+            <form method="post" action="{{ categorie_post }}" class="st-form">
+              <input type="hidden" name="terug" value="{{ {'ranglijst': 'ranking', 'vragen': 'questions'}.get(pagina, '') }}">
+              <label>{{ 'Wat verkoop je vooral?' if nl else 'What do you mainly sell?' }}
+                <select name="categorie" required>
+                  <option value="">{{ 'Kies een categorie' if nl else 'Choose a category' }}</option>
+                  {% for c in categoriekeuzes %}<option value="{{ c.slug }}">{{ c.naam }}</option>{% endfor %}
+                </select>
+              </label>
+              <label>{{ 'Waar verkoop je?' if nl else 'Where do you sell?' }}
+                <select name="land">
+                  <option value="nl" {{ 'selected' if gekozen_land != 'be' }}>{{ 'Nederland' if nl else 'Netherlands' }}</option>
+                  <option value="be" {{ 'selected' if gekozen_land == 'be' }}>{{ 'België' if nl else 'Belgium' }}</option>
+                </select>
+              </label>
+              <button type="submit">{{ 'Bewaar en plaats me' if nl else 'Save and place me' }}</button>
+            </form>
+            {% if s.wijzig %}</details>{% endif %}
+          {% endif %}
+          {% if s.sleutel == 'pixel' and s.status != 'klaar' and pixel is defined and pixel %}
+            <details class="st-wijzig"><summary>{{ 'Laat zien hoe' if nl else 'Show me how' }}</summary>
+              <div class="st-pixel">{% include "_pixel.html" %}</div>
+            </details>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+
+    <div class="st-straks">
+      <div class="st-label">{{ 'DIT KOMT HIER TE STAAN' if nl else 'WHAT YOU WILL SEE HERE' }}</div>
+      <div class="st-drie">
+        <div><strong>{{ 'Je plek' if nl else 'Your rank' }}</strong><span>{{ 'Tussen de winkels in je categorie, elke maand opnieuw gemeten.' if nl else 'Among the stores in your category, measured again every month.' }}</span></div>
+        <div><strong>{{ 'Wie AI noemt in plaats van jou' if nl else 'Who AI names instead of you' }}</strong><span>{{ 'Per koopvraag, met het echte antwoord van ChatGPT en Gemini.' if nl else 'Per buying question, with the real answer from ChatGPT and Gemini.' }}</span></div>
+        <div><strong>{{ 'Wat je verandert' if nl else 'What to change' }}</strong><span>{{ 'Drie fixes tegelijk, uitgeschreven voor jouw winkel.' if nl else 'Three fixes at a time, written out for your store.' }}</span></div>
+      </div>
+      <a class="st-demo" href="/demo" target="_blank" rel="noopener">{{ 'Bekijk alvast een voorbeeld van een gevuld dashboard' if nl else 'See an example of a filled dashboard' }} &rarr;</a>
+    </div>
+    {% if start.stappen | selectattr('status', 'equalto', 'bezig') | list %}
+    {# Loopt er iets, dan ververst de pagina zichzelf rustig (elke 60 seconden),
+       zodat Nino niet zelf hoeft te verversen. Niet als iemand een formulier
+       of de pixelcode open heeft. #}
+    <script>setTimeout(function(){ if(!document.querySelector('details[open]') && !document.activeElement.closest('form')) location.reload(); }, 60000);</script>
+    {% endif %}
+    {% elif not beeld and pagina in ('overzicht', 'ranglijst', 'vragen') %}
     {# Een betalende klant van wie de categorie nog niet gemeten is, of die
        buiten NL en BE verkoopt. Eerlijk zeggen waar hij aan toe is. #}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'JOUW POSITIE' if taal == 'nl' else 'YOUR POSITION' }}</div>
-      <p style="margin:0; font-size:15px;">
+      <p style="margin:0; padding:14px 18px 18px; font-size:15px; line-height:1.6;">
         {% if buiten_markt %}{{ (werkblok.wt.buiten_markt | replace('{landen}', index_landen_nl if taal == 'nl' else index_landen_en)) if werkblok else '' }}
         {% elif geen_plek and geen_plek.bezig %}
           {# 1 oktober: wie betaalt, wacht geen maand. De plek wordt nu uitgerekend
@@ -205,147 +292,6 @@
     <div class="volgende"><span class="pijl">&rarr;</span> {{ volgende }}</div>
     {% endif %}
 
-    {# 7 OKTOBER (Nino): "brengt Krillo mij verkeer?" De hele keten per maand:
-       plek bij AI (wij meten) naast bezoek, bestellingen en omzet uit AI (de
-       klant zet ze uit Google Analytics of Shopify erin). Eerste maand is de
-       nulmeting. Demo en voorproef zien een voorbeeld, duidelijk als voorbeeld. #}
-    {% if aiverkeer is defined and aiverkeer %}
-    {% set nl = taal == 'nl' %}
-    <div class="kaartblok" id="aiverkeer">
-      <div class="kaartkop">{{ 'BRENGT AI JE BEZOEK EN VERKOOP?' if nl else 'IS AI SENDING YOU VISITORS AND SALES?' }}
-        {% if aiverkeer_voorbeeld is defined and aiverkeer_voorbeeld %}<span class="uitleg">{{ 'VOORBEELD' if nl else 'EXAMPLE' }}</span>{% endif %}</div>
-      {% if aiverkeer.rijen %}
-      {% set o = aiverkeer.oordeel %}
-      {# 7 oktober middag (Nino, na Perplexity): de bedrijfscijfers als tegels,
-         net als plek en zichtbaarheid. Laatste ingevulde maand, en het verschil
-         met de nulmeting. Uit de eigen statistieken van de winkel. #}
-      {% set l = aiverkeer.rijen | last %}
-      {% set b0 = aiverkeer.rijen | first %}
-      {% set vgl = aiverkeer.rijen | length > 1 %}
-      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; padding:0 16px 12px;">
-        {% for label_nl, label_en, waarde, verschil in [
-             ('AI-BEZOEK', 'AI SESSIONS', l.bezoek, (('%+d%%' % o.bezoek) if o and o.bezoek is not none else None)),
-             ('BESTELLINGEN UIT AI', 'ORDERS FROM AI', l.orders, (('%+d' % (l.orders - b0.orders)) if vgl and l.orders is not none and b0.orders is not none else None)),
-             ('OMZET UIT AI', 'REVENUE FROM AI', ('€%.0f' % l.omzet) if l.omzet is not none else None, (('%+d%%' % o.omzet) if o and o.omzet is not none else None)),
-             ('CONVERSIE UIT AI', 'AI CONVERSION', ('%s%%' % l.conversie) if l.conversie is not none else None, (('was %s%%' % b0.conversie) if vgl and b0.conversie is not none else None)),
-           ] %}
-        <div style="border:1px solid var(--lijn, #E8E8EC); border-radius:10px; padding:10px 12px;">
-          <div style="font-family:var(--mono); font-size:11px; color:var(--zacht, #6E7079);">{{ label_nl if nl else label_en }}</div>
-          <div style="font-size:24px; font-weight:700; margin:2px 0;">{{ waarde if waarde is not none else '-' }}</div>
-          <div style="font-size:12px; color:{{ '#0A7F55' if verschil and verschil[:1] == '+' else 'var(--zacht, #6E7079)' }};">{% if verschil %}{{ verschil }} {{ '' if verschil[:3] == 'was' else ('tegen ' ~ b0.maand if nl else 'vs ' ~ b0.maand) }}{% else %}{{ l.maand }}{% endif %}</div>
-        </div>
-        {% endfor %}
-      </div>
-      {% if o and o.plek_van and o.plek_tot %}
-      <p class="klein" style="margin:0 16px 10px;">{{ ('In dezelfde periode ging je plek bij AI van #' ~ o.plek_van ~ ' naar #' ~ o.plek_tot ~ '.') if nl else ('In the same period your AI rank went from #' ~ o.plek_van ~ ' to #' ~ o.plek_tot ~ '.') }}</p>
-      {% endif %}
-      {# 7 oktober (Nino): "laten zien dat de ROI omhoog gaat". Extra omzet uit AI
-         tegen de nulmeting, naast wat Krillo die maand kost. Na te rekenen. #}
-      {% if o and o.extra_omzet is defined and o.extra_omzet is not none %}
-      <div style="margin:0 16px 12px; padding:12px 14px; border-radius:10px; background:{{ '#ECFDF3' if o.keer is defined else '#F4F4F5' }}; font-size:15px;">
-        {% if o.keer is defined %}
-        {% if nl %}<strong>&euro; {{ o.extra_omzet }} meer omzet uit AI</strong> in {{ o.tot }} dan in je nulmeting. Krillo kost je &euro; {{ '%.0f' % o.maandprijs }} per maand: dat is <strong>{{ o.keer }}x</strong> wat je betaalt.
-        {% else %}<strong>&euro;{{ o.extra_omzet }} more revenue from AI</strong> in {{ o.tot }} than in your baseline month. Krillo costs you &euro;{{ '%.0f' % o.maandprijs }} a month: that is <strong>{{ o.keer }}x</strong> what you pay.{% endif %}
-        {% else %}
-        {{ 'Nog geen extra omzet uit AI ten opzichte van je nulmeting. Eerst komt genoemd worden, dan bezoek: kijk hieronder of je plek al stijgt.' if nl else 'No extra revenue from AI yet compared to your baseline. Being named comes first, then visits: check below whether your rank is rising.' }}
-        {% endif %}
-        <div class="klein" style="margin-top:4px;">{{ 'Seizoen en acties tellen ook mee. Vergelijk met een categorie die je niet veranderde.' if nl else 'Seasons and sales count too. Compare with a category you did not change.' }}</div>
-      </div>
-      {% endif %}
-      <div style="padding:0 16px; overflow-x:auto;">
-      <table class="tabel"><thead><tr>
-        <th>{{ 'Maand' if nl else 'Month' }}</th><th>{{ 'Plek bij AI' if nl else 'AI rank' }}</th>
-        <th>{{ 'Bezoek uit AI' if nl else 'Visits from AI' }}</th><th>{{ 'Bestellingen' if nl else 'Orders' }}</th>
-        <th>{{ 'Omzet' if nl else 'Revenue' }}</th><th>{{ 'Conversie' if nl else 'Conversion' }}</th></tr></thead><tbody>
-        {% for r in aiverkeer.rijen %}<tr>
-          <td>{{ r.maand }}{% if loop.first and aiverkeer.rijen|length > 1 %} <span class="klein">{{ 'nulmeting' if nl else 'baseline' }}</span>{% endif %}</td>
-          <td>{{ '#' ~ r.plek if r.plek else '-' }}</td>
-          <td>{{ r.bezoek if r.bezoek is not none else '-' }}</td>
-          <td>{{ r.orders if r.orders is not none else '-' }}</td>
-          <td>{{ ('&euro; %.0f' % r.omzet) | safe if r.omzet is not none else '-' }}</td>
-          <td>{{ (r.conversie ~ '%') if r.conversie is not none else '-' }}</td></tr>{% endfor %}
-      </tbody></table>
-      </div>
-      {% else %}
-      <p style="margin:0 0 10px; font-size:15px;">{{ 'Genoemd worden is nog geen verkoop. Zet hier elke maand drie getallen uit je eigen statistieken, dan zie je naast je plek bij AI of er ook bezoek en omzet uit komt. De eerste maand is je nulmeting.' if nl else 'Being named is not a sale yet. Add three numbers from your own analytics each month and you see, next to your AI rank, whether it brings visits and revenue. Your first month is the baseline.' }}</p>
-      {% endif %}
-      {% if aiverkeer_post is defined and aiverkeer_post %}
-      <form method="post" action="{{ aiverkeer_post }}" style="display:flex; flex-wrap:wrap; gap:8px; align-items:end; margin-top:12px; font-size:13px;">
-        <label>{{ 'Maand' if nl else 'Month' }}<br><input type="month" name="maand" required style="padding:6px;"></label>
-        <label>{{ 'Bezoek uit AI' if nl else 'Visits from AI' }}<br><input name="bezoek" inputmode="numeric" style="padding:6px; width:110px;"></label>
-        <label>{{ 'Bestellingen' if nl else 'Orders' }}<br><input name="orders" inputmode="numeric" style="padding:6px; width:90px;"></label>
-        <label>{{ 'Omzet (€)' if nl else 'Revenue (€)' }}<br><input name="omzet" inputmode="decimal" style="padding:6px; width:110px;"></label>
-        <button type="submit" style="padding:8px 14px;">{{ 'Bewaren' if nl else 'Save' }}</button>
-      </form>
-      <p class="klein" style="margin:8px 0 0;">{{ 'Waar vind je het: Google Analytics, Acquisitie, Verkeersacquisitie, filter de bron op chatgpt.com, gemini.google.com, perplexity.ai en copilot.microsoft.com. Of Shopify, Analytics, Sessies en Verkoop per verwijzer.' if nl else 'Where to find it: Google Analytics, Acquisition, Traffic acquisition, filter session source on chatgpt.com, gemini.google.com, perplexity.ai and copilot.microsoft.com. Or Shopify, Analytics, Sessions and Sales by referrer.' }} <a href="/proof">{{ 'Hoe we bewijzen dat het werkt' if nl else 'How we prove it pays' }} &rarr;</a></p>
-      {% endif %}
-    </div>
-    {% endif %}
-
-    {# Stap 198 (1 oktober): de wekelijkse snelmeting van de vijf belangrijkste
-       vragen. Alleen voor een betalende klant (snel_dag staat alleen dan). Geen
-       nieuwe plek: die komt uit de maandmeting, en dat staat er ook. #}
-    {% if snel_dag is defined and snel_dag %}
-    <div class="kaartblok">
-      <div class="kaartkop">{{ 'DEZE WEEK: JE VIJF BELANGRIJKSTE VRAGEN' if taal == 'nl' else "THIS WEEK: YOUR FIVE KEY QUESTIONS" }}</div>
-      {% if snel %}
-      <p style="margin:0 0 10px; font-size:15px;">
-        {% if taal == 'nl' %}Genoemd in <strong>{{ snel.genoemd }} van {{ snel.van }}</strong> antwoorden{% if snel.vorige_van %} (vorige week {{ snel.vorige_genoemd }} van {{ snel.vorige_van }}){% endif %}. Gemeten op {{ snel.op.strftime('%d-%m-%Y') }}.
-        {% else %}Named in <strong>{{ snel.genoemd }} of {{ snel.van }}</strong> answers{% if snel.vorige_van %} (last week {{ snel.vorige_genoemd }} of {{ snel.vorige_van }}){% endif %}. Checked on {{ snel.op.strftime('%d %b %Y') }}.{% endif %}
-      </p>
-      <div style="padding:0 16px; overflow-x:auto;">
-      <table style="width:100%; border-collapse:collapse; font-size:14px;">
-        {% for v in snel.vragen %}
-        <tr style="border-top:1px solid var(--lijn, #E8E8EC);">
-          <td style="padding:8px 8px 8px 0;">{{ v.vraag }}{% if v.was is not none and v.was != v.nu %} <span style="font-family:var(--mono); font-size:12px; color:{{ '#0A7F55' if v.nu else '#B42318' }};">{{ ('nu genoemd' if v.nu else 'niet meer genoemd') if taal == 'nl' else ('now named' if v.nu else 'no longer named') }}</span>{% endif %}</td>
-          {% for a in v.assistenten %}
-          <td style="padding:8px 0 8px 8px; white-space:nowrap; font-family:var(--mono); font-size:12px;" title="{{ a.anderen | join(', ') }}">{{ a.naam }} {{ '&#10003;' | safe if a.genoemd else '&#10005;' | safe }}</td>
-          {% endfor %}
-        </tr>
-        {% endfor %}
-      </table>
-      </div>
-      <p style="margin:10px 0 0; font-size:13px; color:var(--zacht, #6E7079);">{{ 'Elke ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ ' opnieuw. Je plek in de ranglijst komt uit de maandmeting, waar elke winkel dezelfde vragen krijgt.' if taal == 'nl' else 'Checked again every ' ~ snel_dag ~ '. Your rank comes from the monthly measurement, where every store gets the same questions.' }}</p>
-      {% else %}
-      <p style="margin:0; font-size:15px;">{{ ('Elke week stellen we je vijf belangrijkste koopvragen opnieuw aan ChatGPT en Gemini, zodat je binnen een week ziet of een verbetering werkt. De eerste keer is op ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ '.') if taal == 'nl' else ('Every week we ask your five most important buying questions again to ChatGPT and Gemini, so you see within a week whether a change works. The first check is on ' ~ snel_dag ~ '.') }}</p>
-      {% endif %}
-    </div>
-    {% endif %}
-
-    {# Stap 241: het concurrent-alarm. Wie je plek innam of inhaalde, uit de
-       metingen die er al zijn. Alleen als er iets te melden is. #}
-    {% if alarm is defined and alarm %}
-    <div class="kaartblok" id="alarm">
-      <div class="kaartkop">{{ 'CONCURRENTEN IN BEWEGING' if taal == 'nl' else 'COMPETITORS ON THE MOVE' }}</div>
-      <ul style="margin:0; padding:0 16px 4px 34px; font-size:15px; line-height:1.6;">
-        {% for z in alarm %}<li>{{ z }}</li>{% endfor %}
-      </ul>
-      <p class="klein" style="margin:6px 16px 0;">{{ 'Zie Vragen voor het echte antwoord, en Fixes voor wat je terugwint.' if taal == 'nl' else 'See Questions for the real answer, and Fixes for how to win it back.' }}</p>
-    </div>
-    {% endif %}
-
-    {# 2 oktober (goedgekeurd): de productkaart. Welke producten AI bij naam
-       noemt in de wekelijkse vragen, en bij welke vraag. Eerlijk: vijf vragen. #}
-    {% if productkaart is defined and productkaart and productkaart.gemeten %}
-    <div class="kaartblok">
-      <div class="kaartkop">{{ 'JE PRODUCTEN IN AI-ANTWOORDEN' if taal == 'nl' else 'YOUR PRODUCTS IN AI ANSWERS' }}
-        <span class="uitleg">{{ productkaart.vragen }} {{ 'vragen deze week' if taal == 'nl' else 'questions this week' }}</span></div>
-      {% if productkaart.genoemd %}
-      <table class="tabel"><tbody>
-        {% for p in productkaart.genoemd %}<tr><td class="kort">{% if p.url %}<a href="{{ p.url }}" rel="nofollow">{{ p.naam }}</a>{% else %}{{ p.naam }}{% endif %}</td>
-          <td class="klein">{% for k in p.keer[:2] %}{{ k.assistent }}: <span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ k.vraag }}</span>{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>{% endfor %}
-      </tbody></table>
-      {% else %}
-      <div class="binnen">{{ 'AI noemde deze week geen product van je bij naam. Dat is normaal: AI noemt vaak alleen de winkel.' if taal == 'nl' else 'AI named none of your products by name this week. That is common: AI often names only the store.' }}</div>
-      {% endif %}
-      {% if productkaart.niet %}
-      <div class="binnen klein" style="border-top:1px solid var(--lijnz);">{{ 'Niet genoemd in deze vragen, bijvoorbeeld' if taal == 'nl' else 'Not named in these questions, for example' }}:
-        {% for p in productkaart.niet[:5] %}{{ p.naam }}{% if not loop.last %}, {% endif %}{% endfor %}.
-        {{ 'Een duidelijke producttekst helpt AI ze te noemen.' if taal == 'nl' else 'A clear product text helps AI name them.' }}</div>
-      {% endif %}
-    </div>
-    {% endif %}
-
     {% set zicht = ((beeld.genoemd / beeld.telbaar * 100) | round | int) if beeld.telbaar else 0 %}
     {% set vr = vragen if vragen is defined and vragen else {"vragen": [], "gewonnen": 0, "verloren": 0, "totaal": 0} %}
     {% set nl = taal == 'nl' %}
@@ -378,6 +324,28 @@
             <span class="onder">{{ 'minstens een assistent noemt je' if nl else 'at least one assistant names you' }}</span>
           </div>
         </div>
+
+        {# 7 oktober avond: de bedrijfscijfers direct onder de AI-cijfers, net als
+           de plaat op de homepage. Uit de pixel of wat de klant invulde. #}
+        {% if aiverkeer is defined and aiverkeer %}
+        {% set ar = aiverkeer.rijen %}
+        {% set l = ar | last if ar else {} %}
+        {% set o = aiverkeer.oordeel or {} %}
+        <div class="kpis d8-tegels d8-geld">
+          {% for label_nl, label_en, waarde, onder in [
+               ('AI-bezoek', 'AI sessions', l.bezoek if l else none, ('%+d%%' % o.bezoek) if o.bezoek is defined and o.bezoek is not none else none),
+               ('Bestellingen uit AI', 'Orders from AI', l.orders if l else none, none),
+               ('Omzet uit AI', 'Revenue from AI', ('€%.0f' % l.omzet) if l and l.omzet is not none else none, ('%+d%%' % o.omzet) if o.omzet is defined and o.omzet is not none else none),
+               ('Conversie uit AI', 'AI conversion', ((l.conversie ~ '%') if l and l.conversie is not none else none), none)] %}
+          <div class="kpi d8-tegel stil">
+            <span class="label">{{ label_nl if nl else label_en }}</span>
+            <span class="rij"><span class="groot">{{ waarde if waarde is not none else '–' }}</span></span>
+            <span class="onder">{% if waarde is none %}<a href="#aiverkeer">{{ 'Koppel je verkoop' if nl else 'Connect your sales' }} &darr;</a>{% elif onder %}{{ onder }} {{ 'tegen je eerste maand' if nl else 'vs your first month' }}{% else %}{{ l.maand }}{% endif %}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% if o.keer is defined %}<div class="d8-geldregel">{{ ('&euro;' ~ o.extra_omzet ~ ' meer omzet uit AI dan in je eerste maand: ' ~ o.keer ~ 'x wat Krillo kost.') | safe if nl else ('&euro;' ~ o.extra_omzet ~ ' more revenue from AI than in your first month: ' ~ o.keer ~ 'x what Krillo costs you.') | safe }} <span class="klein" style="font-weight:400; color:var(--zacht, #6E7079);">{{ 'Seizoen en acties tellen ook mee.' if nl else 'Seasons and sales count too.' }}</span></div>{% endif %}
+        {% endif %}
 
         <div class="d8-kaart d8-twee">
           <div class="d8-grafiek" id="verloop">
@@ -657,6 +625,127 @@
       vulLade();
     })();
     </script>
+
+    {# 7 oktober avond (Nino: "de dashboard op de homepage is mooier"): zoals
+       op de homepage eerst de tegels, de grafiek en de vragen; de uitleg en
+       het koppelen staan hieronder. #}
+    {# 7 OKTOBER (Nino): "brengt Krillo mij verkeer?" De hele keten per maand:
+       plek bij AI (wij meten) naast bezoek, bestellingen en omzet uit AI (de
+       klant zet ze uit Google Analytics of Shopify erin). Eerste maand is de
+       nulmeting. Demo en voorproef zien een voorbeeld, duidelijk als voorbeeld. #}
+    {% if aiverkeer is defined and aiverkeer %}
+    {% set nl = taal == 'nl' %}
+    <div class="kaartblok" id="aiverkeer">
+      <div class="kaartkop">{{ 'BRENGT AI JE BEZOEK EN VERKOOP?' if nl else 'IS AI SENDING YOU VISITORS AND SALES?' }}
+        {% if aiverkeer_voorbeeld is defined and aiverkeer_voorbeeld %}<span class="uitleg">{{ 'VOORBEELD' if nl else 'EXAMPLE' }}</span>{% endif %}</div>
+      {% if aiverkeer.rijen %}
+      {% set o = aiverkeer.oordeel %}
+      {% set l = aiverkeer.rijen | last %}
+      {% set b0 = aiverkeer.rijen | first %}
+      <details style="margin:0 16px;"><summary class="klein" style="cursor:pointer;">{{ 'Per maand' if nl else 'Month by month' }}</summary>
+      <div style="overflow-x:auto;">
+      <table class="tabel"><thead><tr>
+        <th>{{ 'Maand' if nl else 'Month' }}</th><th>{{ 'Plek bij AI' if nl else 'AI rank' }}</th>
+        <th>{{ 'Bezoek uit AI' if nl else 'Visits from AI' }}</th><th>{{ 'Bestellingen' if nl else 'Orders' }}</th>
+        <th>{{ 'Omzet' if nl else 'Revenue' }}</th><th>{{ 'Conversie' if nl else 'Conversion' }}</th></tr></thead><tbody>
+        {% for r in aiverkeer.rijen %}<tr>
+          <td>{{ r.maand }}{% if loop.first and aiverkeer.rijen|length > 1 %} <span class="klein">{{ 'nulmeting' if nl else 'baseline' }}</span>{% endif %}{% if r.fix %} <span style="font-family:var(--mono); font-size:11px; color:#0A7F55; border:1px solid #0A7F55; border-radius:4px; padding:0 4px;">{{ 'FIX LIVE' }}</span>{% endif %}{% if r.bron == 'pixel' %} <span class="klein">auto</span>{% endif %}</td>
+          <td>{{ '#' ~ r.plek if r.plek else '-' }}</td>
+          <td>{{ r.bezoek if r.bezoek is not none else '-' }}</td>
+          <td>{{ r.orders if r.orders is not none else '-' }}</td>
+          <td>{{ ('&euro; %.0f' % r.omzet) | safe if r.omzet is not none else '-' }}</td>
+          <td>{{ (r.conversie ~ '%') if r.conversie is not none else '-' }}</td></tr>{% endfor %}
+      </tbody></table>
+      </div>
+      </details>
+      {% else %}
+      <p style="margin:0 0 10px; font-size:15px;">{{ 'Genoemd worden is nog geen verkoop. Koppel je verkoop om te zien wat AI je oplevert.' if nl else 'Being named is not a sale yet. Connect your sales to see what AI brings you.' }}</p>
+      {% endif %}
+      {% if aiverkeer_post is defined and aiverkeer_post %}
+      {# Stap 304 (7 oktober, Nino: "dit moet automatisch"): de Krillo-pixel,
+         met uitleg per platform. Het invulveld blijft eronder voor oudere
+         maanden of wie geen code wil plaatsen. #}
+      {% if pixel is defined and pixel %}
+      {% include "_pixel.html" %}
+      {% endif %}
+      <details style="margin:10px 16px 0;"><summary class="klein" style="cursor:pointer;">{{ 'Of zet een maand met de hand erin (bijvoorbeeld van voor de koppeling)' if nl else 'Or add a month by hand (for example from before you connected)' }}</summary>
+      <form method="post" action="{{ aiverkeer_post }}" style="display:flex; flex-wrap:wrap; gap:8px; align-items:end; margin-top:12px; font-size:13px;">
+        <label>{{ 'Maand' if nl else 'Month' }}<br><input type="month" name="maand" required style="padding:6px;"></label>
+        <label>{{ 'Bezoek uit AI' if nl else 'Visits from AI' }}<br><input name="bezoek" inputmode="numeric" style="padding:6px; width:110px;"></label>
+        <label>{{ 'Bestellingen' if nl else 'Orders' }}<br><input name="orders" inputmode="numeric" style="padding:6px; width:90px;"></label>
+        <label>{{ 'Omzet (€)' if nl else 'Revenue (€)' }}<br><input name="omzet" inputmode="decimal" style="padding:6px; width:110px;"></label>
+        <button type="submit" style="padding:8px 14px;">{{ 'Bewaren' if nl else 'Save' }}</button>
+      </form>
+      <p class="klein" style="margin:8px 0 0;">{{ 'Waar vind je het: Google Analytics, Acquisitie, Verkeersacquisitie, filter de bron op chatgpt.com, gemini.google.com, perplexity.ai en copilot.microsoft.com. Of Shopify, Analytics, Sessies en Verkoop per verwijzer.' if nl else 'Where to find it: Google Analytics, Acquisition, Traffic acquisition, filter session source on chatgpt.com, gemini.google.com, perplexity.ai and copilot.microsoft.com. Or Shopify, Analytics, Sessions and Sales by referrer.' }} <a href="/proof">{{ 'Hoe we bewijzen dat het werkt' if nl else 'How we prove it pays' }} &rarr;</a></p>
+      </details>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# Stap 198 (1 oktober): de wekelijkse snelmeting van de vijf belangrijkste
+       vragen. Alleen voor een betalende klant (snel_dag staat alleen dan). Geen
+       nieuwe plek: die komt uit de maandmeting, en dat staat er ook. #}
+    {% if snel_dag is defined and snel_dag %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'DEZE WEEK: JE VIJF BELANGRIJKSTE VRAGEN' if taal == 'nl' else "THIS WEEK: YOUR FIVE KEY QUESTIONS" }}</div>
+      {% if snel %}
+      <p style="margin:0 0 10px; font-size:15px;">
+        {% if taal == 'nl' %}Genoemd in <strong>{{ snel.genoemd }} van {{ snel.van }}</strong> antwoorden{% if snel.vorige_van %} (vorige week {{ snel.vorige_genoemd }} van {{ snel.vorige_van }}){% endif %}. Gemeten op {{ snel.op.strftime('%d-%m-%Y') }}.
+        {% else %}Named in <strong>{{ snel.genoemd }} of {{ snel.van }}</strong> answers{% if snel.vorige_van %} (last week {{ snel.vorige_genoemd }} of {{ snel.vorige_van }}){% endif %}. Checked on {{ snel.op.strftime('%d %b %Y') }}.{% endif %}
+      </p>
+      <div style="padding:0 16px; overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:14px;">
+        {% for v in snel.vragen %}
+        <tr style="border-top:1px solid var(--lijn, #E8E8EC);">
+          <td style="padding:8px 8px 8px 0;">{{ v.vraag }}{% if v.was is not none and v.was != v.nu %} <span style="font-family:var(--mono); font-size:12px; color:{{ '#0A7F55' if v.nu else '#B42318' }};">{{ ('nu genoemd' if v.nu else 'niet meer genoemd') if taal == 'nl' else ('now named' if v.nu else 'no longer named') }}</span>{% endif %}</td>
+          {% for a in v.assistenten %}
+          <td style="padding:8px 0 8px 8px; white-space:nowrap; font-family:var(--mono); font-size:12px;" title="{{ a.anderen | join(', ') }}">{{ a.naam }} {{ '&#10003;' | safe if a.genoemd else '&#10005;' | safe }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+      </div>
+      <p style="margin:10px 0 0; font-size:13px; color:var(--zacht, #6E7079);">{{ 'Elke ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ ' opnieuw. Je plek komt uit de maandmeting.' if taal == 'nl' else 'Checked again every ' ~ snel_dag ~ '. Your rank comes from the monthly measurement.' }}</p>
+      {% else %}
+      <p style="margin:0; font-size:15px;">{{ ('Elke week je vijf belangrijkste vragen opnieuw. De eerste keer: ' ~ {'Monday':'maandag','Tuesday':'dinsdag','Wednesday':'woensdag','Thursday':'donderdag','Friday':'vrijdag','Saturday':'zaterdag','Sunday':'zondag'}[snel_dag] ~ '.') if taal == 'nl' else ('Your five key questions, again every week. First check: ' ~ snel_dag ~ '.') }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# Stap 241: het concurrent-alarm. Wie je plek innam of inhaalde, uit de
+       metingen die er al zijn. Alleen als er iets te melden is. #}
+    {% if alarm is defined and alarm %}
+    <div class="kaartblok" id="alarm">
+      <div class="kaartkop">{{ 'CONCURRENTEN IN BEWEGING' if taal == 'nl' else 'COMPETITORS ON THE MOVE' }}</div>
+      <ul style="margin:0; padding:0 16px 4px 34px; font-size:15px; line-height:1.6;">
+        {% for z in alarm %}<li>{{ z }}</li>{% endfor %}
+      </ul>
+      <p class="klein" style="margin:6px 16px 0;">{{ 'Zie Vragen voor het echte antwoord, en Fixes voor wat je terugwint.' if taal == 'nl' else 'See Questions for the real answer, and Fixes for how to win it back.' }}</p>
+    </div>
+    {% endif %}
+
+    {# 2 oktober (goedgekeurd): de productkaart. Welke producten AI bij naam
+       noemt in de wekelijkse vragen, en bij welke vraag. Eerlijk: vijf vragen. #}
+    {% if productkaart is defined and productkaart and productkaart.gemeten %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'JE PRODUCTEN IN AI-ANTWOORDEN' if taal == 'nl' else 'YOUR PRODUCTS IN AI ANSWERS' }}
+        <span class="uitleg">{{ productkaart.vragen }} {{ 'vragen deze week' if taal == 'nl' else 'questions this week' }}</span></div>
+      {% if productkaart.genoemd %}
+      <table class="tabel"><tbody>
+        {% for p in productkaart.genoemd %}<tr><td class="kort">{% if p.url %}<a href="{{ p.url }}" rel="nofollow">{{ p.naam }}</a>{% else %}{{ p.naam }}{% endif %}</td>
+          <td class="klein">{% for k in p.keer[:2] %}{{ k.assistent }}: <span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ k.vraag }}</span>{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>{% endfor %}
+      </tbody></table>
+      {% else %}
+      <div class="binnen">{{ 'AI noemde deze week geen product van je bij naam. Dat is normaal: AI noemt vaak alleen de winkel.' if taal == 'nl' else 'AI named none of your products by name this week. That is common: AI often names only the store.' }}</div>
+      {% endif %}
+      {% if productkaart.niet %}
+      <div class="binnen klein" style="border-top:1px solid var(--lijnz);">{{ 'Niet genoemd in deze vragen, bijvoorbeeld' if taal == 'nl' else 'Not named in these questions, for example' }}:
+        {% for p in productkaart.niet[:5] %}{{ p.naam }}{% if not loop.last %}, {% endif %}{% endfor %}.
+        {{ 'Een duidelijke producttekst helpt AI ze te noemen.' if taal == 'nl' else 'A clear product text helps AI name them.' }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+
     {% endif %}
 
     {# ================================================================ RANGLIJST #}
@@ -973,6 +1062,14 @@
         <ol style="margin:6px 0 0; padding-left:20px; font-size:14.5px; line-height:1.55;">
           {% for st in a.stappen %}<li style="margin-bottom:4px;">{{ st }}</li>{% endfor %}
         </ol>
+        {# Stap 290: waar het antwoord moet staan, en welke sites AI hier noemt. #}
+        {% if a.pagina is defined %}
+        <div class="klein" style="margin-top:6px;">
+          {% if a.pagina %}{{ 'Jouw pagina hiervoor' if taal == 'nl' else 'Your page for this' }}: <a href="{{ a.pagina }}" rel="nofollow" target="_blank">{{ a.pagina | replace('https://', '') | replace('www.', '') }}</a>
+          {% else %}{{ 'We vonden nog geen pagina van jou over dit onderwerp: maak er een, dat is stap 1.' if taal == 'nl' else 'We found no page of yours about this yet: make one, that is step 1.' }}{% endif %}
+          {% if a.bronnen %}<br>{{ 'Sites die AI bij deze vraag noemt' if taal == 'nl' else 'Sites AI mentions for this question' }}: <strong>{{ a.bronnen | join(', ') }}</strong>. {{ 'Sta daar ook, met reviews en volledige productgegevens.' if taal == 'nl' else 'Be there too, with reviews and full product data.' }}{% endif %}
+        </div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
@@ -1096,8 +1193,8 @@
     {% if doorverwijzing and not werkblok.opgezegd %}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'EEN MAAND GRATIS' if taal == 'nl' else 'A MONTH FREE' }}</div>
-      <p style="margin:0 0 10px; font-size:15px;">{{ 'Ken je een andere webshop? Deel je eigen link. Neemt die winkel een betaald pakket, dan krijg jij een maand van je eigen pakket terug.' if taal == 'nl'
-           else 'Know another webshop? Share your own link. If that store takes a paid plan, you get a month of your own plan back.' }}</p>
+      <p style="margin:0 0 10px; font-size:15px;">{{ 'Ken je een andere webshop? Deel je eigen link. Neemt die winkel een betaald pakket, dan is jouw volgende maand gratis.' if taal == 'nl'
+           else 'Know another webshop? Share your own link. If that store takes a paid plan, your next month is free.' }}</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <input id="eigenLink" readonly value="{{ basis_url }}/r/{{ doorverwijzing.code }}" onclick="this.select()"
                style="flex:1; min-width:220px; height:42px; border:1.5px solid #D8D8DE; border-radius:8px; padding:0 12px; font-family:var(--mono, monospace); font-size:14px;">
@@ -1105,8 +1202,8 @@
       </div>
       <p class="klein" style="margin-top:10px;">
         {% if doorverwijzing.klanten %}{{ doorverwijzing.klanten }} {{ 'winkel(s) werden klant via jouw link.' if taal == 'nl' else 'store(s) became a customer through your link.' }}
-        {% else %}{{ 'Wij sturen je link naar niemand; alleen jij deelt hem. De maand krijg je terug zodra de nieuwe winkel 30 dagen klant is.' if taal == 'nl'
-             else 'We never send your link to anyone; only you share it. You get the month back once the new store has been a customer for 30 days.' }}{% endif %}
+        {% else %}{{ 'Wij sturen je link naar niemand; alleen jij deelt hem. Je gratis maand gaat in zodra de nieuwe winkel 30 dagen klant is: we slaan dan je volgende betaling over.' if taal == 'nl'
+             else 'We never send your link to anyone; only you share it. Your free month starts once the new store has been a customer for 30 days: we simply skip your next payment.' }}{% endif %}
       </p>
       <script>
         (function(){
@@ -1217,12 +1314,14 @@
          else 'You got our email because your store is in the Krillo index.' }}
       <a href="/afmelden/{{ proef }}" style="color:var(--ink-grijs);">{{ 'Geen mail meer' if taal == 'nl' else 'No more email' }}</a></p>
     {% endif %}
-    <div style="font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs);">
-      <a href="/index" style="color:var(--ink-grijs); text-decoration:none;">{{ t.terug_index | upper }}</a>
+    {# 8 oktober (Nino): de links naar de index, "how we measure" en "about us"
+       haalden je uit het dashboard naar de website. In een product blijf je in
+       het product. Nu alleen de uitleg over het meten, in een nieuw tabblad,
+       en waar je met een vraag terecht kunt. #}
+    <div style="font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs); padding-top:8px;">
+      <a href="/how-we-measure" target="_blank" rel="noopener" style="color:var(--ink-grijs); text-decoration:none;">{{ t.zo_meten_we | upper }} &#8599;</a>
       &middot;
-      <a href="/how-we-measure" style="color:var(--ink-grijs); text-decoration:none;">{{ t.zo_meten_we | upper }}</a>
-      &middot;
-      <a href="/about" style="color:var(--ink-grijs); text-decoration:none;">{{ t.over_ons | upper }}</a>
+      <a href="mailto:hello@krilloai.com" style="color:var(--ink-grijs); text-decoration:none;">{{ 'VRAGEN? HELLO@KRILLOAI.COM' if taal == 'nl' else 'QUESTIONS? HELLO@KRILLOAI.COM' }}</a>
     </div>
 
   </div>

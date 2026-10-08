@@ -161,9 +161,22 @@
     </details>
   {% endif %}
 
-  {% if actieplan and not afgelopen %}
+  {# 8 oktober: staat de winkel achter een wachtwoord, dan las de scan alleen de
+     wachtwoordpagina en gaan de fixes daarover. Die tonen is erger dan niets. #}
+  {% set dicht = wachtwoord is defined and wachtwoord %}
+  {% if actieplan and not afgelopen and not dicht %}
     {% if not actieplan.acties %}
     <div class="werk-leeg"><strong>{{ wt.niets_kop }}</strong>{{ wt.niets_tekst }}</div>
+    {% endif %}
+    {# 8 oktober (Nino: "er moet een soort warning staan dat er aan gewerkt
+       wordt"). Een fix zonder uitgeschreven tekst is nog in de maak; zeg dat,
+       anders lijkt de algemene uitleg eronder het hele product. #}
+    {% set in_de_maak = actieplan.acties | rejectattr('oplossing') | list %}
+    {% if abonnement and in_de_maak %}
+    <div class="werk-leeg" style="background:#EEF1FD; border-color:#D9E0FB;">
+      <strong>{{ ('We schrijven ' ~ (in_de_maak|length) ~ ' van deze fixes nu uit voor jouw winkel') if taal == 'nl' else ('We are writing out ' ~ (in_de_maak|length) ~ (' of these fixes' if in_de_maak|length > 1 else ' fix') ~ ' for your store now') }}</strong>
+      {{ 'De exacte tekst om over te nemen en waar die komt, op basis van je eigen pagina\'s. Meestal binnen het uur; tot die tijd zie je hieronder wat er moet gebeuren.' if taal == 'nl' else 'The exact text to copy and where it goes, based on your own pages. Usually within the hour; until then you see below what needs to happen.' }}
+    </div>
     {% endif %}
 
     {% for a in actieplan.acties %}
@@ -211,7 +224,8 @@
     {% endif %}
   {% else %}
     <div class="werk-leeg">
-      {% if verloop and verloop|length > 1 %}<strong>{{ wt.niets_gemeten_kop }}</strong>{{ wt.niets_gemeten_tekst }}
+      {% if dicht %}<strong>{{ 'Eerst het wachtwoord eraf' if taal == 'nl' else 'First, remove the password' }}</strong>{{ 'Zolang je winkel achter een wachtwoord staat, zien wij en AI alleen het inlogscherm, dus fixes zouden daarover gaan. Haal het wachtwoord weg (in Shopify: Online winkel, Voorkeuren); bij de volgende controle staan je fixes hier.' if taal == 'nl' else 'While your store is behind a password, we and AI only see the login screen, so any fixes would be about that. Remove the password (in Shopify: Online Store, Preferences); your fixes appear here after the next check.' }}
+      {% elif verloop and verloop|length > 1 %}<strong>{{ wt.niets_gemeten_kop }}</strong>{{ wt.niets_gemeten_tekst }}
       {% elif abonnement %}<strong>{{ wt.eerste_kop }}</strong>{{ wt.eerste_tekst }}
       {% else %}<strong>{{ wt.nognietgemeten_kop }}</strong>{{ wt.nognietgemeten_tekst }}{% endif %}
     </div>

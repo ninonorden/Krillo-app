@@ -1,0 +1,37 @@
+{# Het pixelblok (stap 304), los gezet op 8 oktober zodat de startpagina van een
+   nieuwe klant (geen plek nog) hetzelfde blok laat zien als het overzicht.
+   Verwacht: pixel, nl. #}
+      <div style="margin:14px 16px 0; padding:12px 14px; border:1px solid var(--lijn, #E8E8EC); border-radius:10px;">
+        {% if pixel.status.verbonden %}
+        <div style="font-weight:600; color:#0A7F55;">&#10003; {{ 'Verbonden. De cijfers komen vanzelf binnen.' if nl else 'Connected. Your numbers now come in by themselves.' }}</div>
+        <div class="klein">{{ 'Laatste signaal' if nl else 'Last signal' }}: {{ pixel.status.laatst.strftime('%d %b %Y %H:%M') if pixel.status.laatst else '-' }}</div>
+        {% else %}
+        <div style="font-weight:600;">{{ 'Koppel je verkoop automatisch' if nl else 'Connect your sales automatically' }}</div>
+        <div class="klein" style="margin-bottom:6px;">{{ 'Eén keer een stukje code plaatsen. Daarna telt Krillo zelf bezoek, bestellingen en omzet uit AI. Kies je platform:' if nl else 'Paste a small piece of code once. Krillo then counts visits, orders and revenue from AI by itself. Choose your platform:' }}</div>
+        {% endif %}
+        <details style="margin-top:6px;"><summary style="cursor:pointer; font-weight:600;">Shopify ({{ '2 minuten' if nl else '2 minutes' }})</summary>
+          <ol style="margin:8px 0 8px 20px; font-size:14px;">
+            <li>{{ 'Ga in Shopify naar Instellingen, dan Klantgebeurtenissen.' if nl else 'In Shopify, go to Settings, then Customer events.' }}</li>
+            <li>{{ 'Klik op "Aangepaste pixel toevoegen" en noem hem Krillo.' if nl else 'Click "Add custom pixel" and name it Krillo.' }}</li>
+            <li>{{ 'Kopieer de code hieronder en plak hem in het codevak (wat er al staat mag weg).' if nl else 'Copy the code below and paste it into the code box (you can delete what is already there).' }}</li>
+            <li>{{ 'Klik op Opslaan en daarna op Verbinden. Klaar.' if nl else 'Click Save, then Connect. Done.' }}</li>
+          </ol>
+          <textarea readonly rows="5" style="width:100%; font-family:var(--mono); font-size:11px;" id="pixelShopify">{{ pixel.shopify }}</textarea>
+          <button type="button" data-kopieer="pixelShopify" style="padding:6px 12px; margin-top:4px;">{{ 'Kopieer de code' if nl else 'Copy the code' }}</button>
+        </details>
+        <details style="margin-top:6px;"><summary style="cursor:pointer; font-weight:600;">WooCommerce / WordPress ({{ '5 minuten' if nl else '5 minutes' }})</summary>
+          <ol style="margin:8px 0 8px 20px; font-size:14px;">
+            <li>{{ 'Ga in WordPress naar Plugins, dan Nieuwe plugin. Zoek op WPCode, installeer en activeer hem (gratis).' if nl else 'In WordPress, go to Plugins, then Add New. Search for WPCode, install and activate it (free).' }}</li>
+            <li>{{ 'Ga naar Code Snippets, dan Header & Footer.' if nl else 'Go to Code Snippets, then Header & Footer.' }}</li>
+            <li>{{ 'Plak de code hieronder in het vak Header en klik op Opslaan.' if nl else 'Paste the code below into the Header box and click Save.' }}</li>
+          </ol>
+          <div class="klein">{{ 'Bestellingen telt hij op de bedankpagina van WooCommerce.' if nl else 'Orders are counted on the WooCommerce thank-you page.' }}</div>
+          <textarea readonly rows="5" style="width:100%; font-family:var(--mono); font-size:11px;" id="pixelSite">{{ pixel.site }}</textarea>
+          <button type="button" data-kopieer="pixelSite" style="padding:6px 12px; margin-top:4px;">{{ 'Kopieer de code' if nl else 'Copy the code' }}</button>
+        </details>
+        <details style="margin-top:6px;"><summary style="cursor:pointer; font-weight:600;">{{ 'Lightspeed, CCV, Mijnwebwinkel, Wix of iets anders' if nl else 'Lightspeed, CCV, Mijnwebwinkel, Wix or something else' }}</summary>
+          <p style="font-size:14px; margin:8px 0;">{{ 'Zoek in de instellingen van je winkel het vak voor eigen code of trackingcode in de kop van de pagina (vaak onder Instellingen, SEO of Marketing). Plak daar de code van WooCommerce hierboven en bewaar. Het bezoek uit AI telt dan meteen. Bestellingen alleen als je platform het bedrag doorgeeft: mail ons, dan kijken we het samen na.' if nl else 'In your shop settings, find the field for your own code or tracking code in the page head (often under Settings, SEO or Marketing). Paste the WooCommerce code above there and save. Visits from AI are counted right away. Orders only if your platform passes on the amount: email us and we check it with you.' }}</p>
+        </details>
+        <p class="klein" style="margin:8px 0 0;">{{ 'Liever niet zelf? Antwoord op je welkomstmail, dan plaatsen wij hem. Met Fix doen we dit altijd voor je.' if nl else 'Rather not do it yourself? Reply to your welcome email and we place it for you. On Fix we always do this for you.' }}</p>
+      </div>
+      <script>document.querySelectorAll('[data-kopieer]').forEach(function(k){k.addEventListener('click',function(){var v=document.getElementById(k.getAttribute('data-kopieer'));v.select();try{navigator.clipboard.writeText(v.value)}catch(e){document.execCommand('copy')}k.textContent='{{ 'Gekopieerd' if nl else 'Copied' }}';});});</script>
