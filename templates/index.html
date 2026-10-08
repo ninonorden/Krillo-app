@@ -2545,7 +2545,7 @@
     submitBtn.textContent = (type === 'watch' && periode !== 'jaar' && !geenProef) ? 'Start my free trial' : 'Continue to payment';
     submitBtn.disabled = false;
     overlay.classList.add('open');
-    kassaStap('venster');
+    kassaStap(window.krilloAutoKassa ? 'auto' : 'venster');
     // Adres al ingevuld (vanuit de uitslag): meteen naar het mailveld.
     (urlInput.value ? emailInput : urlInput).focus();
   }
@@ -2705,7 +2705,10 @@
     var plan = new URLSearchParams(window.location.search).get('plan');
     if (plan === 'watch' || plan === 'fix') {
       var knop = document.getElementById(plan === 'watch' ? 'watchCheckoutBtn' : 'fixCheckoutBtn');
-      if (knop) { setTimeout(function(){ knop.click(); }, 300); }
+      // 8 oktober: dit openen telt NIET als "kassa open" (Nino zag er 40 op een
+      // dag): ook een virusscanner van een mailprogramma volgt de link en draait
+      // dit script. Alleen een echte klik op een knop telt als venster.
+      if (knop) { setTimeout(function(){ window.krilloAutoKassa = true; knop.click(); window.krilloAutoKassa = false; }, 300); }
     }
     // Stap 168: kwam hij via de knop in onze mail (t=), dan ook zijn mailadres
     // invullen. Alleen als het veld nog leeg is.

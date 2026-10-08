@@ -776,10 +776,10 @@
     {% if alarm is defined and alarm %}
     <div class="kaartblok" id="alarm">
       <div class="kaartkop">{{ 'CONCURRENTEN IN BEWEGING' if taal == 'nl' else 'COMPETITORS ON THE MOVE' }}</div>
-      <ul style="margin:0; padding:0 16px 4px 34px; font-size:15px; line-height:1.6;">
+      <ul style="margin:14px 0 0; padding:0 16px 4px 34px; font-size:15px; line-height:1.6;">
         {% for z in alarm %}<li>{{ z }}</li>{% endfor %}
       </ul>
-      <p class="klein" style="margin:6px 16px 0;">{{ 'Zie Vragen voor het echte antwoord, en Fixes voor wat je terugwint.' if taal == 'nl' else 'See Questions for the real answer, and Fixes for how to win it back.' }}</p>
+      <p class="klein" style="margin:6px 0 0;">{{ 'Zie Vragen voor het echte antwoord, en Fixes voor wat je terugwint.' if taal == 'nl' else 'See Questions for the real answer, and Fixes for how to win it back.' }}</p>
     </div>
     {% endif %}
 
@@ -812,7 +812,7 @@
     {# 8 oktober (Nino, snowboardwinkel in Sports and fitness): wie in een te
        brede of verkeerde categorie staat, kan hier zelf wisselen. #}
     {% set nl = taal == 'nl' %}
-    <details class="st-wijzig" style="margin:0 0 16px;">
+    <details class="kaartblok kat-wissel">
       <summary>{{ 'Past ' ~ categorienaam ~ ' niet bij je winkel? Kies een andere categorie' if nl else 'Does ' ~ categorienaam ~ ' not fit your store? Choose another category' }}</summary>
       <form method="post" action="{{ categorie_post }}" class="st-form">
         <input type="hidden" name="terug" value="ranking">

@@ -263,4 +263,18 @@
   .st-drie span{font-size:13.5px; color:#5A5C66; line-height:1.5;}
   .st-demo{font-size:14px; font-weight:600; color:#1B3FE0; text-decoration:none;}
   @media (max-width:760px){ .st-kop{flex-direction:column;} .st-teller{text-align:left;} .st-drie{grid-template-columns:1fr;} .st-form select{min-width:0; width:100%;} .st-form label{width:100%;} }
+  /* 8 oktober (Nino: "check van alles de spacing, teksten te dicht op de lijnen").
+     Een vaste binnenmaat voor alles in een kaart, ook als een sjabloon zelf
+     margin:0 zet: onderaan padding in plaats van marge, die blijft staan. */
+  .v2 .kaartblok > p:last-child, .v2 .kaartblok > div.klein:last-child{padding-bottom:16px;}
+  .v2 .kaartblok > p{line-height:1.6;}
+  .v2 .kaartblok > ul{padding-left:36px; margin-top:12px;}
+  .v2 .kaartblok > ul + p{padding-top:4px;}
+  .v2 .kaartblok > details:not(.kat-wissel), .v2 .kaartblok > form{margin:12px 16px;}
+  .v2 .kaartblok > ol{margin:12px 16px 12px 36px;}
+  .v2 .kaartblok > details:last-child{margin-bottom:16px !important;}
+  .kat-wissel{padding:14px 18px !important; margin:0 0 16px;}
+  .kat-wissel summary{cursor:pointer; color:#1B3FE0; font-size:14px; font-weight:600;}
+  .kat-wissel .st-form{margin-top:12px;}
+  .kat-wissel > p.klein{padding:10px 0 0 !important; margin:0;}
 </style>
