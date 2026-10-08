@@ -69,32 +69,8 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Trechter en bezoek</h1>
-  <div class="sub">Elke dag: waar mensen binnenkomen, en waar ze afhaken</div>
-
-  {# 7 oktober (Nino): de hele weg per dag, van bezoek tot betaald, en de koude
-     mail ernaast. Zo zie je elke dag bij welke stap het stokt. #}
-  {% if trechter_dag %}
-  {% set kol = [('mensen','Mensen'),('checks','Checks'),('checks_mis','mislukt'),('venster','Kassa open'),('verstuurd','Ingevuld'),('kassafout','Fout'),('naar_bank','Naar Mollie'),('betaald','Betaald')] %}
-  {% set mkol = [('gemaild','Gemaild'),('geopend','Geopend'),('mail_mensen','Echt mens'),('prijzen','Naar prijzen'),('afgemeld','Afgemeld')] %}
-  <h2>Per dag: de site</h2>
-  <div style="overflow-x:auto;"><table class="dagtabel" style="width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px;">
-    <tr style="text-align:right; color:var(--ink-soft);"><th style="text-align:left;">Dag</th>{% for k, l in kol %}<th>{{ l }}</th>{% endfor %}</tr>
-    {% for r in trechter_dag %}<tr style="text-align:right; border-top:1px solid var(--line);"><td style="text-align:left;">{{ r.dag.strftime('%a %d-%m') }}</td>{% for k, l in kol %}<td>{{ r[k] if r[k] is not none else '?' }}</td>{% endfor %}</tr>{% endfor %}
-    <tr style="text-align:right; border-top:2px solid var(--ink); font-weight:600;"><td style="text-align:left;">14 dagen</td>{% for k, l in kol %}<td>{{ trechter_dag | map(attribute=k) | select('number') | sum }}</td>{% endfor %}</tr>
-  </table></div>
-  <div class="duiding">Lees van links naar rechts. Mensen: wie scrolde of klikte. Checks: gratis checks (mislukt: zonder uitslag). Kassa open: iemand opende het betaalscherm van Watch of Fix. Ingevuld: hij drukte op de knop. Naar Mollie: de betaling is aangemaakt. Betaald: een nieuwe klant. Waar het getal het hardst zakt, daar zit het lek.</div>
-
-  <h2>Per dag: de koude mail</h2>
-  <div style="overflow-x:auto;"><table class="dagtabel" style="width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px;">
-    <tr style="text-align:right; color:var(--ink-soft);"><th style="text-align:left;">Dag</th>{% for k, l in mkol %}<th>{{ l }}</th>{% endfor %}</tr>
-    {% for r in trechter_dag %}<tr style="text-align:right; border-top:1px solid var(--line);"><td style="text-align:left;">{{ r.dag.strftime('%a %d-%m') }}</td>{% for k, l in mkol %}<td>{{ r[k] if r[k] is not none else '?' }}</td>{% endfor %}</tr>{% endfor %}
-    <tr style="text-align:right; border-top:2px solid var(--ink); font-weight:600;"><td style="text-align:left;">14 dagen</td>{% for k, l in mkol %}<td>{{ trechter_dag | map(attribute=k) | select('number') | sum }}</td>{% endfor %}</tr>
-  </table></div>
-  <div class="duiding">Naar prijzen telt alleen nog een klik op "start" vanaf de eigen uitkomstpagina door iemand die daar ook echt scrolde of klikte. Een beveiligingsscanner die alle links opent telt niet meer mee (die stond er eerst wel bij: {{ trechter_dag | map(attribute='prijzen_ruw') | select('number') | sum }} ruwe kliks in 14 dagen). Afmelden is een aparte kolom.</div>
-  {% endif %}
-
-  <h2>Bezoek, laatste {{ dagen }} dagen</h2>
+  <h1>Bezoek aan de site</h1>
+  <div class="sub">Laatste {{ dagen }} dagen</div>
 
   {% if not bezoeken %}
   <div class="leeg">

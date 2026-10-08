@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
-<title>{% if vraag %}Unsubscribe{% elif gelukt %}Unsubscribed{% else %}This link does not work{% endif %} | Krillo</title>
+<title>{% if gelukt %}Unsubscribed{% else %}This link does not work{% endif %} | Krillo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -33,12 +33,7 @@
 <body>
   <div class="kaart">
     <div class="merk"><span></span>Krillo</div>
-    {% if vraag %}
-      <h1>Unsubscribe?</h1>
-      <p>Click the button and you get no more email from us{% if winkel %} about {{ winkel.replace('https://', '') }}{% endif %}.</p>
-      <form method="post" action="/afmelden/{{ token }}"><input type="hidden" name="bevestig" value="1">
-        <button type="submit" style="padding:12px 20px; font-size:16px; border:0; border-radius:8px; background:#0A0A0B; color:#fff; cursor:pointer;">Unsubscribe</button></form>
-    {% elif gelukt %}
+    {% if gelukt %}
       <h1>Done.</h1>
       <p>You will get no more email from us{% if winkel %} about {{ winkel.replace('https://', '') }}{% endif %}.
         We also take your store out of the public Krillo index at its next update.</p>

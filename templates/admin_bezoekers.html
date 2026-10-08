@@ -59,7 +59,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Gratis checks</h1>
+  <h1>Bezoekers</h1>
   <div class="sub">Laatste {{ dagen }} dagen</div>
 
   {% if not scans %}
@@ -151,19 +151,6 @@
     {% endfor %}
   </table>
   {% endif %}
-
-  {# 7 oktober: herkansingen en mislukte checks, bovenaan omdat er iemand wacht. #}
-  <h2>Wil zijn uitslag: met de hand checken ({{ handchecks|length }})</h2>
-  {% if not handchecks %}<div class="leeg">Nog niemand vroeg om een handmatige check.</div>
-  {% else %}<table><tr><th>Wanneer (UTC)</th><th>Webshop</th><th>E-mail</th></tr>
-    {% for h in handchecks %}<tr><td>{{ h.op|replace('T', ' ') }}</td><td>{{ h.url }}</td><td><a href="mailto:{{ h.email }}">{{ h.email }}</a></td></tr>{% endfor %}
-  </table><div class="leeg" style="text-align:left;">Beloofd: plek en de drie grootste punten binnen een werkdag.</div>{% endif %}
-
-  <h2>Laatste mislukte checks</h2>
-  {% if not mislukt %}<div class="leeg">Geen mislukte checks.</div>
-  {% else %}<table><tr><th>Wanneer</th><th>Webshop</th><th>Waarom</th></tr>
-    {% for m in mislukt %}<tr><td>{{ m.op.strftime('%d-%m %H:%M') if m.op else '-' }}</td><td>{{ m.url }}</td><td>{{ m.fout or 'onbekend' }}</td></tr>{% endfor %}
-  </table>{% endif %}
 
   <h2>Zichtbaarheidstests aangevraagd</h2>
   {% if not leads %}
