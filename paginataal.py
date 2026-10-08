@@ -106,9 +106,8 @@ TEKSTEN = {
                                  "je elke maand weten waar je staat, dan doen Watch en Fix dat."),
 
         # onderaan
-        "details_kop": "Alle metingen en cijfers bekijken",
-        "details_tekst": ("Bij welke vragen je genoemd wordt, wat AI letterlijk over je zei, "
-                          "wie je concurrenten zijn en alle dertien controlepunten van je site."),
+        "details_kop": "Bekijk je sitecheck",
+        "details_tekst": ("De dertien punten die bepalen of AI je winkel kan lezen, per week, met wat je eraan doet."),
         "abo_kop": "Je abonnement",
         # Stond "Je betaalt 39 euro per maand". Dat was het oude tarief; sinds 17
         # september is het Watch 49, Fix 149 of Merken 490. Het pakket staat
@@ -402,10 +401,8 @@ TEKSTEN = {
         "nognietgemeten_tekst": ("With a one-off job we do not keep measuring. Want to know "
                                  "every month where you stand? That is what Watch and Fix do."),
 
-        "details_kop": "See all measurements and figures",
-        "details_tekst": ("Which questions you are mentioned in, what AI said about you word "
-                          "for word, who your competitors are, and all thirteen checks on "
-                          "your site."),
+        "details_kop": "See your site check",
+        "details_tekst": ("The thirteen points that decide whether AI can read your store, week by week, with what to do about each."),
         "abo_kop": "Your subscription",
         "abo_tekst": ("You can cancel your plan at any time. If you cancel you keep access "
                       "until the end of the month or year you already paid for, and nothing "

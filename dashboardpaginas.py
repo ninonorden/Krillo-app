@@ -25,6 +25,9 @@ PAGINAS = [
     ("ranglijst", "ranking", {"en": "Ranking", "nl": "Ranglijst"}),
     ("vragen", "questions", {"en": "Questions", "nl": "Vragen"}),
     ("verbeteringen", "fixes", {"en": "Fixes", "nl": "Verbeteringen"}),
+    # 8 oktober (stap 316): de dertien sitecontroles in het dashboard zelf, in
+    # plaats van op een losse pagina met de kop van de website.
+    ("sitecheck", "site-check", {"en": "Site check", "nl": "Sitecheck"}),
     ("abonnement", "plan", {"en": "Plan", "nl": "Abonnement"}),
 ]
 PAD_NAAR_PAGINA = {pad: naam for naam, pad, _ in PAGINAS}

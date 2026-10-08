@@ -1179,7 +1179,11 @@ def categorie_kiezen(klant_token):
     db.zet_instelling(CATEGORIEVERZOEK + url, "")
     if any(db.laatste_afgeronde_ronde(c) for c in categorieen.familie(slug)):
         _plaats_in_ranglijst(url)
-    else:
+    # 8 oktober (Nino koos Winter sports en bleef in Sports and fitness): is zijn
+    # EIGEN categorie nog nooit gemeten, dan die voor in de rij, ook als de
+    # bovencategorie wel gemeten is. Tot dan ziet hij de bovencategorie, met
+    # een melding erbij (eigen_categorie in het dashboard).
+    if not db.laatste_afgeronde_ronde(slug):
         zet_in_klantmeetrij(slug)
     return redirect(basis + "?categorie=gekozen", code=303)
 
@@ -1240,10 +1244,22 @@ def api_opzeggen(klant_token):
                          f"{klant['email']} stopte de gratis proef van {klant['webshop_url']}. "
                          f"Er is niets betaald en niets terug te betalen.")
         return jsonify({"ok": True})
+    # 8 oktober (Nino, akkoord): geld terug binnen veertien dagen alleen nog bij
+    # Fix. Watch heeft de veertien gratis dagen als garantie; daarna betaalde
+    # hij de lopende maand en die houdt hij gewoon.
+    # Onbekend pakket: de belofte houden (zo was het voor iedereen).
+    fix_klant = (klant.get("pakket") or "fix").lower() != "watch"
+    if dagen is not None and dagen <= 14 and not fix_klant:
+        dagen = 15
     if dagen is not None and dagen > 14:
         # Een jaarklant houdt toegang tot het eind van zijn betaalde jaar.
         jaar = (abonnement.get("periode") == "jaar") or (klant.get("periode") == "jaar")
-        tot = _einde_betaalde_maand(klant.get("aangemaakt_op"), maanden=12 if jaar else 1)
+        # 8 oktober (controle): na een gratis proef begint het betalen op dag 15,
+        # niet bij de aanmelding. Anders verloor een ex-proefklant twee weken.
+        betaald_vanaf = klant.get("aangemaakt_op")
+        if gratis_tot:
+            betaald_vanaf = datetime.combine(gratis_tot, datetime.min.time(), tzinfo=timezone.utc) + timedelta(days=1)
+        tot = _einde_betaalde_maand(betaald_vanaf, maanden=12 if jaar else 1)
         db.zet_klant_opgezegd(klant["webshop_url"], tot=tot)
     else:
         db.zet_klant_opgezegd(klant["webshop_url"])
@@ -4840,8 +4856,15 @@ def weekly_scans():
     base_url = get_base_url()
     if not _ruimte_voor_zwaar_werk("wekelijkse scans"):
         return "later", 200
+    # 8 oktober: de wachtklok doet dit ook (vangnet). Een keer per dag, wie
+    # er ook eerst is; anders betaal je de weekvragen dubbel.
+    if not alles and not db.claim_moment(WEEKSCANS_KLOK, 20 * 3600):
+        return "al gedaan vandaag", 200
     threading.Thread(target=_draai_wekelijkse_scans, args=(base_url, alles), daemon=True).start()
     return "ok", 200
+
+
+WEEKSCANS_KLOK = "wekelijkse_scans_klok"
 
 
 @app.after_request
@@ -6070,6 +6093,14 @@ def _wachtklok_tik(nu=None):
                 gedaan.append(f"klantmeting {gestart}")
         except Exception as e:
             print(f"Klantmeetrij mislukt: {e}")
+    # 8 oktober (controle "maakt Krillo het waar?"): alle weekbeloftes (vijf
+    # vragen, dertien controles, de weekmail) hingen aan een cron in Render.
+    # Ontbreekt die, dan gebeurde er niets. Nu ook vanuit de wachtklok, tussen
+    # tien en twaalf, als de cron het vandaag nog niet deed (zelfde claim).
+    if 10 <= nu.hour < 12 and not onderhoud._stand.get("bezig") \
+            and _ruimte_voor_zwaar_werk("wekelijkse scans") and db.claim_moment(WEEKSCANS_KLOK, 20 * 3600):
+        threading.Thread(target=_draai_wekelijkse_scans, args=(get_base_url(), False), daemon=True).start()
+        gedaan.append("wekelijkse scans")
     # 1 oktober: de klantblik loopt elke ochtend alle pagina's na zoals een klant
     # ze ziet, na de nacht en voor het ochtendbericht van acht uur.
     import commandocentrum
@@ -8243,6 +8274,20 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         gegevens["categorie_post"] = f"/mijn/{klant_token}/categorie"
         gegevens["categoriekeuzes"] = _categoriekeuzes()
         gegevens["gekozen_land"] = (beeld.get("land") or "nl")
+        # 8 oktober (Nino koos Winter sports en bleef Sports and fitness zien):
+        # een kleine categorie die nog niet gemeten is, rolt op in zijn ouder.
+        # Dat is goed (anders zie je niets), maar dan moet het er wel staan.
+        try:
+            eigen = (db.winkel_kort(webshop_url) or {}).get("categorie")
+            if eigen and eigen != beeld.get("categorie") and eigen not in categorieen.NIET_MEETBAAR:
+                reden = _geen_plek_reden_voor_categorie(eigen, beeld.get("land") or "nl")
+                gegevens["eigen_categorie"] = dict(reden, naam=categorieen.naam_en(eigen),
+                                                   ouder=categorieen.naam_en(beeld.get("categorie")))
+        except Exception as e:
+            print(f"Eigen categorie nakijken mislukt voor {webshop_url}: {e}")
+    # Stap 316: de pagina Site check, met of zonder plek.
+    if pagina == "sitecheck":
+        gegevens["sitecheck"] = _sitecheck(webshop_url, klant_token, taal) if klant_token and not proef else None
     if beeld:
         winkelnaam = beeld.get("naam")
         if pagina in ("overzicht", "vragen"):
@@ -8314,6 +8359,12 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                         print(f"Bronnen en pagina per vraag mislukt voor {webshop_url}: {e}")
             except Exception as e:
                 print(f"Aanpak per vraag mislukt voor {webshop_url}: {e}")
+        if pagina == "overzicht" and klant_token and not proef:
+            try:
+                gegevens["gids"] = _eerste_maand(webshop_url, klant_token, beeld, taal,
+                                                 pakket=(db.get_klant(klant_token) or {}).get("pakket"))
+            except Exception as e:
+                print(f"Gids voor het overzicht mislukt voor {webshop_url}: {e}")
         if pagina == "overzicht":
             # Stap 198: de wekelijkse snelmeting, alleen voor een betalende klant.
             if werk and not proef:
@@ -8624,6 +8675,131 @@ def _meet_klantcategorie(nu=None):
     db.zet_instelling(KLANTMEETRIJ, json.dumps(rij[1:]))
     print(f"Klantmeetrij: {cat} wordt nu gemeten voor een betalende klant.")
     return cat
+
+
+def _sitecheck(webshop_url, klant_token, taal):
+    """De pagina Site check (stap 316): score, verloop en de dertien punten,
+    in de taal van het dashboard, binnen het dashboard."""
+    try:
+        rapporten = db.get_klant_rapporten(klant_token, limit=8) or []
+    except Exception as e:
+        print(f"Sitecheck ophalen mislukt voor {webshop_url}: {e}")
+        rapporten = []
+    if not rapporten:
+        return {"leeg": True}
+    laatste = rapporten[0]
+    checks = laatste.get("checks") or []
+    if isinstance(checks, str):
+        checks = json.loads(checks)
+    if taal != "nl":
+        import checktaal
+        checks = checktaal.naar_het_engels({"checks": checks})["checks"]
+    namen = ({"toegang": "Access", "leesbaarheid": "Readability", "structuur": "Structure",
+              "inhoud": "Content"} if taal != "nl" else
+             {"toegang": "Toegang", "leesbaarheid": "Leesbaarheid", "structuur": "Structuur", "inhoud": "Inhoud"})
+    groepen = {}
+    for c in checks:
+        groepen.setdefault(namen.get(c.get("categorie"), c.get("categorie") or "Other"), []).append(c)
+    # Wat eerst: problemen boven, goed onder, per groep.
+    volgorde = {"probleem": 0, "deels": 1, "onbekend": 2, "ok": 3, "goed": 3}
+    for g in groepen.values():
+        g.sort(key=lambda c: volgorde.get(c.get("status"), 1))
+    verloop = [{"score": r.get("score"), "op": r.get("aangemaakt_op")} for r in reversed(rapporten)]
+    return {"score": laatste.get("score"), "op": laatste.get("aangemaakt_op"), "groepen": groepen,
+            "verloop": verloop, "goed": sum(1 for c in checks if c.get("status") in ("ok", "goed")),
+            "totaal": len(checks), "pdf": f"/mijn/{klant_token}/checks.pdf"}
+
+
+GIDS_WEG = "gids_weg:"
+EERSTE_WIJZIGING = "eerste_wijziging:"
+
+
+def _eerste_maand(webshop_url, klant_token, beeld, taal, pakket=None, gekozen=None):
+    """De gids "Your first month with Krillo" op het overzicht (8 oktober).
+
+    Nino: "iemand komt op het dashboard, maar wat dan? Er is geen stappenplan,
+    geen uitleg hoe lang iets duurt." De startpagina doet dat tot er een plek
+    is; daarna stond er niets. Stripe, Shopify en Peec zetten bovenaan een
+    korte lijst met wat je eerst doet, hoe lang het duurt en een vinkje als
+    het klaar is. Hier hetzelfde, en elk vinkje komt uit de database. De klant
+    kan de gids wegklikken; als alles klaar is verdwijnt hij vanzelf."""
+    nl = taal == "nl"
+    if db.get_instelling(GIDS_WEG + webshop_url):
+        return None
+    fix = (pakket or "").lower() not in ("watch", "")
+    try:
+        import pixel
+        verbonden = bool((pixel.status(webshop_url) or {}).get("verbonden"))
+    except Exception:
+        verbonden = False
+    gekozen = gekozen if gekozen is not None else (db.gekozen_vragen(webshop_url) or [])
+    gewijzigd = bool(db.get_instelling(EERSTE_WIJZIGING + webshop_url))
+    if fix and not gewijzigd:
+        try:
+            gewijzigd = bool(db.get_wijzigingen(webshop_url))
+        except Exception:
+            pass
+    dag = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][meetdag(webshop_url)]
+    gemeten = beeld.get("gemeten_op")
+    volgende = (gemeten + timedelta(days=30)).strftime("%-d %B") if hasattr(gemeten, "strftime") else None
+    stappen = [
+        {"titel": "Je stand is gemeten" if nl else "Your standing is measured", "tijd": "",
+         "tekst": ("Je plek, en bij welke koopvragen AI een ander noemt." if nl else
+                   "Your rank, and the buying questions where AI names someone else."), "klaar": True},
+        {"titel": "Kies tot drie vragen om te winnen" if nl else "Pick up to three questions to win",
+         "tijd": "2 min", "klaar": bool(gekozen), "link": "vragen",
+         "tekst": ("Open een vraag hieronder en klik op Add to my fixes. Begin met vragen waar weinig winkels genoemd worden." if nl else
+                   "Open a question below and click Add to my fixes. Start with questions where few stores are named.")},
+        {"titel": "Koppel je verkoop" if nl else "Connect your sales", "tijd": "2 min", "klaar": verbonden,
+         "link": "pixel",
+         "tekst": ("Dan zie je wat AI je oplevert in bezoek, bestellingen en omzet." if nl else
+                   "Then you see what AI brings you in visits, orders and revenue.")},
+        {"titel": ("Wij zetten je eerste fix live" if fix else "Zet je eerste fix live") if nl else
+                  ("We put your first fix live" if fix else "Put your first fix live"),
+         "tijd": "" if fix else ("30 min" if nl else "30 min"), "klaar": gewijzigd, "link": "fixes",
+         "tekst": (("Na je toegang doen wij het; je ziet elke wijziging op Fixes." if nl else
+                    "Once you give access, we do it; every change shows on Fixes.") if fix else
+                   ("Op Fixes staat de tekst klaar om te kopieren en waar hij komt. Klaar? Vink het hier af." if nl else
+                    "Fixes has the text ready to copy and where it goes. Done? Tick it off here.")),
+         "afvinken": not fix and not gewijzigd},
+        {"titel": "Zie het effect" if nl else "See the effect", "tijd": "", "klaar": False, "info": True,
+         "tekst": ((f"Elke {dag} stellen we je vijf belangrijkste vragen opnieuw. AI pikt een wijziging meestal "
+                    f"binnen een paar dagen tot een paar weken op. Je nieuwe plek in de index: rond {volgende}.") if nl else
+                   (f"Every {dag} we ask your five key questions again. AI usually picks up a change within days "
+                    f"to a few weeks. Your new rank in the index: around {volgende}."))},
+    ]
+    taken = [s for s in stappen if not s.get("info")]
+    klaar = sum(1 for s in taken if s["klaar"])
+    if klaar == len(taken):
+        return None
+    return {"stappen": stappen, "klaar": klaar, "totaal": len(taken),
+            "weg_url": f"/mijn/{klant_token}/gids", "afvink_url": f"/mijn/{klant_token}/gids"}
+
+
+@app.route("/mijn/<klant_token>/gids", methods=["POST"])
+def gids_bewaren(klant_token):
+    """De gids wegklikken, of "eerste fix live" afvinken (8 oktober)."""
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return jsonify({"ok": False}), 404
+    wat = (request.get_json(silent=True) or {}).get("wat")
+    if wat == "weg":
+        db.zet_instelling(GIDS_WEG + klant["webshop_url"], datetime.now(timezone.utc).isoformat())
+    elif wat == "gedaan":
+        db.zet_instelling(EERSTE_WIJZIGING + klant["webshop_url"], datetime.now(timezone.utc).isoformat())
+    else:
+        return jsonify({"ok": False}), 400
+    return jsonify({"ok": True})
+
+
+def _geen_plek_reden_voor_categorie(cat, land):
+    """Hoe ver een categorie is: hoeveel winkels we kennen, hoeveel nodig, en of
+    hij nu voor een klant gemeten wordt (8 oktober)."""
+    import categoriemeting
+    aantal = (db.winkels_per_categorie_in_land((land or "nl").lower()) or {}).get(cat, 0)
+    st = categoriemeting.stand()
+    return {"aantal": aantal, "nodig": categorieen.MINIMUM_VOOR_INDEX,
+            "wordt_gemeten": bool(cat in _klantmeetrij() or (st.get("bezig") and st.get("categorie") == cat))}
 
 
 def _geen_plek_reden(webshop_url):

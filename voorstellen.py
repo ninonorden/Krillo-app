@@ -74,6 +74,30 @@ OP_TITEL = [
      "1 okt: per pagina een kant-en-klare titel, omschrijving en eerste alinea op Fixes (stap 254)"),
     ("Pagina-voor-pagina AI-gereedheidsaudit", "gebouwd",
      "1 okt: elke week de homepage plus vijf product- en categoriepagina's, per pagina wat te doen (stap 255)"),
+    # 8 oktober: Nino keurde dertien voorstellen goed en zag niet welke al
+    # gebouwd waren of al op de roadmap stonden. Gebouwd gaat van de bouwlijst;
+    # "op de roadmap" ook, met het stapnummer erbij, zodat de lijst leeg is van
+    # dingen waar al een plek voor is.
+    ("Shopify-omzetkoppeling", "gebouwd",
+     "8 okt: de Krillo-pixel (stap 304 en 317): AI-bezoek, orders en omzet per bron in het dashboard. In de Shopify-app zelf: stap 256, na de goedkeuring"),
+    ("Test een directe Shopify-opbrengstenkoppeling", "gebouwd",
+     "8 okt: de Krillo-pixel (stap 304 en 317), met een checkknop; in de Shopify-app zelf: stap 256"),
+    ("Concurrent-alarm", "gebouwd",
+     "7 okt: stap 241, in de weekmail, de maandmail en op het overzicht (Competitors on the move)"),
+    ("Per-pagina AI-leesbaarheidscore", "gebouwd",
+     "Homepage plus vijf pagina's per week (stap 255) en de pagina Site check (stap 316). Alle productpagina's: roadmap stap 331"),
+    ("Bouw een eenvoudige pagina-scorekaart in de Fix-module", "op de roadmap",
+     "Roadmap stap 331 (paginascore voor alle productpagina's), derde in de bouwvolgorde"),
+    ("Contentmotor", "op de roadmap", "Roadmap stap 239, vierde in de bouwvolgorde"),
+    ("Meer assistenten", "op de roadmap", "Roadmap stap 188, zevende in de bouwvolgorde (kost per meting)"),
+    ("Vermeldingenplan", "op de roadmap", "Roadmap stap 243, tweede in de bouwvolgorde"),
+    ("Google en AI naast elkaar", "op de roadmap", "Roadmap stap 240, zesde in de bouwvolgorde (kost een zoek-API)"),
+    ("Voeg aan de maandelijkse ranglijstmail een kortbericht toe over de ChatGPT Instant Checkout", "op de roadmap",
+     "Roadmap stap 330: pas als kopen in ChatGPT in NL/BE beschikbaar is en we het echt meten (stap 177)"),
+    ("Merk-omschrijving monitor", "op de roadmap", "Roadmap stap 244, eerste in de bouwvolgorde"),
+    ("Voeg een 'merk-omschrijving' scherm toe", "op de roadmap", "Roadmap stap 244, eerste in de bouwvolgorde"),
+    ("Welke zoekopdrachten AI zelf doet", "op de roadmap", "Roadmap stap 191, vijfde in de bouwvolgorde"),
+    ("Imago over tijd", "op de roadmap", "Roadmap stap 244 (merk-omschrijving), eerste in de bouwvolgorde"),
     ("Voeg aan de gratis check een aparte regel toe voor ChatGPT-advertenties", "niet mogelijk",
      "Advertenties staan niet in de antwoorden die wij via de API krijgen; tonen zou gokken zijn"),
 ]
@@ -156,7 +180,7 @@ def stel_voor(bron, soort, titel, waarom=None, actie=None, sleutel=None, minuten
     bestaand = _sql(f"""SELECT id FROM voorstellen WHERE sleutel = %s
                           AND (stand IN ('open', 'akkoord')
                                OR (stand = 'nee' AND besloten_op > now() - interval '{int(NEE_DAGEN)} days')
-                               OR (soort <> 'actie' AND stand IN ('gedaan', 'uitgevoerd', 'gebouwd')))
+                               OR (soort <> 'actie' AND stand IN ('gedaan', 'uitgevoerd', 'gebouwd', 'op de roadmap')))
                         LIMIT 1""", (sleutel,))
     if bestaand:
         return None

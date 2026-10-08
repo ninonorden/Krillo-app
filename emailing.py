@@ -1012,9 +1012,10 @@ def welkom_v2_html(webshop_url, report_url, pakket="watch", score=None, gratis_t
                       "Gemini already gave, and writing your first fixes. Usually within the hour; "
                       "we email you when your rank is in.")
     if is_fix:
-        tweede = stap("2", "We install your sales pixel",
-                      "So every month you see the visits, orders and revenue AI brings you. "
-                      "You get a separate email about access to your store.")
+        tweede = stap("2", "We place your sales pixel for you",
+                      "Once you give us access to your store, we add the Krillo pixel, so every month "
+                      "you see the visits, orders and revenue AI brings you. You get a separate email "
+                      "about access.")
     else:
         tweede = stap("2", "You: connect your sales (2 minutes)",
                       "Paste the Krillo pixel into Shopify (Settings, Customer events) or your site. "
