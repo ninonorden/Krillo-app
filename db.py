@@ -700,6 +700,9 @@ def init_db():
                 # 29 september: aanvragen van merken en bureaus (/agencies).
                 import merkenbureaus
                 merkenbureaus.maak_tabellen(cur)
+                # 9 oktober (stap 353): accounts met wachtwoord, Google of Microsoft.
+                import accounts
+                accounts.maak_tabellen(cur)
                 import lijstjesagent
                 lijstjesagent.maak_tabellen(cur)
                 import linkedinagent

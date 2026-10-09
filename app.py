@@ -1169,6 +1169,18 @@ def aiverkeer_bewaren(klant_token):
 CATEGORIEVERZOEK = "categorieverzoek:"
 
 
+@app.route("/mijn/<klant_token>/wachtwoord", methods=["POST"])
+def klant_wachtwoord(klant_token):
+    """Stap 353: wachtwoord zetten vanuit het dashboard (wie binnenkwam via de maillink)."""
+    import accounts
+    klant = db.get_klant(klant_token)
+    if not klant or not klant.get("email"):
+        return render_template("fout.html", titel="This link no longer works",
+                               bericht="Open your dashboard and try again."), 404
+    fout = accounts.zet_wachtwoord(klant["email"], request.form.get("wachtwoord") or "")
+    return redirect(f"/mijn/{klant_token}/plan?wachtwoord={'kort' if fout else 'ok'}#wachtwoord", code=303)
+
+
 @app.route("/mijn/<klant_token>/categorie", methods=["POST"])
 def categorie_kiezen(klant_token):
     """De klant kiest zelf zijn categorie en land (8 oktober).
@@ -9904,6 +9916,16 @@ def link_opnieuw():
         return redirect("/get-my-link" + (("?" + request.query_string.decode()) if request.query_string else ""),
                         code=301)
     verstuurd = request.args.get("m") == "verstuurd"
+    import accounts
+    # 9 oktober (stap 353): met een wachtwoord direct naar het dashboard. Zonder
+    # wachtwoord (het formulier "Email me a login link") blijft het de maillink.
+    if request.method == "POST" and request.path == "/login" and request.form.get("wachtwoord") is not None:
+        adres = (request.form.get("email") or "").strip().lower()
+        ok, fout = accounts.controleer(adres, request.form.get("wachtwoord") or "")
+        if not ok:
+            return render_template("login.html", verstuurd=False, fout=fout, email=adres,
+                                   aanbieders=accounts.actieve()), 401
+        return _na_inloggen(adres)
     if request.method == "POST":
         adres = (request.form.get("email") or "").strip().lower()
         try:
@@ -9926,7 +9948,8 @@ def link_opnieuw():
     # "Lost your link?" en stond het nergens in het menu. Nu is het /login,
     # met "Log in" rechtsboven op de site. Zelfde werking, zelfde regels.
     if request.path == "/login":
-        return render_template("login.html", verstuurd=verstuurd)
+        return render_template("login.html", verstuurd=verstuurd, aanbieders=accounts.actieve(),
+                               fout={"oauth": "Logging in with that account did not work. Try again or use your email."}.get(request.args.get("f")))
     return render_template("mijn_link.html", verstuurd=verstuurd)
 
 
@@ -10096,6 +10119,60 @@ def uitkomst_pagina(token, pad):
                       pagina=dp.PAD_NAAR_PAGINA[pad])
 
 
+def _na_inloggen(email):
+    """Na een geslaagde login (stap 353): de enige winkel direct open, bij meer
+    winkels een keuze, zonder winkel naar /start."""
+    import accounts
+    session["account"] = email
+    session.permanent = True
+    lijst = accounts.winkels(email)
+    actief = [w for w in lijst if not w.get("opgezegd_op")] or lijst
+    if len(actief) == 1:
+        return redirect(f"/mijn/{actief[0]['klant_token']}")
+    if not actief:
+        return redirect("/start")
+    return render_template("login.html", kiezen=[{
+        "naam": w["webshop_url"].replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/"),
+        "href": f"/mijn/{w['klant_token']}", "pakket": (w.get("pakket") or "watch").capitalize(),
+        "opgezegd": bool(w.get("opgezegd_op"))} for w in actief], aanbieders=[])
+
+
+@app.route("/auth/<aanbieder>")
+def auth_begin(aanbieder):
+    """Inloggen of aanmelden met Google of Microsoft (stap 353)."""
+    import accounts
+    if not accounts.actief(aanbieder):
+        return redirect("/login")
+    state = accounts.nieuwe_state()
+    session["oauth_state"], session["oauth_na"] = state, ("start" if request.args.get("na") == "start" else "login")
+    session["oauth_plan"] = request.args.get("plan") if request.args.get("plan") in ("watch", "fix") else ""
+    terug = get_base_url().rstrip("/") + f"/auth/{aanbieder}/terug"
+    return redirect(accounts.begin_url(aanbieder, terug, state))
+
+
+@app.route("/auth/<aanbieder>/terug")
+def auth_terug(aanbieder):
+    import accounts
+    if not accounts.actief(aanbieder):
+        return redirect("/login")
+    state = session.pop("oauth_state", None)
+    if not state or request.args.get("state") != state or not request.args.get("code"):
+        return redirect("/login?f=oauth")
+    terug = get_base_url().rstrip("/") + f"/auth/{aanbieder}/terug"
+    uit, fout = accounts.ruil_code(aanbieder, request.args["code"], terug)
+    if not uit:
+        print(f"OAuth {aanbieder}: {fout}")
+        return redirect("/login?f=oauth")
+    email, sub = uit
+    accounts.koppel(aanbieder, email, sub)
+    if session.pop("oauth_na", "login") == "start":
+        session["account"] = email
+        session.permanent = True
+        plan = session.pop("oauth_plan", "")
+        return redirect("/start" + (f"?plan={plan}" if plan else ""))
+    return _na_inloggen(email)
+
+
 # ---------------------------------------------------------------------------
 # STAP 352 (9 oktober): de aanmeldroute /start, naar het voorbeeld van Peec.
 # Eerst een account (mailadres), dan de winkel, het profiel, de vragen die hij
@@ -10108,7 +10185,13 @@ def start_pagina():
     plan = request.args.get("plan")
     plan = plan if plan in ("watch", "fix") else "watch"
     winkel = scan_engine.normalize_url(request.args.get("winkel") or "") if request.args.get("winkel") else ""
-    return render_template("start.html", plan=plan, winkel=winkel,
+    # Stap 353: al ingelogd (wachtwoord, Google of Microsoft)? Dan slaat hij
+    # stap 1 over.
+    sessie_email = session.get("account") or ""
+    sessie_token = aanmelden.begin(sessie_email) if sessie_email else ""
+    import accounts
+    return render_template("start.html", plan=plan, winkel=winkel, sessie_email=sessie_email,
+                           sessie_token=sessie_token, aanbieders=accounts.actieve(),
                            kenmerk=(request.args.get("t") or "")[:80],
                            categorieen_lijst=aanmelden.categorie_keuzes(),
                            prijs_watch=payments.PAKKETTEN["watch"]["prijs"]["value"].split(".")[0],
@@ -10124,6 +10207,20 @@ def start_account():
         return jsonify({"error": "That email address does not look right. Please check it."}), 400
     if not d.get("akkoord"):
         return jsonify({"error": "Please agree to the terms and the privacy policy."}), 400
+    # Stap 353: een wachtwoord, zodat hij later direct kan inloggen. Heeft dit
+    # adres al een account met wachtwoord, dan moet het kloppen.
+    import accounts
+    wachtwoord = d.get("wachtwoord") or ""
+    if accounts.heeft_wachtwoord(email):
+        ok, _ = accounts.controleer(email, wachtwoord)
+        if not ok:
+            return jsonify({"error": "This email already has a Krillo account. Use your password, or log in first."}), 409
+    else:
+        fout = accounts.zet_wachtwoord(email, wachtwoord)
+        if fout:
+            return jsonify({"error": fout}), 400
+    session["account"] = email.strip().lower()
+    session.permanent = True
     token = aanmelden.begin(email)
     # Nino wil weten dat er iemand begint, ook als hij niet afrondt: dit adres
     # is de eerste echte lead uit de site.
