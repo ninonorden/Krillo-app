@@ -368,7 +368,7 @@
       <div class="kop-uitleg">{{ t.d_per_vraag_uitleg }}</div>
       {% for r in vermeldingen.regels %}
       <div class="vraagregel">
-        <div class="vraag">{{ r.vraag }}</div>
+        <div class="vraag" lang="nl">{{ r.vraag }}</div>
         <div>
           {% if r.aanbevolen %}
           <span class="vlag aanbevolen">{{ t.d_vlag_aanbevolen }}</span>
@@ -514,7 +514,7 @@
       {% if controle.fouten %}
       {% for f in controle.fouten %}
       <div class="fout-regel">
-        <div class="zei">{{ t.d_fout_bij }} "{{ f.vraag }}" {{ t.d_fout_zei }} "{{ f.uitspraak }}"</div>
+        <div class="zei">{{ t.d_fout_bij }} "<span lang="nl">{{ f.vraag }}</span>" {{ t.d_fout_zei }} "{{ f.uitspraak }}"</div>
         {% if f.watzegtdesite %}<div class="klopt"><strong>{{ t.d_fout_site }}</strong> {{ f.watzegtdesite }}</div>{% endif %}
       </div>
       {% endfor %}

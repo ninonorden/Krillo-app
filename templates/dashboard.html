@@ -1,5 +1,9 @@
 <!DOCTYPE html>
 <html lang="{{ taal }}">
+{# 9 okt (klantblik): koopvragen staan in de taal van de markt. Overal waar een
+   vraag op het scherm komt, staat hij in een element met lang="nl" (of "und"),
+   zodat browsers, schermlezers en de klantblik weten dat dit met opzet zo is. #}
+{% set vlang = 'nl' if (beeld is defined and beeld and (beeld.land or 'nl') in ('nl', 'be')) else 'und' %}
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -534,7 +538,7 @@
           </div>
           <div class="cv-doel-rechts">
             {% if doelen %}
-            <div class="cv-doelkeuze" role="tablist">{% for d in doelen %}<button type="button" class="chip{{ ' chip-on' if loop.first }}" data-doel="{{ loop.index0 }}" title="{{ d.vraag }}"><span class="cv-zacht">{{ d.soort_label }}</span> {{ d.vraag | truncate(46, True, '...') }}</button>{% endfor %}</div>
+            <div class="cv-doelkeuze" role="tablist">{% for d in doelen %}<button type="button" class="chip{{ ' chip-on' if loop.first }}" data-doel="{{ loop.index0 }}" title="{{ d.vraag }}"><span class="cv-zacht">{{ d.soort_label }}</span> <span lang="{{ vlang }}">{{ d.vraag | truncate(46, True, '...') }}</span></button>{% endfor %}</div>
             {% for d in doelen %}
             <div class="cv-doelblok"{% if not loop.first %} hidden{% endif %} data-doelblok="{{ loop.index0 }}">
               <div class="cv-doelkpi">
@@ -622,7 +626,7 @@
           {% set anderen = [] %}{% for m in v.per_model %}{% for n in m.anderen %}{% if n not in anderen %}{% set _ = anderen.append(n) %}{% endif %}{% endfor %}{% endfor %}
           {% set lbl = {'prijs': ('Price', 'Prijs'), 'lokaal': ('Local', 'Lokaal'), 'service': ('Service', 'Service'), 'waarden': ('Values', 'Waarden'), 'product': ('Product', 'Product'), 'algemeen': ('General', 'Algemeen')} %}
           <button type="button" class="d8-vraag{{ ' aan' if loop.first }}" data-vraag="{{ loop.index0 }}" data-stand="{{ 'gewonnen' if v.gewonnen else 'verloren' }}" data-zoek="{{ v.vraag | lower }}">
-            <span class="t">{{ v.vraag }}</span>
+            <span class="t" lang="{{ vlang }}">{{ v.vraag }}</span>
             <span class="cv-int cv-kol-int">{{ (lbl.get(v.label) or lbl.algemeen)[1 if nl else 0] }}</span>
             <span class="cv-ass cv-kol-ass">{% for m in v.per_model %}{% set lg = m.assistent | lower %}<span class="cv-as {{ 'ja' if m.genoemd else '' }}" data-as="{{ m.assistent }}" title="{{ m.assistent }}: {{ ('genoemd' if nl else 'named') if m.genoemd else ('niet genoemd' if nl else 'not named') }}">{% if lg in ('chatgpt', 'gemini') and logo_bestaat is defined and logo_bestaat(lg) %}<img src="/static/logos/{{ lg }}.svg" width="12" height="12" alt="">{% else %}{{ m.assistent[:3] | upper }}{% endif %}</span>{% endfor %}</span>
             <span class="d8-mono jij {{ 'op' if v.gewonnen else 'nee' }}">{% if v.aanbevolen %}{{ 'AANGERADEN' if nl else 'ADVISED' }}{% elif v.gewonnen %}{{ 'GENOEMD' if nl else 'NAMED' }}{% else %}{{ 'NIET GENOEMD' if nl else 'NOT NAMED' }}{% endif %}</span>
@@ -653,7 +657,7 @@
         {% set v0 = vr.vragen | first if vr.vragen else None %}
         <div class="d8-ladekop">
           <span class="d8-mono">{{ 'VRAAG' if nl else 'QUESTION' }} <span data-l="nr">1</span> {{ 'VAN' if nl else 'OF' }} {{ vr.totaal }}</span>
-          <b data-l="vraag">{{ v0.vraag if v0 else '' }}</b>
+          <b data-l="vraag" lang="{{ vlang }}">{{ v0.vraag if v0 else '' }}</b>
           {% if beeld.land and not nl and vraagtaal_en(beeld.land) not in ('English', 'the local language') %}<span class="d8-mono d8-taal">ASKED IN {{ vraagtaal_en(beeld.land) | upper }}, AS SHOPPERS IN {{ landnaam | upper }} ASK IT</span>{% endif %}
           <div class="d8-seg" data-l="modellen">{% if v0 %}{% for m in v0.per_model %}<button type="button" class="{{ 'aan' if loop.first }}" data-model="{{ loop.index0 }}">{{ m.assistent }}</button>{% endfor %}{% endif %}</div>
         </div>
@@ -1003,7 +1007,7 @@
       <table style="width:100%; border-collapse:collapse; font-size:14px;">
         {% for v in snel.vragen %}
         <tr style="border-top:1px solid var(--lijn, #E8E8EC);">
-          <td style="padding:8px 8px 8px 0;">{{ v.vraag }}{% if v.was is not none and v.was != v.nu %} <span style="font-family:var(--mono); font-size:12px; color:{{ '#0A7F55' if v.nu else '#B42318' }};">{{ ('nu genoemd' if v.nu else 'niet meer genoemd') if taal == 'nl' else ('now named' if v.nu else 'no longer named') }}</span>{% endif %}</td>
+          <td style="padding:8px 8px 8px 0;"><span lang="{{ vlang }}">{{ v.vraag }}</span>{% if v.was is not none and v.was != v.nu %} <span style="font-family:var(--mono); font-size:12px; color:{{ '#0A7F55' if v.nu else '#B42318' }};">{{ ('nu genoemd' if v.nu else 'niet meer genoemd') if taal == 'nl' else ('now named' if v.nu else 'no longer named') }}</span>{% endif %}</td>
           {% for a in v.assistenten %}
           <td style="padding:8px 0 8px 8px; white-space:nowrap; font-family:var(--mono); font-size:12px;" title="{{ a.anderen | join(', ') }}">{{ a.naam }} {{ '&#10003;' | safe if a.genoemd else '&#10005;' | safe }}</td>
           {% endfor %}
@@ -1088,7 +1092,7 @@
 
       {% if waarom_vragen is defined and waarom_vragen | length > 1 %}
       <div class="wv-keuze" aria-label="{{ 'Kies een vraag' if nl else 'Choose a question' }}">
-        {% for q in waarom_vragen %}<a class="chip{{ ' chip-on' if q.vraag == w.vraag }}" href="{{ q.href }}" title="{{ q.vraag }}"><span class="cv-zacht">{{ ('Eigen' if nl else 'Own') if q.eigen else (('Gewonnen' if nl else 'Won') if q.gewonnen else ('Verloren' if nl else 'Lost')) }}</span> {{ q.vraag | truncate(44, True, '...') }}</a>{% endfor %}
+        {% for q in waarom_vragen %}<a class="chip{{ ' chip-on' if q.vraag == w.vraag }}" href="{{ q.href }}" title="{{ q.vraag }}"><span class="cv-zacht">{{ ('Eigen' if nl else 'Own') if q.eigen else (('Gewonnen' if nl else 'Won') if q.gewonnen else ('Verloren' if nl else 'Lost')) }}</span> <span lang="{{ vlang }}">{{ q.vraag | truncate(44, True, '...') }}</span></a>{% endfor %}
       </div>
       {% endif %}
 
@@ -1403,7 +1407,7 @@
       {% for c in imago.citaten %}
       <blockquote style="border-left:3px solid #1B3FE0; margin:10px 0; padding:2px 12px;">
         <div>&ldquo;{% if c.zin[:1].islower() %}&hellip;{% endif %}{{ c.zin }}&rdquo;</div>
-        <div class="klein">{{ c.assistent }} &middot; {{ c.vraag }}</div>
+        <div class="klein">{{ c.assistent }} &middot; <span lang="{{ vlang }}">{{ c.vraag }}</span></div>
       </blockquote>
       {% endfor %}
       {% if imago_vergelijk is defined and imago_vergelijk %}
@@ -1508,7 +1512,7 @@
       {% for v in vragen.vragen %}
       <details class="vraagrij" data-stand="{{ 'gewonnen' if v.gewonnen else 'verloren' }}" data-label="{{ v.label or 'algemeen' }}">
         <summary>
-          <span class="vraag">{{ v.vraag }}{% if v.label %} <span class="vraaglabel">{{ labelnaam(v.label, taal) }}</span>{% endif %}</span>
+          <span class="vraag"><span lang="{{ vlang }}">{{ v.vraag }}</span>{% if v.label %} <span class="vraaglabel">{{ labelnaam(v.label, taal) }}</span>{% endif %}</span>
           <span class="stippen">
             {% for m in v.per_model %}<span class="asst {{ 'ja' if m.genoemd else 'nee' }}" title="{{ m.assistent }}">{{ m.assistent }} {{ '&#10003;'|safe if m.genoemd else '&#10005;'|safe }}</span>{% endfor %}
           </span>

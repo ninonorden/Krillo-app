@@ -48,6 +48,21 @@
   .k-knop.groot{padding:13px 20px; font-size:15px; border-radius:10px;}
   @media(max-width:900px){ .k-kop nav.k-links{display:none;} .k-kop .k-binnen{gap:16px;} }
   @media(max-width:480px){ .k-kop .k-inlog{display:none;} }
+  /* Telefoonmenu (9 okt). Boven 900px bestaat het niet. */
+  .k-kop .k-menuknop, .k-kop .k-menu{display:none;}
+  @media(max-width:900px){
+    .k-kop .k-menuknop{display:inline-grid; gap:4px; place-content:center; width:42px; height:42px; border:1px solid #E7E7E4; border-radius:10px; background:#fff; cursor:pointer; padding:0; margin-left:8px;}
+    .k-kop .k-menuknop i{display:block; width:16px; height:1.6px; background:#0A0A0B; border-radius:2px; transition:transform .2s, opacity .2s;}
+    .k-kop.k-open .k-menuknop i:nth-child(1){transform:translateY(5.6px) rotate(45deg);}
+    .k-kop.k-open .k-menuknop i:nth-child(2){opacity:0;}
+    .k-kop.k-open .k-menuknop i:nth-child(3){transform:translateY(-5.6px) rotate(-45deg);}
+    .k-kop .k-menu:not([hidden]){display:flex; flex-direction:column; padding:6px 20px 18px; border-top:1px solid #F0F0EE; background:rgba(247,247,245,.98); animation:kMenuIn .18s ease-out;}
+    .k-kop .k-menu a{padding:13px 2px; font-size:17px; color:#0A0A0B; text-decoration:none; border-bottom:1px solid #F0F0EE;}
+    .k-kop .k-menu a.k-menu-inlog{border-bottom:0; margin-top:10px; text-align:center; border:1px solid #E7E7E4; border-radius:10px; background:#fff; font-weight:500;}
+    .k-kop .k-rechts .k-knop.blauw{padding-left:14px; padding-right:14px;}
+  }
+  @keyframes kMenuIn{from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:none;}}
+  @media (prefers-reduced-motion: reduce){ .k-kop .k-menu{animation:none !important;} }
 
   /* DE VOET. Zwart, zoals de huisstijl voorschrijft: vier kolommen links. */
   footer.k-voet{margin:0; background:var(--k-inkt); color:#fff; border:0; padding:56px 0 36px;

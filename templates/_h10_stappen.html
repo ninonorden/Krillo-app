@@ -1,3 +1,5 @@
+{# 9 okt: de knoppen kregen data-k10-stap (0 tot 5); zonder dat nummer vond het
+   script ze niet en deed klikken niets. Test: test_klikbaar_9okt. #}
 {# VERSIE 10 (8 oktober 2026). Dit deel komt letterlijk uit het goedgekeurde canvasbord
    "Homepage" (artefact Krillo redesign), omgezet met een script; de klassen hebben het
    voorvoegsel c- zodat ze niet botsen met de oude opmaak. Alles hier is een VOORBEELD
@@ -12,32 +14,32 @@
 <div class="c-g2" style="display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)">
 <div style="padding:24px 40px 56px">
 
-<button type="button" class="c-step c-step-on">
+<button type="button" data-k10-stap="0" class="c-step c-step-on">
 <span class="c-km" style="font-size:11px;padding-top:3px;width:22px">01</span>
 <span><span style="display:block;font-size:17px;font-weight:500">Discover</span><span data-k10-uitleg style="display:block;font-size:14px;line-height:1.55;color:var(--c-soft);margin-top:6px">The buying questions shoppers in your category ask AI, published per category.</span></span>
 </button>
 
-<button type="button" class="c-step">
+<button type="button" data-k10-stap="1" class="c-step">
 <span class="c-km" style="font-size:11px;padding-top:3px;width:22px">02</span>
 <span><span style="display:block;font-size:17px;font-weight:500">Measure</span><span data-k10-uitleg style="display:none;font-size:14px;line-height:1.55;color:var(--c-soft);margin-top:6px">Every week we ask ChatGPT and Gemini your five key questions. Every month, all of them.</span></span>
 </button>
 
-<button type="button" class="c-step">
+<button type="button" data-k10-stap="2" class="c-step">
 <span class="c-km" style="font-size:11px;padding-top:3px;width:22px">03</span>
 <span><span style="display:block;font-size:17px;font-weight:500">Compare</span><span data-k10-uitleg style="display:none;font-size:14px;line-height:1.55;color:var(--c-soft);margin-top:6px">Your place next to every store in your category, per question and per assistant.</span></span>
 </button>
 
-<button type="button" class="c-step">
+<button type="button" data-k10-stap="3" class="c-step">
 <span class="c-km" style="font-size:11px;padding-top:3px;width:22px">04</span>
 <span><span style="display:block;font-size:17px;font-weight:500">Diagnose</span><span data-k10-uitleg style="display:none;font-size:14px;line-height:1.55;color:var(--c-soft);margin-top:6px">Why the winner wins: their page next to yours, and the sources AI quotes.</span></span>
 </button>
 
-<button type="button" class="c-step">
+<button type="button" data-k10-stap="4" class="c-step">
 <span class="c-km" style="font-size:11px;padding-top:3px;width:22px">05</span>
 <span><span style="display:block;font-size:17px;font-weight:500">Act</span><span data-k10-uitleg style="display:none;font-size:14px;line-height:1.55;color:var(--c-soft);margin-top:6px">The change, written out for your store. With Fix, we make it for you after your approval.</span></span>
 </button>
 
-<button type="button" class="c-step">
+<button type="button" data-k10-stap="5" class="c-step">
 <span class="c-km" style="font-size:11px;padding-top:3px;width:22px">06</span>
 <span><span style="display:block;font-size:17px;font-weight:500">Improve</span><span data-k10-uitleg style="display:none;font-size:14px;line-height:1.55;color:var(--c-soft);margin-top:6px">Measured again the next week: answers, rank, visits and orders from AI.</span></span>
 </button>

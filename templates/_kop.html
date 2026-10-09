@@ -14,6 +14,27 @@
       {# 8 oktober (versie 10): de hoofdknop is de gratis check, zoals in het
          ontwerp. De proef staat bij de prijzen, met de prijs ernaast. #}
       <a class="k-knop blauw" href="/#scan">Check my store &rarr;</a>
+      {# 9 oktober: op de telefoon waren The Index, Product, Pricing en Log in
+         onzichtbaar. Deze knop klapt ze uit onder de kop. #}
+      <button type="button" class="k-menuknop" aria-label="Menu" aria-expanded="false" aria-controls="kMenu"><i></i><i></i><i></i></button>
     </div>
   </div>
+  <nav class="k-menu" id="kMenu" aria-label="Menu" hidden>
+    <a href="/index">The Index</a>
+    <a href="/demo">Product</a>
+    <a href="/#pricing">Pricing</a>
+    <a href="/agencies">Agencies</a>
+    <a href="/tools">Free tools</a>
+    <a class="k-menu-inlog" href="/login">Log in</a>
+  </nav>
+  <script>
+  (function(){
+    var k = document.currentScript.parentNode, knop = k.querySelector('.k-menuknop'), menu = k.querySelector('.k-menu');
+    if (!knop || !menu) return;
+    function zet(open){ menu.hidden = !open; knop.setAttribute('aria-expanded', open ? 'true' : 'false'); k.classList.toggle('k-open', open); }
+    knop.addEventListener('click', function(){ zet(menu.hidden); });
+    // Een link kiezen (ook #pricing op dezelfde pagina) klapt het menu weer in.
+    menu.addEventListener('click', function(e){ if (e.target.closest('a')) zet(false); });
+  })();
+  </script>
 </header>

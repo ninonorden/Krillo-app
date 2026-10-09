@@ -9,6 +9,7 @@
   <div class="kaartkop">{{ 'ASSISTENTEN' if anl else 'ASSISTANTS' }}<span class="uitleg">{{ 'WEKELIJKS GEVRAAGD' if anl else 'ASKED WEEKLY' }}</span></div>
   <p class="klein" style="margin:0 0 10px;">{{ 'ChatGPT en Gemini zitten in je pakket. Zet een nieuwe assistent aan en we nemen hem op in jouw metingen zodra Krillo hem meet. Tot dan verandert er niets.' if anl
        else 'ChatGPT and Gemini are in your plan. Switch on a new assistant and we add it to your measurements as soon as Krillo measures it. Until then nothing changes.' }}</p>
+  {% if not assistenten_url %}<p class="klein" style="margin:-4px 0 10px; color:#B4471A;">{{ 'Voorbeeld: in je eigen dashboard meldt een schakelaar je aan. Hier wordt niets bewaard.' if anl else 'Example: in your own dashboard a switch signs you up. Nothing is saved here.' }}</p>{% endif %}
   {% for a in assistenten %}
   {% set gekozen = a.gemeten or a.sleutel in assistenten_keuze %}
   <div class="k10-arij{{ '' if a.gemeten else ' later' }}">
@@ -27,6 +28,13 @@
     vak.querySelectorAll('button[data-sleutel]').forEach(function(knop){
       knop.addEventListener('click', function(){
         var aan = !knop.classList.contains('aan');
+        // Voorbeeld (geen adres): alleen de schakelaar laten bewegen.
+        if (!vak.getAttribute('data-url')){
+          knop.classList.toggle('aan', aan); knop.setAttribute('aria-checked', aan ? 'true' : 'false');
+          var e0 = knop.parentNode.querySelector('em');
+          if (e0) e0.textContent = aan ? {{ ('in jouw dashboard: aangemeld' if anl else 'in your dashboard: signed up') | tojson }} : {{ ('binnenkort' if anl else 'coming soon') | tojson }};
+          return;
+        }
         knop.disabled = true;
         fetch(vak.getAttribute('data-url'), {method:'POST', headers:{'Content-Type':'application/json'},
               body: JSON.stringify({sleutel: knop.getAttribute('data-sleutel'), aan: aan})})

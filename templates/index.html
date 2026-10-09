@@ -1577,6 +1577,13 @@
         });
       });
     });
+    // 9 okt: "Turn into 3 actions" in het voorbeeld opent de tab Actions.
+    alle('[data-k10-naar]').forEach(function(a){
+      a.addEventListener('click', function(e){
+        var t = document.querySelector('[data-k10-tab="' + a.getAttribute('data-k10-naar') + '"]');
+        if (t){ e.preventDefault(); t.click(); }
+      });
+    });
     var stappen = alle('[data-k10-stap]');
     stappen.forEach(function(k){
       k.addEventListener('click', function(){
@@ -1680,7 +1687,7 @@
 
 <!-- HERO -->
 <section id="scan" style="padding:84px 24px 40px;text-align:center">
-  <div class="c-op" style="display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--c-line);border-radius:30px;padding:5px 12px 5px 6px;font-size:13px;color:var(--c-soft);box-shadow:0 1px 2px rgba(10,10,11,.04)"><span class="c-pill" style="background:var(--c-blue-bg);color:var(--c-blue)">For online stores</span>Live in {{ index_landen_en }}, more countries soon</div>
+  <div class="c-op k10-pilrij" style="display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--c-line);border-radius:30px;padding:5px 12px 5px 6px;font-size:13px;color:var(--c-soft);box-shadow:0 1px 2px rgba(10,10,11,.04)"><span class="c-pill" style="background:var(--c-blue-bg);color:var(--c-blue)">For online stores</span>Live in {{ index_landen_en }}, more countries soon</div>
   <h1 class="c-kt c-op2 c-h1 k9-h1" style="font-size:66px;line-height:1.02;margin:22px auto 18px;max-width:900px">See who AI recommends.<br><span style="color:var(--c-faint)">Understand why.</span> Move up.</h1>
   <p class="c-op3" style="font-size:18.5px;line-height:1.55;color:var(--c-soft);margin:0 auto 30px;max-width:640px">Shoppers now ask ChatGPT and Gemini where to buy. Krillo shows which stores they recommend in your category, who beats you, what to change, and what it brings in sales.</p>
   <div class="scan-form k10-scanveld c-op3">
