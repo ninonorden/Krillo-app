@@ -18,7 +18,7 @@ begint.
 """
 import json
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import categorieen
 import db
@@ -27,6 +27,8 @@ import scan_engine
 SLEUTEL = "aanmelding:"          # aanmelding:<token> -> de stappen tot nu toe
 PER_WINKEL = "aanmelding_url:"   # aanmelding_url:<winkel> -> token (voor na de betaling)
 MAX_DOELEN = 3                   # zelfde als "Pick up to three questions to win" in het dashboard
+MAX_KLANTWINKELS = 25            # het pakket Brands and agencies: tot 25 winkels
+HERINNER_NA_UUR = 20             # een herinnering de volgende dag, niet midden in de nacht erna
 
 
 def _lees(token):
@@ -60,7 +62,8 @@ def zet(token, **velden):
     if g is None:
         return None
     for k, v in velden.items():
-        if k in ("url", "naam", "categorie", "land", "doelen", "plan", "voor", "stap") and v is not None:
+        if k in ("url", "naam", "categorie", "land", "doelen", "plan", "voor", "stap", "periode",
+                 "bureau", "klant_winkels") and v is not None:
             g[k] = v
     if g.get("url"):
         db.zet_instelling(PER_WINKEL + scan_engine.normalize_url(g["url"]), token)
@@ -122,9 +125,86 @@ def pas_toe(webshop_url):
             db.zet_land(url, land)
         for vraag in (g.get("doelen") or [])[:MAX_DOELEN]:
             db.zet_gekozen_vraag(url, vraag, True)
+        # Bureaus (stap 354): elke klantwinkel krijgt een eigen dashboard op
+        # hetzelfde mailadres. Na het inloggen kiest het bureau welke winkel.
+        if g.get("voor") == "klanten":
+            for w in (g.get("klant_winkels") or [])[:MAX_KLANTWINKELS]:
+                w = scan_engine.normalize_url(w)
+                if w and w != url and db.get_or_create_klant(w, g.get("email")):
+                    db.zet_klant_pakket(w, "merken")
         g["toegepast"] = datetime.now(timezone.utc).isoformat()
         _schrijf(token, g)
         return True
     except Exception as e:
         print(f"Aanmelding toepassen mislukt voor {url}: {e}")
         return False
+
+
+def _alle():
+    """[(token, gegevens)] van alle aanmeldingen."""
+    conn = db._get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT sleutel, waarde FROM instellingen WHERE sleutel LIKE %s", (SLEUTEL + "%",))
+                uit = []
+                for sleutel, waarde in cur.fetchall():
+                    try:
+                        uit.append((sleutel[len(SLEUTEL):], json.loads(waarde)))
+                    except (TypeError, ValueError):
+                        pass
+                return uit
+    finally:
+        conn.close()
+
+
+def _tijd(t):
+    try:
+        return datetime.fromisoformat(t)
+    except (TypeError, ValueError):
+        return None
+
+
+STAPNAMEN = [("account", "account gemaakt"), ("profiel", "winkel ingevuld"), ("vragen", "profiel bevestigd"),
+             ("voorproef", "vragen gekozen"), ("betalen", "naar de betaling")]
+
+
+def telling(uren=24, nu=None):
+    """Voor het ochtendbericht (stap 354): hoeveel mensen begonnen aan /start en
+    tot welke stap ze kwamen. {"begonnen": n, "per_stap": [(naam, n)], "betaald": n}."""
+    nu = nu or datetime.now(timezone.utc)
+    rij = [g for _, g in _alle() if (_tijd(g.get("begonnen")) or nu) > nu - timedelta(hours=uren)]
+    volgorde = [k for k, _ in STAPNAMEN]
+
+    def hoever(g):
+        return volgorde.index(g.get("stap")) if g.get("stap") in volgorde else 0
+    per = [(naam, sum(1 for g in rij if hoever(g) >= i)) for i, (_, naam) in enumerate(STAPNAMEN)]
+    return {"begonnen": len(rij), "per_stap": per, "betaald": sum(1 for g in rij if g.get("toegepast"))}
+
+
+def te_herinneren(nu=None):
+    """Wie /start begon, niet betaalde, en nog geen herinnering kreeg.
+
+    Een keer, en pas na HERINNER_NA_UUR uur: wie twijfelt krijgt een dag. Niet
+    als hetzelfde adres intussen klant is (dan betaalde hij via een andere weg)."""
+    nu = nu or datetime.now(timezone.utc)
+    uit = []
+    for token, g in _alle():
+        begonnen = _tijd(g.get("begonnen"))
+        if not begonnen or g.get("toegepast") or g.get("herinnerd") or not g.get("email"):
+            continue
+        if not (nu - timedelta(days=7) < begonnen < nu - timedelta(hours=HERINNER_NA_UUR)):
+            continue
+        if db.klant_bij_email(g["email"]):
+            continue
+        uit.append((token, g))
+    return uit
+
+
+def markeer_herinnerd(token):
+    g = _lees(token)
+    if g is not None:
+        g["herinnerd"] = datetime.now(timezone.utc).isoformat()
+        _schrijf(token, g)

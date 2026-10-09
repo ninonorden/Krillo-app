@@ -3809,7 +3809,9 @@ def checkout_monitoring():
     pakket = (data.get("pakket") or "").strip().lower()
     # Merken en bureaus richten wij samen in (zo staat het op de site en in de
     # voorwaarden). Dus niet zelf af te rekenen via deze kassa (23 september).
-    if pakket == "merken":
+    # Stap 354 (9 oktober): via de bureauroute in /start mag het wel, met de
+    # klantwinkels al ingevuld. Elders blijft het samen inrichten.
+    if pakket == "merken" and data.get("herkomst") != "start":
         return jsonify({"error": "The brands and agencies plan is set up together with "
                                  "you. Email hello@krilloai.com and we arrange it."}), 400
 
@@ -6248,6 +6250,16 @@ def _wachtklok_tik(nu=None):
         gedaan.append("klantnieuws")
     # 8 oktober: de gratis maand voor doorverwijzers. Eens per dag overdag; de
     # code zelf is idempotent (een keer per doorverwezen klant), zie doorverwijzen.py.
+    # Stap 354 (9 oktober): wie /start begon maar niet betaalde, krijgt na een
+    # dag een keer een herinnering. Overdag, hooguit eens per uur nakijken.
+    if 9 <= nu.hour < 20 and db.claim_moment("start_herinnering", 55 * 60):
+        def _herinner():
+            try:
+                _stuur_start_herinneringen()
+            except Exception as e:
+                print(f"Herinnering /start mislukt: {e}")
+        threading.Thread(target=_herinner, daemon=True).start()
+        gedaan.append("herinnering start")
     if 9 <= nu.hour < 18 and db.claim_moment("gratis_maand_klok", 20 * 3600):
         def _gratis_maand():
             try:
@@ -8612,6 +8624,17 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 print(f"Imago-vergelijking mislukt voor {webshop_url}: {e}")
             # Stap 178 (1 oktober): waar AI kopers in deze categorie naartoe stuurt.
             gegevens["bronnen"] = _bronnen_van_ronde(beeld["ronde"])
+            # Stap 243 (9 oktober): het vermeldingenplan. Staat de klant er zelf,
+            # en wat doet hij om erop te komen. Nakijken op de achtergrond: de
+            # pagina wacht nooit op een andere site.
+            try:
+                import vermeldingen
+                gegevens["vermeldingen"] = vermeldingen.plan(gegevens["bronnen"], webshop_url)
+                if any(v["naam"] == "Trustpilot" and v["status"] == "check" for v in gegevens["vermeldingen"]):
+                    threading.Thread(target=vermeldingen.nakijken, args=(gegevens["bronnen"], webshop_url),
+                                     daemon=True).start()
+            except Exception as e:
+                print(f"Vermeldingenplan mislukt voor {webshop_url}: {e}")
             buren = dp.buren_verloop(beeld)
             gegevens["grafiek_buren"] = dp.lijngrafiek(buren, breedte=1000, hoogte=280, taal=taal)
             anderen = [b for b in buren if not b.get("jij")]
@@ -10179,6 +10202,54 @@ def auth_terug(aanbieder):
 # wil winnen, een stukje van zijn eigen uitslag, en pas dan pakket en betaling.
 # Zie aanmelden.py voor het waarom.
 # ---------------------------------------------------------------------------
+def _stuur_start_herinneringen():
+    """Een mail aan wie /start begon en niet afrondde (stap 354). Een keer."""
+    import aanmelden
+    basis = get_base_url().rstrip("/")
+    verstuurd = 0
+    for token, g in aanmelden.te_herinneren():
+        winkel = (g.get("url") or "").replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
+        stappen = {"profiel": "your store profile", "vragen": "the questions you want to win",
+                   "voorproef": "your first results", "betalen": "choosing your plan"}
+        waar = stappen.get(g.get("stap"), "your store")
+        ok = emailing.send_vermeldingen_update(
+            g["email"], g.get("url") or basis,
+            f"You started setting up Krillo{(' for ' + winkel) if winkel else ''}, and stopped at {waar}. "
+            "Everything you filled in is saved. One click and you continue where you left off. "
+            "This is the only reminder we send.",
+            monitoring_url=f"{basis}/start?verder={token}", taal="en",
+            onderwerp="Your Krillo workspace is waiting", kop="Your workspace is waiting",
+            intro="Pick up where you left off.",
+            feiten=([("Store", winkel)] if winkel else []) + [("Plan", "Watch: first 14 days free")])
+        # Ook als het mailen mislukt: nooit twee keer proberen en dan dubbel sturen.
+        aanmelden.markeer_herinnerd(token)
+        verstuurd += 1 if ok else 0
+    if verstuurd:
+        print(f"Herinneringen /start verstuurd: {verstuurd}")
+    return verstuurd
+
+
+@app.route("/api/start/bureau", methods=["POST"])
+def start_bureau():
+    """Stap 354: het bureau (of merk met meer winkels) in /start."""
+    import aanmelden
+    import merkenbureaus
+    d = request.get_json(silent=True) or {}
+    token = d.get("token") or ""
+    if not aanmelden.lees(token):
+        return jsonify({"error": "Your session expired. Start again, it takes a minute."}), 404
+    bureau = (d.get("bureau") or "").strip()[:120]
+    site = (d.get("website") or "").strip()
+    winkels = merkenbureaus.lees_winkels(d.get("winkels") or "")[:aanmelden.MAX_KLANTWINKELS]
+    if len(bureau) < 2:
+        return jsonify({"error": "Type the name of your agency or brand."}), 400
+    if not site or "." not in site:
+        return jsonify({"error": "Type your own website, for example youragency.com."}), 400
+    url = scan_engine.normalize_url(site)
+    aanmelden.zet(token, voor="klanten", bureau=bureau, url=url, naam=bureau, klant_winkels=winkels, stap="betalen")
+    return jsonify({"ok": True, "winkels": winkels, "max": aanmelden.MAX_KLANTWINKELS})
+
+
 @app.route("/start")
 def start_pagina():
     import aanmelden
@@ -10189,8 +10260,20 @@ def start_pagina():
     # stap 1 over.
     sessie_email = session.get("account") or ""
     sessie_token = aanmelden.begin(sessie_email) if sessie_email else ""
+    # Stap 354: verder via de link in de herinneringsmail. Het token is geheim
+    # (alleen in die mail), dus het mailadres en de winkel mogen terugkomen.
+    verder = request.args.get("verder") or ""
+    eerder = aanmelden.lees(verder) if verder else None
+    if eerder and not eerder.get("toegepast"):
+        sessie_token, sessie_email = verder, eerder.get("email") or ""
+        winkel = winkel or eerder.get("url") or ""
     import accounts
-    return render_template("start.html", plan=plan, winkel=winkel, sessie_email=sessie_email,
+    periode = "jaar" if request.args.get("periode") == "jaar" else "maand"
+    voor = "klanten" if request.args.get("voor") == "klanten" else ""
+    return render_template("start.html", plan=plan, winkel=winkel, sessie_email=sessie_email, periode=periode, voor=voor,
+                           prijs_merken=payments.PAKKETTEN["merken"]["prijs"]["value"].split(".")[0],
+                           jaar_watch=payments.PAKKETTEN["watch"]["jaarprijs"]["value"].split(".")[0],
+                           jaar_fix=payments.PAKKETTEN["fix"]["jaarprijs"]["value"].split(".")[0],
                            sessie_token=sessie_token, aanbieders=accounts.actieve(),
                            kenmerk=(request.args.get("t") or "")[:80],
                            categorieen_lijst=aanmelden.categorie_keuzes(),

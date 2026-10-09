@@ -298,6 +298,17 @@ def verzamel(basis_url):
     except Exception:
         pass
     # 1 oktober: kleine Shopify-winkels en dropshippers (stap 156 en 217).
+    # Stap 354 (9 oktober): de aanmeldroute /start. Hoeveel mensen begonnen
+    # het afgelopen etmaal, en tot welke stap ze kwamen: zo zie je welke stap schuurt.
+    try:
+        import aanmelden
+        t = aanmelden.telling(24)
+        gisteren.append(("Begonnen aan /start (24 uur)", t["begonnen"]))
+        if t["begonnen"]:
+            gisteren.append(("/start, zo ver kwamen ze",
+                             ", ".join(f"{naam} {n}" for naam, n in t["per_stap"]) + f", betaald {t['betaald']}"))
+    except Exception as e:
+        print(f"Ochtendbericht: telling /start mislukt: {e}")
     gisteren.append(("Waarvan aan Shopify-winkels (7 dagen)",
                      _tel("SELECT count(*) FROM benadering WHERE gemaild_op > now() - interval '7 days' "
                           "AND mail_platform = 'shopify'")))
