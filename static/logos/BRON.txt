@@ -7,3 +7,5 @@ verzoek van OpenAI weggehaald; voor "measured in" gebruiken we het zoals Peec en
 anderen). Claude: Simple Icons 16.30.0, kleur D97757.
 
 Grok (xAI): grok.svg aangeleverd door Nino op 8 oktober 2026 (officieel icoon), kleur gelijkgezet op #0A0A0B.
+Microsoft: de vier vierkanten volgens de richtlijn voor 'Sign in with Microsoft' (9 okt 2026), alleen op de inlogknop.
+Google: de 'G' in de vier merkkleuren (9 okt 2026, op verzoek van Nino), voor inloggen en Google AI Mode.
