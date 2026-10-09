@@ -8382,6 +8382,12 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
     if pagina in ("overzicht", "abonnement") and klant_token and not proef:
         gegevens["assistenten_keuze"] = _assistenten_keuze(webshop_url)
         gegevens["assistenten_url"] = f"/mijn/{klant_token}/assistenten"
+    elif pagina == "overzicht" and voorbeeld:
+        # 9 oktober, Nino: "waar staat choose the assistants in het voorbeeld?"
+        # In het voorbeeld laten we het blok zien, maar zonder adres: de
+        # schakelaars bewegen, er wordt niets bewaard, en dat staat erbij.
+        gegevens["assistenten_keuze"] = []
+        gegevens["assistenten_url"] = ""
     if beeld:
         winkelnaam = beeld.get("naam")
         if pagina in ("overzicht", "vragen"):
