@@ -140,6 +140,11 @@ SOORTEN = ("interesse", "vraag", "bezwaar", "anders")
 
 # ---------------------------------------------------------------- binnenkomst
 
+def _heeft_tekst(t):
+    """Staat er echt iets in, of alleen tabelstreepjes, | en witruimte?"""
+    return bool(re.sub(r"[\s|\-:_*#>]+", "", t or ""))
+
+
 def _eerste(waarde):
     if isinstance(waarde, list):
         return waarde[0] if waarde else ""
@@ -181,7 +186,11 @@ def lees_brevo(data):
             adres, naam = van, ""
         else:
             adres, naam = van.get("Address") or van.get("address") or "", van.get("Name") or ""
-        tekst = (it.get("ExtractedMarkdownMessage") or it.get("RawTextBody") or "")
+        # 9 oktober (Nino: "ik krijg vaak | | bij antwoorden"): bij mails die
+        # alleen uit opmaak bestaan (een tabel met een logo of handtekening)
+        # maakt Brevo er een lege tabel van: alleen streepjes en |. Dat is geen
+        # tekst. Dan proberen we de gewone tekst en daarna de HTML.
+        tekst = next((t for t in (it.get("ExtractedMarkdownMessage"), it.get("RawTextBody")) if _heeft_tekst(t)), "")
         if not tekst and it.get("RawHtmlBody"):
             tekst = re.sub(r"<br\s*/?>|</p>", "\n", it["RawHtmlBody"], flags=re.I)
             tekst = _html.unescape(re.sub(r"<[^>]+>", "", tekst))
@@ -264,6 +273,11 @@ def soort_van(onderwerp, tekst, model=None, van=None, kop_automatisch=False):
     if AUTOMATISCH.search(onderwerp or "") or AUTOMATISCH.search((tekst or "")[:300]):
         return "automatisch"
     kaal = re.sub(r"[^a-z]", "", (tekst or "").lower())
+    # Geen enkel woord (alleen een plaatje of lege opmaak): geen mens die iets
+    # vraagt, dus geen concept. Het staat wel in de lijst bij automatisch.
+    # (Het onderwerp telt niet mee: dat is meestal ons eigen onderwerp met "Re:".)
+    if not kaal:
+        return "automatisch"
     if kaal in ("stop", "nee", "no", "nein", "remove", "unsubscribe") or AFMELDEN.search(tekst or "") \
             or AFMELDEN.search(onderwerp or ""):
         return "afmelden"
