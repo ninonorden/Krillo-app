@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Get started | Krillo</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600&family=Space+Grotesk:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+{# STAP 352 (9 oktober 2026): de aanmeldroute, naar het voorbeeld van Peec.
+   Elke stap is klein en de winkelier doet zelf iets; achter het scherm staat
+   vaag een dashboard dat zich vult. Pas na een stukje van zijn eigen uitslag
+   komen het pakket en de betaling. Alles in deze pagina is echt: de
+   categorieen en vragen uit de index, de plek uit de laatste meting. #}
+<style>
+  :root{--ink:#0A0A0B; --zacht:#4A4A55; --grijs:#6E7079; --vaag:#9A9BA3; --lijn:#E7E7E4; --lijn2:#F0F0EE; --papier:#F7F7F5;
+        --blauw:#1B3FE0; --blauwvlak:#EEF1FD; --groen:#0B7C5E; --groenvlak:#E7F6EF; --oranje:#B4471A; --oranjevlak:#FFF1E8;}
+  *{box-sizing:border-box;}
+  html,body{margin:0; background:var(--papier); color:var(--ink); font:15px/1.5 Inter, system-ui, sans-serif; -webkit-font-smoothing:antialiased; overflow-x:clip;}
+  a{color:var(--blauw);}
+  .kop{display:flex; align-items:center; justify-content:space-between; padding:18px 24px; position:relative; z-index:3;}
+  .merk{display:flex; align-items:baseline; gap:8px; text-decoration:none; color:var(--ink);}
+  .merk b{font:700 20px 'Space Grotesk', sans-serif; letter-spacing:-.02em;} .merk i{font:500 10px 'IBM Plex Mono', monospace; color:var(--grijs); letter-spacing:.12em; font-style:normal;}
+  .kop-r{display:flex; align-items:center; gap:14px; font-size:13px; color:var(--grijs);}
+  .terug{background:none; border:0; font:inherit; color:var(--grijs); cursor:pointer; padding:0;}
+  .terug:hover{color:var(--ink);}
+  /* Het vage dashboard achter de stappen: het vult zich naarmate hij verder komt. */
+  .achter{position:fixed; inset:70px 6% 0; border-radius:20px 20px 0 0; background:#fff; border:1px solid var(--lijn); border-bottom:0; display:grid; grid-template-columns:200px 1fr; overflow:hidden; filter:blur(3px); opacity:.55; z-index:0; transition:opacity .4s;}
+  .achter .zij{border-right:1px solid var(--lijn2); padding:20px 14px; background:#FCFCFB;}
+  .achter i{display:block; height:10px; border-radius:6px; background:#ECECE9; margin:0 0 14px;}
+  .achter .hoofd{padding:22px;}
+  .achter .tegels{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:18px 0;}
+  .achter .tegels div{height:74px; border:1px solid var(--lijn2); border-radius:12px;}
+  .achter .lijn{height:200px; border:1px solid var(--lijn2); border-radius:12px; background:linear-gradient(180deg, #fff 60%, #F3F5FD);}
+  .achter.vol .tegels div{background:#F7F8FE;} .achter.vol i:nth-child(odd){background:#DCE3FB;}
+  .doek{position:fixed; inset:0; background:radial-gradient(60% 50% at 50% 55%, rgba(247,247,245,.96) 0%, rgba(247,247,245,.82) 60%, rgba(247,247,245,.55) 100%); z-index:1;}
+  main{position:relative; z-index:2; min-height:calc(100vh - 140px); display:flex; align-items:center; justify-content:center; padding:24px 16px 60px;}
+  .stap{width:100%; max-width:480px; display:none; animation:in .3s ease-out;}
+  .stap.breed{max-width:760px;}
+  .stap.aan{display:block;}
+  @keyframes in{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
+  @media (prefers-reduced-motion:reduce){.stap{animation:none;}}
+  h1{font:500 30px/1.15 'Inter Tight', Inter, sans-serif; letter-spacing:-.03em; text-align:center; margin:0 0 8px;}
+  .onder{text-align:center; color:var(--grijs); margin:0 0 24px;}
+  .kaart{background:#fff; border:1px solid var(--lijn); border-radius:18px; padding:22px; box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18);}
+  label.veld{display:block; font-size:13px; font-weight:500; margin:0 0 6px;}
+  input[type=email], input[type=text], select{width:100%; height:46px; border:1px solid var(--lijn); border-radius:10px; padding:0 14px; font:inherit; background:#fff; color:var(--ink);}
+  input:focus, select:focus{outline:none; border-color:var(--ink); box-shadow:0 0 0 3px rgba(10,10,11,.06);}
+  .invoer{display:flex; gap:8px; background:#fff; border:1px solid var(--lijn); border-radius:12px; padding:5px; box-shadow:0 1px 2px rgba(10,10,11,.04), 0 18px 40px -22px rgba(27,63,224,.35);}
+  .invoer input{border:0; height:42px; box-shadow:none;}
+  .knop{display:inline-flex; align-items:center; justify-content:center; gap:6px; height:46px; padding:0 18px; border:0; border-radius:10px; background:var(--ink); color:#fff; font:500 14.5px Inter, sans-serif; cursor:pointer; box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5); transition:transform .15s; text-decoration:none;}
+  .knop:hover{transform:translateY(-1px);} .knop:disabled{opacity:.5; cursor:default; transform:none;}
+  .knop.vol{width:100%;} .knop.wit{background:#fff; color:var(--ink); border:1px solid var(--lijn); box-shadow:none;}
+  .klein{font-size:12.5px; color:var(--grijs);}
+  .vink{display:flex; gap:10px; align-items:flex-start; font-size:13px; color:var(--zacht); margin:14px 0 16px;}
+  .vink input{margin-top:3px; width:16px; height:16px; accent-color:var(--ink);}
+  .fout{color:var(--oranje); font-size:13px; margin:10px 0 0; min-height:1px;}
+  .keuzes{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .keuze{text-align:left; background:#fff; border:1px solid var(--lijn); border-radius:16px; padding:18px; cursor:pointer; font:inherit; color:inherit; transition:border-color .15s, transform .15s;}
+  .keuze:hover{border-color:var(--ink); transform:translateY(-2px);}
+  .keuze b{display:block; font-size:15px; margin:12px 0 2px;} .keuze span{font-size:13px; color:var(--grijs);}
+  .stippen{display:flex; gap:4px;} .stippen i{width:9px; height:9px; border-radius:3px; background:var(--ink);}
+  .laden{display:flex; flex-direction:column; align-items:center; gap:14px; color:var(--zacht); font-size:16px;}
+  .draai{width:28px; height:28px; border-radius:50%; border:2.5px solid var(--lijn); border-top-color:var(--ink); animation:dr .8s linear infinite;}
+  @keyframes dr{to{transform:rotate(360deg);}}
+  .rij2{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px;}
+  .vraag{display:flex; gap:12px; align-items:flex-start; padding:12px 4px; border-top:1px solid var(--lijn2); cursor:pointer; font-size:14px;}
+  .vraag:first-child{border-top:0;}
+  .vraag input{margin-top:3px; width:16px; height:16px; accent-color:var(--ink); flex:0 0 auto;}
+  .teller{font:500 11px 'IBM Plex Mono', monospace; color:var(--grijs); text-transform:uppercase; letter-spacing:.04em;}
+  .voet{display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:16px;}
+  .tegels{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:14px 0;}
+  .tegels div{border:1px solid var(--lijn2); border-radius:12px; padding:12px 14px;}
+  .tegels span{display:block; font-size:12px; color:var(--grijs);} .tegels b{display:block; font:500 24px 'Inter Tight', sans-serif; letter-spacing:-.03em; margin-top:4px;}
+  .rood{color:var(--oranje);}
+  .winkelrij{display:flex; align-items:center; gap:10px; padding:9px 2px; border-top:1px solid var(--lijn2); font-size:14px;}
+  .tegel{width:22px; height:22px; border-radius:6px; background:var(--ink); color:#fff; display:grid; place-items:center; font:600 11px Inter, sans-serif;}
+  .vaag{filter:blur(4px); user-select:none;}
+  .pakketten{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .pakket{background:#fff; border:1px solid var(--lijn); border-radius:18px; padding:22px; display:flex; flex-direction:column;}
+  .pakket.donker{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .pakket h3{margin:0; font-size:17px;} .pakket .prijs{font:500 34px 'Inter Tight', sans-serif; letter-spacing:-.03em; margin:10px 0 2px;}
+  .pakket .prijs small{font:400 13px Inter, sans-serif; color:var(--grijs);} .pakket.donker .prijs small, .pakket.donker .klein{color:#A6A7B0;}
+  .pakket ul{list-style:none; padding:0; margin:14px 0 18px; font-size:13.5px; flex:1;}
+  .pakket li{padding:5px 0 5px 22px; position:relative;} .pakket li:before{content:'\2713'; position:absolute; left:0; color:var(--groen);}
+  .pakket.donker li:before{color:#7FD8B7;} .pakket.donker .knop{background:#fff; color:var(--ink);}
+  .pil{display:inline-block; font:500 10px 'IBM Plex Mono', monospace; text-transform:uppercase; letter-spacing:.04em; padding:3px 7px; border-radius:6px; background:var(--groenvlak); color:var(--groen);}
+  .pakket.donker .pil{background:#1F2A22; color:#7FD8B7;}
+  .stappen{display:flex; gap:6px; justify-content:center; margin:0 0 22px;}
+  .stappen i{width:22px; height:3px; border-radius:2px; background:var(--lijn);} .stappen i.aan{background:var(--ink);}
+  @media (max-width:640px){
+    .achter{inset:64px 0 0; grid-template-columns:1fr;} .achter .zij{display:none;}
+    h1{font-size:25px;} .keuzes, .pakketten, .rij2{grid-template-columns:1fr;} .tegels{grid-template-columns:1fr 1fr;}
+    .kop{padding:14px 16px;}
+  }
+</style>
+</head>
+<body>
+<div class="achter" id="achter" aria-hidden="true">
+  <div class="zij"><i style="width:70%"></i><i></i><i style="width:60%"></i><i style="width:80%"></i><i style="width:50%"></i><i style="width:65%"></i></div>
+  <div class="hoofd"><i style="width:30%;height:14px"></i><div class="tegels"><div></div><div></div><div></div><div></div></div><div class="lijn"></div></div>
+</div>
+<div class="doek" aria-hidden="true"></div>
+
+<header class="kop">
+  <a class="merk" href="/"><b>KRILLO</b><i>INDEX</i></a>
+  <div class="kop-r"><span id="ingelogd" hidden></span><button type="button" class="terug" id="terugKnop" hidden>&larr; Back</button></div>
+</header>
+
+<main>
+  {# 1. ACCOUNT #}
+  <section class="stap aan" data-stap="account">
+    <h1>Create your Krillo account</h1>
+    <p class="onder">See where AI places your store, in about two minutes. No password: we email you a link to your dashboard.</p>
+    <div class="kaart">
+      <label class="veld" for="email">Work email</label>
+      <input type="email" id="email" placeholder="you@yourstore.com" autocomplete="email">
+      <label class="vink"><input type="checkbox" id="akkoord"><span>I agree to the <a href="/terms" target="_blank">terms</a> and the <a href="/privacy" target="_blank">privacy policy</a>.</span></label>
+      <button type="button" class="knop vol" id="accountKnop">Continue &rarr;</button>
+      <p class="fout" id="accountFout"></p>
+    </div>
+    <p class="klein" style="text-align:center; margin-top:16px;">Already a customer? <a href="/login">Log in</a></p>
+  </section>
+
+  {# 2. VOOR WIE #}
+  <section class="stap" data-stap="voor">
+    <h1>Is this for your own store, or for clients?</h1>
+    <p class="onder">We shape your workspace around the one you pick.</p>
+    <div class="keuzes">
+      <button type="button" class="keuze" data-voor="eigen"><span class="stippen"><i></i></span><b>My store</b><span>One store, your own dashboard</span></button>
+      <button type="button" class="keuze" data-voor="klanten"><span class="stippen"><i></i><i></i><i></i></span><b>My clients</b><span>Agencies: up to 25 stores in one plan</span></button>
+    </div>
+  </section>
+
+  {# 3. WINKEL #}
+  <section class="stap" data-stap="winkel">
+    <h1>Which store should we track?</h1>
+    <p class="onder">We look it up in the Krillo Index to draft your profile.</p>
+    <div class="invoer"><input type="text" id="url" placeholder="yourstore.com" value="{{ winkel | replace('https://', '') | replace('http://', '') | replace('www.', '') }}" autocomplete="url"><button type="button" class="knop" id="winkelKnop">&rarr;</button></div>
+    <p class="fout" id="winkelFout"></p>
+  </section>
+
+  {# 4. LEZEN #}
+  <section class="stap" data-stap="lezen">
+    <div class="laden"><div class="draai"></div><span>Reading <b id="leesNaam">your store</b>&hellip;</span></div>
+  </section>
+
+  {# 5. PROFIEL #}
+  <section class="stap" data-stap="profiel">
+    <h1>Review your store profile</h1>
+    <p class="onder" id="profielOnder">Change anything that is not right. You can change it later in your dashboard too.</p>
+    <div class="kaart">
+      <label class="veld" for="naam">Store name</label>
+      <input type="text" id="naam">
+      <div class="rij2">
+        <div><label class="veld" for="categorie">What do you mainly sell?</label>
+          <select id="categorie"><option value="">Choose a category</option>{% for slug, naam in categorieen_lijst %}<option value="{{ slug }}">{{ naam }}</option>{% endfor %}</select></div>
+        <div><label class="veld" for="land">Where do you sell?</label>
+          <select id="land"><option value="nl">Netherlands</option><option value="be">Belgium</option></select></div>
+      </div>
+      <p class="klein" style="margin:10px 0 0;">Live in the Netherlands and Belgium, more countries soon.</p>
+      <button type="button" class="knop vol" id="profielKnop" style="margin-top:16px;">Looks good &rarr;</button>
+      <p class="fout" id="profielFout"></p>
+    </div>
+  </section>
+
+  {# 6. VRAGEN #}
+  <section class="stap breed" data-stap="vragen">
+    <h1>Which buying questions do you want to win?</h1>
+    <p class="onder">These are the questions shoppers in your category ask ChatGPT and Gemini<span id="vraagTaal"></span>. Pick up to three: Krillo works on these first.</p>
+    <div class="kaart">
+      <div id="vragenLijst"></div>
+      <div class="voet"><span class="teller" id="vraagTeller">0 of 3 chosen</span><button type="button" class="knop" id="vragenKnop">Continue &rarr;</button></div>
+      <p class="fout" id="vragenFout"></p>
+    </div>
+  </section>
+
+  {# 7. VOORPROEF #}
+  <section class="stap breed" data-stap="voorproef">
+    <h1 id="voorKop">Your workspace is almost ready</h1>
+    <p class="onder">Here is a first look at your results. Start your plan to see all of it.</p>
+    <div class="kaart" id="voorKaart"></div>
+    <div style="text-align:center; margin-top:18px;"><button type="button" class="knop" id="voorKnop">See full results &rarr;</button></div>
+  </section>
+
+  {# 8. PAKKET #}
+  <section class="stap breed" data-stap="pakket">
+    <h1>Choose your plan</h1>
+    <p class="onder">Cancel any month. Your choices so far are saved in your dashboard.</p>
+    <div class="pakketten">
+      <div class="pakket" id="pakketWatch">
+        <div style="display:flex; justify-content:space-between; align-items:center;"><h3>Watch</h3><span class="pil">14 days free</span></div>
+        <div class="prijs">&euro;{{ prijs_watch }} <small>/ month</small></div>
+        <div class="klein">You do the work.</div>
+        <ul><li>Your five key questions every week, all buying questions every month</li><li>Why you lose each question, next to the winner</li><li>Every change written out, to do yourself</li><li>Your visits and revenue from AI</li></ul>
+        <button type="button" class="knop vol wit" data-kies="watch">Start 14 days free</button>
+        <p class="klein" style="margin:10px 0 0;">Today only a 1 cent check of your payment method. Cancel before day 15 and you pay nothing more.</p>
+      </div>
+      <div class="pakket donker" id="pakketFix">
+        <div style="display:flex; justify-content:space-between; align-items:center;"><h3>Fix</h3><span class="pil">Recommended</span></div>
+        <div class="prijs">&euro;{{ prijs_fix }} <small>/ month</small></div>
+        <div class="klein">Krillo does the work.</div>
+        <ul><li>Everything in Watch</li><li>We make the changes in your store, after your approval</li><li>We measure again and show what moved</li><li>14 days money back on your first payment</li></ul>
+        <button type="button" class="knop vol" data-kies="fix">Start Fix &rarr;</button>
+        <p class="klein" style="margin:10px 0 0;">Cancel within 14 days of your first payment and you get it back.</p>
+      </div>
+    </div>
+    <p class="fout" id="pakketFout" style="text-align:center;"></p>
+    <p class="klein" style="text-align:center; margin-top:14px;">You pay securely with Mollie (iDEAL, card, Bancontact). Brands and agencies with more stores: <a href="/agencies">see the agencies page</a>.</p>
+  </section>
+</main>
+
+<script>
+(function(){
+  var gekozenPlan = {{ plan | tojson }}, kenmerk = {{ kenmerk | tojson }};
+  var s = {token:null, email:'', url:'', doelen:[]};
+  var volgorde = ['account','voor','winkel','lezen','profiel','vragen','voorproef','pakket'];
+  var geschiedenis = [];
+  function $(id){ return document.getElementById(id); }
+  function veilig(t){ var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
+  function toon(naam, terug){
+    if (!terug){ var nu = document.querySelector('.stap.aan'); if (nu && nu.getAttribute('data-stap') !== 'lezen') geschiedenis.push(nu.getAttribute('data-stap')); }
+    document.querySelectorAll('.stap').forEach(function(x){ x.classList.toggle('aan', x.getAttribute('data-stap') === naam); });
+    $('terugKnop').hidden = !geschiedenis.length || naam === 'lezen';
+    // Het dashboard achter de stappen vult zich naarmate hij verder komt.
+    $('achter').classList.toggle('vol', volgorde.indexOf(naam) >= 4);
+    var eerste = document.querySelector('.stap.aan input, .stap.aan select'); if (eerste && window.innerWidth > 640) eerste.focus();
+    window.scrollTo(0, 0);
+  }
+  $('terugKnop').addEventListener('click', function(){ var vorige = geschiedenis.pop(); if (vorige) toon(vorige, true); });
+  function post(pad, body){
+    return fetch(pad, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+      .then(function(r){ return r.json().then(function(d){ d._status = r.status; return d; }); });
+  }
+  function fout(id, tekst){ $(id).textContent = tekst || ''; }
+
+  // Kwam hij uit de mail met zijn uitslag, dan staat zijn mailadres er al.
+  if (kenmerk){ fetch('/api/voorvullen/' + encodeURIComponent(kenmerk)).then(function(r){ return r.ok ? r.json() : {}; })
+    .then(function(d){ if (d.email && !$('email').value) $('email').value = d.email; if (d.winkel && !$('url').value) $('url').value = d.winkel; }).catch(function(){}); }
+
+  // 1. account
+  $('accountKnop').addEventListener('click', function(){
+    var email = $('email').value.trim(); fout('accountFout');
+    if (!/^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$/.test(email)) return fout('accountFout', 'That email address does not look right.');
+    if (!$('akkoord').checked) return fout('accountFout', 'Please agree to the terms and the privacy policy.');
+    this.disabled = true; var k = this;
+    post('/api/start/account', {email: email, akkoord: true}).then(function(d){
+      k.disabled = false;
+      if (!d.ok) return fout('accountFout', d.error || 'Something went wrong. Try again.');
+      s.token = d.token; s.email = email;
+      $('ingelogd').textContent = 'Logged in as ' + email; $('ingelogd').hidden = false;
+      toon('voor');
+    }).catch(function(){ k.disabled = false; fout('accountFout', 'No connection. Try again.'); });
+  });
+  $('email').addEventListener('keydown', function(e){ if (e.key === 'Enter') $('accountKnop').click(); });
+
+  // 2. voor wie
+  document.querySelectorAll('[data-voor]').forEach(function(b){ b.addEventListener('click', function(){
+    if (b.getAttribute('data-voor') === 'klanten'){ window.location.href = '/agencies'; return; }
+    toon('winkel');
+  }); });
+
+  // 3 en 4. winkel en lezen
+  $('winkelKnop').addEventListener('click', function(){
+    var url = $('url').value.trim(); fout('winkelFout');
+    if (!url || url.indexOf('.') < 0) return fout('winkelFout', 'Type your store address, for example yourstore.com.');
+    $('leesNaam').textContent = url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+    toon('lezen');
+    var minimaal = new Promise(function(r){ setTimeout(r, 1400); });
+    Promise.all([post('/api/start/winkel', {token: s.token, url: url}), minimaal]).then(function(uit){
+      var d = uit[0];
+      if (!d.ok){ toon('winkel', true); return fout('winkelFout', d.error || 'Something went wrong.'); }
+      var p = d.profiel; s.url = p.url;
+      $('naam').value = p.naam || '';
+      if (p.categorie) $('categorie').value = p.categorie;
+      if (p.land) $('land').value = p.land;
+      $('profielOnder').textContent = p.in_index
+        ? 'We found your store in the Krillo Index. Change anything that is not right.'
+        : 'Your store is not in the index yet. Choose your category: we measure it as soon as you start.';
+      toon('profiel');
+    }).catch(function(){ toon('winkel', true); fout('winkelFout', 'No connection. Try again.'); });
+  });
+  $('url').addEventListener('keydown', function(e){ if (e.key === 'Enter') $('winkelKnop').click(); });
+
+  // 5. profiel
+  $('profielKnop').addEventListener('click', function(){
+    fout('profielFout'); var k = this; k.disabled = true;
+    post('/api/start/profiel', {token: s.token, naam: $('naam').value, categorie: $('categorie').value, land: $('land').value}).then(function(d){
+      k.disabled = false;
+      if (!d.ok) return fout('profielFout', d.error || 'Something went wrong.');
+      $('vraagTaal').textContent = d.taal && d.taal !== 'English' ? ', in ' + d.taal + ' as they ask it' : '';
+      var lijst = $('vragenLijst'); lijst.innerHTML = '';
+      if (!d.vragen.length){ lijst.innerHTML = '<p class="klein" style="margin:4px;">The questions for this category are set when we measure it. You choose your three in your dashboard.</p>'; }
+      d.vragen.forEach(function(v, i){
+        lijst.insertAdjacentHTML('beforeend', '<label class="vraag"><input type="checkbox" value="' + veilig(v) + '"' + (i < 3 ? ' checked' : '') + '><span lang="nl">' + veilig(v) + '</span></label>');
+      });
+      telVragen(); toon('vragen');
+    }).catch(function(){ k.disabled = false; fout('profielFout', 'No connection. Try again.'); });
+  });
+
+  // 6. vragen
+  function telVragen(){
+    var aan = Array.prototype.slice.call(document.querySelectorAll('#vragenLijst input:checked'));
+    $('vraagTeller').textContent = aan.length + ' of 3 chosen';
+    document.querySelectorAll('#vragenLijst input').forEach(function(i){ i.disabled = !i.checked && aan.length >= 3; });
+    return aan.map(function(i){ return i.value; });
+  }
+  $('vragenLijst').addEventListener('change', telVragen);
+  $('vragenKnop').addEventListener('click', function(){
+    var doelen = telVragen(); var k = this; k.disabled = true; fout('vragenFout');
+    post('/api/start/doelen', {token: s.token, doelen: doelen}).then(function(d){
+      k.disabled = false;
+      if (!d.ok) return fout('vragenFout', d.error || 'Something went wrong.');
+      toonVoorproef(d.rang, doelen); toon('voorproef');
+    }).catch(function(){ k.disabled = false; fout('vragenFout', 'No connection. Try again.'); });
+  });
+
+  // 7. voorproef: een stukje van zijn eigen uitslag, de rest vaag.
+  function toonVoorproef(r, doelen){
+    var naam = $('naam').value || s.url.replace(/^https?:\/\/(www\.)?/, '');
+    var h = '';
+    if (r){
+      var gemist = (r.telbaar || 0) - (r.genoemd || 0);
+      $('voorKop').textContent = naam + '’s workspace is almost ready';
+      h += '<div class="teller">' + veilig(r.categorie) + ' &middot; ' + veilig(r.land) + ' &middot; measured by Krillo</div>';
+      h += '<div class="tegels"><div><span>Your rank</span><b>' + (r.nul ? '&ndash;' : '#' + r.positie + ' / ' + r.van) + '</b></div>';
+      h += '<div><span>Named in</span><b>' + r.genoemd + ' / ' + r.telbaar + '</b></div>';
+      h += '<div><span>Questions lost</span><b class="rood">' + gemist + '</b></div></div>';
+      if (r.voor && r.voor.length){
+        h += '<div class="teller" style="margin:6px 0 4px;">AI recommends these stores before you</div>';
+        r.voor.forEach(function(w, i){ h += '<div class="winkelrij"><span class="tegel">' + veilig((w || '?').charAt(0).toUpperCase()) + '</span><span' + (i > 0 ? ' class="vaag"' : '') + '>' + veilig(w) + '</span></div>'; });
+      }
+      h += '<div class="teller" style="margin:14px 0 4px;">Why you lose, and what to change</div>';
+      // Vaag en algemeen: de echte redenen staan pas in het dashboard. Hier geen
+      // verzonnen bewering over zijn winkel, ook niet onleesbaar.
+      h += '<div class="winkelrij vaag">The reasons per lost question, next to the winning page</div><div class="winkelrij vaag">The changes that matter most, in order</div>';
+    } else {
+      $('voorKop').textContent = 'Your workspace is almost ready';
+      h += '<p style="margin:0 0 8px;"><b>Your category is measured as soon as you start.</b></p>';
+      h += '<p class="klein" style="margin:0 0 12px;">We ask ChatGPT and Gemini the buying questions of your category and place you between the other stores. Usually within the hour; we email you.</p>';
+      h += '<div class="tegels vaag"><div><span>Your rank</span><b>#&ndash;</b></div><div><span>Named in</span><b>&ndash; / &ndash;</b></div><div><span>Questions lost</span><b>&ndash;</b></div></div>';
+    }
+    if (doelen && doelen.length){
+      h += '<div class="teller" style="margin:14px 0 4px;">The questions you want to win</div>';
+      doelen.forEach(function(v){ h += '<div class="winkelrij"><span lang="nl">' + veilig(v) + '</span></div>'; });
+    }
+    $('voorKaart').innerHTML = h;
+  }
+  $('voorKnop').addEventListener('click', function(){ toon('pakket'); });
+
+  // 8. pakket en betalen: dezelfde kassa als de site, met alles al ingevuld.
+  document.querySelectorAll('[data-kies]').forEach(function(b){ b.addEventListener('click', function(){
+    var plan = b.getAttribute('data-kies'); fout('pakketFout');
+    document.querySelectorAll('[data-kies]').forEach(function(x){ x.disabled = true; });
+    var body = {email: s.email, url: s.url, pakket: plan, periode: 'maand', proef: plan === 'watch',
+                voorwaarden_akkoord: true, herkomst: 'start'};
+    post('/api/start/plan', {token: s.token, plan: plan}).catch(function(){});
+    post('/api/checkout/monitoring', body).then(function(d){
+      if (d.checkout_url){ window.location.href = d.checkout_url; return; }
+      document.querySelectorAll('[data-kies]').forEach(function(x){ x.disabled = false; });
+      if (d.zonder_proef){
+        fout('pakketFout', d.error);
+        b.textContent = 'Start Watch at €{{ prijs_watch }} a month'; b.onclick = function(e){
+          e.stopImmediatePropagation(); body.proef = false;
+          post('/api/checkout/monitoring', body).then(function(d2){ if (d2.checkout_url) window.location.href = d2.checkout_url; else fout('pakketFout', d2.error || 'Something went wrong.'); });
+        };
+        return;
+      }
+      fout('pakketFout', d.error || 'Something went wrong. Try again.');
+    }).catch(function(){ document.querySelectorAll('[data-kies]').forEach(function(x){ x.disabled = false; }); fout('pakketFout', 'No connection. Try again.'); });
+  }); });
+  // Het pakket dat hij koos voor hij hier kwam, krijgt de nadruk.
+  if (gekozenPlan === 'fix') $('pakketFix').style.outline = '2px solid #1B3FE0'; else $('pakketWatch').style.outline = '2px solid #1B3FE0';
+})();
+</script>
+</body>
+</html>

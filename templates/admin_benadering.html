@@ -127,6 +127,15 @@
   {# Waarom dit blok bestaat: "211 op de lijst en 0 gemaild" kan zeven
      verschillende oorzaken hebben, en die zijn van buitenaf niet uit elkaar te
      houden. Zonder dit moest je in de logboeken van Render gaan graven. #}
+  {% if scanner_afgemeld %}
+  {# 9 oktober: winkels die voor 8 oktober binnen twee minuten na de mail
+     "afgemeld" werden. Dat was een beveiligingsscanner, geen mens. #}
+  <div class="kaart">
+    <b>{{ scanner_afgemeld }} winkel(s) afgemeld door een beveiligingsscanner.</b>
+    Afgemeld binnen twee minuten na de mail, voor de reparatie van 7 oktober. Terugzetten zet ze weer in de openbare index; ze krijgen nooit meer post van ons.
+    <form method="post" action="/admin/benadering" style="margin-top:10px;"><button name="actie" value="scanners_terug">Zet ze terug in de index</button></form>
+  </div>
+  {% endif %}
   {% if diagnose %}
   <div class="kaart">
     <div class="uitleg" style="margin-bottom:10px;"><b>Wat houdt de post tegen</b></div>

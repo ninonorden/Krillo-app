@@ -2780,6 +2780,19 @@
   }
 
   function openModal(type){
+    // STAP 352 (9 oktober): Watch en Fix per maand gaan naar de aanmeldroute
+    // /start (account, winkel, profiel, vragen, voorproef, pakket), niet meer
+    // meteen naar dit afrekenvenster. Van ongeveer 59 mensen die op "start"
+    // klikten vulde niemand dit venster in. Per jaar blijft het venster: wie
+    // een jaar vooruit betaalt heeft al gekozen.
+    if ((type === 'watch' || type === 'fix') && periode !== 'jaar'){
+      var w = (document.getElementById('scanUrlInput') || {}).value || '';
+      var q = new URLSearchParams(window.location.search);
+      if (!w && q.get('winkel')) w = q.get('winkel');
+      window.location.href = '/start?plan=' + type + (w ? '&winkel=' + encodeURIComponent(w.trim()) : '') +
+                             (q.get('t') ? '&t=' + encodeURIComponent(q.get('t')) : '');
+      return;
+    }
     currentType = type;
     clearError();
     prefillUrl();
