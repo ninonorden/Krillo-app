@@ -44,13 +44,13 @@ PAKKETTEN = {
         # maandomzet over, ChartMogul 2025).
         "jaarprijs": {"currency": "EUR", "value": "490.00"},
         "naam": "Watch",
-        "omschrijving": "Krillo Watch, your monthly rank and fixes to do yourself",
+        "omschrijving": "Krillo Watch: your monthly rank, and the fixes to do yourself",
     },
     "fix": {
         "prijs": {"currency": "EUR", "value": "149.00"},
         "jaarprijs": {"currency": "EUR", "value": "1490.00"},
         "naam": "Fix",
-        "omschrijving": "Krillo Fix, your monthly rank and we carry out the fixes",
+        "omschrijving": "Krillo Fix: your monthly rank, and we make the fixes for you",
     },
     "merken": {
         "prijs": {"currency": "EUR", "value": "490.00"},
