@@ -1295,7 +1295,7 @@
 
 <style>
   /* ================================================================
-     HOMEPAGE VERSIE 10 (8 oktober 2026). Goedgekeurd door Nino: "ik vind het
+     HOMEPAGE VERSIE 10 (8 oktober 2026). Goedgekeurd door de eigenaar: "ik vind het
      mooi, maak alles zo". Ontwerp: artefact "Krillo redesign", bord Homepage.
      Staat NA versie 9, zodat de scan, de uitslag en het bestelvenster precies
      blijven werken en alleen het uiterlijk verandert. Nieuwe onderdelen
@@ -1960,14 +1960,16 @@
         <div class="price-top"><span class="price-name">Brands and agencies</span><span class="price-tag k9-mono">UP TO 25 STORES</span></div>
         <div class="price-rol">For several stores at once.</div>
         <div class="price-amount">&euro;490 <span>/mo</span></div>
-        <div class="price-amount proef-noot">Monthly only. We set it up together.</div>
+        <div class="price-amount proef-noot">Monthly only. Start in two minutes.</div>
         <ul class="price-feats">
           <li><strong>Up to 25 stores</strong>, each with its own dashboard</li>
           <li>Every category they appear in</li>
           <li>Every buying question, and who beats you</li>
-          <li>We set it up together with you, by hand</li>
+          <li>One login for all your stores</li>
         </ul>
-        <a class="price-btn ghost" href="/agencies">Check your stores free</a>
+        {# 9 oktober (stap 354): bureaus en merken beginnen nu zelf in /start, net als een winkel. #}
+        <a class="price-btn ghost" href="/start?voor=klanten">Start for your stores &rarr;</a>
+        <p style="font-size:12.5px; margin:10px 0 0; text-align:center;"><a href="/agencies" style="color:var(--c-grey, #6E7079);">Or check up to ten stores free first</a></p>
       </div>
     </div>
     <div class="prijs-voet">
@@ -2228,7 +2230,7 @@
       zetStapKnoppen();
       return;
     }
-    // 9 OKTOBER (testfase Nino): dit deel was een lange stapel losse blokken
+    // 9 OKTOBER (testfase de eigenaar): dit deel was een lange stapel losse blokken
     // in de oude stijl, en "goed" telde niet mee: de scanner zegt "ok", de
     // pagina zocht "goed". Daardoor stond alles onder "to fix" en de tegel op
     // 0/13. Nu een kaart: cijfer en een zin, wat beter kan open, wat goed is
@@ -2681,7 +2683,7 @@
   var periode = 'maand';
   // Stap 167: staat op true als de server zegt dat deze winkel of dit adres de
   // proef al had. 29 september: dat gold daarna voor ALLES wat je nog invulde.
-  // Nino vulde een ander adres in en kreeg zonder melding 49 euro bij Mollie.
+  // de eigenaar vulde een ander adres in en kreeg zonder melding 49 euro bij Mollie.
   // Nu hoort het "nee" bij precies die winkel plus dat adres; verander je een
   // van de twee, dan staat de proef weer aan en vraagt de server het opnieuw.
   var geenProef = false;
@@ -2785,11 +2787,11 @@
     // meteen naar dit afrekenvenster. Van ongeveer 59 mensen die op "start"
     // klikten vulde niemand dit venster in. Per jaar blijft het venster: wie
     // een jaar vooruit betaalt heeft al gekozen.
-    if ((type === 'watch' || type === 'fix') && periode !== 'jaar'){
+    if (type === 'watch' || type === 'fix'){
       var w = (document.getElementById('scanUrlInput') || {}).value || '';
       var q = new URLSearchParams(window.location.search);
       if (!w && q.get('winkel')) w = q.get('winkel');
-      window.location.href = '/start?plan=' + type + (w ? '&winkel=' + encodeURIComponent(w.trim()) : '') +
+      window.location.href = '/start?plan=' + type + (periode === 'jaar' ? '&periode=jaar' : '') + (w ? '&winkel=' + encodeURIComponent(w.trim()) : '') +
                              (q.get('t') ? '&t=' + encodeURIComponent(q.get('t')) : '');
       return;
     }
@@ -3002,11 +3004,11 @@
 (function(){
   try {
     // ?plan= eerst: ook ZONDER winkel in de link (de knoppen op /demo) moet
-    // het afrekenvenster opengaan. Dat werkte niet (Nino, 28 september).
+    // het afrekenvenster opengaan. Dat werkte niet (de eigenaar, 28 september).
     var plan = new URLSearchParams(window.location.search).get('plan');
     if (plan === 'watch' || plan === 'fix') {
       var knop = document.getElementById(plan === 'watch' ? 'watchCheckoutBtn' : 'fixCheckoutBtn');
-      // 8 oktober: dit openen telt NIET als "kassa open" (Nino zag er 40 op een
+      // 8 oktober: dit openen telt NIET als "kassa open" (de eigenaar zag er 40 op een
       // dag): ook een virusscanner van een mailprogramma volgt de link en draait
       // dit script. Alleen een echte klik op een knop telt als venster.
       if (knop) { setTimeout(function(){ window.krilloAutoKassa = true; knop.click(); window.krilloAutoKassa = false; }, 300); }

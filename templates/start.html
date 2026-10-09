@@ -17,6 +17,8 @@
   :root{--ink:#0A0A0B; --zacht:#4A4A55; --grijs:#6E7079; --vaag:#9A9BA3; --lijn:#E7E7E4; --lijn2:#F0F0EE; --papier:#F7F7F5;
         --blauw:#1B3FE0; --blauwvlak:#EEF1FD; --groen:#0B7C5E; --groenvlak:#E7F6EF; --oranje:#B4471A; --oranjevlak:#FFF1E8;}
   *{box-sizing:border-box;}
+  /* Verborgen is verborgen, ook als een klasse display zet (de pil "14 days free" bij per jaar). */
+  [hidden]{display:none !important;}
   html,body{margin:0; background:var(--papier); color:var(--ink); font:15px/1.5 Inter, system-ui, sans-serif; -webkit-font-smoothing:antialiased; overflow-x:clip;}
   a{color:var(--blauw);}
   .kop{display:flex; align-items:center; justify-content:space-between; padding:18px 24px; position:relative; z-index:3;}
@@ -87,6 +89,10 @@
   .pakket.donker li:before{color:#7FD8B7;} .pakket.donker .knop{background:#fff; color:var(--ink);}
   .pil{display:inline-block; font:500 10px 'IBM Plex Mono', monospace; text-transform:uppercase; letter-spacing:.04em; padding:3px 7px; border-radius:6px; background:var(--groenvlak); color:var(--groen);}
   .pakket.donker .pil{background:#1F2A22; color:#7FD8B7;}
+  .periode{display:flex; justify-content:center; gap:4px; background:#fff; border:1px solid var(--lijn); border-radius:10px; padding:4px; width:max-content; margin:0 auto 18px;}
+  .periode button{border:0; background:none; font:500 13.5px Inter, sans-serif; padding:7px 14px; border-radius:7px; cursor:pointer; color:var(--zacht);}
+  .periode button.aan{background:var(--ink); color:#fff;} .periode em{font-style:normal; font-size:11.5px; color:var(--groen); margin-left:4px;}
+  .periode button.aan em{color:#7FD8B7;}
   .stappen{display:flex; gap:6px; justify-content:center; margin:0 0 22px;}
   .stappen i{width:22px; height:3px; border-radius:2px; background:var(--lijn);} .stappen i.aan{background:var(--ink);}
   @media (max-width:640px){
@@ -190,25 +196,62 @@
   </section>
 
   {# 8. PAKKET #}
+  {# STAP 354: bureaus en merken met meer winkels. Eigen gegevens, de klantwinkels
+     (hoeft niet allemaal nu), dan het pakket en Mollie. Na de betaling krijgt
+     elke winkel een eigen dashboard op hetzelfde mailadres. #}
+  <section class="stap" data-stap="bureau">
+    <h1>Tell us about your agency</h1>
+    <p class="onder">Brands with several stores: fill in your brand. You can add or change stores later.</p>
+    <div class="kaart">
+      <label class="veld" for="bureauNaam">Agency or brand name</label>
+      <input type="text" id="bureauNaam" placeholder="Your Agency">
+      <label class="veld" for="bureauSite" style="margin-top:12px;">Your website</label>
+      <input type="text" id="bureauSite" placeholder="youragency.com">
+      <label class="veld" for="bureauWinkels" style="margin-top:12px;">Client stores <span class="klein">(one per line, up to 25)</span></label>
+      <textarea id="bureauWinkels" rows="6" placeholder="clientstore1.nl&#10;clientstore2.be" style="width:100%; border:1px solid var(--lijn); border-radius:10px; padding:10px 14px; font:inherit; resize:vertical;"></textarea>
+      <button type="button" class="knop vol" id="bureauKnop" style="margin-top:16px;">Continue &rarr;</button>
+      <p class="fout" id="bureauFout"></p>
+    </div>
+  </section>
+
+  <section class="stap" data-stap="bureaupakket">
+    <h1>Brands and agencies</h1>
+    <p class="onder" id="bureauOnder">Every client store gets its own dashboard, under your login.</p>
+    <div class="pakket donker">
+      <div style="display:flex; justify-content:space-between; align-items:center;"><h3>Brands and agencies</h3><span class="pil">Up to 25 stores</span></div>
+      <div class="prijs">&euro;{{ prijs_merken }} <small>/ month</small></div>
+      <ul><li>Up to 25 stores, each with its own dashboard</li><li>Every store: rank, lost questions, why you lose, the fixes</li><li>One login for all of them</li><li>Cancel any month</li></ul>
+      <button type="button" class="knop vol" id="bureauBetaal">Continue to payment &rarr;</button>
+      <p class="klein" style="margin:10px 0 0;">Cancel within 14 days of your first payment and you get it back.</p>
+    </div>
+    <p class="fout" id="bureauBetaalFout" style="text-align:center;"></p>
+  </section>
+
   <section class="stap breed" data-stap="pakket">
     <h1>Choose your plan</h1>
-    <p class="onder">Cancel any month. Your choices so far are saved in your dashboard.</p>
+    <p class="onder">Your choices so far are saved in your dashboard.</p>
+    {# Stap 354: per maand of per jaar (twee maanden gratis), zoals op de homepage. #}
+    <div class="periode" role="group" aria-label="Billing">
+      <button type="button" data-periode="maand" class="aan">Monthly</button><button type="button" data-periode="jaar">Yearly <em>2 months free</em></button>
+    </div>
     <div class="pakketten">
       <div class="pakket" id="pakketWatch">
-        <div style="display:flex; justify-content:space-between; align-items:center;"><h3>Watch</h3><span class="pil">14 days free</span></div>
-        <div class="prijs">&euro;{{ prijs_watch }} <small>/ month</small></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;"><h3>Watch</h3><span class="pil" data-alleen="maand">14 days free</span></div>
+        <div class="prijs"><span data-alleen="maand">&euro;{{ prijs_watch }} <small>/ month</small></span><span data-alleen="jaar" hidden>&euro;{{ jaar_watch }} <small>/ year</small></span></div>
         <div class="klein">You do the work.</div>
         <ul><li>Your five key questions every week, all buying questions every month</li><li>Why you lose each question, next to the winner</li><li>Every change written out, to do yourself</li><li>Your visits and revenue from AI</li></ul>
-        <button type="button" class="knop vol wit" data-kies="watch">Start 14 days free</button>
-        <p class="klein" style="margin:10px 0 0;">Today only a 1 cent check of your payment method. Cancel before day 15 and you pay nothing more.</p>
+        <button type="button" class="knop vol wit" data-kies="watch"><span data-alleen="maand">Start 14 days free</span><span data-alleen="jaar" hidden>Start Watch yearly &rarr;</span></button>
+        <p class="klein" style="margin:10px 0 0;" data-alleen="maand">Today only a 1 cent check of your payment method. Cancel before day 15 and you pay nothing more.</p>
+        <p class="klein" style="margin:10px 0 0;" data-alleen="jaar" hidden>Paid yearly, in advance. Cancel within 14 days of your first payment and you get the full year back.</p>
       </div>
       <div class="pakket donker" id="pakketFix">
         <div style="display:flex; justify-content:space-between; align-items:center;"><h3>Fix</h3><span class="pil">Recommended</span></div>
-        <div class="prijs">&euro;{{ prijs_fix }} <small>/ month</small></div>
+        <div class="prijs"><span data-alleen="maand">&euro;{{ prijs_fix }} <small>/ month</small></span><span data-alleen="jaar" hidden>&euro;{{ jaar_fix }} <small>/ year</small></span></div>
         <div class="klein">Krillo does the work.</div>
         <ul><li>Everything in Watch</li><li>We make the changes in your store, after your approval</li><li>We measure again and show what moved</li><li>14 days money back on your first payment</li></ul>
         <button type="button" class="knop vol" data-kies="fix">Start Fix &rarr;</button>
-        <p class="klein" style="margin:10px 0 0;">Cancel within 14 days of your first payment and you get it back.</p>
+        <p class="klein" style="margin:10px 0 0;" data-alleen="maand">Cancel within 14 days of your first payment and you get it back.</p>
+        <p class="klein" style="margin:10px 0 0;" data-alleen="jaar" hidden>Paid yearly, in advance. Cancel within 14 days of your first payment and you get the full year back.</p>
       </div>
     </div>
     <p class="fout" id="pakketFout" style="text-align:center;"></p>
@@ -220,8 +263,10 @@
 (function(){
   var gekozenPlan = {{ plan | tojson }}, kenmerk = {{ kenmerk | tojson }};
   var sessieEmail = {{ sessie_email | tojson }}, sessieToken = {{ sessie_token | tojson }};
+  var kenmerkVerder = {{ (request.args.get('verder') or '') | tojson }};
   var s = {token:null, email:'', url:'', doelen:[]};
   var volgorde = ['account','voor','winkel','lezen','profiel','vragen','voorproef','pakket'];
+  var periode = {{ periode | tojson }}, voorKlanten = {{ voor | tojson }} === 'klanten';
   var geschiedenis = [];
   function $(id){ return document.getElementById(id); }
   function veilig(t){ var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
@@ -257,7 +302,7 @@
       if (!d.ok) return fout('accountFout', d.error || 'Something went wrong. Try again.');
       s.token = d.token; s.email = email;
       $('ingelogd').textContent = 'Logged in as ' + email; $('ingelogd').hidden = false;
-      toon('voor');
+      toon(voorKlanten ? 'bureau' : 'voor');
     }).catch(function(){ k.disabled = false; fout('accountFout', 'No connection. Try again.'); });
   });
   $('email').addEventListener('keydown', function(e){ if (e.key === 'Enter') $('accountKnop').click(); });
@@ -266,12 +311,12 @@
   if (sessieToken){
     s.token = sessieToken; s.email = sessieEmail;
     $('ingelogd').textContent = 'Logged in as ' + sessieEmail; $('ingelogd').hidden = false;
-    toon('voor', true);
+    toon(voorKlanten ? 'bureau' : (sessieEmail && {{ winkel | tojson }} && kenmerkVerder ? 'winkel' : 'voor'), true);
   }
 
   // 2. voor wie
   document.querySelectorAll('[data-voor]').forEach(function(b){ b.addEventListener('click', function(){
-    if (b.getAttribute('data-voor') === 'klanten'){ window.location.href = '/agencies'; return; }
+    if (b.getAttribute('data-voor') === 'klanten'){ toon('bureau'); return; }
     toon('winkel');
   }); });
 
@@ -367,7 +412,7 @@
   document.querySelectorAll('[data-kies]').forEach(function(b){ b.addEventListener('click', function(){
     var plan = b.getAttribute('data-kies'); fout('pakketFout');
     document.querySelectorAll('[data-kies]').forEach(function(x){ x.disabled = true; });
-    var body = {email: s.email, url: s.url, pakket: plan, periode: 'maand', proef: plan === 'watch',
+    var body = {email: s.email, url: s.url, pakket: plan, periode: periode, proef: plan === 'watch' && periode === 'maand',
                 voorwaarden_akkoord: true, herkomst: 'start'};
     post('/api/start/plan', {token: s.token, plan: plan}).catch(function(){});
     post('/api/checkout/monitoring', body).then(function(d){
@@ -384,6 +429,37 @@
       fout('pakketFout', d.error || 'Something went wrong. Try again.');
     }).catch(function(){ document.querySelectorAll('[data-kies]').forEach(function(x){ x.disabled = false; }); fout('pakketFout', 'No connection. Try again.'); });
   }); });
+  // Per maand of per jaar (stap 354).
+  function zetPeriode(p){
+    periode = p;
+    document.querySelectorAll('.periode button').forEach(function(b){ b.classList.toggle('aan', b.getAttribute('data-periode') === p); });
+    document.querySelectorAll('[data-alleen]').forEach(function(e){ e.hidden = e.getAttribute('data-alleen') !== p; });
+  }
+  document.querySelectorAll('.periode button').forEach(function(b){ b.addEventListener('click', function(){ zetPeriode(b.getAttribute('data-periode')); }); });
+  zetPeriode(periode);
+
+  // Bureaus en merken (stap 354).
+  $('bureauKnop').addEventListener('click', function(){
+    var k = this; k.disabled = true; fout('bureauFout');
+    post('/api/start/bureau', {token: s.token, bureau: $('bureauNaam').value, website: $('bureauSite').value, winkels: $('bureauWinkels').value}).then(function(d){
+      k.disabled = false;
+      if (!d.ok) return fout('bureauFout', d.error || 'Something went wrong.');
+      s.url = $('bureauSite').value.trim();
+      $('bureauOnder').textContent = d.winkels.length
+        ? d.winkels.length + ' client store' + (d.winkels.length === 1 ? '' : 's') + ' ready to add. Every store gets its own dashboard, under your login. You can add up to ' + d.max + '.'
+        : 'Every client store gets its own dashboard, under your login. You can add stores after you start.';
+      toon('bureaupakket');
+    }).catch(function(){ k.disabled = false; fout('bureauFout', 'No connection. Try again.'); });
+  });
+  $('bureauBetaal').addEventListener('click', function(){
+    var k = this; k.disabled = true; fout('bureauBetaalFout');
+    post('/api/checkout/monitoring', {email: s.email, url: s.url, pakket: 'merken', periode: 'maand', proef: false,
+                                      voorwaarden_akkoord: true, herkomst: 'start'}).then(function(d){
+      if (d.checkout_url){ window.location.href = d.checkout_url; return; }
+      k.disabled = false; fout('bureauBetaalFout', d.error || 'Something went wrong. Try again.');
+    }).catch(function(){ k.disabled = false; fout('bureauBetaalFout', 'No connection. Try again.'); });
+  });
+
   // Het pakket dat hij koos voor hij hier kwam, krijgt de nadruk.
   if (gekozenPlan === 'fix') $('pakketFix').style.outline = '2px solid #1B3FE0'; else $('pakketWatch').style.outline = '2px solid #1B3FE0';
 })();

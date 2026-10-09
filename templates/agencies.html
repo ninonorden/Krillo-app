@@ -40,7 +40,7 @@
   ul.punten li{margin:0 0 10px 18px; color:var(--ink-zacht);}
   .rood{color:#B42318; font-weight:600;} .groen{color:var(--groen); font-weight:600;}
 
-  /* VERSIE 10 (8 oktober 2026, Nino: "maak alles zo"). WAAROM: dit blok
+  /* VERSIE 10 (8 oktober 2026, de eigenaar: "maak alles zo"). WAAROM: dit blok
      overschrijft de oude waarden van deze pagina (blauwe knop, radius 8 en
      12, rand #D8D8DE, Space Grotesk zwaar) zodat ze passen bij de gedeelde
      laag in _stijl.html. Teksten, id's en scripts zijn niet aangeraakt. */
@@ -97,18 +97,20 @@
     <ul class="punten" style="margin-top:12px;">
       <li>Every store in every category it appears in, measured monthly in ChatGPT and Gemini</li>
       <li>A dashboard per store, and a link you can share with each client</li>
-      <li>We set it up together with you, by hand, in the first week</li>
+      <li>Start yourself in two minutes; add your client stores as you go</li>
       <li>Monthly only, cancel any month</li>
     </ul>
-    <a class="knop-groot" href="#aanvragen" style="display:inline-flex; align-items:center; text-decoration:none;">Set up my stores</a>
+    {# 9 oktober (stap 354): zelf beginnen in /start, net als een winkel. Het formulier hieronder blijft voor wie eerst wil praten. #}
+    <a class="knop-groot" href="/start?voor=klanten" style="display:inline-flex; align-items:center; text-decoration:none;">Set up my stores &rarr;</a>
+    <p style="font-size:13px; margin:10px 0 0;">Prefer to ask something first? <a href="#aanvragen">Leave your details below</a>.</p>
   </div>
 
   <h2>Only a few clients?</h2>
   <p>Then the <a href="/partners">partner program</a> may fit better: send your clients to Krillo with your own
      link, they pick their own plan, and you earn a share of what they pay.</p>
 
-  <h2 id="aanvragen">Get started</h2>
-  <p>Leave your details. You get a personal reply from Nino, the founder, within one working day. No sales team,
+  <h2 id="aanvragen">Questions first?</h2>
+  <p>Leave your details and we reply personally within one working day. No sales team,
      no demo call required.</p>
   <form class="formulier" id="m_form" onsubmit="return false;">
     <div class="twee">
@@ -184,7 +186,7 @@
     fetch('/api/agencies', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
       .then(function(r){ return r.json(); })
       .then(function(d){
-        if(d.ok){ el('m_form').innerHTML = '<p class="goed">Thanks. Check your inbox for a confirmation; Nino replies within one working day.</p>'; }
+        if(d.ok){ el('m_form').innerHTML = '<p class="goed">Thanks. Check your inbox for a confirmation; de eigenaar replies within one working day.</p>'; }
         else { fout.textContent = d.fout || 'Something went wrong.'; knop.disabled = false; knop.textContent = 'Send'; }
       })
       .catch(function(){ fout.textContent = 'Something went wrong. Email hello@krilloai.com.'; knop.disabled = false; knop.textContent = 'Send'; });

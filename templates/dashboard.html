@@ -1393,6 +1393,24 @@
       <div style="padding:4px 16px 16px;">
       <p class="klein" style="margin:0 0 10px;">{{ 'Sites die ChatGPT en Gemini noemen in hun antwoorden in jouw categorie, en in hoeveel antwoorden. Daar moet je staan.' if taal == 'nl'
          else 'Sites ChatGPT and Gemini mention in their answers in your category, and in how many answers. These are the places to be.' }}</p>
+      {# Stap 243 (9 oktober): het vermeldingenplan. Per site: hoe vaak AI hem noemt,
+         of je er zelf staat (alleen waar we dat echt kunnen nakijken), en de stap. #}
+      {% if vermeldingen is defined and vermeldingen %}
+      <table class="lijst" style="width:100%">
+      <tr class="klein" style="color:#6E7079;"><td>{{ 'Site' }}</td><td class="r">{{ 'In antwoorden' if taal == 'nl' else 'In answers' }}</td><td>{{ 'Jij' if taal == 'nl' else 'You' }}</td><td>{{ 'Volgende stap' if taal == 'nl' else 'Next step' }}</td></tr>
+      {% for b in vermeldingen %}
+      <tr><td><strong>{{ b.naam }}</strong><br><span class="klein">{{ b.soort_en }}</span></td>
+        <td class="r" style="white-space:nowrap">{{ b.aantal }} of {{ b.van }}</td>
+        <td style="white-space:nowrap">{% if b.status == 'aan' %}<span style="color:#0B7C5E;">&#10003; {{ 'Je staat erop' if taal == 'nl' else 'You are listed' }}</span>
+          {% elif b.status == 'mist' %}<span style="color:#B4471A;">&#10005; {{ 'Niet gevonden' if taal == 'nl' else 'Not found' }}</span>
+          {% elif b.check %}<a href="{{ b.check }}" target="_blank" rel="noopener">{{ 'Kijk na' if taal == 'nl' else 'Check' }} &#8599;</a>
+          {% else %}<span class="klein">&ndash;</span>{% endif %}</td>
+        <td class="klein">{{ b.stap }}</td></tr>
+      {% endfor %}
+      </table>
+      <p class="klein" style="margin:10px 0 0;">{{ 'Trustpilot kijken we zelf na. Bij de andere sites opent Kijk na een zoekopdracht die laat zien of je erop staat.' if taal == 'nl'
+         else 'We check Trustpilot ourselves. For the other sites, Check opens a search that shows whether you are listed.' }}</p>
+      {% else %}
       <table class="lijst" style="width:100%">
       {% for b in bronnen %}
       <tr><td><strong>{{ b.naam }}</strong><br><span class="klein">{{ b.soort_en }}</span></td>
@@ -1400,6 +1418,7 @@
         <td class="klein">{{ b.advies }}</td></tr>
       {% endfor %}
       </table>
+      {% endif %}
       </div>
     </div>
     {% endif %}
@@ -1976,7 +1995,7 @@
 {% include "_bevestig.html" %}
 <style>.k-teveel{display:none !important;} .k-schuifhint{display:none;} @media(max-width:700px){ .k-kaartschuif{overflow-x:auto; -webkit-overflow-scrolling:touch;} .k-kaartschuif > div{min-width:600px;} .k-schuifhint{display:block;} } .k-meer{display:block; width:calc(100% - 32px); margin:10px 16px 14px; height:38px; border:1px solid #E7E7E4; border-radius:10px; background:#fff; font:500 13px Inter, sans-serif; color:#0A0A0B; cursor:pointer;} .k-meer:hover{border-color:#0A0A0B;}</style>
 <script>
-  /* 9 oktober (testfase Nino): "er staan zoveel vragen onder elkaar dat het
+  /* 9 oktober (testfase de eigenaar): "er staan zoveel vragen onder elkaar dat het
      veel scrollen is". Daarom: de eerste 8 vragen staan er, de rest achter een
      knop "Show all". Wie filtert of zoekt, krijgt meteen alles wat past. En op
      de pagina Questions gaat er maar een vraag tegelijk open. */
