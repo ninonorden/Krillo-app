@@ -71,6 +71,11 @@ html,body{overflow-x:clip}
  /* 9 okt (schermafdruk Nino): het kaartje "yourstore.com" hing buiten het
     beeld en werd afgesneden; op de telefoon staat het nu onder het antwoord. */
  .c-zweefkaart{position:static!important;margin-top:12px}
+ /* 9 okt: de vraagtabel in het voorbeeld (tab Buying questions) had vijf vaste
+    kolommen; op de telefoon liepen GPT/GEM door de vraag heen. Nu drie kolommen. */
+ .c-vtab{grid-template-columns:minmax(0,1fr) 78px 84px!important;gap:8px!important}
+ .c-vtab .c-pill{white-space:nowrap!important}
+ .c-vtab>:nth-child(2),.c-vtab>:nth-child(5){display:none!important}
  /* De pil "For online stores": label op een regel, tekst eronder gecentreerd. */
  .k10-pilrij{flex-direction:column;gap:6px!important;border-radius:16px!important;padding:8px 14px!important;text-align:center;font-size:12.5px!important;line-height:1.4}
  .k10-pilrij .c-pill{white-space:nowrap!important}

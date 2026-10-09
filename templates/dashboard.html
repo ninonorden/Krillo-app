@@ -433,6 +433,32 @@
           </div>
         </div>
 
+        {# 9 okt (Nino): dit blok staat nu direct onder de tegels met plek en zichtbaarheid. 7 oktober avond: de bedrijfscijfers direct onder de AI-cijfers, net als
+           de plaat op de homepage. Uit de pixel of wat de klant invulde. #}
+        {% if aiverkeer is defined and aiverkeer %}
+        {% set ar = aiverkeer.rijen %}
+        {% set l = ar | last if ar else {} %}
+        {% set o = aiverkeer.oordeel or {} %}
+        <div class="kpis d8-tegels d8-geld">
+          {% for label_nl, label_en, waarde, onder in [
+               ('AI-bezoek', 'AI sessions', l.bezoek if l else none, ('%+d%%' % o.bezoek) if o.bezoek is defined and o.bezoek is not none else none),
+               ('Bestellingen uit AI', 'Orders from AI', l.orders if l else none, none),
+               ('Omzet uit AI', 'Revenue from AI', ('€%.0f' % l.omzet) if l and l.omzet is not none else none, ('%+d%%' % o.omzet) if o.omzet is defined and o.omzet is not none else none),
+               ('Conversie uit AI', 'AI conversion', ((l.conversie ~ '%') if l and l.conversie is not none else none), none)] %}
+          <div class="kpi d8-tegel stil">
+            <span class="label">{{ label_nl if nl else label_en }}</span>
+            <span class="rij"><span class="groot">{{ waarde if waarde is not none else '–' }}</span></span>
+            {# 8 oktober (Nino): met een verbonden pixel stond er bij conversie nog
+               "Connect your sales" (er was alleen nog geen AI-bezoek), en de maand
+               stond er als "2026-10". #}
+            {% set px_aan = pixel is defined and pixel and pixel.status.verbonden %}
+            {% set maandnaam = ((['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'] if nl else ['January','February','March','April','May','June','July','August','September','October','November','December'])[(l.maand[5:7] | int) - 1] ~ ' ' ~ l.maand[:4]) if l and l.maand else '' %}
+            <span class="onder">{% if waarde is none and px_aan %}{{ 'Nog geen bezoek uit AI' if nl else 'No visits from AI yet' }}{% elif waarde is none %}<a href="#aiverkeer">{{ 'Koppel je verkoop' if nl else 'Connect your sales' }} &darr;</a>{% elif onder %}{{ onder }} {{ 'tegen je eerste maand' if nl else 'vs your first month' }}{% else %}{{ maandnaam }}{% endif %}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% if o.keer is defined %}<div class="d8-geldregel">{{ ('&euro;' ~ o.extra_omzet ~ ' meer omzet uit AI dan in je eerste maand: ' ~ o.keer ~ 'x wat Krillo kost.') | safe if nl else ('&euro;' ~ o.extra_omzet ~ ' more revenue from AI than in your first month: ' ~ o.keer ~ 'x what Krillo costs you.') | safe }} <span class="klein" style="font-weight:400; color:var(--zacht, #6E7079);">{{ 'Seizoen en acties tellen ook mee.' if nl else 'Seasons and sales count too.' }}</span></div>{% endif %}
+
         {# ============ Versie 10 (canvas): Why you lose / What to do now / Sources AI quotes ============ #}
         <div class="cv-rij3">
           <div class="cv-donker-kaart">
@@ -478,31 +504,6 @@
           </div>
         </div>
 
-        {# 7 oktober avond: de bedrijfscijfers direct onder de AI-cijfers, net als
-           de plaat op de homepage. Uit de pixel of wat de klant invulde. #}
-        {% if aiverkeer is defined and aiverkeer %}
-        {% set ar = aiverkeer.rijen %}
-        {% set l = ar | last if ar else {} %}
-        {% set o = aiverkeer.oordeel or {} %}
-        <div class="kpis d8-tegels d8-geld">
-          {% for label_nl, label_en, waarde, onder in [
-               ('AI-bezoek', 'AI sessions', l.bezoek if l else none, ('%+d%%' % o.bezoek) if o.bezoek is defined and o.bezoek is not none else none),
-               ('Bestellingen uit AI', 'Orders from AI', l.orders if l else none, none),
-               ('Omzet uit AI', 'Revenue from AI', ('€%.0f' % l.omzet) if l and l.omzet is not none else none, ('%+d%%' % o.omzet) if o.omzet is defined and o.omzet is not none else none),
-               ('Conversie uit AI', 'AI conversion', ((l.conversie ~ '%') if l and l.conversie is not none else none), none)] %}
-          <div class="kpi d8-tegel stil">
-            <span class="label">{{ label_nl if nl else label_en }}</span>
-            <span class="rij"><span class="groot">{{ waarde if waarde is not none else '–' }}</span></span>
-            {# 8 oktober (Nino): met een verbonden pixel stond er bij conversie nog
-               "Connect your sales" (er was alleen nog geen AI-bezoek), en de maand
-               stond er als "2026-10". #}
-            {% set px_aan = pixel is defined and pixel and pixel.status.verbonden %}
-            {% set maandnaam = ((['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'] if nl else ['January','February','March','April','May','June','July','August','September','October','November','December'])[(l.maand[5:7] | int) - 1] ~ ' ' ~ l.maand[:4]) if l and l.maand else '' %}
-            <span class="onder">{% if waarde is none and px_aan %}{{ 'Nog geen bezoek uit AI' if nl else 'No visits from AI yet' }}{% elif waarde is none %}<a href="#aiverkeer">{{ 'Koppel je verkoop' if nl else 'Connect your sales' }} &darr;</a>{% elif onder %}{{ onder }} {{ 'tegen je eerste maand' if nl else 'vs your first month' }}{% else %}{{ maandnaam }}{% endif %}</span>
-          </div>
-          {% endfor %}
-        </div>
-        {% if o.keer is defined %}<div class="d8-geldregel">{{ ('&euro;' ~ o.extra_omzet ~ ' meer omzet uit AI dan in je eerste maand: ' ~ o.keer ~ 'x wat Krillo kost.') | safe if nl else ('&euro;' ~ o.extra_omzet ~ ' more revenue from AI than in your first month: ' ~ o.keer ~ 'x what Krillo costs you.') | safe }} <span class="klein" style="font-weight:400; color:var(--zacht, #6E7079);">{{ 'Seizoen en acties tellen ook mee.' if nl else 'Seasons and sales count too.' }}</span></div>{% endif %}
         {% endif %}
 
         {# ============ Versie 10 (stap 336): What do you want to win? ============
@@ -1377,7 +1378,10 @@
       <div style="padding:4px 16px 16px;">
       <p class="klein" style="margin:0 0 10px;">{{ 'Elke stip is een winkel. Rechts: vaker genoemd. Hoger: vaker aangeraden. Rechtsonder kent AI je wel, maar is de tip voor een ander.' if taal == 'nl'
          else 'Each dot is a store. Further right: named more often. Higher: recommended more often. Low on the right, AI knows you but the tip goes to someone else.' }}</p>
-      <div style="max-width:720px;">{{ kaart | safe }}</div>
+      {# 9 okt (testfase): op de telefoon kromp de kaart tot letters van 5px en stippen
+   van 2px. Nu houdt hij zijn leesbare maat en schuif je hem opzij. #}
+      <div class="k-kaartschuif"><div style="max-width:720px;">{{ kaart | safe }}</div></div>
+      <p class="klein k-schuifhint">{{ 'Schuif de kaart opzij om alles te zien.' if taal == 'nl' else 'Swipe the chart sideways to see all of it.' }}</p>
       </div>
     </div>
     {% endif %}
@@ -1955,5 +1959,34 @@
   </div>
 </div>
 {% include "_bevestig.html" %}
+<style>.k-teveel{display:none !important;} .k-schuifhint{display:none;} @media(max-width:700px){ .k-kaartschuif{overflow-x:auto; -webkit-overflow-scrolling:touch;} .k-kaartschuif > div{min-width:600px;} .k-schuifhint{display:block;} } .k-meer{display:block; width:calc(100% - 32px); margin:10px 16px 14px; height:38px; border:1px solid #E7E7E4; border-radius:10px; background:#fff; font:500 13px Inter, sans-serif; color:#0A0A0B; cursor:pointer;} .k-meer:hover{border-color:#0A0A0B;}</style>
+<script>
+  /* 9 oktober (testfase Nino): "er staan zoveel vragen onder elkaar dat het
+     veel scrollen is". Daarom: de eerste 8 vragen staan er, de rest achter een
+     knop "Show all". Wie filtert of zoekt, krijgt meteen alles wat past. En op
+     de pagina Questions gaat er maar een vraag tegelijk open. */
+  (function(){
+    var MAX = 8, nl = document.documentElement.lang === 'nl';
+    function beperk(rijen, naNa){
+      if (rijen.length <= MAX) return;
+      rijen.slice(MAX).forEach(function(r){ r.classList.add('k-teveel'); });
+      var knop = document.createElement('button');
+      knop.type = 'button'; knop.className = 'k-meer';
+      knop.textContent = (nl ? 'Toon alle ' : 'Show all ') + rijen.length + (nl ? ' vragen' : ' questions');
+      function allesTonen(){ rijen.forEach(function(r){ r.classList.remove('k-teveel'); }); if (knop.parentNode) knop.parentNode.removeChild(knop); }
+      knop.addEventListener('click', allesTonen);
+      naNa.parentNode.insertBefore(knop, naNa.nextSibling);
+      document.querySelectorAll('[data-filter], [data-label]').forEach(function(f){ if (f.tagName === 'BUTTON') f.addEventListener('click', allesTonen); });
+      var zoek = document.getElementById('cvZoek'); if (zoek) zoek.addEventListener('input', allesTonen);
+    }
+    var lijst = Array.prototype.slice.call(document.querySelectorAll('#vragenlijst > button.d8-vraag'));
+    if (lijst.length) beperk(lijst, lijst[lijst.length - 1]);
+    var rijen = Array.prototype.slice.call(document.querySelectorAll('details.vraagrij'));
+    if (rijen.length){
+      beperk(rijen, rijen[rijen.length - 1]);
+      rijen.forEach(function(d){ d.addEventListener('toggle', function(){ if (d.open) rijen.forEach(function(o){ if (o !== d) o.open = false; }); }); });
+    }
+  })();
+</script>
 </body>
 </html>

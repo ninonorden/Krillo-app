@@ -185,6 +185,10 @@
   .v8 .kaartblok > :not(.kaartkop):not(table):not(.tabel):not(.binnen):not(script){margin-left:18px; margin-right:18px;}
   .v8 .kaartblok > .kaartkop + :not(table):not(.tabel):not(.binnen){margin-top:14px;}
   .v8 .kaartblok > :last-child:not(table):not(.tabel):not(.binnen){margin-bottom:18px;}
+  /* 9 okt (testfase): tekst in een kaart sprong in op drie verschillende
+     afstanden (oude padding plus nieuwe marge). Nu staat elke tekstregel in
+     een kaart op dezelfde lijn als de rest: 18px van de rand. */
+  .v8 .kaartblok > p, .v8 .kaartblok > .klein{margin-left:18px !important; margin-right:18px !important; padding-left:0 !important; padding-right:0 !important;}
   .v8 .kaartkop{letter-spacing:.02em;}
   .v8 .planlijst{padding-left:20px; margin-top:8px; margin-bottom:14px; font-size:14.5px; line-height:1.8; color:#4A4A55;}
   .v8 .plannaam{font-size:32px; margin-top:4px;}
@@ -352,6 +356,8 @@
   .k10-aic i{width:14px; height:14px; border-radius:4px; border:1px dashed #C9C9C4;}
   .k10-anaam{font-size:14.5px; font-weight:500; display:flex; flex-direction:column;}
   .k10-anaam em{font-style:normal; font-weight:400; font-size:12px; color:#9A9BA3;}
+  .k10-meld{flex:0 0 auto; height:30px; padding:0 12px; border-radius:8px; border:1px solid #E7E7E4; background:#fff; font:500 12.5px Inter, sans-serif; color:#0A0A0B; cursor:pointer; white-space:nowrap;}
+  .k10-meld:hover{border-color:#0A0A0B;} .k10-meld.aan{background:#E7F6EF; border-color:#E7F6EF; color:#0B7C5E;}
   .k10-schakelaar{width:38px; height:22px; border-radius:22px; border:0; background:#E3E3E0; position:relative; cursor:pointer; transition:background .2s;}
   .k10-schakelaar i{position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff;
                     box-shadow:0 1px 3px rgba(0,0,0,.25); transition:left .2s;}
@@ -612,6 +618,8 @@
     .v8 .zijmenu{flex-wrap:nowrap !important; overflow-x:auto; gap:4px; -webkit-overflow-scrolling:touch; scrollbar-width:none; margin:6px -12px 0; padding:0 12px;}
     .v8 .zijmenu::-webkit-scrollbar{display:none;}
     .v8 .zijmenu a{white-space:nowrap; flex:0 0 auto;}
+    /* 9 okt: "Public index" stond scheef naast Plan; op de telefoon gewoon een knop in de rij. */
+    .v8 .zijmenu a.uit{display:flex !important; margin:0 !important; border-top:0 !important; padding:6px 9px !important; border-radius:7px !important; font-size:13px !important;}
     .v8 .verberg-mobiel{display:none !important;}
     .v8 .cv-chips{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;}
     .v8 .werkkop.cv-bar{flex-wrap:wrap; gap:8px;}

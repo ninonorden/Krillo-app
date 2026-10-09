@@ -1558,6 +1558,24 @@
   .k10-uitslag .scan-result-score{background:#fff; border:1px solid #E7E7E4; border-radius:20px;}
   .k10-uitslag .scan-rang{border-radius:16px !important; background:#fff !important; border-color:#E7E7E4 !important;}
   .k10-uitslag .scan-rang button, .k10-uitslag #handKnop, .k10-uitslag #wachtKnop{background:#0A0A0B !important;}
+  .k10r-tech{padding:20px 22px;}
+  .k10r-techkop{display:flex; gap:18px; align-items:flex-start;}
+  .k10r-score{flex:0 0 auto; width:76px; height:76px; border-radius:16px; background:#F7F7F5; border:1px solid #E7E7E4; display:flex; align-items:baseline; justify-content:center; padding-top:16px;}
+  .k10r-score b{font-family:'Inter Tight',Inter,sans-serif; font-weight:500; font-size:32px; letter-spacing:-.03em;} .k10r-score span{font-size:12px; color:#9A9BA3; margin-left:2px;}
+  .k10r-techkop h3{margin:2px 0 4px; font-size:17px; font-weight:600;} .k10r-techkop p{margin:0 0 4px; font-size:13.5px; line-height:1.5; color:#4A4A55;}
+  .k10r-klap{border-top:1px solid #F0F0EE; margin-top:16px; padding-top:4px;}
+  .k10r-klap summary{display:flex; justify-content:space-between; align-items:center; cursor:pointer; list-style:none; padding:10px 0; font-weight:600; font-size:14.5px;}
+  .k10r-klap summary::-webkit-details-marker{display:none;}
+  .k10r-klap summary em{font-style:normal; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; padding:3px 8px; border-radius:6px;}
+  .k10r-klap summary::after{content:'+'; margin-left:10px; color:#9A9BA3; font-weight:400;} .k10r-klap[open] summary::after{content:'\2212';}
+  .k10r-klap summary span{flex:1;}
+  .k10r-check{display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid #F7F7F5;}
+  .k10r-check > i{flex:0 0 auto; margin-top:2px;}
+  .k10r-check b{display:block; font-size:14px; font-weight:600; margin-bottom:2px;} .k10r-check span{display:block; font-size:13px; line-height:1.5; color:#4A4A55;}
+  .k10r-pil-oranje{background:#FFF1E8; color:#B4471A;}
+  .k10r-tech .k10r-klap.scan-goed{border:0; border-top:1px solid #F0F0EE; border-radius:0; background:none; padding:4px 0 0; margin:16px 0 0; font-family:Inter, sans-serif;}
+  .k10r-tech .k10r-klap.scan-goed summary{font-family:Inter, sans-serif; font-size:14.5px; padding:10px 0; color:#0A0A0B;}
+  em.k10r-rood{background:#FFF1E8;} em.k10r-groen{background:#E7F6EF; color:#0B7C5E;}
   @media(max-width:760px){ .k10r-tegels{grid-template-columns:repeat(2,minmax(0,1fr));} .k10r-rij{grid-template-columns:minmax(0,1fr);} .k10r-keuze{grid-template-columns:minmax(0,1fr);} .k10r-titel{font-size:30px;} }
 </style>
 <script>
@@ -2158,7 +2176,7 @@
       html += '<div><span>Questions lost</span><b class="k10r-rood">' + gemist + ' / ' + r.telbaar + '</b></div>';
       html += '<div><span>Named in</span><b>' + r.genoemd + ' / ' + r.telbaar + '</b></div>';
       if(data.checks && data.checks.length){
-        var okAantal = data.checks.filter(function(c){ return c.status === 'goed'; }).length;
+        var okAantal = data.checks.filter(function(c){ return c.status === 'goed' || c.status === 'ok'; }).length;
         html += '<div><span>Website checks</span><b>' + okAantal + ' / ' + data.checks.length + '</b></div>';
       } else {
         html += '<div><span>Website checks</span><b class="k10r-grijs">blocked</b></div>';
@@ -2210,70 +2228,38 @@
       zetStapKnoppen();
       return;
     }
-    // 7 oktober: de techniek is het tweede deel van de uitslag, niet het eerste.
-    html += '<div class="scan-categorie-label" style="margin-top:6px;">Can AI read your store?</div>';
-    html += '<div class="scan-result-score">';
-    html += '<div class="num">' + data.score + '</div>';
-    html += '<div class="label">AI readability of<br>' + data.url + '</div>';
-    html += '<div class="score-uitleg">This number says how well AI can read and understand your site. It is not a chance of being recommended.</div>';
-    html += '</div>';
-
+    // 9 OKTOBER (testfase Nino): dit deel was een lange stapel losse blokken
+    // in de oude stijl, en "goed" telde niet mee: de scanner zegt "ok", de
+    // pagina zocht "goed". Daardoor stond alles onder "to fix" en de tegel op
+    // 0/13. Nu een kaart: cijfer en een zin, wat beter kan open, wat goed is
+    // dichtgeklapt. Zo blijft de uitslag kort en kan wie wil alles openklappen.
+    function isGoed(c){ return c.status === 'goed' || c.status === 'ok'; }
+    var teDoen = data.checks.filter(function(c){ return !isGoed(c); });
+    var goed = data.checks.filter(isGoed);
+    html += '<div class="k10r-kaart k10r-tech">';
+    html += '<div class="k10r-techkop"><div class="k10r-score"><b>' + data.score + '</b><span>/100</span></div>';
+    html += '<div><h3>Can AI read your store?</h3><p>How well AI can read and understand ' + veilig((data.url || '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')) + '. Not a chance of being recommended: that is your rank above.</p>';
     if(typeof data.vorige_score !== 'undefined'){
-      var verschil = data.verschil;
-      var kleur = verschil > 0 ? 'goed' : (verschil < 0 ? 'probleem' : 'deels');
-      var teken = verschil > 0 ? '+' : '';
-      html += '<div class="scan-vergelijking">';
-      html += 'Previous score: ' + data.vorige_score + '/100 &rarr; now: ' + data.score + '/100 ';
-      html += '<span class="tag ' + kleur + '">' + teken + verschil + '</span>';
-      html += '</div>';
+      var verschil = data.verschil, teken = verschil > 0 ? '+' : '';
+      html += '<p class="k10r-grijs">Previous score ' + data.vorige_score + ' &rarr; now ' + data.score + ' (' + teken + verschil + ')</p>';
     }
-
-    // De zichtbaarheidstest staat bewust hier, vlak onder het cijfer en boven
-    // de dertien punten. Het cijfer zegt of AI je site kan lezen. Of AI je ook
-    // noemt is een andere vraag, en dat is de vraag waar iemand voor terugkomt.
-    // 7 oktober: niet als er al een plek staat. Dan zei dit blok "dat cijfer
-    // zegt nog niet of AI je noemt" vlak onder "AI noemde je in 8 van 30", en
-    // stond het tussen de uitslag en de knoppen. Verwarrend en een omweg.
-    if(!data.rang){ html += '<div id="zichtbaarheidBlok"></div>'; }
-
-    var byCategorie = {};
-    data.checks.forEach(function(check){
-      var cat = check.categorie || 'overig';
-      if(!byCategorie[cat]) byCategorie[cat] = [];
-      byCategorie[cat].push(check);
-    });
-
-    // Alleen de punten die NIET goed staan uitgeschreven. Wat goed is krijgt
-    // één regel, en wie het toch wil zien klapt het open.
-    //
-    // Dit stond eerst allemaal open: dertien punten met bij elk een alinea
-    // uitleg, ook bij de acht die gewoon goed waren. Dat leest als een muur,
-    // en het is precies het deel dat er niet toe doet. Wie hier komt wil weten
-    // wat er mis is, niet lezen dat zijn robots.txt in orde is.
-    var teDoen = data.checks.filter(function(c){ return c.status !== 'goed'; });
-    var goed = data.checks.filter(function(c){ return c.status === 'goed'; });
-
+    html += '</div></div>';
     if(teDoen.length){
-      html += '<div class="scan-categorie-label">What can be better</div>';
+      html += '<details class="k10r-klap" open><summary><span>What can be better</span><em class="k10r-rood">' + teDoen.length + ' to fix</em></summary>';
       teDoen.forEach(function(check){
-        html += '<div class="scan-check">';
-        html += '<span class="tag ' + check.status + '">' + statusLabels[check.status] + '</span>';
-        html += '<div class="scan-check-body"><strong>' + check.titel + '</strong><span>' + check.uitleg + '</span></div>';
-        html += '</div>';
-      });
-    }
-
-    if(goed.length){
-      html += '<details class="scan-goed"><summary>' + goed.length + ' of ' +
-              data.checks.length + ' points are fine</summary>';
-      goed.forEach(function(check){
-        html += '<div class="scan-check">';
-        html += '<span class="tag goed">' + statusLabels.goed + '</span>';
-        html += '<div class="scan-check-body"><strong>' + check.titel + '</strong><span>' + check.uitleg + '</span></div>';
-        html += '</div>';
+        html += '<div class="k10r-check"><i class="k10r-pil ' + (check.status === 'probleem' ? 'k10r-pil-rood' : 'k10r-pil-oranje') + '">' + statusLabels[check.status] + '</i><div><b>' + check.titel + '</b><span>' + check.uitleg + '</span></div></div>';
       });
       html += '</details>';
     }
+    if(goed.length){
+      html += '<details class="k10r-klap scan-goed"><summary><span>' + goed.length + ' of ' + data.checks.length + ' points are fine</span><em class="k10r-groen">good</em></summary>';
+      goed.forEach(function(check){
+        html += '<div class="k10r-check"><i class="k10r-pil k10r-pil-groen">good</i><div><b>' + check.titel + '</b><span>' + check.uitleg + '</span></div></div>';
+      });
+      html += '</details>';
+    }
+    html += '</div>';
+    if(!data.rang){ html += '<div id="zichtbaarheidBlok"></div>'; }
 
     var issueCount = teDoen.length;
     var totalCount = data.checks.length;

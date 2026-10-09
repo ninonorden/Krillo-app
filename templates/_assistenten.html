@@ -7,17 +7,23 @@
 {% set anl = taal == 'nl' %}
 <div class="kaartblok k10-assistenten" id="assistenten" data-url="{{ assistenten_url }}">
   <div class="kaartkop">{{ 'ASSISTENTEN' if anl else 'ASSISTANTS' }}<span class="uitleg">{{ 'WEKELIJKS GEVRAAGD' if anl else 'ASKED WEEKLY' }}</span></div>
-  <p class="klein" style="margin:0 0 10px;">{{ 'ChatGPT en Gemini zitten in je pakket. Zet een nieuwe assistent aan en we nemen hem op in jouw metingen zodra Krillo hem meet. Tot dan verandert er niets.' if anl
-       else 'ChatGPT and Gemini are in your plan. Switch on a new assistant and we add it to your measurements as soon as Krillo measures it. Until then nothing changes.' }}</p>
-  {% if not assistenten_url %}<p class="klein" style="margin:-4px 0 10px; color:#B4471A;">{{ 'Voorbeeld: in je eigen dashboard meldt een schakelaar je aan. Hier wordt niets bewaard.' if anl else 'Example: in your own dashboard a switch signs you up. Nothing is saved here.' }}</p>{% endif %}
+  <p class="klein" style="margin:0 0 10px;">{{ 'ChatGPT en Gemini meten we nu voor je. De rest komt eraan: tik op Laat het me weten en we nemen hem op in jouw metingen zodra Krillo hem meet, zonder extra kosten.' if anl
+       else 'ChatGPT and Gemini are measured in your plan. The others are coming: tap Notify me and we add it to your measurements as soon as Krillo measures it, at no extra cost.' }}</p>
+  {% if not assistenten_url %}<p class="klein" style="margin:-4px 0 10px; color:#B4471A;">{{ 'Voorbeeld: in je eigen dashboard zet deze knop je op de lijst. Hier wordt niets bewaard.' if anl else 'Example: in your own dashboard this button puts you on the list. Nothing is saved here.' }}</p>{% endif %}
   {% for a in assistenten %}
   {% set gekozen = a.gemeten or a.sleutel in assistenten_keuze %}
   <div class="k10-arij{{ '' if a.gemeten else ' later' }}">
     <span class="k10-aic">{% if logo_bestaat(a.logo) %}<img src="/static/logos/{{ a.logo }}.svg" alt="" width="16" height="16">{% else %}<i></i>{% endif %}</span>
     <span class="k10-anaam">{{ a.naam }}
       <em>{% if a.gemeten %}{{ 'in je pakket' if anl else 'in your plan' }}{% elif a.sleutel in assistenten_keuze %}{{ 'aangemeld: komt erbij zodra we hem meten' if anl else 'signed up: added as soon as we measure it' }}{% else %}{{ 'binnenkort' if anl else 'coming soon' }}{% endif %}</em></span>
-    <button type="button" class="k10-schakelaar{{ ' aan' if gekozen }}" role="switch" aria-checked="{{ 'true' if gekozen else 'false' }}"
-            aria-label="{{ a.naam }}" {% if a.gemeten %}disabled title="{{ 'Altijd inbegrepen' if anl else 'Always included' }}"{% else %}data-sleutel="{{ a.sleutel }}"{% endif %}><i></i></button>
+    {# 9 okt (testfase Nino): een schakelaar bij een assistent die we nog niet
+       meten leek alsof je hem aanzette. Nu: gemeten = vaste schakelaar aan,
+       de rest een knop "Notify me" die je op de lijst zet (zelfde route). #}
+    {% if a.gemeten %}
+    <button type="button" class="k10-schakelaar aan" role="switch" aria-checked="true" aria-label="{{ a.naam }}" disabled title="{{ 'Altijd inbegrepen' if anl else 'Always included' }}"><i></i></button>
+    {% else %}
+    <button type="button" class="k10-meld{{ ' aan' if gekozen }}" aria-pressed="{{ 'true' if gekozen else 'false' }}" aria-label="{{ a.naam }}" data-sleutel="{{ a.sleutel }}">{% if gekozen %}{{ 'Op de lijst ✓' if anl else 'On the list ✓' }}{% else %}{{ 'Laat het me weten' if anl else 'Notify me' }}{% endif %}</button>
+    {% endif %}
   </div>
   {% endfor %}
 </div>
@@ -25,14 +31,20 @@
   (function(){
     var vak = document.getElementById('assistenten');
     if (!vak) return;
+    function zet(knop, aan){
+      knop.classList.toggle('aan', aan);
+      knop.setAttribute('aria-pressed', aan ? 'true' : 'false');
+      knop.textContent = aan ? {{ ('Op de lijst ✓' if anl else 'On the list ✓') | tojson }} : {{ ('Laat het me weten' if anl else 'Notify me') | tojson }};
+      var em = knop.parentNode.querySelector('em');
+      if (em) em.textContent = aan ? {{ ('we melden het zodra we hem meten' if anl else 'we tell you as soon as we measure it') | tojson }}
+                                   : {{ ('binnenkort' if anl else 'coming soon') | tojson }};
+    }
     vak.querySelectorAll('button[data-sleutel]').forEach(function(knop){
       knop.addEventListener('click', function(){
         var aan = !knop.classList.contains('aan');
         // Voorbeeld (geen adres): alleen de schakelaar laten bewegen.
         if (!vak.getAttribute('data-url')){
-          knop.classList.toggle('aan', aan); knop.setAttribute('aria-checked', aan ? 'true' : 'false');
-          var e0 = knop.parentNode.querySelector('em');
-          if (e0) e0.textContent = aan ? {{ ('in jouw dashboard: aangemeld' if anl else 'in your dashboard: signed up') | tojson }} : {{ ('binnenkort' if anl else 'coming soon') | tojson }};
+          zet(knop, aan);
           return;
         }
         knop.disabled = true;
@@ -42,11 +54,7 @@
           .then(function(d){
             knop.disabled = false;
             if (!d.ok) return;
-            knop.classList.toggle('aan', aan);
-            knop.setAttribute('aria-checked', aan ? 'true' : 'false');
-            var em = knop.parentNode.querySelector('em');
-            if (em) em.textContent = aan ? {{ ('aangemeld: komt erbij zodra we hem meten' if anl else 'signed up: added as soon as we measure it') | tojson }}
-                                         : {{ ('binnenkort' if anl else 'coming soon') | tojson }};
+            zet(knop, aan);
           }).catch(function(){ knop.disabled = false; });
       });
     });
