@@ -5448,6 +5448,64 @@ def meld_benadering_af(webshop_url):
     return gelukt
 
 
+SCANNER_TOT = "2026-10-08 00:00+02"   # daarna moest afmelden met een knop (een mens)
+
+
+def scanner_afmeldingen(minuten=2):
+    """Winkels die door een beveiligingsscanner zijn afgemeld (9 oktober).
+
+    Tot 7 oktober meldde een klik op de afmeldlink meteen af. Scanners van
+    bedrijven (Microsoft, Mimecast) openen elke link binnen seconden na
+    aankomst, ook die. Herkenbaar aan: afgemeld binnen een paar minuten na het
+    mailen, en voor de reparatie. Geeft een lijst adressen."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT b.webshop_url FROM benadering b
+                                 JOIN winkelprofielen w ON w.webshop_url = b.webshop_url
+                                WHERE b.afgemeld AND b.gemaild_op IS NOT NULL AND w.afgemeld_op IS NOT NULL
+                                  AND w.afgemeld_op >= b.gemaild_op
+                                  AND w.afgemeld_op < b.gemaild_op + make_interval(mins => %s)
+                                  AND w.afgemeld_op < %s::timestamptz
+                                ORDER BY b.webshop_url""", (int(minuten), SCANNER_TOT))
+                return [r[0] for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Scanner-afmeldingen zoeken mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def zet_terug_in_index(urls):
+    """Terug in de openbare index, NIET terug op de maillijst.
+
+    De index kijkt naar benadering.afgemeld; de post kijkt naar
+    winkelprofielen.afgemeld_op (is_afgemeld). Die laatste blijft staan, dus
+    deze winkels krijgen nooit meer post van ons. Geeft het aantal."""
+    if not urls:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE benadering SET afgemeld = FALSE,
+                                      notitie = 'Terug in de index (afgemeld door een scanner); geen post meer.'
+                                WHERE webshop_url = ANY(%s) AND afgemeld""", (list(urls),))
+                n = cur.rowcount
+        vergeet_onthouden()
+        return n
+    except Exception as e:
+        print(f"Terugzetten in de index mislukt: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
 def is_afgemeld(webshop_url):
     """Of deze winkel gezegd heeft geen post meer te willen.
 

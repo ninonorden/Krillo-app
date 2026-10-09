@@ -4360,6 +4360,13 @@ def _verwerk_betaling(payment_id, base_url):
                     if scan_gelukt:
                         db.zet_platform(webshop_url, scan_result.get("platform"))
                     klant_token = db.get_or_create_klant(webshop_url, email)
+                    if klant_token:
+                        # Stap 352: wat hij in /start koos (categorie, vragen) meteen in zijn dashboard.
+                        try:
+                            import aanmelden
+                            aanmelden.pas_toe(webshop_url)
+                        except Exception as e:
+                            print(f"Aanmelding toepassen mislukt: {e}")
                     if klant_token and customer_id:
                         db.zet_mollie_klant(webshop_url, customer_id,
                                             (metadata.get("pakket") or "").lower() or None,
@@ -6412,6 +6419,11 @@ def admin_benadering():
                 melding = (f"{url} wordt nu gemeten en daarna gemaild. Dit duurt een "
                            f"paar minuten. Ververs deze pagina, de uitkomst komt in "
                            f"het logboek hierboven te staan.")
+        elif actie == "scanners_terug":
+            # 9 oktober (Nino: "ja, graag terugzetten"): alleen in de index,
+            # nooit terug op de maillijst.
+            n = db.zet_terug_in_index(db.scanner_afmeldingen())
+            melding = f"{n} winkel(s) staan weer in de index. Ze krijgen geen post meer van ons."
         elif actie in ("is_test", "is_echt"):
             url = (request.form.get("url") or "").strip()
             db.zet_klant_test(url, actie == "is_test")
@@ -6430,7 +6442,7 @@ def admin_benadering():
     # ronde die gewoon aan het werk is precies op een ronde die vastligt.
     bezig = _metingen_bezig()
     return render_template(
-        "admin_benadering.html",
+        "admin_benadering.html", scanner_afgemeld=len(db.scanner_afmeldingen()),
         geen_adres=db.redenen_geen_adres(),
         zoekmachine=benadering.zoekmachine_stand(),
         diagnose=benadering.waarom_gaat_er_niets_uit(
@@ -10084,6 +10096,106 @@ def uitkomst_pagina(token, pad):
                       pagina=dp.PAD_NAAR_PAGINA[pad])
 
 
+# ---------------------------------------------------------------------------
+# STAP 352 (9 oktober): de aanmeldroute /start, naar het voorbeeld van Peec.
+# Eerst een account (mailadres), dan de winkel, het profiel, de vragen die hij
+# wil winnen, een stukje van zijn eigen uitslag, en pas dan pakket en betaling.
+# Zie aanmelden.py voor het waarom.
+# ---------------------------------------------------------------------------
+@app.route("/start")
+def start_pagina():
+    import aanmelden
+    plan = request.args.get("plan")
+    plan = plan if plan in ("watch", "fix") else "watch"
+    winkel = scan_engine.normalize_url(request.args.get("winkel") or "") if request.args.get("winkel") else ""
+    return render_template("start.html", plan=plan, winkel=winkel,
+                           kenmerk=(request.args.get("t") or "")[:80],
+                           categorieen_lijst=aanmelden.categorie_keuzes(),
+                           prijs_watch=payments.PAKKETTEN["watch"]["prijs"]["value"].split(".")[0],
+                           prijs_fix=payments.PAKKETTEN["fix"]["prijs"]["value"].split(".")[0])
+
+
+@app.route("/api/start/account", methods=["POST"])
+def start_account():
+    import aanmelden
+    d = request.get_json(silent=True) or {}
+    email = (d.get("email") or "").strip()
+    if not _EMAIL_VORM.match(email):
+        return jsonify({"error": "That email address does not look right. Please check it."}), 400
+    if not d.get("akkoord"):
+        return jsonify({"error": "Please agree to the terms and the privacy policy."}), 400
+    token = aanmelden.begin(email)
+    # Nino wil weten dat er iemand begint, ook als hij niet afrondt: dit adres
+    # is de eerste echte lead uit de site.
+    _meld_aan_beheer("Iemand begint aan /start", f"{email} maakte een account aan op /start.")
+    return jsonify({"ok": True, "token": token})
+
+
+@app.route("/api/start/winkel", methods=["POST"])
+def start_winkel():
+    import aanmelden
+    d = request.get_json(silent=True) or {}
+    token, url = d.get("token") or "", (d.get("url") or "").strip()
+    if not aanmelden.lees(token):
+        return jsonify({"error": "Your session expired. Start again, it takes a minute."}), 404
+    if not url or "." not in url:
+        return jsonify({"error": "Type your store address, for example yourstore.com."}), 400
+    p = aanmelden.profiel(url)
+    aanmelden.zet(token, url=p["url"], naam=p["naam"], categorie=p["categorie"], land=p["land"], stap="profiel")
+    return jsonify({"ok": True, "profiel": p})
+
+
+@app.route("/api/start/profiel", methods=["POST"])
+def start_profiel():
+    import aanmelden
+    d = request.get_json(silent=True) or {}
+    token = d.get("token") or ""
+    if not aanmelden.lees(token):
+        return jsonify({"error": "Your session expired. Start again, it takes a minute."}), 404
+    slug, land = d.get("categorie") or "", (d.get("land") or "nl").lower()
+    if slug not in categorieen.GELDIG or slug in categorieen.NIET_MEETBAAR:
+        return jsonify({"error": "Choose the category that fits your store best."}), 400
+    if land not in ("nl", "be"):
+        return jsonify({"error": "Krillo measures the Netherlands and Belgium for now."}), 400
+    naam = (d.get("naam") or "").strip()[:80]
+    aanmelden.zet(token, categorie=slug, land=land, naam=naam or None, stap="vragen")
+    return jsonify({"ok": True, "vragen": aanmelden.vragen(slug), "taal": markten.vraagtaal_en(land)})
+
+
+@app.route("/api/start/doelen", methods=["POST"])
+def start_doelen():
+    """Bewaart de vragen die hij wil winnen, en geeft een stukje van zijn uitslag."""
+    import aanmelden
+    d = request.get_json(silent=True) or {}
+    token = d.get("token") or ""
+    g = aanmelden.lees(token)
+    if not g:
+        return jsonify({"error": "Your session expired. Start again, it takes a minute."}), 404
+    doelen = [str(v)[:300] for v in (d.get("doelen") or []) if v][:aanmelden.MAX_DOELEN]
+    aanmelden.zet(token, doelen=doelen, stap="voorproef")
+    rang = None
+    try:
+        r = _rang_voor_gratis_check(g.get("url")) if g.get("url") else None
+        if r:
+            rang = {k: r.get(k) for k in ("positie", "van", "categorie", "land", "genoemd", "telbaar", "nul", "aantal_verloren")}
+            rang["voor"] = [w.get("naam") for w in (r.get("voor_rijen") or [])][:3]
+    except Exception as e:
+        print(f"Voorproef voor /start mislukt: {e}")
+    return jsonify({"ok": True, "rang": rang, "doelen": doelen})
+
+
+@app.route("/api/start/plan", methods=["POST"])
+def start_plan():
+    """Welk pakket hij koos (ook als hij daarna bij Mollie afhaakt)."""
+    import aanmelden
+    d = request.get_json(silent=True) or {}
+    plan = d.get("plan") if d.get("plan") in ("watch", "fix") else None
+    if not aanmelden.lees(d.get("token") or "") or not plan:
+        return jsonify({"ok": False}), 400
+    aanmelden.zet(d["token"], plan=plan, stap="betalen")
+    return jsonify({"ok": True})
+
+
 @app.route("/uitkomst/<token>/verder")
 def uitkomst_verder(token):
     """De knop op de uitkomstpagina. Telt de doorklik en stuurt dan door.
@@ -10102,8 +10214,10 @@ def uitkomst_verder(token):
     # Stap 168: het kenmerk gaat mee (t=), zodat de homepage het mailadres
     # waar wij naartoe mailden kan invullen via /api/voorvullen. Niet het
     # adres zelf in de link: dat komt dan in logboeken en doorverwijzingen.
-    return redirect(f"/?winkel={quote(webshop_url)}&utm_source=koude_mail"
-                    + (f"&plan={plan}&t={quote(token)}" if plan else "") + "#pricing")
+    # 9 oktober (stap 352): niet meer meteen de kassa, maar de aanmeldroute.
+    # Van ongeveer 59 mensen die hier klikten vulde niemand de kassa in.
+    return redirect(f"/start?winkel={quote(webshop_url)}&utm_source=koude_mail"
+                    + (f"&plan={plan}&t={quote(token)}" if plan else ""))
 
 
 @app.route("/api/voorvullen/<token>")
