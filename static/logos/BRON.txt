@@ -6,6 +6,4 @@ ChatGPT: het OpenAI-teken uit Simple Icons 13.21.0 (in latere versies op
 verzoek van OpenAI weggehaald; voor "measured in" gebruiken we het zoals Peec en
 anderen). Claude: Simple Icons 16.30.0, kleur D97757.
 
-Grok (xAI) staat nergens in Simple Icons. Zet het officiele bestand van de
-merkpagina van xAI hier neer als grok.svg; tot dan toont de site een neutraal
-vakje van dezelfde maat (zie logo_bestaat in app.py).
+Grok (xAI): grok.svg aangeleverd door Nino op 8 oktober 2026 (officieel icoon), kleur gelijkgezet op #0A0A0B.

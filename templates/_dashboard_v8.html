@@ -586,7 +586,7 @@
   .v8 .wv-actietekst{background:#FAFAF9; border:1px solid var(--line2); border-radius:10px; padding:10px 12px; font-size:12.5px; line-height:1.55; color:var(--soft);}
 
   @media(max-width:1200px){
-    .v8 .cv-vragenrij{grid-template-columns:1fr;} .v8 .cv-rij3{grid-template-columns:1fr 1fr;} .v8 .cv-doel{grid-template-columns:1fr;}
+    .v8 .cv-vragenrij{grid-template-columns:1fr;} .v8 .cv-rij3{grid-template-columns:1fr 1fr;} .v8 .cv-doel{grid-template-columns:minmax(0,1fr);} .v8 .cv-doelveld input{min-width:0; flex:1 1 auto;}
     .v8 .wv-twee{grid-template-columns:1fr;}
   }
   @media(max-width:900px){
@@ -602,5 +602,20 @@
     .v8 .werkkop.cv-bar, .v8 .cv-kruimel{padding-left:16px; padding-right:16px;}
     .v8 .d8-vraagkop, .v8 .d8-vraag{grid-template-columns:minmax(0,1fr) 104px;} .v8 .cv-kol-int, .v8 .cv-kol-ass, .v8 .d8-vraagkop span:last-child, .v8 .d8-vraag .w{display:none;}
     .v8 .wv-cmp{grid-template-columns:minmax(0,1fr) minmax(0,1fr);} .v8 .wv-cmp > :first-child{grid-column:1 / -1;}
+  }
+  /* TELEFOON (8 okt, na Nino's opname): het menu en de knoppen vulden het hele
+     eerste scherm. Nu: het menu als een schuifbare rij, de winkelkaart en de
+     zijkaartjes weg (de winkel staat al in de balk), de chips op een regel. */
+  @media(max-width:900px){
+    .v8 .zijkant{padding:10px 12px !important;}
+    .v8 .zijkant .winkelkaart, .v8 .zijvoet, .v8 .d8-zijkaart{display:none !important;}
+    .v8 .zijmenu{flex-wrap:nowrap !important; overflow-x:auto; gap:4px; -webkit-overflow-scrolling:touch; scrollbar-width:none; margin:6px -12px 0; padding:0 12px;}
+    .v8 .zijmenu::-webkit-scrollbar{display:none;}
+    .v8 .zijmenu a{white-space:nowrap; flex:0 0 auto;}
+    .v8 .verberg-mobiel{display:none !important;}
+    .v8 .cv-chips{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;}
+    .v8 .werkkop.cv-bar{flex-wrap:wrap; gap:8px;}
+    .v8 .cv-rechts{width:100%; justify-content:space-between;}
+    .v8 .cv-kruimel h1{font-size:19px !important; line-height:1.3;}
   }
 </style>

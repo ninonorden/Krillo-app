@@ -54,6 +54,21 @@
 .c-toggle-on{background:var(--c-blue)}.c-toggle-on i{left:16px}
 .c-faq{width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--c-line);padding:20px 0;font-family:inherit;font-size:16px;font-weight:500;cursor:pointer;display:flex;justify-content:space-between;color:var(--c-ink)}
 .c-logo-slot{height:48px;border:1px solid var(--c-line);box-shadow:0 1px 2px rgba(10,10,11,.04);border-radius:12px;display:flex;align-items:center;justify-content:center;gap:9px;font-size:14px;font-weight:500;color:var(--c-soft);background:#fff}
+/* TELEFOON (8 okt, na Nino's opname): de pagina schoof zijwaarts doordat de
+   hoekplusjes en een pil buiten het scherm staken, en het voorbeelddashboard
+   hield een kolom van 200px vast voor de zijbalk die op de telefoon verborgen
+   is, waardoor alles in een smalle strook geperst werd. */
+html,body{overflow-x:clip}
+@media (max-width:700px){
+ .c-plus{display:none!important}
+ .c-frame{grid-template-columns:minmax(0,1fr)!important;min-height:0!important}
+ .c-sky{padding:20px 12px 0!important}
+ .c-tab{font-size:12px!important;padding-left:2px!important;padding-right:2px!important}
+ .c-zweef{display:none!important}
+ .c-h1{font-size:40px!important}
+ .c-sec{max-width:100%}
+ .c-pill{white-space:normal!important;max-width:100%}
+}
 @media (max-width:980px){.c-g2{grid-template-columns:minmax(0,1fr)!important}.c-g3{grid-template-columns:minmax(0,1fr)!important}.c-g4{grid-template-columns:repeat(2,minmax(0,1fr))!important}.c-hide-m{display:none!important}.c-h1{font-size:44px!important}}
 .c-wm{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:21px;letter-spacing:-.04em;color:var(--c-ink)}
 .c-card{border-radius:22px}
