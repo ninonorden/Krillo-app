@@ -112,10 +112,15 @@
   {# 1. ACCOUNT #}
   <section class="stap aan" data-stap="account">
     <h1>Create your Krillo account</h1>
-    <p class="onder">See where AI places your store, in about two minutes. No password: we email you a link to your dashboard.</p>
+    <p class="onder">See where AI places your store, in about two minutes.</p>
     <div class="kaart">
+      {# Stap 353: aanmelden met Google of Microsoft (alleen als de sleutels in Render staan). #}
+      {% for a in aanbieders %}<a class="knop vol wit" style="margin-bottom:10px;" href="/auth/{{ a }}?na=start&amp;plan={{ plan }}"><img src="/static/logos/{{ a }}.svg" alt="" width="18" height="18">Continue with {{ 'Google' if a == 'google' else 'Microsoft' }}</a>{% endfor %}
+      {% if aanbieders %}<div class="klein" style="text-align:center; margin:6px 0 14px;">or with your email</div>{% endif %}
       <label class="veld" for="email">Work email</label>
       <input type="email" id="email" placeholder="you@yourstore.com" autocomplete="email">
+      <label class="veld" for="wachtwoord" style="margin-top:12px;">Password</label>
+      <input type="password" id="wachtwoord" placeholder="At least 8 characters" autocomplete="new-password" style="width:100%; height:46px; border:1px solid var(--lijn); border-radius:10px; padding:0 14px; font:inherit;">
       <label class="vink"><input type="checkbox" id="akkoord"><span>I agree to the <a href="/terms" target="_blank">terms</a> and the <a href="/privacy" target="_blank">privacy policy</a>.</span></label>
       <button type="button" class="knop vol" id="accountKnop">Continue &rarr;</button>
       <p class="fout" id="accountFout"></p>
@@ -214,6 +219,7 @@
 <script>
 (function(){
   var gekozenPlan = {{ plan | tojson }}, kenmerk = {{ kenmerk | tojson }};
+  var sessieEmail = {{ sessie_email | tojson }}, sessieToken = {{ sessie_token | tojson }};
   var s = {token:null, email:'', url:'', doelen:[]};
   var volgorde = ['account','voor','winkel','lezen','profiel','vragen','voorproef','pakket'];
   var geschiedenis = [];
@@ -243,9 +249,10 @@
   $('accountKnop').addEventListener('click', function(){
     var email = $('email').value.trim(); fout('accountFout');
     if (!/^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$/.test(email)) return fout('accountFout', 'That email address does not look right.');
+    if (($('wachtwoord').value || '').length < 8) return fout('accountFout', 'Choose a password of at least 8 characters.');
     if (!$('akkoord').checked) return fout('accountFout', 'Please agree to the terms and the privacy policy.');
     this.disabled = true; var k = this;
-    post('/api/start/account', {email: email, akkoord: true}).then(function(d){
+    post('/api/start/account', {email: email, wachtwoord: $('wachtwoord').value, akkoord: true}).then(function(d){
       k.disabled = false;
       if (!d.ok) return fout('accountFout', d.error || 'Something went wrong. Try again.');
       s.token = d.token; s.email = email;
@@ -254,6 +261,13 @@
     }).catch(function(){ k.disabled = false; fout('accountFout', 'No connection. Try again.'); });
   });
   $('email').addEventListener('keydown', function(e){ if (e.key === 'Enter') $('accountKnop').click(); });
+  $('wachtwoord').addEventListener('keydown', function(e){ if (e.key === 'Enter') $('accountKnop').click(); });
+  // Stap 353: al ingelogd (wachtwoord, Google of Microsoft): stap 1 overslaan.
+  if (sessieToken){
+    s.token = sessieToken; s.email = sessieEmail;
+    $('ingelogd').textContent = 'Logged in as ' + sessieEmail; $('ingelogd').hidden = false;
+    toon('voor', true);
+  }
 
   // 2. voor wie
   document.querySelectorAll('[data-voor]').forEach(function(b){ b.addEventListener('click', function(){

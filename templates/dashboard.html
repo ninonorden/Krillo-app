@@ -661,6 +661,8 @@
           <b data-l="vraag" lang="{{ vlang }}">{{ v0.vraag if v0 else '' }}</b>
           {% if beeld.land and not nl and vraagtaal_en(beeld.land) not in ('English', 'the local language') %}<span class="d8-mono d8-taal">ASKED IN {{ vraagtaal_en(beeld.land) | upper }}, AS SHOPPERS IN {{ landnaam | upper }} ASK IT</span>{% endif %}
           <div class="d8-seg" data-l="modellen">{% if v0 %}{% for m in v0.per_model %}<button type="button" class="{{ 'aan' if loop.first }}" data-model="{{ loop.index0 }}">{{ m.assistent }}</button>{% endfor %}{% endif %}</div>
+          {# 9 okt (testfase Nino): de knop stond onderaan de lade, onder alle winkels, en werd niet gevonden. Nu bovenaan. #}
+          {% if werkblok and werkblok.klant_token and not werkblok.opgezegd %}<button type="button" class="d8-kies" data-kies-url="/mijn/{{ werkblok.klant_token }}/kies" style="margin-top:12px;">{{ 'Zet op mijn lijst' if nl else 'Add to my fixes' }}</button>{% endif %}
         </div>
         <div class="d8-antwoord">
           <span class="d8-mono" data-l="wie">{% if v0 and v0.per_model %}{{ (v0.per_model | first).assistent | upper }} {{ 'ANTWOORDDE' if nl else 'ANSWERED' }}{% endif %}{% if beeld.gemeten_op %} &middot; {{ beeld.gemeten_op.strftime('%-d %b') | upper }}{% endif %}</span>
@@ -676,7 +678,6 @@
           <span class="d8-mono">{{ 'ZO WIN JE DEZE VRAAG' if nl else 'HOW TO WIN THIS QUESTION' }}</span>
           <span data-l="advies"></span>
           {% if werkblok and werkblok.klant_token and not werkblok.opgezegd %}
-          <button type="button" class="d8-kies" data-kies-url="/mijn/{{ werkblok.klant_token }}/kies">{{ 'Zet op mijn lijst' if nl else 'Add to my fixes' }}</button>
           {% if weg_url is defined and weg_url %}
           {# 8 oktober: een vraag die niet over zijn winkel gaat, kan hij wegzetten. #}
           <button type="button" class="d8-weg" data-weg-url="{{ weg_url }}" style="display:block; margin-top:10px; border:0; background:none; color:#C9CBD6; font:inherit; font-size:13px; cursor:pointer; padding:0; text-decoration:underline;">{{ 'Deze vraag gaat niet over mijn winkel' if nl else 'This question is not about my store' }}</button>
@@ -684,7 +685,7 @@
           {% elif proef %}
           <a class="d8-kies" href="/uitkomst/{{ proef }}/verder?plan=watch">{{ 'Start gratis proef om dit te bewaren' if nl else 'Start free trial to save this' }}</a>
           {% elif voorbeeld %}
-          <a class="d8-kies" href="/?plan=watch#pricing">{{ 'Probeer het voor je eigen winkel' if nl else 'Try it for your own store' }}</a>
+          <a class="d8-kies" href="/start?plan=watch">{{ 'Probeer het voor je eigen winkel' if nl else 'Try it for your own store' }}</a>
           {% endif %}
         </div>
       </aside>
@@ -1817,6 +1818,20 @@
 
     {# Stap 94: de eigen link. Een winkel die via deze link betalend klant wordt,
        geeft deze klant een maand van zijn pakket terug (na 30 dagen). #}
+    {# 9 oktober (stap 353): een wachtwoord, zodat hij via Log in direct binnenkomt. #}
+    {% if werkblok and werkblok.klant_token and request.path.startswith('/mijn/') %}
+    <div class="kaartblok" id="wachtwoord">
+      <div class="kaartkop">{{ 'INLOGGEN' if taal == 'nl' else 'LOGGING IN' }}</div>
+      <p class="klein" style="margin:0 0 10px;">{{ 'Zet een wachtwoord, dan log je via Log in op krilloai.com direct in met je mailadres. Google of Microsoft met hetzelfde adres werkt ook.' if taal == 'nl'
+           else 'Set a password and log in directly via Log in on krilloai.com with your email. Google or Microsoft with the same address works too.' }}</p>
+      {% if request.args.get('wachtwoord') == 'ok' %}<p style="margin:0 0 10px; color:#0B7C5E;">{{ 'Je wachtwoord is bewaard.' if taal == 'nl' else 'Your password is saved.' }}</p>
+      {% elif request.args.get('wachtwoord') == 'kort' %}<p style="margin:0 0 10px; color:#B4471A;">{{ 'Gebruik minstens 8 tekens.' if taal == 'nl' else 'Use at least 8 characters.' }}</p>{% endif %}
+      <form method="post" action="/mijn/{{ werkblok.klant_token }}/wachtwoord" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="password" name="wachtwoord" minlength="8" required autocomplete="new-password" placeholder="{{ 'Nieuw wachtwoord' if taal == 'nl' else 'New password' }}" style="flex:1; min-width:200px; height:42px; border:1px solid #E7E7E4; border-radius:10px; padding:0 12px; font:inherit;">
+        <button type="submit" class="knop-rand">{{ 'Bewaar' if taal == 'nl' else 'Save password' }}</button>
+      </form>
+    </div>
+    {% endif %}
     {% if doorverwijzing and not werkblok.opgezegd %}
     <div class="kaartblok">
       <div class="kaartkop">{{ 'EEN MAAND GRATIS' if taal == 'nl' else 'A MONTH FREE' }}</div>

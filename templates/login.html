@@ -35,6 +35,15 @@
   /* VERSIE 10 (8 oktober): papierwit, Inter, zwarte hoofdknop, radius 20; de kleine blauwe label blijft Plex Mono. */
   .nog{font-size:13.5px; margin-top:18px; color:#4A4A55;}
   .nog a{color:#142FA8; text-decoration:none; font-weight:500;}
+  /* Stap 353: inloggen met Google of Microsoft, wachtwoord, en de maillink als terugval. */
+  .sso{display:flex; align-items:center; justify-content:center; gap:10px; height:44px; border:1px solid #E7E7E4; border-radius:10px; background:#fff; color:#0A0A0B; text-decoration:none; font-weight:500; margin-bottom:10px;}
+  .sso:hover{border-color:#0A0A0B;}
+  .of{display:flex; align-items:center; gap:10px; color:#9A9BA3; font-size:12px; margin:8px 0 16px;} .of:before, .of:after{content:''; flex:1; height:1px; background:#F0F0EE;}
+  .fout{color:#B4471A; font-size:13px; margin:0 0 12px;}
+  details.link{margin-top:16px; font-size:13px;} details.link summary{cursor:pointer; color:#4A4A55;}
+  details.link form{margin-top:10px;} details.link button.wit{background:#fff; color:#0A0A0B; border:1px solid #E7E7E4; box-shadow:none;}
+  .winkel{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border:1px solid #E7E7E4; border-radius:12px; margin-bottom:8px; color:#0A0A0B; text-decoration:none;}
+  .winkel:hover{border-color:#0A0A0B;} .winkel span{font-size:12.5px; color:#6E7079;}
 </style>
 {% include "_k_stijl.html" %}
 </head>
@@ -44,18 +53,39 @@
   <div class="vak">
     <span class="label">YOUR DASHBOARD</span>
     <h1>Log in to Krillo</h1>
-    {% if verstuurd %}
+    {% if kiezen %}
+    {# Stap 353: dit mailadres hoort bij meer winkels. #}
+    <p class="uitleg" style="margin-top:-10px;">Which store do you want to open?</p>
+    {% for w in kiezen %}<a class="winkel" href="{{ w.href }}"><b>{{ w.naam }}</b><span>{{ w.pakket }}{% if w.opgezegd %} &middot; cancelled{% endif %}</span></a>{% endfor %}
+    {% elif verstuurd %}
     <div class="klaar">If this address belongs to a Krillo account, your login link is on its way.
       It opens your dashboard directly. Nothing after a few minutes? Check your spam folder.</div>
     {% else %}
+    {# 9 oktober (stap 353): direct binnen met Google, Microsoft of een wachtwoord.
+       De maillink blijft voor wie geen wachtwoord heeft of het vergat. #}
+    {% if aanbieders %}
+    {% for a in aanbieders %}<a class="sso" href="/auth/{{ a }}"><img src="/static/logos/{{ 'google' if a == 'google' else 'microsoft' }}.svg" alt="" width="18" height="18">Continue with {{ 'Google' if a == 'google' else 'Microsoft' }}</a>{% endfor %}
+    <div class="of"><span>or</span></div>
+    {% endif %}
+    {% if fout %}<p class="fout">{{ fout }}</p>{% endif %}
     <form method="post">
       <label for="email">Email</label>
-      <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@yourstore.com">
-      <p class="uitleg">For customers of Watch and Fix. If this address belongs to a customer, we email a link that opens the dashboard. No password needed.</p>
-      <button type="submit">Send login link</button>
+      <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@yourstore.com" value="{{ email or '' }}">
+      <label for="wachtwoord" style="margin-top:12px;">Password</label>
+      <input id="wachtwoord" name="wachtwoord" type="password" required autocomplete="current-password" placeholder="Your password">
+      <button type="submit" style="margin-top:16px;">Log in</button>
     </form>
+    <details class="link">
+      <summary>No password yet, or forgot it? Email me a login link</summary>
+      <form method="post">
+        <input name="email" type="email" required autocomplete="email" placeholder="you@yourstore.com" aria-label="Email">
+        <p class="uitleg">If this address belongs to a customer, we email a link that opens the dashboard. Set a password there, on the page Plan.</p>
+        <button type="submit" class="wit">Send login link</button>
+      </form>
+    </details>
     {% endif %}
-    <p class="nog">No account yet? <a href="/#pricing">Start a free trial</a> or <a href="/#scan">check your store free</a>.</p>
+    <p class="uitleg" style="margin-top:14px;">For customers of Watch and Fix.</p>
+    <p class="nog">No account yet? <a href="/start">Start a free trial</a> or <a href="/#scan">check your store free</a>.</p>
     <p class="onder">By continuing you agree to our <a href="/terms">terms</a> and
       <a href="/privacy">privacy policy</a>. Need help? <a href="mailto:hello@krilloai.com">hello@krilloai.com</a></p>
   </div>
