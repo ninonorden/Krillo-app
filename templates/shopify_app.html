@@ -148,8 +148,25 @@
   .slotlink, summary::before, .sectiekop .meer{color:var(--k10-blue);}
   .slotvak{border-radius:0 0 18px 18px;}
   .slotvak .heroknop{background:#fff; color:#0A0A0B; border-color:#fff;}
+  /* 14 okt middag: de maand/jaar-schakelaar viel weg (witte letters op wit) door de zwarte knoppen hierboven. */
+  .periode-keuze button{color:#0A0A0B !important; box-shadow:none !important; height:auto;}
+  .periode-keuze button.aan{color:#fff !important;}
   .slotvak .heroknop:hover{background:#EDEDEA; border-color:#EDEDEA;}
-  header.hero{background:transparent;}
+  /* 14 okt middag (Nino: "volledig zoals het nieuwe concept"): de kop van de app
+     krijgt de lucht van de homepage (versie 10): zacht blauw naar zand, met het
+     fijne raster. Zelfde waarden als .c-sky in _h10_stijl.html. */
+  header.hero{position:relative; overflow:hidden; padding-bottom:44px; border-bottom:1px solid var(--k10-line);
+    background:radial-gradient(120% 90% at 20% 0%,#D6DEFA 0%,rgba(214,222,250,0) 55%),
+               radial-gradient(90% 80% at 90% 100%,#F4EBDD 0%,rgba(244,235,221,0) 60%),
+               linear-gradient(180deg,#E7ECFB 0%,#F3F1EC 100%);}
+  header.hero:before{content:""; position:absolute; inset:0; pointer-events:none;
+    background-image:linear-gradient(rgba(27,63,224,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(27,63,224,.06) 1px,transparent 1px);
+    background-size:44px 44px; -webkit-mask-image:radial-gradient(80% 70% at 50% 40%,#000 30%,transparent 100%);
+    mask-image:radial-gradient(80% 70% at 50% 40%,#000 30%,transparent 100%);}
+  header.hero > .wrap{position:relative;}
+  h1{font-size:64px; line-height:1.02; letter-spacing:-0.045em;}
+  @media(max-width:900px){ h1{font-size:40px;} }
+  .indexkaart{box-shadow:0 1px 2px rgba(10,10,11,.04), 0 36px 64px -28px rgba(10,10,11,.26);}
   .prijs li::before{color:#0B7C5E;}
   .voorstel input{accent-color:#0A0A0B;}
   .k10-stappen{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px;}
@@ -194,8 +211,9 @@
       {% else %}
       <h1>We do not measure <em>your market</em> yet.</h1>
       <p class="hero-sub">The Krillo index measures stores selling in the Netherlands and
-        Belgium{% if markt %}, and your store is set to {{ markt.landcode }}{% endif %}. The fixes
-        below work in any market: they make your store easier for AI to read.</p>
+        Belgium{% if markt %}, and your store is set to {{ markt.landcode }}{% endif %}. You are on the
+        waiting list for your country: stores that install Krillo decide which country we open next,
+        and you hear from us the day yours opens. The fixes below work in any market.</p>
       {% endif %}
       <div class="heroknoppen">
         <a class="heroknop" href="#werk">Get my free fixes</a>
