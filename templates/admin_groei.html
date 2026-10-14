@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Groeitaken | Krillo</title>
+<meta name="robots" content="noindex">
+{# 14 oktober: de groeitaken voor Nino (groeitaken.py). Elke taak met de tekst
+   al klaar om te kopieren, en een knop Gedaan. #}
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0; background:#F7F7F5; color:#0A0A0B; font-family:Inter, system-ui, sans-serif; font-size:14.5px;}
+  .wrap{max-width:860px; margin:0 auto; padding:28px 20px 64px;}
+  h1{font-size:22px; font-weight:600; margin:0 0 4px;}
+  .grijs{color:#6E7079;}
+  .taak{background:#fff; border:1px solid #E7E7E4; border-radius:14px; padding:18px 20px; margin-top:14px;}
+  .taak.klaar{opacity:.55;}
+  .kop{display:flex; justify-content:space-between; gap:12px; align-items:baseline;}
+  .kop h2{font-size:16px; margin:0; font-weight:600;}
+  .min{font-family:monospace; font-size:12px; color:#6E7079; white-space:nowrap;}
+  pre{white-space:pre-wrap; background:#F7F7F5; border:1px solid #E7E7E4; border-radius:10px; padding:12px; font-size:13px; font-family:inherit;}
+  button{font:inherit; font-size:13px; padding:7px 14px; border-radius:8px; border:1px solid #0A0A0B; background:#0A0A0B; color:#fff; cursor:pointer;}
+  button.licht{background:#fff; color:#0A0A0B; border-color:#E7E7E4;}
+  a{color:#1B3FE0;}
+</style>
+</head>
+<body><div class="wrap">
+  <h1>Groeitaken</h1>
+  <p class="grijs">{{ open_aantal }} open van {{ taken | length }}. Het ochtendbericht zet er elke werkdag {{ dag_max }} bovenaan. Doel: links van buiten en bezoekers die zelf komen kijken.</p>
+  {% for t in taken %}
+  <div class="taak{% if t.gedaan %} klaar{% endif %}" id="{{ t.id }}">
+    <div class="kop"><h2>{{ t.titel }}</h2><span class="min">{{ t.minuten }} MIN</span></div>
+    <p>{{ t.stappen }}</p>
+    {% if t.link %}<p><a href="{{ t.link }}" target="_blank" rel="noopener">{{ t.link }}</a></p>{% endif %}
+    {% if t.tekst %}<pre id="tekst-{{ t.id }}">{{ t.tekst }}</pre>
+    <button type="button" class="licht" onclick="navigator.clipboard.writeText(document.getElementById('tekst-{{ t.id }}').innerText);this.textContent='Gekopieerd'">Kopieer de tekst</button>{% endif %}
+    <form method="post" style="display:inline;">
+      <input type="hidden" name="taak" value="{{ t.id }}">
+      <input type="hidden" name="gedaan" value="{{ '' if t.gedaan else 'ja' }}">
+      <button type="submit">{{ 'Toch niet gedaan' if t.gedaan else 'Gedaan' }}</button>
+    </form>
+  </div>
+  {% endfor %}
+</div></body></html>

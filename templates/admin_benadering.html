@@ -206,9 +206,29 @@
   </div>
   {% endif %}
 
-  {# 7 oktober: de versies a, b en d zijn uit; alleen versie c gaat nog uit
-     (MAIL_VARIANTEN=c in Render). De vergelijking is daarmee klaar. #}
-  <div class="klein" style="margin:0 0 16px;">Mailversie: alleen <b>c</b> ("ben jij een van de drie die AI noemt"), de winnaar van de test. Andere versies staan uit.</div>
+  {# 14 oktober (Nino: "ik zie alleen versie c staan en kan niet zien hoeveel
+     mails er van beide versies gestuurd zijn"): de vaste regel is weg. Nu wat
+     er echt aanstaat (MAIL_VARIANTEN in Render) en per versie de telling. #}
+  <div class="kaart">
+    <b>Mailversies.</b> Aan in Render: <b>{{ mail_varianten_aan }}</b>.
+    {% if varianten and varianten.rijen %}
+    <table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:13.5px;">
+      <tr style="text-align:left; color:#6E7079;"><th>Versie</th><th style="text-align:right">Gemaild</th>
+        <th style="text-align:right">Echte mensen</th><th style="text-align:right">Naar prijzen</th>
+        <th style="text-align:right">Antwoorden</th><th style="text-align:right">Klant</th><th style="text-align:right">Nog tot {{ minimum_per_versie }}</th></tr>
+      {% for r in varianten.rijen %}
+      <tr style="border-top:1px solid #EEE;"><td><b>{{ r.variant }}</b>{% if r.variant == 'e' %} (Nederlands, antwoord met ja){% elif r.variant == 'c' %} (ben jij een van de drie){% endif %}</td>
+        <td style="text-align:right">{{ r.gemaild }}</td>
+        <td style="text-align:right">{{ r.mensen }} ({{ r.mens_pct }}%)</td>
+        <td style="text-align:right">{{ r.doorgeklikt }}</td>
+        <td style="text-align:right">{{ r.antwoorden or 0 }} ({{ r.antwoord_pct }}%)</td>
+        <td style="text-align:right">{{ r.klant }}</td>
+        <td style="text-align:right">{{ [minimum_per_versie - (r.gemaild or 0), 0] | max }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+    {% if varianten and varianten.oordeel %}<div class="klein" style="margin-top:8px;">{{ varianten.oordeel }}</div>{% endif %}
+  </div>
 
   {# Wat er op dit moment echt loopt. Zonder dit is "er wordt gemeten" en "er
      staat iets vast" van buitenaf hetzelfde. #}

@@ -1713,6 +1713,9 @@
     <button type="button" id="scanButton">Check my store free &rarr;</button>
   </div>
   <div class="hero-note" id="scanNote" style="font-size:13px;color:var(--c-grey);margin-top:14px">Free &middot; No account &middot; Your rank, who beats you and 13 website checks</div>
+  {# 14 oktober: installaties tellen zwaar in de App Store, en elke Shopify-winkel
+     die hier komt kan het daar ook. Alleen als SHOPIFY_APP_STORE_URL in Render staat. #}
+  {% if shopify_app_store_url is defined and shopify_app_store_url() %}<div style="font-size:13px;color:var(--c-grey);margin-top:6px">On Shopify? <a href="{{ shopify_app_store_url() }}" target="_blank" rel="noopener" style="color:var(--c-blue)">Get Krillo from the Shopify App Store</a></div>{% endif %}
   <div class="k10-ai" aria-label="Assistants we measure" style="justify-content:center;margin-top:18px"><span class="c-km" style="font-size:10.5px;color:var(--c-grey)">MEASURED IN</span>
     {% for a in assistenten %}<span class="ai-chip{{ '' if a.gemeten else ' zacht' }}"><span class="k10-logo">{% if logo_bestaat is defined and logo_bestaat(a.logo) %}<img src="/static/logos/{{ a.logo }}.svg" alt="" width="16" height="16">{% else %}<i class="k10-leeg"></i>{% endif %}</span>{{ a.naam }}{% if not a.gemeten %} <em>soon</em>{% endif %}</span>{% endfor %}
   </div>

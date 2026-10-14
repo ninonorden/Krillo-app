@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 {# Stap 90 (28 september): een pagina per winkel die AI noemt. Alleen wat op de
    categoriepagina ook al staat. Zie openbare_winkel in app.py voor de regels. #}
-<title>Does ChatGPT recommend {{ naam }}? {{ categorie }}, {{ landnaam }} | Krillo Index</title>
+{# 14 oktober: de naam van de winkel voorop (daar zoeken mensen op). #}
+<title>{{ naam }} in ChatGPT and Gemini: {% if rij.nul %}not named yet{% else %}#{{ rij.positie }} of {{ totaal }}{% endif %} in {{ categorie }} | Krillo Index</title>
 <meta name="description" content="{{ naam }}{% if rij.nul %} is not named by AI yet among {{ totaal }} stores{% else %} is number {{ rij.positie }} of {{ totaal }} stores{% endif %} for {{ categorie }} in {{ landnaam }} in the Krillo Index: named in {{ rij.genoemd }} of {{ telbaar }} buying questions to AI assistants{% if maand %} ({{ maand }}){% endif %}.">
 <link rel="canonical" href="{{ basis_url }}/index/{{ land }}/{{ slug }}/{{ winkel }}">
 {# 14 oktober (Search Console): een winkel die AI maar een keer noemde heeft

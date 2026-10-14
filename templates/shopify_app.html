@@ -328,6 +328,23 @@
       <h2>Is it working?</h2>
       <p>Every change we make is dated, and every measurement after it shows where you stand.</p>
     </div>{% if dashboard_url %}<a class="meer" href="{{ dashboard_url }}" target="_blank" rel="noopener">Full dashboard &rarr;</a>{% endif %}</div>
+    {# Stap 375: bestellingen en omzet van kopers die via een AI-assistent kwamen,
+       per maand, uit de eigen orders. Geen bewijs dat een wijziging de verkoop
+       deed, wel de hele keten naast elkaar: plek, wijzigingen, verkoop. #}
+    {% if aiverkoop %}
+    <div class="idx-kaart" style="padding:20px 24px; margin-bottom:14px;">
+      <div style="font-weight:600; margin-bottom:8px;">Sales from AI assistants</div>
+      <table style="width:100%; border-collapse:collapse; font-size:14.5px;">
+        <tr style="color:var(--ink-grijs); text-align:left;"><th>Month</th><th style="text-align:right">Orders</th><th style="text-align:right">Revenue</th></tr>
+        {% for r in aiverkoop %}
+        <tr style="border-top:1px solid var(--line-licht);"><td>{{ r.maand }}</td>
+          <td style="text-align:right">{{ r.orders or 0 }}</td>
+          <td style="text-align:right">{{ '%.2f' | format(r.omzet or 0) }}</td></tr>
+        {% endfor %}
+      </table>
+      <p style="margin:10px 0 0; font-size:13px; color:var(--ink-grijs);">Orders from shoppers who came from ChatGPT, Gemini, Perplexity, Copilot or Claude, counted from your own orders. We read only where an order came from and its total, never who bought it.</p>
+    </div>
+    {% endif %}
     {% if staven and staven | length > 1 %}
     <div class="idx-kaart" style="padding:24px 24px 18px;">
       <div style="display:flex; align-items:flex-end; gap:14px; height:120px;">
