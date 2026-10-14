@@ -216,7 +216,8 @@
         and you hear from us the day yours opens. The fixes below work in any market.</p>
       {% endif %}
       <div class="heroknoppen">
-        <a class="heroknop" href="#werk">Get my free fixes</a>
+        {% if dashboard_url %}<a class="heroknop" href="{{ dashboard_url }}" target="_blank" rel="noopener">Open my full dashboard</a>{% endif %}
+        <a class="heroknop{% if dashboard_url %} leeg{% endif %}" href="#werk">Get my free fixes</a>
         {% if beeld %}<a class="heroknop leeg" href="{{ basis_url }}/index/{{ beeld.land }}/{{ beeld.categorie }}#p{{ beeld.positie }}" target="_blank" rel="noopener">See the full ranking</a>{% endif %}
       </div>
       <div class="hero-note">First {{ gratis_totaal }} changes free &middot; you see every change first &middot; one click to undo</div>
@@ -315,6 +316,46 @@
     {{ ranglijst(beeld, winkelnaam | replace('https://','') | replace('www.',''), categorienaam, landnaam, basis_url, True) }}
   {% elif voorbeeld %}
     {{ ranglijst(voorbeeld, voorbeeld.winkelnaam, voorbeeld.categorienaam, voorbeeld.landnaam, basis_url, False) }}
+  {% endif %}
+
+  {# 14 oktober: BEWIJS. Nino: "we moeten proof laten zien dat het echt werkt".
+     Met een plan: het verloop per meting (echte plekken) en de link naar het
+     volledige dashboard. Zonder plan: hoe je straks ziet of het werkt, zonder
+     iets te beloven. #}
+  {% if beeld %}
+  <section class="vlak" id="voortgang">
+    <div class="sectiekop"><div>
+      <h2>Is it working?</h2>
+      <p>Every change we make is dated, and every measurement after it shows where you stand.</p>
+    </div>{% if dashboard_url %}<a class="meer" href="{{ dashboard_url }}" target="_blank" rel="noopener">Full dashboard &rarr;</a>{% endif %}</div>
+    {% if staven and staven | length > 1 %}
+    <div class="idx-kaart" style="padding:24px 24px 18px;">
+      <div style="display:flex; align-items:flex-end; gap:14px; height:120px;">
+        {% for s in staven %}
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+          <div style="font-size:13px; font-weight:600; margin-bottom:6px;">#{{ s.positie }}</div>
+          <div style="width:100%; max-width:56px; height:{{ s.hoogte }}px; border-radius:8px 8px 3px 3px; background:{{ '#C9CCD6' if s.gezakt else '#1B3FE0' }};"></div>
+          <div style="font-family:var(--mono); font-size:10.5px; color:var(--ink-grijs); margin-top:6px;">{{ s.datum.strftime('%d %b') | upper if s.datum else '' }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% set eerste = staven[0].positie %}{% set nu = staven[-1].positie %}
+      <p style="margin:14px 0 0; font-size:14.5px; color:var(--ink-soft);">
+        {% if nu < eerste %}Up {{ eerste - nu }} place{{ 's' if eerste - nu != 1 }} since your first measurement.
+        {% elif nu > eerste %}Down {{ nu - eerste }} place{{ 's' if nu - eerste != 1 }} since your first measurement. The dashboard shows which questions you lost.
+        {% else %}Same place as your first measurement.{% endif %}</p>
+    </div>
+    {% else %}
+    <div class="k10-stappen" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+      <div class="k10-stap"><span class="nr">Every week</span><h3>Your five key questions</h3>
+        <p>With Watch or Fix we ask your five most important buying questions again every week, so you see within days whether a change is picked up.</p></div>
+      <div class="k10-stap"><span class="nr">Every month</span><h3>Your rank, with the change</h3>
+        <p>The whole category is measured again. You see your new place next to last month, and who passed you.</p></div>
+      <div class="k10-stap"><span class="nr">Every change</span><h3>Dated, with the old text</h3>
+        <p>Below you see what we changed and when. Put it next to your rank and you see what it did. <a href="{{ basis_url }}/how-we-measure" target="_blank" rel="noopener">How we measure</a></p></div>
+    </div>
+    {% endif %}
+  </section>
   {% endif %}
 
   <div class="appblok" id="werk">
