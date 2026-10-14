@@ -335,6 +335,15 @@ def dagtaken(basis_url, te_doen=None, nu=None):
             taken.append({"tekst": tekst, "minuten": minuten, "link": f"{basis_url}/admin/linkedin#routine"})
         except Exception as e:
             print(f"LinkedIn-routine voor de dagtaken mislukt: {e}")
+    # 14 oktober (Nino: "ik heb het ochtendbericht altijd binnen 5 minuten
+    # gedaan, ik moet meer taken"): elke werkdag de volgende groeitaken, met de
+    # tekst klaar op /admin/groei. Die leveren bezoek en links van buiten.
+    if nu.weekday() < 5:
+        try:
+            import groeitaken
+            taken.extend(groeitaken.voor_vandaag(basis_url))
+        except Exception as e:
+            print(f"Groeitaken voor de dagtaken mislukt: {e}")
     ritme = DAGRITME.get(nu.weekday())
     if ritme and not any(t.get("gedaan") for t in taken):
         tekst, minuten, link = ritme

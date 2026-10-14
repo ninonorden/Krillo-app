@@ -2499,6 +2499,14 @@ def trechter_per_variant():
                            -- 1 oktober: echte mensen apart. "Link geklikt" is vooral
                            -- mailbeveiliging die elke link opent (a en b: 28 procent).
                            COUNT(*) FILTER (WHERE b.mens_op IS NOT NULL) AS mensen,
+                           -- 14 oktober: versie e vraagt om een antwoord, dus
+                           -- antwoorden tellen mee (afmeldingen niet).
+                           COUNT(*) FILTER (WHERE EXISTS (
+                               SELECT 1 FROM antwoorden a
+                                WHERE a.webshop_url = b.webshop_url
+                                  AND a.ontvangen_op >= b.gemaild_op
+                                  AND coalesce(a.soort, '') NOT IN ('afmelden', 'helpdesk', 'automatisch'))) AS antwoorden,
+                           MIN(b.gemaild_op) AS sinds,
                            COUNT(*) FILTER (WHERE EXISTS (
                                SELECT 1 FROM klanten k
                                 WHERE k.webshop_url = b.webshop_url

@@ -903,6 +903,14 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                          f'Your store runs on {systeem}, so this takes you almost no time: with Fix we '
                          'write the missing product texts and put them in your store for you, and '
                          'you can undo every change.</p>')
+        # 14 oktober: Shopify-winkels kunnen Krillo nu zelf installeren. Elke
+        # installatie telt in de App Store; alleen als het adres in Render staat.
+        winkel_url = (os.environ.get("SHOPIFY_APP_STORE_URL") or "").strip()
+        if systeem == "Shopify" and winkel_url.startswith("https://apps.shopify.com/"):
+            shopify_regel += ('<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:10px 0 6px;">'
+                              f'Krillo is also in the Shopify App Store: <a href="{winkel_url}" '
+                              'style="color:#1B3FE0;">install it</a> and see your rank inside your '
+                              'Shopify admin, with the first 3 fixes free.</p>')
 
     # Stap 217 in de koude mail (30 september): bij een Shopify-winkel een
     # zin uit zijn eigen productteksten letterlijk opgezocht. Alleen als er

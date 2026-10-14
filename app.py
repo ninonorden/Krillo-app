@@ -210,7 +210,16 @@ ASSISTENTEN = [
 ]
 # Ook als globale waarde in Jinja: sommige pagina's en tests renderen een
 # sjabloon buiten een verzoek om, en dan draait de context processor niet.
-app.jinja_env.globals.update(logo_bestaat=logo_bestaat, assistenten=ASSISTENTEN)
+def shopify_app_store_url():
+    """14 oktober: het adres van de listing in de Shopify App Store (Render:
+    SHOPIFY_APP_STORE_URL, bijvoorbeeld https://apps.shopify.com/krillo). Leeg =
+    nergens een link, want een verkeerde link is erger dan geen link."""
+    url = (os.environ.get("SHOPIFY_APP_STORE_URL") or "").strip()
+    return url if url.startswith("https://apps.shopify.com/") else ""
+
+
+app.jinja_env.globals.update(logo_bestaat=logo_bestaat, assistenten=ASSISTENTEN,
+                             shopify_app_store_url=shopify_app_store_url)
 
 
 @app.context_processor
@@ -994,6 +1003,22 @@ def voorwaarden():
     return render_template("voorwaarden.html")
 
 
+@app.route("/nl/<slug>")
+def nl_pagina(slug):
+    """Stap 379: Nederlandse pagina's voor webshophouders (zie seo_nl.py)."""
+    import seo_nl
+    p = seo_nl.PER_SLUG.get(slug)
+    if not p:
+        return render_template("fout.html"), 404
+    try:
+        cijfers = _bewaard(("cijfers",), db.index_cijfers)
+    except Exception:
+        cijfers = None
+    return render_template("nl_pagina.html", p=p, faq_ld=seo_nl.faq_ld(p), cijfers=cijfers,
+                           andere=[a for a in seo_nl.PAGINAS if a["slug"] != slug],
+                           basis_url=get_base_url().rstrip("/"))
+
+
 @app.route("/faq")
 def veelgestelde_vragen():
     return render_template("faq.html")
@@ -1593,6 +1618,24 @@ def lijstje_stop(token):
         _meld_aan_beheer("Lijstje afgemeld", f"{escape(domein)} wil geen mail meer over GEO-lijstjes.")
     return render_template("fout.html", titel="Done",
                            bericht="You will not hear from us again. Sorry for the interruption."), 200
+
+
+@app.route("/admin/groei", methods=["GET", "POST"])
+def admin_groei():
+    """14 oktober: de groeitaken voor Nino, met de tekst klaar (zie groeitaken.py)."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return _naar_inloggen()
+    if doorsturen:
+        return redirect(doorsturen)
+    import groeitaken
+    if request.method == "POST":
+        taak = request.form.get("taak") or ""
+        groeitaken.zet_gedaan(taak, request.form.get("gedaan") == "ja")
+        return redirect("/admin/groei#" + quote(taak))
+    taken = [dict(t, gedaan=groeitaken.gedaan(t["id"])) for t in groeitaken.TAKEN]
+    return render_template("admin_groei.html", taken=taken, dag_max=groeitaken.DAG_MAX,
+                           open_aantal=sum(1 for t in taken if not t["gedaan"]))
 
 
 @app.route("/admin/linkedin", methods=["GET", "POST"])
@@ -2606,6 +2649,7 @@ BEHEER_GROEPEN = [
         ("/admin/merkaanvragen", "Merkaanvragen", "Aanvragen via /agencies"),
         ("/admin/wachtlijst", "Wachtlijst per land", "Welke landen wachten, en hoeveel"),
         ("/admin/linkedin", "LinkedIn", "Posts van de LinkedIn-agent met plaatje"),
+        ("/admin/groei", "Groeitaken", "Elke werkdag een uur: aanmelden, posten, redacties mailen, met de tekst klaar"),
         ("/admin/persbericht", "Persbericht", "Klaar om te kopieren"),
         ("/admin/lijstjes", "Lijstjes", "Wat de lijstjesagent vond en mailde"),
         ("/admin/artikelen", "Artikelen", "Concepten van de artikelagent nakijken en plaatsen"),
@@ -3012,6 +3056,9 @@ def _bouw_sitemap():
     # Het nieuws per gemeten land, uit markten.py (niet meer vast nl en be).
     regels += [(f"/news/{land}", nieuwste) for land in markten.index_landen()]
     regels += [(f"/articles/{a['slug']}", a["datum"]) for a in artikelen.alle()]
+    # Stap 379: de Nederlandse pagina's voor webshophouders.
+    import seo_nl
+    regels += [(f"/nl/{p['slug']}", "2026-10-14") for p in seo_nl.PAGINAS]
     # Stap 162 en 163: de gratis tools en de vergelijkingen.
     import gratistools
     import vergelijkingen
@@ -5873,7 +5920,9 @@ MINIMUM_WINKELS_VOOR_VERGELIJKING = 25
 # Vanaf hoeveel mails per versie wij een winnaar durven aan te wijzen. Onder
 # dit aantal is een verschil van een of twee kliks toeval, en zou je op toeval
 # een mail weggooien.
-MINIMUM_MAILS_PER_VERSIE = int(os.environ.get("MINIMUM_MAILS_PER_VERSIE", "60"))
+# 14 oktober: 150 (was 60). Versie e vraagt om een antwoord; bij een paar procent
+# antwoorden zegt een verschil pas iets na zo'n 150 mails per versie.
+MINIMUM_MAILS_PER_VERSIE = int(os.environ.get("MINIMUM_MAILS_PER_VERSIE", "150"))
 MINIMUM_ACTIES_VOOR_WINNAAR = int(os.environ.get("MINIMUM_ACTIES_VOOR_WINNAAR", "15"))
 
 
@@ -5888,13 +5937,15 @@ def _varianten_met_oordeel():
         r["klik_pct"] = round(100 * (r.get("bekeken") or 0) / g, 1) if g else 0
         r["door_pct"] = round(100 * (r.get("doorgeklikt") or 0) / g, 1) if g else 0
         r["mens_pct"] = round(100 * (r.get("mensen") or 0) / g, 1) if g else 0
+        r["antwoord_pct"] = round(100 * (r.get("antwoorden") or 0) / g, 1) if g else 0
     # 1 oktober: vergelijken op wat mensen doen. Eerst klant, dan naar de
     # prijzen, dan echte mensen. "Link geklikt" telt niet meer mee: dat is
     # vooral mailbeveiliging. En alleen de versies met genoeg mails tellen; een
     # kleine versie (d past maar bij een paar winkels) hield het oordeel eerst
     # voor altijd tegen.
     def _score(r):
-        return ((r.get("klant") or 0), r["door_pct"], r["mens_pct"])
+        # 14 oktober: antwoorden tellen mee (versie e vraagt erom), direct na klant.
+        return ((r.get("klant") or 0), r.get("antwoord_pct") or 0, r["door_pct"], r["mens_pct"])
     groot = [r for r in rijen if (r.get("gemaild") or 0) >= MINIMUM_MAILS_PER_VERSIE]
     oordeel = None
     if len(rijen) >= 2 and len(groot) < 2:
@@ -6346,12 +6397,48 @@ def _wachtklok_tik(nu=None):
                 print(f"Oplevering vanzelf mislukt: {e}")
         threading.Thread(target=_oplever, daemon=True).start()
         gedaan.append("oplevering")
+    # 14 oktober (stap 375): een keer per dag de bestellingen uit AI ophalen bij
+    # Shopify-winkels die het recht read_orders gaven (zie shopify_aiverkoop.py).
+    if 3 <= nu.hour < 6 and db.claim_moment("shopify_aiverkoop", 20 * 3600):
+        threading.Thread(target=_shopify_aiverkoop, daemon=True).start()
+        gedaan.append("shopify aiverkoop")
     # 14 oktober: opvolging na een installatie van de Shopify-app, overdag,
     # hooguit eens per uur (zie shopifyopvolging.py).
     if 9 <= nu.hour < 20 and db.claim_moment("shopify_opvolging", 55 * 60):
         threading.Thread(target=_shopify_opvolging, daemon=True).start()
         gedaan.append("shopify opvolging")
     return gedaan
+
+
+def _aiverkoop_rijen(webshop_url):
+    """Stap 375: bestellingen en omzet uit AI per maand (pixel, Shopify-orders of zelf ingevuld).
+    Alleen maanden met minstens een bestelling of bezoek; nooit een fout naar het scherm."""
+    if not webshop_url:
+        return []
+    try:
+        import aiverkeer
+        return [r for r in aiverkeer.lees(scan_engine.normalize_url(webshop_url))
+                if (r.get("orders") or 0) or (r.get("bezoek") or 0)][-6:]
+    except Exception as e:
+        print(f"AI-verkoop voor de app mislukt: {e}")
+        return []
+
+
+def _shopify_aiverkoop():
+    import shopify_aiverkoop
+    klaar = 0
+    for rij in db.get_shopify_winkels(alleen_actief=True):
+        try:
+            if not rij.get("actief") or not shopify_aiverkoop.heeft_recht(rij.get("rechten")):
+                continue
+            sleutel = _shopify_sleutel(rij)
+            url = scan_engine.normalize_url(rij.get("webshop_url") or "")
+            if sleutel and url and shopify_aiverkoop.ververs(url, rij["winkel"], sleutel,
+                                                             shopify_billing._graphql) is not None:
+                klaar += 1
+        except Exception as e:
+            print(f"AI-verkoop ophalen mislukt voor {rij.get('winkel')}: {e}")
+    return klaar
 
 
 def so_mag_mailen(email):
@@ -6576,6 +6663,9 @@ def admin_benadering():
         trechter=db.trechter_benadering(),
         per_dag=db.trechter_per_dag(7),
         varianten=_varianten_met_oordeel(),
+        minimum_per_versie=MINIMUM_MAILS_PER_VERSIE,
+        mail_varianten_aan=", ".join(v.strip() for v in (os.environ.get("MAIL_VARIANTEN") or "a,b,c,d").split(",")
+                                     if v.strip()),
         verslagen=benadering.rondeverslagen(),
         meetfouten=benadering.meetfouten(),
         wachtrij=len(_demo_wachtrij),
@@ -12468,6 +12558,7 @@ def _shopify_scherm(winkel, rij):
         "shopify_app.html",
         betaalt=betaalt,
         dashboard_url=dashboard_url,
+        aiverkoop=_aiverkoop_rijen(webshop_url),
         slot=slot,
         proef_over=proef_over,
         proefdagen=shopify_billing.PROEFDAGEN,

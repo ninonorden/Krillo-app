@@ -144,7 +144,9 @@ def _familie(slug):
 # - noemt het model een deelcategorie, dan verhuist de winkel daarheen, ook al
 #   is het dezelfde familie. In die deelcategorie IS een ranglijst, en de nacht
 #   zet hem erin zonder een vraag opnieuw te stellen (herberekenen).
-DOOD_OPNIEUW_NA_DAGEN = int(os.environ.get("CATEGORIECHECK_DOOD_OPNIEUW_DAGEN", "3"))
+# 14 oktober avond: 1 dag (was 3). Om 16:49 stonden er nog 9 klaar en 130 in
+# een categorie zonder ranglijst; drie dagen wachten is drie dagen geen post.
+DOOD_OPNIEUW_NA_DAGEN = int(os.environ.get("CATEGORIECHECK_DOOD_OPNIEUW_DAGEN", "1"))
 # 14 oktober: twijfel (site opende niet, of onduidelijk) na 5 in plaats van 14
 # dagen opnieuw. Een site die even plat lag of een robot weerde, wachtte twee
 # weken; dat is twee weken een winkel minder in de post.

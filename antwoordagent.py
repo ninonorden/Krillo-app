@@ -416,7 +416,8 @@ def schrijf_concept(bericht, f, soort, client=None):
         # 14 oktober (koude mail versie e vraagt "antwoord met ja"): een kaal
         # "ja" moet meteen de link krijgen, geen vraag terug.
         "If they only answer yes (\"ja\", \"yes\", \"graag\"), thank them in one sentence and give "
-        "their own Krillo page link with one sentence on what is on it; nothing else. "
+        "their own Krillo page link with one sentence on what is on it, and end with one short line "
+        "asking whether they know another store owner who would want to see theirs too; nothing else. "
         "Do NOT end with a greeting or a name: the signature is added automatically. "
         "No subject line, only the body.\n\n"
         f"Their subject: {bericht.get('onderwerp')}\n"

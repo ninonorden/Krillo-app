@@ -47,6 +47,17 @@ def lees(webshop_url):
                                 omzet=round(w["omzet"], 2))
     except Exception as e:
         print(f"Pixelcijfers ophalen mislukt voor {webshop_url}: {e}")
+    # 14 oktober (stap 375): een Shopify-winkel met het recht read_orders levert
+    # bestellingen en omzet uit AI uit zijn eigen orders. Bezoek kent Shopify
+    # hier niet; een maand van de pixel of de klant zelf blijft voorgaan.
+    try:
+        import shopify_aiverkoop
+        for m, w in shopify_aiverkoop.per_maand(webshop_url).items():
+            if MAANDVORM.match(m or "") and m not in rijen:
+                rijen[m] = dict(maand=m, bron="shopify", bezoek=None, orders=w["orders"],
+                                omzet=round(w["omzet"], 2))
+    except Exception as e:
+        print(f"Shopify-cijfers uit AI ophalen mislukt voor {webshop_url}: {e}")
     return [rijen[m] for m in sorted(rijen)]
 
 
