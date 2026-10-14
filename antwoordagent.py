@@ -413,6 +413,10 @@ def schrijf_concept(bericht, f, soort, client=None):
         "that this was OUR mistake (our system placed them there), not an AI assistant's; apologise "
         "once; say we have taken them out of that ranking and will not email them about it again. "
         "No sales pitch in that case. "
+        # 14 oktober (koude mail versie e vraagt "antwoord met ja"): een kaal
+        # "ja" moet meteen de link krijgen, geen vraag terug.
+        "If they only answer yes (\"ja\", \"yes\", \"graag\"), thank them in one sentence and give "
+        "their own Krillo page link with one sentence on what is on it; nothing else. "
         "Do NOT end with a greeting or a name: the signature is added automatically. "
         "No subject line, only the body.\n\n"
         f"Their subject: {bericht.get('onderwerp')}\n"

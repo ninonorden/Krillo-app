@@ -667,7 +667,70 @@ def _kaal_adres(webshop_url):
 # een letterlijk citaat uit de meting. Dat is concreter dan een plek, en het zegt
 # meteen wat Fix doet. De telling vergelijkt d met de rest; let op dat d alleen
 # naar winkels gaat die al genoemd worden (die klikken van zichzelf al vaker).
-MAILVARIANTEN = ("a", "b", "c", "d")
+# Versie e (14 oktober, stap 367): sinds 8 oktober telt "echt mens" alleen nog
+# klikken en tikken, en toen bleek: 274 koude mails, 2 echte mensen op de
+# uitslag. De mails gaan wel uit, maar bijna niemand leest ze. Versie e doet
+# alles wat de andere niet doen: Nederlands (voor winkels die in het Nederlands
+# verkopen; de site blijft Engels), kort, als een gewone mail van een mens,
+# zonder knop en zonder links in de tekst (alleen de afmeldlink onderaan), en
+# de vraag is "antwoord met ja". Een antwoord landt bij de antwoordagent; Nino
+# keurt het antwoord met de link goed. Minder links en geen opmaak helpt ook om
+# in de inbox te komen in plaats van bij Reclame.
+MAILVARIANTEN = ("a", "b", "c", "d", "e")
+
+
+def e_geschikt(beeld, land=None):
+    """Versie e alleen voor winkels die in het Nederlands verkopen (NL, en BE
+    met Nederlandse vragen) en die een echte verloren vraag met een concurrent hebben."""
+    if not beeld:
+        return False
+    try:
+        import sitetaal
+        nl = sitetaal.taal_van_land((land or beeld.get("land") or "").lower()) == "nl"
+    except Exception:
+        nl = (land or beeld.get("land") or "").lower() == "nl"
+    vraag = any(v.get("vraag") and v.get("concurrenten") for v in beeld.get("gemiste_vragen") or [])
+    return nl and vraag
+
+
+def onderzoeksmail_e(to_email, webshop_url, beeld, categorienaam=None, afmeld_url=None, onderwerp_voor=""):
+    """Versie e: zie de uitleg bij MAILVARIANTEN. Geeft (onderwerp, html) terug."""
+    e = _html.escape
+    winkel = e(_kaal_adres(webshop_url))
+    cat = e((categorienaam or beeld.get("categorie") or "jouw categorie").lower())
+    genoemd, telbaar = beeld.get("genoemd") or 0, beeld.get("telbaar") or 0
+    v = next(q for q in beeld.get("gemiste_vragen") or [] if q.get("vraag") and q.get("concurrenten"))
+    vraag = v["vraag"].strip()
+    vraag = e(vraag[:1].upper() + vraag[1:])
+    namen = [e(n) for n in v["concurrenten"][:2]]
+    wie = " en ".join(namen)
+    if beeld.get("nul") or not genoemd:
+        stand = f"{winkel} werd bij geen van de {telbaar} vragen genoemd."
+    else:
+        stand = (f"{winkel} werd bij {genoemd} van de {telbaar} vragen genoemd "
+                 f"(plek {beeld['positie']} van {beeld.get('van') or 0}).")
+    naam = e((os.environ.get("AFZENDER_NAAM") or "Nino").strip())
+    p = '<p style="margin:0 0 14px;">'
+    afmelden = (f'Liever geen mail meer? <a href="{afmeld_url}" style="color:#6E7079;">Klik hier</a>, '
+                f'dan halen we je ook uit de index.' if afmeld_url else
+                "Liever geen mail meer? Antwoord met 'stop'.")
+    g = BEDRIJFSGEGEVENS
+    html = f"""<div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; font-size:15px; line-height:1.6;
+                     color:#0A0A0B; max-width:560px;">
+{p}Hoi,</p>
+{p}Ik heb ChatGPT en Gemini {telbaar} vragen gesteld die kopers stellen over {cat}, bijvoorbeeld:
+<em>"{vraag}"</em></p>
+{p}{stand} Bij deze vraag noemde AI wel {wie}.</p>
+{p}Zal ik je de hele lijst sturen, met per vraag wie er wel genoemd wordt en wat je op je site
+kunt veranderen? Antwoord gewoon met "ja".</p>
+{p}Groet,<br>{naam}<br>Krillo</p>
+<p style="font-size:12px; color:#6E7079; margin:26px 0 0;">Je krijgt deze mail omdat {winkel} in onze
+meting staat; we gebruikten alleen openbare informatie en de antwoorden van AI. {afmelden}<br>
+{g['naam']}, {g['adres']}, {g['plaats']}, KVK {g['kvk']}</p></div>"""
+    # Geen enkel model in het onderwerp: wie er een noemt moet ze allemaal
+    # noemen (test_beloftes_site), en dat maakt het onderwerp te lang.
+    onderwerp = f"{onderwerp_voor}Vraag over {_kaal_adres(webshop_url)} en AI"
+    return onderwerp, html
 
 
 def d_geschikt(beeld):
@@ -678,14 +741,15 @@ def d_geschikt(beeld):
     return genoemd >= 3 and aanbevolen * 3 <= genoemd
 
 
-def kies_variant(webshop_url, d_mag=False):
+def kies_variant(webshop_url, d_mag=False, e_mag=False):
     """Welke versie een winkel krijgt. Vast per winkel (zelfde adres, zelfde
     versie), zodat een tweede mail aan dezelfde winkel nooit de telling
     vervuilt. Welke versies meedoen staat in MAIL_VARIANTEN (Render),
     standaard alle vier. Versie d alleen als d_mag (zie d_geschikt)."""
     import hashlib
     actief = [v.strip() for v in (os.environ.get("MAIL_VARIANTEN") or "a,b,c,d").split(",")
-              if v.strip() in MAILVARIANTEN and (d_mag or v.strip() != "d")] or ["a"]
+              if v.strip() in MAILVARIANTEN and (d_mag or v.strip() != "d")
+              and (e_mag or v.strip() != "e")] or ["a"]
     getal = int(hashlib.sha256((webshop_url or "").encode()).hexdigest(), 16)
     return actief[getal % len(actief)]
 
@@ -725,6 +789,15 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     if not to_email or not link_url or not beeld or not beeld.get("positie"):
         print("Onderzoeksmail niet verstuurd: adres, link of positie ontbreekt.")
         return False
+    if variant == "e":
+        if not e_geschikt(beeld):
+            variant = "c"
+        else:
+            onderwerp, html = onderzoeksmail_e(to_email, webshop_url, beeld, categorienaam,
+                                               afmeld_url, onderwerp_voor)
+            koppen = {"List-Unsubscribe": f"<{afmeld_url}>",
+                      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"} if afmeld_url else None
+            return send_email(to_email, onderwerp, html, koppen=koppen)
 
     e = _html.escape
     winkel = e(_kaal_adres(webshop_url))

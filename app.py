@@ -5968,7 +5968,8 @@ def _stuur_onderzoeksmail(webshop_url, email, land=None, proef=False, variant=No
         basis = get_base_url().rstrip("/")
         # Welke versie van de mail (stap 56). Vast per winkel; een proefmail
         # mag er een kiezen, zodat je beide versies kunt bekijken.
-        variant = variant or emailing.kies_variant(webshop_url, d_mag=emailing.d_geschikt(beeld))
+        variant = variant or emailing.kies_variant(webshop_url, d_mag=emailing.d_geschikt(beeld),
+                                                   e_mag=emailing.e_geschikt(beeld, land))
         if variant == "d" and not emailing.d_geschikt(beeld):
             # Een proef van d over een winkel waarvoor d niet klopt: dan niet.
             return False, "Versie d past niet bij deze winkel (niet vaak genoemd, of wel aangeraden)."
@@ -12435,11 +12436,20 @@ def _shopify_scherm(winkel, rij):
     # alles. Liever een keer te veel laten zien dan een betalende klant voor
     # een dichte deur zetten.
     betaalt, proef_over = True, False
+    dashboard_url = None
     if beeld and abo_vraag is not None:
         try:
             stand_abo = abo_vraag.result(timeout=15)
             if not stand_abo.get("fout"):
                 betaalt = bool(stand_abo.get("actief"))
+                # 14 oktober (Nino: "daar is natuurlijk geen dashboard"): wie
+                # betaalt, is klant en heeft het volledige dashboard op de site
+                # (verloop, wekelijkse vijf vragen, bewijs). Alleen bij een
+                # BEVESTIGD abonnement, anders zou twijfel een dashboard openen.
+                if betaalt and rij.get("email") and webshop_url:
+                    token = db.get_or_create_klant(scan_engine.normalize_url(webshop_url), rij["email"])
+                    if token:
+                        dashboard_url = f"{get_base_url().rstrip('/')}/mijn/{token}"
         except Exception as e:
             print(f"Abonnement nakijken voor het scherm mislukt voor {winkel}: {e}")
         proef_over = not rij.get("proef_gehad_op")
@@ -12457,6 +12467,7 @@ def _shopify_scherm(winkel, rij):
     return render_template(
         "shopify_app.html",
         betaalt=betaalt,
+        dashboard_url=dashboard_url,
         slot=slot,
         proef_over=proef_over,
         proefdagen=shopify_billing.PROEFDAGEN,
