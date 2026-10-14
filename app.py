@@ -5517,6 +5517,12 @@ def _benadering_ronde_werk():
         except Exception as e:
             verslag["mislukt"].append(f"categoriecheck: {e}")
             print(f"Categoriecheck mislukt: {e}")
+        # 14 oktober: wie net ingedeeld of verhuisd is, meteen in de ranglijst.
+        try:
+            verslag["geplaatst"] = _plaats_wachtende_winkels()
+        except Exception as e:
+            verslag["mislukt"].append(f"plaatsen: {e}")
+            print(f"Wachtende winkels plaatsen mislukt: {e}")
         beurt = benadering.te_mailen(mag * KANDIDATEN_FACTOR)
         if not beurt:
             verslag["redenen"].append("Er mocht wel post uit, maar geen enkele winkel "
@@ -8804,6 +8810,50 @@ _plaatsen_bezig = {}
 # niet elke tien minuten opnieuw en niet steeds "ververs over een paar minuten"
 # beloven. Pas na zes uur weer proberen; de nacht pakt hem ook op.
 _plaatsen_mislukt = {}
+
+
+PLAATS_MAX_CATEGORIEEN = int(os.environ.get("PLAATS_MAX_CATEGORIEEN", "8"))
+
+
+def _plaats_wachtende_winkels(nu_uitvoeren=False):
+    """14 oktober (Nino: "de mails lopen achter, er staan steeds niet genoeg
+    winkels terwijl er meer dan 600 klaar staan"). 31 winkels met een adres
+    stonden in een gemeten categorie, maar niet in de ranglijst: ze waren na de
+    laatste herberekening ingedeeld of door de categoriecheck verhuisd, en
+    wachtten op de nacht. Elke mailronde doet dat nu zelf, voor hooguit
+    PLAATS_MAX_CATEGORIEEN categorieen, hooguit eens per uur. Kost geen enkele
+    vraag aan een model (herbereken_ranglijst gebruikt de bewaarde antwoorden).
+    Geeft de categorieen terug die herberekend worden."""
+    if onderhoud._stand.get("bezig"):
+        return []
+    gemeten = set(db.gemeten_categorieen())
+    doelen = []
+    for categorie, _ in db.categorieen_met_wachtende_winkels():
+        for doel in (categorie, categorieen.OUDER.get(categorie)):
+            if doel and doel in gemeten and doel not in doelen:
+                doelen.append(doel)
+        if len(doelen) >= PLAATS_MAX_CATEGORIEEN:
+            break
+    doelen = doelen[:PLAATS_MAX_CATEGORIEEN]
+    if not doelen or not (nu_uitvoeren or db.claim_moment("plaats_wachtende_winkels", 50 * 60)):
+        return []
+
+    def werk():
+        import categoriemeting
+        for slug in doelen:
+            try:
+                categoriemeting.herbereken_ranglijst(slug)
+                for land in db.landen_met_eigen_ronde(slug):
+                    categoriemeting.herbereken_ranglijst(slug, land=land)
+            except Exception as e:
+                print(f"Plaatsen in {slug} mislukt: {e}")
+        db.vergeet_onthouden()
+        _bewaard_opslag.clear()
+    if nu_uitvoeren or app.testing:
+        werk()
+    else:
+        threading.Thread(target=werk, daemon=True).start()
+    return doelen
 
 
 def _plaats_in_ranglijst(webshop_url):

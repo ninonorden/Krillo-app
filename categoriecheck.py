@@ -15,7 +15,7 @@ Nino: "dit kan echt niet gebeuren, alles moet goed staan." Dus nu:
   verkoopt, en in welke van onze categorieen hoort hij;
 - geen webshop: hij gaat uit de post EN uit elke ranglijst (soort geen-webshop);
 - webshop in een andere categorie: hij krijgt de goede categorie;
-- twijfel of een site die niet opent: geen post, over 14 dagen opnieuw;
+- twijfel of een site die niet opent: geen post, over 5 dagen opnieuw (14 okt; was 14);
 - de koude mail gaat ALLEEN nog naar winkels waarvan de check "klopt" zei
   (db.te_mailen_met_positie). Liever een dag minder post dan een foute mail.
 Daarna ook de winkels die al in een openbare ranglijst staan, zodat de index
@@ -33,7 +33,6 @@ import db
 
 CHECK_PER_AANROEP = int(os.environ.get("CATEGORIECHECK_PER_AANROEP", "12"))
 CHECK_PER_RONDE = int(os.environ.get("CATEGORIECHECK_PER_RONDE", "36"))
-OPNIEUW_NA_DAGEN = 14
 MODEL = os.environ.get("CATEGORIECHECK_MODEL", "claude-sonnet-4-6")
 SOORT_GEEN_WEBSHOP = "geen-webshop"
 
@@ -51,7 +50,9 @@ def lees_site(url, ophalen=None):
             r = ophalen(url)
         else:
             import scan_engine
-            r = scan_engine.fetch(url, pogingen=1)
+            # 14 oktober: twee pogingen. Een site die een keer niet opende, wachtte
+            # daarna dagen als "twijfel" en kreeg zo lang geen post.
+            r = scan_engine.fetch(url, pogingen=2)
     except Exception:
         return None
     if r is None or getattr(r, "status_code", 500) >= 400:
@@ -133,8 +134,37 @@ def _familie(slug):
     return {slug, ouder} - {None}
 
 
+# 14 oktober (Nino: "er staan steeds niet genoeg winkels terwijl er meer dan 600
+# klaar staan"). Van de 645 winkels met een adres stonden er 122 in een
+# categorie zonder enige ranglijst: geen eigen meting en geen bovencategorie met
+# een meting (een algemene bovencategorie als "kleding", of "overig"). De check
+# zei "klopt" en liet ze daar staan, want de deelcategorie hoort bij dezelfde
+# familie. Gevolg: nooit in een ranglijst, dus nooit post. Nu:
+# - die winkels komen opnieuw langs (hooguit eens per DOOD_OPNIEUW_NA_DAGEN);
+# - noemt het model een deelcategorie, dan verhuist de winkel daarheen, ook al
+#   is het dezelfde familie. In die deelcategorie IS een ranglijst, en de nacht
+#   zet hem erin zonder een vraag opnieuw te stellen (herberekenen).
+DOOD_OPNIEUW_NA_DAGEN = int(os.environ.get("CATEGORIECHECK_DOOD_OPNIEUW_DAGEN", "3"))
+# 14 oktober: twijfel (site opende niet, of onduidelijk) na 5 in plaats van 14
+# dagen opnieuw. Een site die even plat lag of een robot weerde, wachtte twee
+# weken; dat is twee weken een winkel minder in de post.
+OPNIEUW_NA_DAGEN = int(os.environ.get("CATEGORIECHECK_OPNIEUW_DAGEN", "5"))
+
+
+def dode_categorieen(gemeten=None):
+    """Categorieen waar een winkel nooit een plek krijgt: geen eigen afgeronde
+    meting en ook geen bovencategorie met een afgeronde meting."""
+    import categorieen
+    gemeten = set(db.gemeten_categorieen() if gemeten is None else gemeten)
+    return sorted(slug for slug in categorieen.GELDIG
+                  if slug not in gemeten and categorieen.OUDER.get(slug) not in gemeten)
+
+
 def kandidaten(hoeveel):
     """Eerst wie op het punt staat post te krijgen, daarna wie in een ranglijst staat."""
+    import categorieen
+    dood = dode_categorieen()
+    geldig = sorted(categorieen.GELDIG)
     conn = db._get_connection()
     if conn is None:
         return []
@@ -147,13 +177,16 @@ def kandidaten(hoeveel):
                        AND coalesce(b.soort, 'winkel') = 'winkel'
                        AND (b.categorie_gecheckt_op IS NULL
                             OR (b.categorie_klopt IS NULL
-                                AND b.categorie_gecheckt_op < now() - interval '{OPNIEUW_NA_DAGEN} days'))
+                                AND b.categorie_gecheckt_op < now() - interval '{OPNIEUW_NA_DAGEN} days')
+                            OR ((b.categorie = ANY(%s) OR NOT (b.categorie = ANY(%s)))
+                                AND b.email IS NOT NULL AND b.email <> '' AND b.gemaild_op IS NULL
+                                AND b.categorie_gecheckt_op < now() - interval '{DOOD_OPNIEUW_NA_DAGEN} days'))
                        AND (
                            (b.email IS NOT NULL AND b.email <> '' AND b.gemaild_op IS NULL
                             AND b.stand IN ('adres', 'meten', 'gemeten'))
                            OR EXISTS (SELECT 1 FROM categorie_uitkomsten u WHERE u.webshop_url = b.webshop_url))
                   ORDER BY (b.email IS NOT NULL AND b.gemaild_op IS NULL) DESC, b.toegevoegd_op
-                     LIMIT %s""", (int(hoeveel),))
+                     LIMIT %s""", (dood, geldig, int(hoeveel)))
                 return [{"webshop_url": r[0], "categorie": r[1]} for r in cur.fetchall()]
     except Exception as e:
         print(f"Categoriecheck, kandidaten mislukt: {e}")
@@ -190,6 +223,10 @@ def ronde(hoeveel=None, ophalen=None, vraag_model=None):
     if not lijst:
         return verslag
     geldig = {slug for slug, _ in _categorieen_lijst()}
+    try:
+        dood = set(dode_categorieen())
+    except Exception:
+        dood = set()
     te_beoordelen = []
     for w in lijst:
         site = lees_site(w["webshop_url"], ophalen)
@@ -213,8 +250,13 @@ def ronde(hoeveel=None, ophalen=None, vraag_model=None):
             soort = (u.get("soort") or "onbekend").lower()
             nieuw = u.get("categorie") if u.get("categorie") in geldig else None
             verslag["bekeken"] += 1
-            if soort == "winkel" and nieuw and nieuw not in _familie(w["categorie"]) \
-                    and w["categorie"] not in _familie(nieuw):
+            # Een winkel in een categorie zonder ranglijst (dood) verhuist ook
+            # binnen de familie, zie DOOD_OPNIEUW_NA_DAGEN hierboven.
+            import categorieen as _c
+            vast_in_dood = (w["categorie"] in dood or w["categorie"] not in _c.GELDIG) and nieuw not in dood
+            if soort == "winkel" and nieuw and nieuw != w["categorie"] and (
+                    vast_in_dood or (nieuw not in _familie(w["categorie"])
+                                     and w["categorie"] not in _familie(nieuw))):
                 _leg_vast(w["webshop_url"], True, categorie=nieuw)
                 verslag["verplaatst"].append(f"{w['webshop_url']}: {w['categorie']} -> {nieuw}")
             elif soort == "winkel":

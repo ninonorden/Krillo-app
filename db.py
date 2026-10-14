@@ -7798,6 +7798,35 @@ def index_nooit_genoemd():
         conn.close()
 
 
+def categorieen_met_wachtende_winkels():
+    """14 oktober: de categorieen van winkels die post kunnen krijgen (adres,
+    nooit gemaild, een gewone winkel) maar nog in geen enkele afgeronde
+    ranglijst staan. Meestal net ingedeeld of net verhuisd door de
+    categoriecheck. Die hoeven niet op de nacht te wachten: herberekenen kost
+    geen vraag."""
+    conn = _get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT b.categorie, count(*) FROM benadering b
+                     WHERE b.stand IN ('adres', 'meten', 'gemeten') AND NOT b.afgemeld
+                       AND b.email IS NOT NULL AND b.email <> '' AND b.gemaild_op IS NULL
+                       AND coalesce(b.soort, 'winkel') = 'winkel' AND b.categorie IS NOT NULL
+                       AND NOT EXISTS (SELECT 1 FROM categorie_uitkomsten u
+                                         JOIN categorie_rondes r ON r.id = u.ronde
+                                        WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL)
+                  GROUP BY b.categorie ORDER BY count(*) DESC""")
+                return [(r[0], r[1]) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Categorieen met wachtende winkels mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def adres_zonder_plek():
     """Waarom winkels MET een adres toch geen post krijgen (28 september).
 
