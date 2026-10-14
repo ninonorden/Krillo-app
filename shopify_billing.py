@@ -81,7 +81,10 @@ def plan_van_abonnement(abonnement):
     return "fix"
 
 
-PROEFDAGEN = 7
+# 14 oktober: 14 dagen, net als Watch op de site. Daarvoor 7: de app zei dus
+# iets anders dan de site, en wie beide zag snapte niet welke gold. Geldt alleen
+# voor nieuwe abonnementen; wie al betaalt merkt er niets van.
+PROEFDAGEN = 14
 
 
 # Ontwikkelwinkels (van partners en van de beoordelaars van Shopify) kunnen

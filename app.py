@@ -438,6 +438,42 @@ def _ranglijst_bewaard(slug, land, limiet=1000):
     return _bewaard(("ranglijst", slug, land), db.ranglijst_per_land, slug, land, 1000)
 
 
+# 14 oktober (Neon zuiniger): bezoeken een minuut verzamelen en dan samen
+# wegschrijven. Gaat de dienst tussendoor plat, dan missen we hooguit een
+# minuut aan bezoekregels; dat is een teller, geen klantgegeven.
+BEZOEKSTAPEL_SECONDEN = int(os.environ.get("BEZOEKSTAPEL_SECONDEN", "60"))
+_bezoekstapel = []
+_bezoekstapel_slot = threading.Lock()
+_bezoekstapel_stand = {"gestart": False}
+
+
+def _schrijf_bezoekstapel():
+    with _bezoekstapel_slot:
+        stapel = list(_bezoekstapel)
+        _bezoekstapel.clear()
+    if stapel:
+        db.noteer_bezoeken(stapel)
+    return len(stapel)
+
+
+def _start_bezoekstapel():
+    if _bezoekstapel_stand["gestart"]:
+        return
+    with _bezoekstapel_slot:
+        if _bezoekstapel_stand["gestart"]:
+            return
+        _bezoekstapel_stand["gestart"] = True
+
+    def _bezoekstapel_lus():
+        while True:
+            time.sleep(BEZOEKSTAPEL_SECONDEN)
+            try:
+                _schrijf_bezoekstapel()
+            except Exception as e:
+                print(f"Bezoekstapel wegschrijven mislukt: {e}")
+    threading.Thread(target=_bezoekstapel_lus, daemon=True).start()
+
+
 @app.after_request
 def _tel_bezoek(antwoord):
     """Schrijft één regel weg per bekeken pagina.
@@ -477,6 +513,12 @@ def _tel_bezoek(antwoord):
 
         if app.testing:
             _schrijf()
+        elif _thuis_onthouden_aan():
+            # 14 oktober (Neon zuiniger): op Render in een stapel, een keer per
+            # minuut weggeschreven. Zie _bezoekstapel_lus.
+            with _bezoekstapel_slot:
+                _bezoekstapel.append((pad, gegevens["herkomst"], gegevens["bezoeker"], gegevens["apparaat"]))
+            _start_bezoekstapel()
         else:
             threading.Thread(target=_schrijf, daemon=True).start()
 
@@ -559,7 +601,9 @@ def api_mens():
 # de tien minuten een bezoeker de klos, en dat is precies de bezoeker die Neon
 # net in slaap heeft zien vallen. Zo wacht er nooit iemand op het verversen.
 # ---------------------------------------------------------------------------
-THUIS_VERS_SECONDEN = int(os.environ.get("THUIS_VERS_SECONDEN", "600"))
+# 14 oktober (Neon zuiniger): 30 minuten in plaats van 10. Na elke meting wordt
+# _bewaard_opslag toch leeggemaakt, dus een nieuwe ranglijst staat er meteen.
+THUIS_VERS_SECONDEN = int(os.environ.get("THUIS_VERS_SECONDEN", "1800"))
 
 # Bij het testen staat het onthouden uit. Tests vullen de database en kijken
 # daarna meteen of de homepage het laat zien; met een geheugen ertussen zien ze
@@ -1402,6 +1446,7 @@ Disallow: /monitoring/
 Disallow: /rapport/
 Disallow: /mijn/
 Disallow: /admin/
+Disallow: /api/
 
 User-agent: GPTBot
 Allow: /
@@ -2995,7 +3040,8 @@ def _bouw_sitemap():
                     lijst = _ranglijst_bewaard(c["categorie"], land) or {}
                     if len(lijst.get("rijen") or []) >= MINIMUM_PER_LAND:
                         regels += [(f"/index/{land}/{c['categorie']}/{_winkel_slug(r['webshop_url'])}", datum)
-                                   for r in lijst["rijen"] if (r.get("genoemd") or 0) > 0]
+                                   for r in lijst["rijen"]
+                                   if (r.get("genoemd") or 0) > 0 and not _winkelpagina_dun(r)]
                 except Exception as e:
                     print(f"Winkelpagina's in sitemap overslaan voor {c['categorie']}: {e}")
     except Exception as e:
@@ -8020,6 +8066,13 @@ def openbare_categorie(land, slug):
                     "categories that are measured are listed on /index."), 404
 
     genoemd = [r for r in lijst["rijen"] if (r["genoemd"] or 0) > 0]
+    # 14 oktober (feedback op Reddit): "a store sitting at #7 has no reason to
+    # come back unless it can see it was #12 last month, so put the delta and
+    # the category median next to each row." Het verschil per rij en de mediaan
+    # van ALLE gemeten winkels (ook die nul keer genoemd werden: dat is de
+    # echte middelste winkel van de categorie, geen mooier getal).
+    mediaan = _mediaan_genoemd(lijst["rijen"])
+    vorige_meting = any(r.get("vorige_positie") for r in lijst["rijen"])
 
     # De balk voor wie via zijn eigen mail komt (stap 56). Alleen als het
     # kenmerk bij een winkel hoort die in DEZE lijst staat; een oud of
@@ -8086,6 +8139,8 @@ def openbare_categorie(land, slug):
         lijst_voor_ai=lijst_voor_ai,
         ranglijst=genoemd,
         niet_genoemd=len(lijst["rijen"]) - len(genoemd),
+        mediaan=mediaan,
+        vorige_meting=vorige_meting,
         totaal=len(lijst["rijen"]),
         telbaar=lijst["telbaar"],
         gemeten_op=(genoemd[0].get("gemeten_op") if genoemd else None),
@@ -8101,6 +8156,17 @@ def openbare_categorie(land, slug):
         # Stap 178: waar AI kopers naartoe stuurt.
         bronnen=_bronnen_van_ronde(lijst["ronde"]),
     )
+
+
+def _mediaan_genoemd(rijen):
+    """Hoe vaak de middelste winkel van de categorie genoemd werd (alle gemeten
+    winkels, ook de nullen). Een half getal wordt naar beneden afgerond: we
+    tonen tellingen, geen schijnprecisie (zie de voet van de app)."""
+    import statistics
+    tellingen = [int(r.get("genoemd") or 0) for r in rijen or []]
+    if not tellingen:
+        return None
+    return int(statistics.median(tellingen))
 
 
 def _categoriekaart_svg(rijen, telbaar):
@@ -8196,8 +8262,22 @@ def openbare_winkel(land, slug, winkel):
         categorie=categorie, landnaam=landnaam, totaal=len(lijst["rijen"]), telbaar=lijst["telbaar"],
         buren=buren, kruimels=kruimels, basis_url=basis_url,
         maand=(rij.get("gemeten_op").strftime("%B %Y") if rij.get("gemeten_op") else None),
-        imago=_imago(lijst["ronde"], rij["webshop_url"], naam),
+        imago=_imago(lijst["ronde"], rij["webshop_url"], naam, land=land, rijen=genoemd),
+        dun=_winkelpagina_dun(rij),
+        mediaan=_mediaan_genoemd(lijst["rijen"]),
         modellen=_assistenten(_bewaard(("modellen", lijst["ronde"]), db.modellen_van_ronde, lijst["ronde"])))
+
+
+# 14 oktober (Search Console: 823 pagina's "gevonden, niet geindexeerd"). Een
+# winkel die AI in de hele meting maar een keer noemde, heeft weinig eigen
+# inhoud: een plek, een getal en meestal geen citaat. Duizend van zulke pagina's
+# laten Google denken dat de hele index dun is. Die pagina's blijven werken
+# voor de eigenaar, maar krijgen noindex en staan niet in de sitemap.
+WINKELPAGINA_MIN_GENOEMD = int(os.environ.get("WINKELPAGINA_MIN_GENOEMD", "2"))
+
+
+def _winkelpagina_dun(rij):
+    return int(rij.get("genoemd") or 0) < WINKELPAGINA_MIN_GENOEMD
 
 
 def _bronnen_van_ronde(ronde):
@@ -8207,18 +8287,62 @@ def _bronnen_van_ronde(ronde):
     try:
         import bronnenkaart
         return _bewaard(("bronnen", ronde),
-                        lambda: bronnenkaart.bronnen(db.antwoorden_met_tekst_van_ronde(ronde)))
+                        lambda: _afgeleid(ronde, f"bronnen-{AFGELEID_VERSIE}",
+                                          lambda: bronnenkaart.bronnen(db.antwoorden_met_tekst_van_ronde(ronde))))
     except Exception as e:
         print(f"Bronnen mislukt voor ronde {ronde}: {e}")
         return []
 
 
-def _imago(ronde, webshop_url, naam):
+# Verandert de manier van tellen in imago.py of bronnenkaart.py, verhoog dan
+# dit nummer: dan wordt alles een keer opnieuw uitgerekend in plaats van dat de
+# oude uitkomst blijft staan.
+AFGELEID_VERSIE = "v1"
+
+
+def _afgeleid(ronde, soort, maak):
+    """14 oktober (Neon zuiniger): eerst kijken of het al bewaard is, anders een
+    keer uitrekenen en, als de ronde afgerond is, bewaren. Een afgeronde ronde
+    verandert niet meer, dus de uitkomst blijft goed. Zie db.afgeleid_van_ronde."""
+    data = db.afgeleid_van_ronde(ronde, soort)
+    if data is not None:
+        return data
+    data = maak()
+    if data is not None and db.ronde_afgerond(ronde):
+        db.bewaar_afgeleid(ronde, soort, data)
+    return data
+
+
+def _imago_van_ronde(ronde, land, rijen):
+    """Het imago van ALLE genoemde winkels van deze ronde in dit land, in een keer.
+
+    Waarom alles tegelijk: de antwoordteksten zijn het zware deel. Een keer
+    ophalen en voor elke winkel tellen kost een keer dataverkeer; per winkel
+    apart ophalen kostte het zo vaak als er winkelpagina's opgevraagd werden."""
+    import imago
+
+    def maak():
+        teksten = db.antwoorden_met_tekst_van_ronde(ronde)
+        if not teksten:
+            return None
+        return {r["webshop_url"]: imago.beeld(r["webshop_url"], _winkel_naam(r), teksten)
+                for r in rijen or [] if r.get("webshop_url")}
+    return _afgeleid(ronde, f"imago-{AFGELEID_VERSIE}:{(land or '').lower()}", maak) or {}
+
+
+def _imago(ronde, webshop_url, naam, land=None, rijen=None):
     """Stap 179. Nooit een fout naar de bezoeker: zonder imago blijft de pagina gewoon staan."""
     try:
         import imago
-        # Het resultaat bewaren, niet de antwoorden zelf: zestig antwoordteksten
-        # per ronde, voor honderd rondes, is te veel geheugen op Render.
+        if rijen:
+            alles = _bewaard(("imago-ronde", ronde, (land or "").lower()), _imago_van_ronde, ronde, land, rijen)
+            beeld = (alles or {}).get(webshop_url)
+            if beeld is not None:
+                # Uit JSON komen de kenmerken als lijsten terug; de pagina kan
+                # met beide, maar zo ziet het er hetzelfde uit als vers geteld.
+                beeld["kenmerken"] = [tuple(k) for k in beeld.get("kenmerken") or []]
+                return beeld
+        # Zonder lijst (of een winkel die er niet in stond): zoals vroeger.
         return _bewaard(("imago", ronde, webshop_url),
                         lambda: imago.beeld(webshop_url, naam, db.antwoorden_met_tekst_van_ronde(ronde)))
     except Exception as e:

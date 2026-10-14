@@ -1117,6 +1117,19 @@ def init_db():
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_kosten_webshop ON kostengebeurtenissen (webshop_url, moment);")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_kosten_scan ON kostengebeurtenissen (scan_id);")
                 cur.execute("ALTER TABLE rapporten ADD COLUMN IF NOT EXISTS klant_token TEXT;")
+                # 14 oktober (Neon zuiniger): wat we uit de antwoordteksten van
+                # een AFGERONDE meetronde afleiden (het imago per winkel, de
+                # bronnen) een keer uitrekenen en klein bewaren. Zie
+                # afgeleid_van_ronde() voor het waarom.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS ronde_afgeleid (
+                        ronde INTEGER NOT NULL,
+                        soort TEXT NOT NULL,
+                        data JSONB,
+                        gemaakt_op TIMESTAMPTZ DEFAULT now(),
+                        PRIMARY KEY (ronde, soort)
+                    );
+                """)
     finally:
         conn.close()
 
@@ -3675,6 +3688,31 @@ def noteer_bezoek(pad, herkomst=None, bezoeker=None, apparaat=None):
     except Exception as e:
         print(f"Bezoek vastleggen mislukt: {e}")
         return False
+    finally:
+        conn.close()
+
+
+def noteer_bezoeken(rijen):
+    """14 oktober (Neon zuiniger): een stapel bezoeken in EEN keer wegschrijven.
+
+    rijen: [(pad, herkomst, bezoeker, apparaat)]. app.py verzamelt de bezoeken
+    van een minuut en geeft ze hier samen af. Een verbinding en een opdracht in
+    plaats van een per paginaweergave: minder heen-en-weer naar Frankfurt."""
+    rijen = [((p or "")[:200], h or None, b or None, a or None) for p, h, b, a in rijen or [] if p]
+    if not rijen:
+        return 0
+    conn = _get_connection()
+    if conn is None:
+        return 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.executemany("""INSERT INTO bezoeken (pad, herkomst, bezoeker, apparaat)
+                                   VALUES (%s, %s, %s, %s)""", rijen)
+        return len(rijen)
+    except Exception as e:
+        print(f"Bezoeken wegschrijven mislukt: {e}")
+        return 0
     finally:
         conn.close()
 
@@ -7343,7 +7381,116 @@ def _antwoorden_van_ronde_vers(ronde):
         conn.close()
 
 
+# ---------------------------------------------------------------------------
+# NEON ZUINIGER (14 oktober 2026)
+#
+# Op 10 oktober liep het gratis plan van Neon tegen 5 GB dataverkeer aan. Het
+# grootste lek: ELKE winkelpagina in de openbare index (/index/nl/<cat>/<winkel>)
+# haalde alle volledige AI-antwoorden van de hele meetronde op, zestig teksten,
+# om er het imago van die ene winkel uit te tellen. Google vroeg ruim 2000 van
+# die pagina's op, plus Bing en de AI-robots, en na elke herstart van Render
+# begon het opnieuw. Ook het dashboard las dezelfde teksten twee of drie keer
+# per pagina.
+#
+# Twee maatregelen:
+# 1. Wat we uit een AFGERONDE ronde afleiden (imago, bronnen) wordt een keer
+#    uitgerekend en klein in ronde_afgeleid bewaard. Een afgeronde ronde
+#    verandert nooit meer, dus dat mag voor altijd. Een paar kB in plaats van
+#    een paar honderd kB per paginaweergave, ook na een herstart.
+# 2. De teksten zelf: binnen een verzoek een keer, en een kleine voorraad van
+#    hooguit TEKST_RONDES_MAX rondes. Klein gehouden, want de vorige keer dat
+#    alle rondes met tekst onthouden werden ging Render over de 512 MB.
+# ---------------------------------------------------------------------------
+TEKST_RONDES_MAX = int(os.environ.get("TEKST_RONDES_MAX", "4"))
+_TEKST_VOORRAAD = {}   # ronde -> (tijd, rijen)
+
+
+def ronde_afgerond(ronde):
+    """True als deze meetronde klaar is (en dus nooit meer verandert)."""
+    conn = _get_connection()
+    if conn is None or not ronde:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT afgerond_op IS NOT NULL FROM categorie_rondes WHERE id = %s", (ronde,))
+                rij = cur.fetchone()
+                return bool(rij and rij[0])
+    except Exception as e:
+        print(f"Ronde afgerond nakijken mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def afgeleid_van_ronde(ronde, soort):
+    """Het bewaarde afgeleide resultaat, of None als het er (nog) niet is."""
+    conn = _get_connection()
+    if conn is None or not ronde:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT data FROM ronde_afgeleid WHERE ronde = %s AND soort = %s", (ronde, soort))
+                rij = cur.fetchone()
+                return rij[0] if rij else None
+    except Exception as e:
+        print(f"Afgeleid van ronde ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def bewaar_afgeleid(ronde, soort, data):
+    """Bewaar het afgeleide resultaat. Alleen aanroepen voor een afgeronde ronde."""
+    conn = _get_connection()
+    if conn is None or not ronde:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""INSERT INTO ronde_afgeleid (ronde, soort, data) VALUES (%s, %s, %s)
+                               ON CONFLICT (ronde, soort) DO UPDATE SET data = EXCLUDED.data,
+                                                                        gemaakt_op = now()""",
+                            (ronde, soort, json.dumps(data, default=str)))
+        return True
+    except Exception as e:
+        print(f"Afgeleid van ronde bewaren mislukt: {e}")
+        return False
+    finally:
+        conn.close()
+
+
 def antwoorden_met_tekst_van_ronde(ronde):
+    """Zie NEON ZUINIGER hierboven: dezelfde rijen, maar zo min mogelijk vaak
+    opnieuw over de lijn. Geeft altijd een eigen kopie terug, want een aanroeper
+    mag de rijen aanpassen zonder dat de volgende dat ziet."""
+    if not ronde:
+        return []
+    geheugen = _verzoek_geheugen()
+    if geheugen is not None and ("tekst", ronde) in geheugen:
+        return _copy.deepcopy(geheugen[("tekst", ronde)])
+    rijen = None
+    if _onthouden_aan() and not _PAUZE["aan"]:
+        with _ONTHOUD_SLOT:
+            vak = _TEKST_VOORRAAD.get(ronde)
+        if vak and time.time() - vak[0] < ONTHOUD_SECONDEN:
+            rijen = vak[1]
+    if rijen is None:
+        rijen = _antwoorden_met_tekst_vers(ronde)
+        if rijen and _onthouden_aan():
+            with _ONTHOUD_SLOT:
+                _TEKST_VOORRAAD.pop(ronde, None)
+                while len(_TEKST_VOORRAAD) >= max(1, TEKST_RONDES_MAX):
+                    # De oudste eruit (een dict onthoudt de volgorde van invoegen).
+                    _TEKST_VOORRAAD.pop(next(iter(_TEKST_VOORRAAD)))
+                _TEKST_VOORRAAD[ronde] = (time.time(), rijen)
+    if geheugen is not None and rijen:
+        geheugen[("tekst", ronde)] = rijen
+    return _copy.deepcopy(rijen)
+
+
+def _antwoorden_met_tekst_vers(ronde):
     """Alles van een meetronde, met de volledige antwoordtekst erbij.
 
     Verschil met antwoorden_van_ronde: die laat de tekst juist weg, want voor
@@ -7944,7 +8091,10 @@ import copy as _copy
 
 _ONTHOUD = {}
 _ONTHOUD_SLOT = threading.Lock()
-ONTHOUD_SECONDEN = int(os.environ.get("DB_ONTHOUD_SECONDEN", "300"))
+# 14 oktober (Neon zuiniger): 15 minuten in plaats van 5. Wat hier onthouden
+# wordt verandert alleen na een meting, en na elke meting maakt
+# vergeet_onthouden() alles leeg. Langer onthouden kost dus geen juistheid.
+ONTHOUD_SECONDEN = int(os.environ.get("DB_ONTHOUD_SECONDEN", "900"))
 
 
 def _onthouden_aan():
@@ -8036,6 +8186,9 @@ def vergeet_onthouden():
     """Na een meting of herberekening: alles opnieuw ophalen."""
     with _ONTHOUD_SLOT:
         _ONTHOUD.clear()
+        # 14 oktober: ook de antwoordteksten. Een ronde die net opnieuw gemeten
+        # of nagekeken is, moet niet uit de voorraad komen.
+        _TEKST_VOORRAAD.clear()
 
 
 def gelijk_bij_nul(rijen):

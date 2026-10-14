@@ -11,6 +11,14 @@ Deze lijst wordt ook getest (test_changelog.py): elke link erin moet laden.
 
 # (datum, titel, tekst, link of None). Nieuwste eerst.
 REGELS = [
+    # 14 oktober: feedback op Reddit (zie het projectdocument van 14 oktober).
+    ("2026-10-14", "Every ranking shows the change since last month",
+     "Each row in the public rankings now shows how many places a store moved since the previous measurement, "
+     "and every category shows its median: how often the middle store is named. Your dashboard shows the median "
+     "next to your own count.", None),
+    ("2026-10-14", "The Shopify app in the new look",
+     "Krillo in your Shopify admin now looks and reads like the site: the same four steps, Not named yet instead "
+     "of a made-up rank, and Watch free for 14 days.", None),
     ("2026-10-02", "Your own questions",
      "Add the questions you care about yourself: five with Watch, fifteen with Fix. We ask them to ChatGPT and "
      "Gemini every week, only for you. Your rank in the index still comes from the same questions for every store.",

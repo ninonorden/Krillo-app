@@ -297,6 +297,14 @@ def verzamel(basis_url):
         gisteren.append(("Opbrengst per maand van betalende klanten (euro)", f"{o:.2f}"))
     except Exception:
         pass
+    # 14 oktober: het verbruik van Neon, zodat een lek binnen een dag opvalt.
+    try:
+        import neonverbruik
+        neon_regels, neon_waarschuwing = neonverbruik.regels()
+        gisteren.extend(neon_regels)
+    except Exception as e:
+        neon_waarschuwing = None
+        print(f"Ochtendbericht, Neon-verbruik mislukt: {e}")
     # 1 oktober: kleine Shopify-winkels en dropshippers (stap 156 en 217).
     # Stap 354 (9 oktober): de aanmeldroute /start. Hoeveel mensen begonnen
     # het afgelopen etmaal, en tot welke stap ze kwamen: zo zie je welke stap schuurt.
@@ -357,6 +365,8 @@ def verzamel(basis_url):
     except Exception:
         klaar_voor_post = None
     doen = te_doen(basis_url)
+    if neon_waarschuwing:
+        doen.append((neon_waarschuwing, "https://console.neon.tech"))
     gegevens = {"te_doen": doen, "gisteren": gisteren, "klaar_voor_post": klaar_voor_post}
     # 1 oktober: de dagtaken en de voorstellen ter akkoord (groeiagent.py,
     # voorstellen.py). Mislukt dit, dan blijft het oude bericht gewoon staan.
