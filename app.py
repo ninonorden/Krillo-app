@@ -3189,6 +3189,15 @@ def _herkomst():
     bron = (request.args.get("utm_source") or "").strip()[:60]
     if bron:
         return bron.lower()
+    # 14 oktober (Meta-advertenties: 200 klikken, geen enkele check). Een klik
+    # op een advertentie komt vaak zonder vorige pagina binnen (de browser in
+    # de Facebook- of Instagram-app geeft die niet mee). Dan stond er niets bij
+    # en kon je op /admin/bezoek niet zien wat de advertentie opleverde. Meta en
+    # Google zetten wel altijd hun eigen kenmerk in de link.
+    if request.args.get("fbclid"):
+        return "facebook/instagram"
+    if request.args.get("gclid"):
+        return "google ads"
 
     verwijzer = request.referrer or ""
     if not verwijzer:
@@ -6336,7 +6345,45 @@ def _wachtklok_tik(nu=None):
                 print(f"Oplevering vanzelf mislukt: {e}")
         threading.Thread(target=_oplever, daemon=True).start()
         gedaan.append("oplevering")
+    # 14 oktober: opvolging na een installatie van de Shopify-app, overdag,
+    # hooguit eens per uur (zie shopifyopvolging.py).
+    if 9 <= nu.hour < 20 and db.claim_moment("shopify_opvolging", 55 * 60):
+        threading.Thread(target=_shopify_opvolging, daemon=True).start()
+        gedaan.append("shopify opvolging")
     return gedaan
+
+
+def so_mag_mailen(email):
+    import shopifyopvolging
+    return shopifyopvolging.mag_mailen(email)
+
+
+def _shopify_opvolging():
+    """De twee mails na een installatie. Het klantbeeld en het abonnement komen
+    van hier, zodat shopifyopvolging.py zelf niets van Shopify hoeft te weten."""
+    import shopifyopvolging
+
+    def beeld_van(rij):
+        url = scan_engine.normalize_url(rij.get("webshop_url") or "")
+        if not url:
+            return None
+        land = ((_markt_van(url) or {}).get("landcode") or "").lower() or None
+        return klantbeeld.bouw(url, land=land)
+
+    def betaalt(rij):
+        sleutel = _shopify_sleutel(rij) if rij.get("toegangssleutel") else None
+        if not sleutel:
+            return None
+        stand = shopify_billing.huidig_abonnement(rij["winkel"], sleutel) or {}
+        return None if stand.get("fout") else bool(stand.get("actief"))
+    try:
+        v = shopifyopvolging.ronde(beeld_van, betaalt)
+        if v["plekmail"] or v["opvolgmail"]:
+            print(f"Shopify-opvolging: {v}")
+        return v
+    except Exception as e:
+        print(f"Shopify-opvolging mislukt: {e}")
+        return None
 
 
 def _start_wachtklok():
@@ -12146,13 +12193,29 @@ _voorbeeld_cache = {"op": 0.0, "waarde": None}
 VOORBEELD_BEWAAR_SECONDEN = 600
 
 
-def _voorbeeld_voor_app():
+_voorbeeld_per_land = {}
+
+
+def _voorbeeld_voor_app(land=None):
     """Het voorbeeld, maar hooguit eens per tien minuten opnieuw berekend.
+
+    14 oktober (stap 124): een Belgische winkel krijgt een Belgisch voorbeeld.
+    Nederland en elk land dat we niet meten houden het gewone voorbeeld.
 
     26 september: de app deed er rond 30 seconden over om te openen. Het
     voorbeeld is voor iedere winkel zonder positie hetzelfde en verandert
     alleen na een maandmeting. Elke keer opnieuw bouwen (ranglijst van 500,
     alle antwoorden van een ronde doorlopen) is dus zonde van de wachttijd."""
+    land = (land or "").lower()
+    import markten
+    if land and land != "nl" and markten.in_index(land.upper()):
+        vak = _voorbeeld_per_land.get(land)
+        if vak and time.monotonic() - vak[0] < VOORBEELD_BEWAAR_SECONDEN:
+            return vak[1]
+        waarde = _voorbeeld_bouwen(land)
+        if waarde:
+            _voorbeeld_per_land[land] = (time.monotonic(), waarde)
+        return waarde or (vak[1] if vak else None) or _voorbeeld_voor_app()
     nu = time.monotonic()
     if _voorbeeld_cache["waarde"]:
         # Is hij oud, dan geven we hem toch meteen en bouwen we op de
@@ -12187,7 +12250,7 @@ def _voorbeeld_opwarmen():
         print(f"Voorbeeld opwarmen mislukt: {e}")
 
 
-def _voorbeeld_bouwen():
+def _voorbeeld_bouwen(land=None):
     """Een ECHTE winkel uit de index, als voorbeeld voor wie nog geen positie heeft.
 
     WAAROM (24 september). Een nieuwe installatie ziet eerst een leeg blok:
@@ -12197,8 +12260,9 @@ def _voorbeeld_bouwen():
     winkel, duidelijk als voorbeeld gemarkeerd. Dezelfde winkel als /demo op
     de site; de cijfers staan ook op de openbare ranglijst, dus niets geheims."""
     try:
-        keuze = db.voorbeeldwinkel()
-        if not keuze:
+        keuze = db.voorbeeldwinkel(land or "nl")
+        if not keuze or (land and (keuze.get("land") or "nl") != land):
+            # Geen winkel uit dit land: dan het gewone voorbeeld (zie _voorbeeld_voor_app).
             return None
         vb = klantbeeld.bouw(keuze["webshop_url"], land=keuze.get("land"))
         if not vb:
@@ -12354,7 +12418,7 @@ def _shopify_scherm(winkel, rij):
             print(f"Positie ophalen mislukt voor {webshop_url}: {e}")
 
     klok.tik("positie")
-    voorbeeld_app = None if beeld else _voorbeeld_voor_app()
+    voorbeeld_app = None if beeld else _voorbeeld_voor_app(landcode)
     klok.tik("voorbeeld")
 
     # WAT GRATIS IS EN WAT NIET (24 september). Gratis: je positie, hoe vaak je
@@ -12522,6 +12586,30 @@ def _shopify_uit_kaartje(id_token, winkel_uit_link=None):
     sleutel = uitkomst["sleutel"]
     gegevens = shopify_app.winkelgegevens(winkel, sleutel) or {}
     webshop_url = scan_engine.normalize_url(shopify_app.winkeladres(winkel, sleutel))
+    # 14 oktober: een nieuwe installatie (of een herinstallatie) is het warmste
+    # wat er binnenkomt. Nino hoort het meteen, niet pas in het ochtendbericht.
+    if not rij or not rij.get("actief"):
+        try:
+            _meld_aan_beheer(
+                "Nieuwe installatie van de Shopify-app",
+                f"Winkel: {winkel}\nAdres: {webshop_url or '?'}\nLand: {gegevens.get('land') or '?'}\n"
+                f"Ontwikkelwinkel (test): {'ja' if gegevens.get('ontwikkelwinkel') else 'nee'}\n\n"
+                "Krillo mailt de winkelier zelf zodra zijn plek binnen is, en na een paar dagen "
+                "nog een keer als hij nog geen plan heeft.")
+        except Exception as e:
+            print(f"Melding nieuwe installatie mislukt: {e}")
+        # 14 oktober (strategie): een winkel uit een land dat de index nog niet
+        # meet, komt op de wachtlijst van dat land. Installaties per land
+        # bepalen welk land we als volgende openen; zodra het opengaat krijgt
+        # hij een bericht (wachtlijst.ronde).
+        try:
+            import markten
+            import wachtlijst
+            land = (gegevens.get("land") or "").upper()
+            if land and not markten.in_index(land) and so_mag_mailen(gegevens.get("email")):
+                wachtlijst.zet_op_lijst(gegevens.get("email"), webshop_url, land)
+        except Exception as e:
+            print(f"Wachtlijst bij installatie mislukt: {e}")
     db.bewaar_shopify_winkel(winkel, sleutel, rechten=uitkomst.get("rechten"),
                              webshop_url=webshop_url, email=gegevens.get("email"),
                              naam=gegevens.get("naam"),

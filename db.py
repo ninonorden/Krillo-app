@@ -362,6 +362,9 @@ def init_db():
                 # 28 september: wanneer wij de winkelier om een review vroegen
                 # (hoogstens een keer, na zijn eerste gelukte wijziging).
                 cur.execute("ALTER TABLE shopify_winkels ADD COLUMN IF NOT EXISTS review_gevraagd_op TIMESTAMPTZ;")
+                # 14 oktober: de twee opvolgmails na een installatie (shopifyopvolging.py).
+                import shopifyopvolging
+                shopifyopvolging.maak_kolommen(cur)
                 # Of deze winkel al eens een gratis proefperiode gehad heeft.
                 # Zonder dit kan iemand opzeggen en meteen opnieuw starten, en
                 # zo eindeloos zeven gratis dagen blijven krijgen.
@@ -7035,7 +7038,7 @@ def winkel_kort(webshop_url):
         conn.close()
 
 
-def voorbeeldwinkel():
+def voorbeeldwinkel(voorkeur_land="nl"):
     """Een winkel die zich leent voor het openbare voorbeelddashboard.
 
     Voorwaarden: hij staat in een gemeten categorie, hij is wel genoemd maar
@@ -7068,9 +7071,11 @@ def voorbeeldwinkel():
                       JOIN nieuwste n ON n.id = u.ronde
                  LEFT JOIN benadering b ON b.webshop_url = u.webshop_url
                      WHERE u.genoemd > 0 AND u.positie BETWEEN 2 AND 10
-                  ORDER BY (b.naam IS NULL), u.positie, u.webshop_url
+                  -- 14 oktober (stap 124): eerst een winkel uit het eigen land.
+                  ORDER BY (coalesce(n.land, lower(b.land), 'nl') <> %s), (b.naam IS NULL),
+                           u.positie, u.webshop_url
                      LIMIT 1
-                """)
+                """, ((voorkeur_land or "nl").lower(),))
                 rij = cur.fetchone()
                 return dict(rij) if rij else None
     except Exception as e:
