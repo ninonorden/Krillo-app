@@ -108,6 +108,7 @@
   <table>
     <tr>
       <th>#</th><th>{{ t.webshop }}</th>
+      {% if vorige_meting %}<th style="text-align:right" title="{{ 'Plekken gestegen of gedaald sinds de vorige meting' if taal == 'nl' else 'Places up or down since the last measurement' }}">{{ 'Vorige meting' if taal == 'nl' else 'Since last' }}</th>{% endif %}
       <th style="text-align:right">{{ t.genoemd }}</th>
       <th style="text-align:right">{{ t.aanbevolen }}</th>
     </tr>
@@ -126,11 +127,23 @@
         <a class="merk" href="/index/{{ land }}/{{ slug }}/{{ winkel_slug(r.webshop_url) }}" style="color:inherit;">{{ r.naam if (r.naam and not r.naam.startswith('http')) else kaal }}</a><br>
         <span class="adres">{{ r.webshop_url | replace('https://','') | replace('http://','') }}</span>
       </td>
-      <td class="getal">{{ r.genoemd }} / {{ telbaar }}</td>
+      {% if vorige_meting %}
+      {# 14 oktober: het verschil met de vorige meting, per rij. #}
+      {% set d = (r.vorige_positie - r.positie) if (r.vorige_positie and not r.nul) else none %}
+      <td class="getal delta">{% if r.nul %}&ndash;{% elif d is none %}<span class="nieuw">{{ 'nieuw' if taal == 'nl' else 'new' }}</span>{% elif d > 0 %}<span class="op">&#9650;{{ d }}</span>{% elif d < 0 %}<span class="af">&#9660;{{ -d }}</span>{% else %}={% endif %}</td>
+      {% endif %}
+      <td class="getal">{{ r.genoemd }} / {{ telbaar }}{% if mediaan is not none and r.genoemd > mediaan %}<span class="boven" title="{{ 'boven de mediaan' if taal == 'nl' else 'above the median' }}"> +{{ r.genoemd - mediaan }}</span>{% endif %}</td>
       <td class="getal {% if r.aanbevolen %}aanbevolen{% endif %}">{{ r.aanbevolen }}</td>
     </tr>
     {% endfor %}
   </table>
+  {% if mediaan is not none %}
+  {# 14 oktober (Reddit): de mediaan van de categorie, zodat elke rij iets heeft
+     om zich aan te meten. "+n" in de rij is hoeveel vragen boven die mediaan. #}
+  <p style="font-size:14px; margin-top:12px;"><strong>{% if taal == 'nl' %}Mediaan van deze categorie: genoemd bij {{ mediaan }} van {{ telbaar }} vragen{% else %}Category median: named in {{ mediaan }} of {{ telbaar }} questions{% endif %}</strong>
+    {% if taal == 'nl' %}(de middelste van alle {{ totaal }} gemeten winkels; +n is hoeveel vragen een winkel daarboven zit).{% else %}(the middle store of all {{ totaal }} stores we measured; +n is how many questions a store is above it).{% endif %}</p>
+  {% endif %}
+  <style>td.delta{font-size:13px; white-space:nowrap;} td.delta .op{color:#0B7C5E;} td.delta .af{color:#B4471A;} td.delta .nieuw{color:#6E7079; font-size:12px;} td .boven{color:#0B7C5E; font-size:12px;}</style>
   <p style="font-size:14px; margin-top:12px;">
     {{ t.genoemd_uitleg }}
     {% if niet_genoemd %} {% if taal == 'en' and niet_genoemd == 1 %}The other store was named in none of these questions.{% else %}{{ t.overige.replace('{n}', niet_genoemd | string) }}{% endif %}{% endif %}

@@ -8,6 +8,11 @@
 <title>Does ChatGPT recommend {{ naam }}? {{ categorie }}, {{ landnaam }} | Krillo Index</title>
 <meta name="description" content="{{ naam }}{% if rij.nul %} is not named by AI yet among {{ totaal }} stores{% else %} is number {{ rij.positie }} of {{ totaal }} stores{% endif %} for {{ categorie }} in {{ landnaam }} in the Krillo Index: named in {{ rij.genoemd }} of {{ telbaar }} buying questions to AI assistants{% if maand %} ({{ maand }}){% endif %}.">
 <link rel="canonical" href="{{ basis_url }}/index/{{ land }}/{{ slug }}/{{ winkel }}">
+{# 14 oktober (Search Console): een winkel die AI maar een keer noemde heeft
+   een dunne pagina. Die houden we voor de eigenaar, maar niet in Google, zodat
+   Google zijn tijd aan de sterke pagina's besteedt. "follow": de links naar de
+   categorie en de buren tellen wel. #}
+{% if dun %}<meta name="robots" content="noindex, follow">{% endif %}
 <link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
 {% include "_stijl.html" %}
 <script type="application/ld+json">
@@ -41,7 +46,7 @@
   <div class="cijfers">
     {% if rij.nul %}<div><div class="groot">&ndash;</div><div class="klein">not named by AI this month, of {{ totaal }} stores measured</div></div>
     {% else %}<div><div class="groot">#{{ rij.positie }}</div><div class="klein">of {{ totaal }} stores measured</div></div>{% endif %}
-    <div><div class="groot">{{ rij.genoemd }}/{{ telbaar }}</div><div class="klein">buying questions where AI names it</div></div>
+    <div><div class="groot">{{ rij.genoemd }}/{{ telbaar }}</div><div class="klein">buying questions where AI names it{% if mediaan is not none %}; the category median is {{ mediaan }}{% endif %}</div></div>
     <div><div class="groot">{{ rij.aanbevolen or 0 }}</div><div class="klein">questions where AI recommends it outright</div></div>
     {% if rij.vorige_positie %}<div><div class="groot">#{{ rij.vorige_positie }}</div><div class="klein">the month before</div></div>{% endif %}
   </div>
@@ -110,7 +115,7 @@
   <div class="cta">
     <h2>Is this your store?</h2>
     <p>See the buying questions where AI names someone else instead of you, and what to change. Free, no account.</p>
-    <a class="knop vol" href="/?winkel={{ rij.webshop_url | urlencode }}#scan">See the questions I lose</a>
+    <a class="knop vol" rel="nofollow" href="/?winkel={{ rij.webshop_url | urlencode }}#scan">See the questions I lose</a>
   </div>
   <p class="klein" style="margin-top:22px;">Is this your store and do you want it out of the index? Email
      <a href="mailto:hello@krilloai.com">hello@krilloai.com</a> and we remove it the same day.</p>

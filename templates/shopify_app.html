@@ -118,6 +118,50 @@
   details .inhoud{font-size:15px; color:var(--ink-soft); line-height:1.6; margin-top:10px;}
   .voet{font-family:var(--mono); font-size:11.5px; color:var(--ink-grijs); line-height:1.7; padding:40px 0 60px;}
   .voet a{color:var(--ink-grijs);}
+
+  /* VERSIE 10 (14 oktober 2026, na de goedkeuring door Shopify). Dezelfde look
+     als de site sinds 8 oktober: papierwit, Inter, zwarte knoppen, zachte
+     kaarten, en blauw ALLEEN voor wat over jou gaat (jouw plek, jouw rij).
+     Bewust als laag bovenop de oude regels en niet alles herschreven: de
+     knoppen en blokken hebben id's waar het script van de app op leunt, en die
+     blijven zo precies staan. */
+  :root{--k10-paper:#F7F7F5; --k10-line:#E7E7E4; --k10-blue:#1B3FE0; --k10-blue-bg:#EEF1FD;
+        --body:Inter, system-ui, sans-serif; --disp:'Inter Tight', Inter, sans-serif;}
+  body{background:var(--k10-paper); font-family:Inter, system-ui, sans-serif; color:#0A0A0B;}
+  h1, .appblok > h2, .sectiekop h2, .werkvlak .titel, .kaart-kop h2, .prijs .naam, .prijs .bedrag,
+  .slotvak .titel, .taak-titel, .zeskaart h3{font-family:'Inter Tight', Inter, sans-serif; font-weight:500; letter-spacing:-0.035em;}
+  .k10-pil{display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--k10-line);
+           border-radius:30px; padding:5px 12px 5px 6px; font-size:13px; color:#4A4A55; margin-bottom:18px;
+           box-shadow:0 1px 2px rgba(10,10,11,.04);}
+  .k10-pil span{font-family:var(--mono); font-size:10px; letter-spacing:.04em; text-transform:uppercase;
+                padding:3px 7px; border-radius:6px; background:var(--k10-blue-bg); color:var(--k10-blue);}
+  button, .heroknop{background:#0A0A0B; border-color:#0A0A0B; border-radius:10px; font-family:Inter, system-ui, sans-serif;
+                    font-weight:500; box-shadow:0 1px 0 rgba(255,255,255,.15) inset, 0 6px 16px -6px rgba(10,10,11,.5);}
+  button:hover:not(:disabled), .heroknop:hover{background:#26262B; border-color:#26262B;}
+  button.rustig, .heroknop.leeg, .kopieer{background:#fff; color:#0A0A0B; border:1px solid var(--k10-line); box-shadow:0 1px 2px rgba(10,10,11,.05);}
+  button.rustig:hover:not(:disabled), .heroknop.leeg:hover{background:#fff; border-color:#D4D4D0;}
+  .kaart, .prijs, details, .idx-kaart, .indexkaart, .werkvlak, .zeskaart{border:1px solid var(--k10-line); border-radius:18px; background:#fff;
+        box-shadow:0 1px 2px rgba(10,10,11,.04), 0 24px 48px -24px rgba(10,10,11,.18);}
+  #planfix{border:1.5px solid #0A0A0B;}
+  .jijrij{background:var(--k10-blue-bg);}
+  .jijlabel{background:var(--k10-blue);}
+  .slotlink, summary::before, .sectiekop .meer{color:var(--k10-blue);}
+  .slotvak{border-radius:0 0 18px 18px;}
+  .slotvak .heroknop{background:#fff; color:#0A0A0B; border-color:#fff;}
+  .slotvak .heroknop:hover{background:#EDEDEA; border-color:#EDEDEA;}
+  header.hero{background:transparent;}
+  .prijs li::before{color:#0B7C5E;}
+  .voorstel input{accent-color:#0A0A0B;}
+  .k10-stappen{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px;}
+  @media(max-width:900px){ .k10-stappen{grid-template-columns:1fr 1fr;} }
+  @media(max-width:560px){ .k10-stappen{grid-template-columns:1fr;} }
+  .k10-stap{background:#fff; border:1px solid var(--k10-line); border-radius:18px; padding:18px 18px 20px;
+            box-shadow:0 1px 2px rgba(10,10,11,.04);}
+  .k10-stap .nr{font-family:var(--mono); font-size:10px; letter-spacing:.04em; text-transform:uppercase;
+                display:inline-block; padding:3px 7px; border-radius:6px; background:#F2F2F0; color:#4A4A55;}
+  .k10-stap h3{font-family:'Inter Tight', Inter, sans-serif; font-weight:500; font-size:17px; margin:14px 0 6px; letter-spacing:-0.02em;}
+  .k10-stap p{font-size:13.5px; color:#4A4A55; line-height:1.55;}
+  .k10-stap .wie{border-top:1px solid #F0F0EE; margin-top:14px; padding-top:12px; font-size:12px; color:#6E7079;}
 </style>
 </head>
 <body>
@@ -128,8 +172,16 @@
 <header class="hero">
   <div class="wrap hero-grid">
     <div>
+      <div class="k10-pil"><span>For online stores</span>Live in the Netherlands and Belgium, more countries soon</div>
       <div class="eyebrow">Krillo index &middot; {{ winkelnaam | replace('https://','') | replace('www.','') }}</div>
-      {% if beeld %}
+      {# 14 oktober: nul keer genoemd is geen plek (8 oktober, "hoe kan een
+         testwinkel op 35 staan?"). Dan zeggen we dat eerlijk. #}
+      {% if beeld and beeld.nul %}
+      <h1>Not named yet in <em>{{ categorienaam }}</em>.</h1>
+      <p class="hero-sub">When shoppers in {{ landnaam }} ask ChatGPT and Gemini where to buy, AI
+        named {{ beeld.genoemde_winkels }} stores in your category and not yours, in
+        {{ beeld.telbaar }} buying questions. Below: who it named instead, and what to fix first.</p>
+      {% elif beeld %}
       <h1><em>#{{ beeld.positie }}</em> of {{ beeld.van }} in {{ categorienaam }}.</h1>
       <p class="hero-sub">That is your place when shoppers in {{ landnaam }} ask ChatGPT and Gemini
         where to buy. AI named you in {{ beeld.genoemd }} of {{ beeld.telbaar }} buying questions
@@ -156,7 +208,7 @@
     {% if k %}
     <div class="indexkaart">
       <div class="kop">{% if beeld %}YOUR STORE TODAY{% else %}EXAMPLE &middot; {{ voorbeeld.winkelnaam | upper }}{% endif %}</div>
-      <div class="rij"><span class="naam">Position</span><span class="getal">#{{ k.positie }}<small style="font-size:14px; color:var(--ink-grijs); font-weight:500;"> / {{ k.van }}</small></span></div>
+      <div class="rij"><span class="naam">Position</span><span class="getal">{% if k.nul %}<span style="font-size:15px; font-weight:500;">Not named yet</span>{% else %}#{{ k.positie }}<small style="font-size:14px; color:var(--ink-grijs); font-weight:500;"> / {{ k.van }}</small>{% endif %}</span></div>
       <div class="rij"><span class="naam">Named by AI</span><span class="getal">{{ k.genoemd }}<small style="font-size:14px; color:var(--ink-grijs); font-weight:500;"> / {{ k.telbaar }}</small></span></div>
       <div class="rij"><span class="naam">Really recommended</span><span class="getal">{{ k.aanbevolen }}</span></div>
       <div class="rij"><span class="naam">Since last month</span><span class="getal">{% if k.verschil %}{{ '+' if k.verschil > 0 else '' }}{{ k.verschil }}{% else %}<span style="font-size:15px; font-weight:500;">first measurement</span>{% endif %}</span></div>
@@ -194,7 +246,7 @@
         <span class="w">{{ r.naam if (r.naam and not r.naam.startswith('http')) else (r.webshop_url | replace('https://','') | replace('www.','')) }}</span>
         <span class="g">{{ r.genoemd }} / {{ b.telbaar }}</span><span class="a">{{ r.aanbevolen if r.aanbevolen is not none else '' }}</span></div>
       {% endfor %}
-      <div class="idx-rij jijrij"><span class="p">{{ b.positie }}</span>
+      <div class="idx-rij jijrij"><span class="p">{{ '–' if b.nul else b.positie }}</span>
         <span class="w">{{ naam }}{% if eigen %} <span class="jijlabel">YOU</span>{% endif %}</span>
         <span class="g">{{ b.genoemd }} / {{ b.telbaar }}</span><span class="a">{{ b.aanbevolen }}</span></div>
       <div class="idx-voet"><span>Named means you were in the answer. Recommended means the assistant advised you.</span>
@@ -248,7 +300,7 @@
   {% endif %}
 
   <div class="appblok" id="werk">
-    <h2>Everyone else reports. We fix.</h2>
+    <h2>Watch tells you what to change. Fix changes it for you.</h2>
     <p class="onder">We write the missing text and put it in your store. You see every change first.</p>
     <div class="werkvlak">
       <div class="kopregel">
@@ -298,17 +350,22 @@
 
   <div class="appblok">
   <h2>How it works</h2>
-  <p class="onder">Three steps. The measuring is ours; you decide what goes live.</p>
-  <div class="zes">
-    <div class="zeskaart"><div class="nr">01</div><h3>We measure your category</h3><p>Every month we put thirty buying questions to ChatGPT and Gemini, the way a
-          shopper in your category would type them, for every store in that category at once.</p></div>
-    <div class="zeskaart"><div class="nr">02</div><h3>You see your rank</h3><p>Your place in the public ranking, which questions you miss, and which stores
-          AI named instead of you. With the real answer behind every number.</p></div>
-    <div class="zeskaart donker"><div class="nr">03</div><h3>We fix what holds you back</h3><p>We write the missing text and put it in your store, after you see it. The
-          first {{ gratis_totaal }} changes are free; with Fix we keep doing it, and pick
-          up new products every week.</p></div>
-  </div>
-  </div>
+  <p class="onder">Four steps. The measuring is ours; you decide what goes live.</p>
+  {# 14 oktober: dezelfde vier stappen als de site (Detect, Understand, Fix,
+     Measure). Daarvoor drie, met andere woorden dan de site. #}
+  <div class="k10-stappen">
+    <div class="k10-stap"><span class="nr">01 &middot; Detect</span><h3>We ask AI like a shopper</h3>
+      <p>Thirty buying questions in your category, put to ChatGPT and Gemini for every store in it at once.</p>
+      <div class="wie">Every month</div></div>
+    <div class="k10-stap"><span class="nr">02 &middot; Understand</span><h3>You see why you lose</h3>
+      <p>Which questions you miss, which store AI named instead, and the real answer behind every number.</p>
+      <div class="wie">Watch and Fix</div></div>
+    <div class="k10-stap"><span class="nr">03 &middot; Fix</span><h3>We write the missing text</h3>
+      <p>And put it in your store after you see it. The first {{ gratis_totaal }} changes are free.</p>
+      <div class="wie">Fix, or copy it yourself with Watch</div></div>
+    <div class="k10-stap"><span class="nr">04 &middot; Measure</span><h3>We check it worked</h3>
+      <p>The next measurement shows whether AI picked it up. Every change can be undone.</p>
+      <div class="wie">Watch and Fix</div></div>
   </div>
   </div>
 
@@ -497,7 +554,7 @@ and you can switch it off.
           <div class="inhoud">We place a new store in its category overnight and work out its
           rank from the answers of the last measurement of that category. So you usually see it
           the day after installing. If we have not measured your category yet, it waits until
-          it is its turn; that can take a few days.</div>
+          it is its turn, and we email you when your rank is in.</div>
   </details>
 
   <details>

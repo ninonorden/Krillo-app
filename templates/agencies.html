@@ -158,7 +158,7 @@
           var b = u.beste;
           if(!b){
             return '<tr><td><strong>' + tekst(u.winkel) + '</strong></td><td colspan="2">Not in the index yet. '
-                 + '<a href="/?winkel=' + encodeURIComponent(u.winkel) + '#scan">Run the free check</a></td></tr>';
+                 + '<a rel="nofollow" href="/?winkel=' + encodeURIComponent(u.winkel) + '#scan">Run the free check</a></td></tr>';
           }
           var plek = b.genoemd > 0
             ? '<span class="groen">#' + tekst(b.positie) + '</span> of ' + tekst(b.van)

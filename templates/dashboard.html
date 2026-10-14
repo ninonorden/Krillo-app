@@ -411,7 +411,7 @@
           <button type="button" class="kpi d8-tegel" data-maat="zicht"{% if not reeksen %} disabled{% endif %}>
             <span class="label">{{ 'Zichtbaarheid' if nl else 'Visibility' }}</span>
             <span class="rij"><span class="groot">{{ zicht }}%</span></span>
-            <span class="onder">{{ ('genoemd bij ' ~ beeld.genoemd ~ ' van ' ~ beeld.telbaar ~ ' vragen') if nl else ('named in ' ~ beeld.genoemd ~ ' of ' ~ beeld.telbaar ~ ' questions') }}</span>
+            <span class="onder">{{ ('genoemd bij ' ~ beeld.genoemd ~ ' van ' ~ beeld.telbaar ~ ' vragen') if nl else ('named in ' ~ beeld.genoemd ~ ' of ' ~ beeld.telbaar ~ ' questions') }}{% if beeld.mediaan is not none %} &middot; {{ ('mediaan ' if nl else 'median ') ~ beeld.mediaan }}{% endif %}</span>
             {% if vonkjes and vonkjes.zicht %}<svg class="d8-vonk" viewBox="0 0 200 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ vonkjes.zicht }}"/></svg>{% endif %}
           </button>
           <button type="button" class="kpi d8-tegel" data-maat="aanbevolen"{% if not reeksen %} disabled{% endif %}>
