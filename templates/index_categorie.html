@@ -162,6 +162,36 @@
   <p style="font-size:14px; margin-top:6px; opacity:0.75;">
     {{ t.index_dekking.replace('{n}', totaal | string) }}
   </p>
+  {# Stap 137 (14 oktober): deze ranglijst als rapport per mail. Wie het aanvraagt
+     is een warme lead (winkelier, bureau, journalist). Zie categorierapport.py. #}
+  <div style="background:#fff; border:1px solid #E7E7E4; border-radius:18px; padding:22px 24px; margin-top:26px;">
+    <div style="font-weight:600; font-size:17px;">Get this ranking as a report</div>
+    <p style="font-size:14px; margin:4px 0 12px;">The top 10, real questions with who AI named, the sites AI cites and how it describes #1. Free, by email.</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <input id="rapEmail" type="email" placeholder="you@yourstore.com" autocomplete="email"
+             style="flex:1; min-width:200px; height:46px; border:1px solid #E7E7E4; border-radius:10px; padding:0 12px;">
+      <button id="rapKnop" type="button" class="knop vol" style="height:46px;">Send me the report</button>
+    </div>
+    <label style="display:flex; gap:8px; align-items:center; font-size:13px; margin-top:10px;">
+      <input id="rapMaand" type="checkbox"> Also send me the new ranking every month (one email, stop any time)</label>
+    <p id="rapUit" style="margin:8px 0 0; font-size:14px;"></p>
+    <script>
+      (function(){
+        var k = document.getElementById('rapKnop'), uit = document.getElementById('rapUit');
+        k.addEventListener('click', function(){
+          var email = document.getElementById('rapEmail').value.trim();
+          if(!email){ uit.textContent = 'Enter your email address.'; return; }
+          k.disabled = true;
+          fetch('/api/rapport', {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({email: email, land: {{ land | tojson }}, slug: {{ slug | tojson }},
+                                  maandelijks: document.getElementById('rapMaand').checked})})
+            .then(function(r){ return r.json(); })
+            .then(function(d){ uit.textContent = d.ok ? 'Sent. Check your inbox.' : (d.fout || 'Something went wrong.'); if(!d.ok) k.disabled = false; })
+            .catch(function(){ uit.textContent = 'Something went wrong. Try again.'; k.disabled = false; });
+        });
+      })();
+    </script>
+  </div>
   {% if kaart %}
   {# Stap 187 (30 september): genoemd is niet hetzelfde als aangeraden. #}
   <h2 style="margin-top:44px;">Named is not recommended</h2>
