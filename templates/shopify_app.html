@@ -323,6 +323,12 @@
      volledige dashboard. Zonder plan: hoe je straks ziet of het werkt, zonder
      iets te beloven. #}
   {% if beeld %}
+  {% if review_url %}
+  <section class="vlak" id="review" style="text-align:center;">
+    <p style="margin:0 0 12px;"><strong>Was this useful?</strong> A short review in the Shopify App Store helps other store owners find Krillo. It takes a minute.</p>
+    <a class="heroknop" href="{{ review_url }}" target="_blank" rel="noopener">Write a review</a>
+  </section>
+  {% endif %}
   <section class="vlak" id="voortgang">
     <div class="sectiekop"><div>
       <h2>Is it working?</h2>

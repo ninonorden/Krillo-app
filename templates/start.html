@@ -119,6 +119,16 @@
   <section class="stap aan" data-stap="account">
     <h1>Create your Krillo account</h1>
     <p class="onder">See where AI places your store, in about two minutes.</p>
+    {# 15 oktober: een Shopify-winkel krijgt eerst de kortste weg: de App Store.
+       Geen account, geen betaalgegevens hier, de eerste wijzigingen gratis. #}
+    {% if via_shopify %}
+    <div class="kaart" style="margin-bottom:14px; border-color:#0A0A0B;">
+      <h3 style="margin:0 0 6px; font-size:16px;">Your store runs on Shopify</h3>
+      <p class="klein" style="margin:0 0 14px;">Install Krillo from the Shopify App Store instead. Two clicks, no account and no card here, the first changes are free, and any plan is billed on your Shopify invoice.</p>
+      <a class="knop vol" href="{{ via_shopify }}" style="width:100%;">Install on Shopify</a>
+      <div class="klein" style="text-align:center; margin:12px 0 0;">or create a Krillo account below</div>
+    </div>
+    {% endif %}
     <div class="kaart">
       {# Stap 353: aanmelden met Google of Microsoft (alleen als de sleutels in Render staan). #}
       {% for a in aanbieders %}<a class="knop vol wit" style="margin-bottom:10px;" href="/auth/{{ a }}?na=start&amp;plan={{ plan }}"><img src="/static/logos/{{ a }}.svg" alt="" width="18" height="18">Continue with {{ 'Google' if a == 'google' else 'Microsoft' }}</a>{% endfor %}
