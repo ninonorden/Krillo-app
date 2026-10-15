@@ -162,6 +162,24 @@ def dode_categorieen(gemeten=None):
                   if slug not in gemeten and categorieen.OUDER.get(slug) not in gemeten)
 
 
+# Stap 299 (15 oktober): bovencategorieen opschonen. Nino vroeg waarom er 52
+# categorieen gemeten worden en niet 49. Brede categorieen (zoals "kleding" of
+# "wonen-interieur") met minstens 10 eigen winkels krijgen ook een eigen meting,
+# omdat winkels daar ooit zijn neergezet en de check "klopt" zei (zelfde
+# familie). Nu komt elke winkel in een bovencategorie, die voor deze regel
+# gecheckt is, een keer opnieuw langs; noemt het model een deelcategorie MET
+# ranglijst, dan verhuist hij daarheen. Zo worden de smalle ranglijsten
+# scherper en valt een brede vanzelf onder de 10 (een meting minder per maand).
+# Een deelcategorie zonder ranglijst: dan blijft hij staan, anders verliest hij
+# zijn plek en zijn post.
+OPSCHOON_SINDS = "2026-10-15 10:00:00+00"
+
+
+def bovencategorieen():
+    import categorieen
+    return sorted({ouder for _, _, ouder in categorieen.CATEGORIEEN if ouder})
+
+
 def kandidaten(hoeveel):
     """Eerst wie op het punt staat post te krijgen, daarna wie in een ranglijst staat."""
     import categorieen
@@ -180,6 +198,7 @@ def kandidaten(hoeveel):
                        AND (b.categorie_gecheckt_op IS NULL
                             OR (b.categorie_klopt IS NULL
                                 AND b.categorie_gecheckt_op < now() - interval '{OPNIEUW_NA_DAGEN} days')
+                            OR (b.categorie = ANY(%s) AND b.categorie_gecheckt_op < %s::timestamptz)
                             OR ((b.categorie = ANY(%s) OR NOT (b.categorie = ANY(%s)))
                                 AND b.email IS NOT NULL AND b.email <> '' AND b.gemaild_op IS NULL
                                 AND b.categorie_gecheckt_op < now() - interval '{DOOD_OPNIEUW_NA_DAGEN} days'))
@@ -188,7 +207,7 @@ def kandidaten(hoeveel):
                             AND b.stand IN ('adres', 'meten', 'gemeten'))
                            OR EXISTS (SELECT 1 FROM categorie_uitkomsten u WHERE u.webshop_url = b.webshop_url))
                   ORDER BY (b.email IS NOT NULL AND b.gemaild_op IS NULL) DESC, b.toegevoegd_op
-                     LIMIT %s""", (dood, geldig, int(hoeveel)))
+                     LIMIT %s""", (bovencategorieen(), OPSCHOON_SINDS, dood, geldig, int(hoeveel)))
                 return [{"webshop_url": r[0], "categorie": r[1]} for r in cur.fetchall()]
     except Exception as e:
         print(f"Categoriecheck, kandidaten mislukt: {e}")
@@ -256,8 +275,11 @@ def ronde(hoeveel=None, ophalen=None, vraag_model=None):
             # binnen de familie, zie DOOD_OPNIEUW_NA_DAGEN hierboven.
             import categorieen as _c
             vast_in_dood = (w["categorie"] in dood or w["categorie"] not in _c.GELDIG) and nieuw not in dood
+            # Stap 299: uit een bovencategorie naar een deelcategorie met ranglijst.
+            uit_ouder = (w["categorie"] in _c.OUDER.values() and _c.OUDER.get(nieuw) == w["categorie"]
+                         and nieuw not in dood)
             if soort == "winkel" and nieuw and nieuw != w["categorie"] and (
-                    vast_in_dood or (nieuw not in _familie(w["categorie"])
+                    vast_in_dood or uit_ouder or (nieuw not in _familie(w["categorie"])
                                      and w["categorie"] not in _familie(nieuw))):
                 _leg_vast(w["webshop_url"], True, categorie=nieuw)
                 verslag["verplaatst"].append(f"{w['webshop_url']}: {w['categorie']} -> {nieuw}")

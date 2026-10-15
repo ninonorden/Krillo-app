@@ -86,6 +86,16 @@ GISTEREN = [
      "SELECT count(*) FROM plekmeldingen WHERE bevestigd_op > now() - interval '24 hours'"),
     ("Nieuwe echte klanten",
      "SELECT count(*) FROM klanten WHERE NOT is_test AND aangemaakt_op > now() - interval '24 hours'"),
+    # Stap 371 (15 oktober): de App Store stijgt op installaties en reviews.
+    # Per week, want per dag zijn het er (nog) te weinig om iets te zien.
+    ("Shopify-app geinstalleerd (7 dagen)",
+     "SELECT count(*) FROM shopify_winkels WHERE geinstalleerd_op > now() - interval '7 days'"),
+    ("Shopify-app verwijderd (7 dagen)",
+     "SELECT count(*) FROM shopify_winkels WHERE verwijderd_op > now() - interval '7 days'"),
+    ("Shopify-app nu actief, totaal",
+     "SELECT count(*) FROM shopify_winkels WHERE actief"),
+    ("Om een review gevraagd (7 dagen, na een gelukte wijziging)",
+     "SELECT count(*) FROM shopify_winkels WHERE review_gevraagd_op > now() - interval '7 days'"),
 ]
 
 
@@ -330,6 +340,27 @@ def voorraadregel(klaar, doel=None, delen=None):
             "Claude lost dit op; geef het door als het morgen niet beter is")
 
 
+MAILALARM_DEEL = 0.5     # minder dan de helft van het doel verstuurd
+MAILALARM_MIN_KLAAR = 20 # en er stonden genoeg winkels klaar om dat te halen
+
+
+def mailalarm(klaar, verstuurd=None, doel=None):
+    """Een regel als er winkels klaar stonden maar de post achterbleef, anders None.
+    Staat er te weinig klaar, dan is het de voorraadregel en niet dit alarm."""
+    import benadering
+    if klaar is None or klaar < MAILALARM_MIN_KLAAR:
+        return None
+    if doel is None:
+        doel = (benadering.instellingen() or {}).get("per_dag") or 0
+    if verstuurd is None:
+        verstuurd = _tel("SELECT count(*) FROM benadering WHERE gemaild_op > now() - interval '24 hours'")
+    if not doel or verstuurd is None or verstuurd >= doel * MAILALARM_DEEL:
+        return None
+    return (f"De koude mail blijft achter: {verstuurd} verstuurd in 24 uur, doel {doel}, terwijl er {klaar} "
+            "winkels klaar staan. Kijk op /admin/benadering bij de reden van de laatste rondes en stuur een "
+            "screenshot naar Claude")
+
+
 def verzamel(basis_url):
     gisteren = [(wat, _tel(sql)) for wat, sql in GISTEREN]
     # Hoe de post landt (stap 117): zelfde telling als de automatische rem.
@@ -347,6 +378,9 @@ def verzamel(basis_url):
         k, o = nachtagenten.kosten_week()
         gisteren.append(("AI-kosten laatste 7 dagen (euro)", f"{k:.2f}"))
         gisteren.append(("Opbrengst per maand van betalende klanten (euro)", f"{o:.2f}"))
+        # Stap 143 (15 oktober): per kanaal (kanalen.py).
+        import kanalen
+        gisteren.append(("Per kanaal (betalende klanten, omzet, AI-kosten)", kanalen.ochtendregel()))
     except Exception:
         pass
     # 14 oktober (stap 137): rapporten aangevraagd op de ranglijsten.
@@ -375,6 +409,14 @@ def verzamel(basis_url):
                              ", ".join(f"{naam} {n}" for naam, n in t["per_stap"]) + f", betaald {t['betaald']}"))
     except Exception as e:
         print(f"Ochtendbericht: telling /start mislukt: {e}")
+    # 15 oktober: waarom mensen op /start niet verder gingen (de vier knoppen).
+    try:
+        import aanmelden
+        w = aanmelden.waarom_telling(7)
+        if w:
+            gisteren.append(("Waarom niet nu, op /start (7 dagen)", ", ".join(f"{naam} {n}" for naam, n in w)))
+    except Exception as e:
+        print(f"Ochtendbericht, waarom mislukt: {e}")
     gisteren.append(("Waarvan aan Shopify-winkels (7 dagen)",
                      _tel("SELECT count(*) FROM benadering WHERE gemaild_op > now() - interval '7 days' "
                           "AND mail_platform = 'shopify'")))
@@ -432,6 +474,27 @@ def verzamel(basis_url):
             doen.insert(0, (regel, f"{basis_url}/admin/benadering"))
     except Exception as e:
         print(f"Ochtendbericht, voorraadmeter mislukt: {e}")
+    # 15 oktober (taak van Claude): het mailalarm. Op 15 oktober stonden er 31
+    # winkels klaar en ging er 1 mail uit, en dat zag je pas toen Nino ernaar
+    # keek. Staan er genoeg klaar en ging er minder dan de helft van het doel
+    # uit, dan staat dat bovenaan.
+    try:
+        regel = mailalarm(klaar_voor_post)
+        if regel:
+            doen.insert(0, (regel, f"{basis_url}/admin/benadering"))
+    except Exception as e:
+        print(f"Ochtendbericht, mailalarm mislukt: {e}")
+    # Stap 365 deel 2 (15 oktober): een land met genoeg vraag. Openen kost
+    # meetgeld (elke categorie een meting), dus Nino beslist; het bericht aan
+    # de wachtlijst gaat daarna vanzelf (wachtlijst.ronde).
+    try:
+        import wachtlijst
+        for land, n in wachtlijst.klaar_om_te_openen():
+            doen.append((f"{n} winkels wachten op {land.upper()} (grens {wachtlijst.OPEN_GRENS}). Wil je dit land "
+                         f"openen? Zeg het tegen Claude: dan zetten we {land} bij INDEX_LANDEN in Render en "
+                         "krijgt iedereen op de lijst vanzelf bericht", f"{basis_url}/admin/wachtlijst"))
+    except Exception as e:
+        print(f"Ochtendbericht, wachtlijst mislukt: {e}")
     # 15 oktober: de verkeersagent, wat elke bron deze week opleverde.
     try:
         import verkeersagent
@@ -447,6 +510,16 @@ def verzamel(basis_url):
             doen.append((seoagent.ochtendregel(), f"{basis_url}/admin/bezoek"))
     except Exception as e:
         print(f"Ochtendbericht, SEO-agent mislukt: {e}")
+    # Stap 144 (15 oktober): de foutregels uit Render (renderlogs.py).
+    try:
+        import renderlogs
+        regel, voor_claude = renderlogs.ochtendregel()
+        if voor_claude:
+            doen.insert(0, (regel + ": " + voor_claude, "https://dashboard.render.com"))
+        elif not renderlogs.aan():
+            doen.append((regel, "https://dashboard.render.com/u/settings#api-keys"))
+    except Exception as e:
+        print(f"Ochtendbericht, Render-logboeken mislukt: {e}")
     try:
         regel = herstartregel()
         if regel:

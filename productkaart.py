@@ -143,6 +143,28 @@ def genoemd_in(producten, antwoord):
     return uit
 
 
+MAX_ZIN = 240
+
+
+def zinnen_met(namen, antwoord, maximaal=2):
+    """Stap 337: de letterlijke zinnen uit het antwoord waarin een van deze
+    winkels staat, ingekort tot MAX_ZIN tekens. Geen samenvatting en geen
+    gok: wat er staat, staat er."""
+    if not antwoord or not namen:
+        return []
+    uit = []
+    for zin in re.split(r"(?<=[.!?\n])\s+", antwoord):
+        kaal = re.sub(r"[*_#`>]+", "", zin).strip(" -\t")
+        if len(kaal) < 15:
+            continue
+        laag = kaal.lower()
+        if any(n and n.lower() in laag for n in namen):
+            uit.append(kaal if len(kaal) <= MAX_ZIN else kaal[:MAX_ZIN - 1].rstrip() + "…")
+        if len(uit) >= maximaal:
+            break
+    return uit
+
+
 def kaart(webshop_url):
     """Voor het dashboard: de laatste snelmeting, per product bij welke vragen.
 
@@ -150,7 +172,7 @@ def kaart(webshop_url):
      "niet": [{"naam", "url"}] (hoogstens 8), "producten": n}"""
     import snelmeting
     snelmeting.maak_tabel()
-    rijen = _sql("""SELECT vraag, assistent, producten FROM snelmetingen
+    rijen = _sql("""SELECT vraag, assistent, producten, in_plaats FROM snelmetingen
                      WHERE webshop_url = %s
                        AND ronde_op = (SELECT max(ronde_op) FROM snelmetingen WHERE webshop_url = %s)""",
                  (webshop_url, webshop_url), alles=True) or []
@@ -170,5 +192,16 @@ def kaart(webshop_url):
     genoemd = [{"naam": n, "url": url_van.get(n), "keer": k} for n, k in
                sorted(per.items(), key=lambda x: -len(x[1]))]
     niet = [p for p in lijst if p["naam"] not in per][:8]
+    # Stap 337: wat AI in jouw plaats noemde, letterlijk, per verloren vraag.
+    in_plaats = []
+    for r in rijen:
+        zinnen = r.get("in_plaats") or []
+        if isinstance(zinnen, str):
+            try:
+                zinnen = json.loads(zinnen)
+            except ValueError:
+                zinnen = []
+        if zinnen:
+            in_plaats.append({"vraag": r["vraag"], "assistent": r["assistent"], "zinnen": zinnen})
     return {"gemeten": True, "vragen": len({r["vraag"] for r in rijen}), "genoemd": genoemd, "niet": niet,
-            "producten": len(lijst)}
+            "producten": len(lijst), "in_plaats": in_plaats[:6]}

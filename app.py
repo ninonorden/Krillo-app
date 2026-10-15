@@ -3623,7 +3623,8 @@ def _rang_voor_gratis_check(webshop_url):
                         # de vijf winkels die AI het vaakst noemt, met hun telling.
                         if len(voor_rijen) < 5:
                             voor_rijen.append({"naam": naam, "positie": r.get("positie"),
-                                               "genoemd": r.get("genoemd") or 0})
+                                               "genoemd": r.get("genoemd") or 0,
+                                               "url": r.get("webshop_url")})
                 except Exception as e:
                     print(f"Namen voor de gratis check mislukt: {e}")
                 # De koopvragen die de winkel verliest, met wie AI in zijn plaats
@@ -9057,6 +9058,8 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             try:
                 import paginacheck
                 gegevens["paginacheck"] = paginacheck.laatste(webshop_url)
+                # Stap 331: alle productpagina's, een portie per week.
+                gegevens["productscore"] = paginacheck.productscore(webshop_url)
             except Exception as e:
                 print(f"Paginacheck voor het dashboard mislukt: {e}")
             # 15 oktober (voorstel 3): werkte de nieuwe titel of tekst? (tekstproef.py)
@@ -9207,6 +9210,13 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 time.sleep(0.4)
             if not gegevens["ranglijst"]:
                 print(f"Ranglijst voor het dashboard LEEG voor {webshop_url} ({beeld['categorie']})")
+            # Stap 197: de concurrenten die hij bij de start koos te volgen.
+            try:
+                import aanmelden
+                gegevens["gevolgd"] = aanmelden.gevolgd(webshop_url) if klant_token and not proef else []
+            except Exception as e:
+                gegevens["gevolgd"] = []
+                print(f"Gevolgde concurrenten mislukt: {e}")
             # 1 oktober (stap 179 en 187 op het dashboard): de kaart met de klant
             # erin gemarkeerd, en wat AI letterlijk over hem zegt. In de voorproef
             # (na de koude mail) ook: dat is juist wat hem overhaalt.
@@ -10873,6 +10883,31 @@ def uitkomst(token):
     )
 
 
+@app.route("/uitkomst/<token>/report.pdf")
+def uitkomst_rapport_pdf(token):
+    """Stap 227: het rapport als PDF voor wie de koude mail kreeg.
+
+    Dezelfde PDF als klanten krijgen, maar met hoogstens twee verloren vragen:
+    genoeg om te laten zien wat er mis is, de rest (en alle oplossingen) is het
+    betaalde deel. Schrijft niets weg: een GET-link wordt soms vooraf geopend
+    door een virusscanner of mailprogramma (test_geenschrijfbijladen)."""
+    webshop_url = db.winkel_bij_benchmark_token(token)
+    if not webshop_url:
+        return redirect("/index")
+    try:
+        beeld = klantbeeld.bouw(webshop_url, max_vragen=5)
+    except Exception as e:
+        print(f"Voorproef-PDF mislukt voor {webshop_url}: {e}")
+        beeld = None
+    if not beeld:
+        return redirect(f"/uitkomst/{token}")
+    beeld = dict(beeld, gemiste_vragen=(beeld.get("gemiste_vragen") or [])[:UITKOMST_PDF_VRAGEN])
+    return _rapport_pdf_antwoord(webshop_url, beeld)
+
+
+UITKOMST_PDF_VRAGEN = 2
+
+
 @app.route("/uitkomst/<token>/<pad>")
 def uitkomst_pagina(token, pad):
     """De andere pagina's van de voorproef (ranking, questions, fixes, plan)."""
@@ -10975,6 +11010,38 @@ def _stuur_start_herinneringen():
     if verstuurd:
         print(f"Herinneringen /start verstuurd: {verstuurd}")
     return verstuurd
+
+
+@app.route("/api/start/waarom", methods=["POST"])
+def start_waarom():
+    """15 oktober: wat houdt je tegen? Een klik op /start. Alleen vaste redenen,
+    geen vrije tekst. Het antwoord geeft meteen iets nuttigs terug."""
+    import aanmelden
+    d = request.get_json(silent=True) or {}
+    reden = d.get("reden") or ""
+    token = d.get("token") or ""
+    if not aanmelden.noteer_waarom(reden, stap=d.get("stap"), token=token if aanmelden.lees(token) else None):
+        return jsonify({"error": "Unknown choice."}), 400
+    winkel = scan_engine.normalize_url(d.get("winkel") or "") if d.get("winkel") else ""
+    shopify = bool(winkel) and _shopify_route(winkel)
+    # Per reden een eerlijk antwoord en een volgende stap die niets kost.
+    if reden == "prijs":
+        tekst = ("Fair. Your free result stays online, and the free tools keep working. "
+                 + ("On Shopify, the Krillo app makes your first changes for free." if shopify else
+                    "You can fix the first things yourself with the free guide."))
+        link, label = ("/start/shopify", "See the free Shopify app") if shopify else \
+                      ("/guides/shopify-store-in-chatgpt", "Read the free guide")
+    elif reden == "twijfel":
+        tekst = ("Good question to ask. We count how often ChatGPT and Gemini name stores in your category, "
+                 "every month. See who they name now and decide for yourself.")
+        link, label = "/guides/how-chatgpt-picks-stores", "How ChatGPT picks stores"
+    elif reden == "bewijs":
+        tekst = ("Look at the public rankings first. They show who AI names per category, and they move every month.")
+        link, label = "/index", "See the rankings"
+    else:
+        tekst = "No problem. Your free result stays at the link in your mail."
+        link, label = "/index", "Browse the rankings"
+    return jsonify({"ok": True, "tekst": tekst, "link": link, "label": label})
 
 
 @app.route("/api/start/bureau", methods=["POST"])
@@ -11108,9 +11175,25 @@ def start_doelen():
         if r:
             rang = {k: r.get(k) for k in ("positie", "van", "categorie", "land", "genoemd", "telbaar", "nul", "aantal_verloren")}
             rang["voor"] = [w.get("naam") for w in (r.get("voor_rijen") or [])][:3]
+            # Stap 197: de winkels boven hem, om in een klik te volgen.
+            rang["volgen"] = [{"naam": w.get("naam"), "url": w.get("url")}
+                              for w in (r.get("voor_rijen") or []) if w.get("url")][:aanmelden.MAX_VOLGEN]
     except Exception as e:
         print(f"Voorproef voor /start mislukt: {e}")
     return jsonify({"ok": True, "rang": rang, "doelen": doelen})
+
+
+@app.route("/api/start/concurrenten", methods=["POST"])
+def start_concurrenten():
+    """Stap 197: de concurrenten die hij wil volgen (voorgesteld, aangevinkt)."""
+    import aanmelden
+    d = request.get_json(silent=True) or {}
+    token = d.get("token") or ""
+    if not aanmelden.lees(token):
+        return jsonify({"error": "Your session expired. Start again, it takes a minute."}), 404
+    lijst = [scan_engine.normalize_url(str(u)) for u in (d.get("concurrenten") or []) if u][:aanmelden.MAX_VOLGEN]
+    aanmelden.zet(token, concurrenten=[u for u in lijst if u])
+    return jsonify({"ok": True})
 
 
 @app.route("/api/start/plan", methods=["POST"])

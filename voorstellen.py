@@ -164,6 +164,64 @@ def sleutel_van(tekst):
     return "t:" + hashlib.sha1(kaal.encode("utf-8")).hexdigest()[:16]
 
 
+# 15 oktober: de tien goedgekeurde voorstellen van die dag bevatten er een die
+# al bestond (producten in AI = de productkaart) en twee die al op de roadmap
+# stonden. Nino keurde ze goed zonder dat te zien. Daarom vergelijkt een nieuw
+# bouwvoorstel nu eerst zijn woorden met wat al gebouwd is, wat al op de
+# roadmap staat en eerdere bouwvoorstellen. Lijkt het er sterk op, dan komt het
+# niet in de lijst. Woorden tellen, geen AI: gratis en voorspelbaar.
+BESTAANDE_FUNCTIES = [
+    "productkaart welke producten AI noemt per vraag",
+    "schema JSON-LD via Shopify thema-uitbreiding app embed FAQ Organization",
+    "robots.txt fix kant-en-klare regels AI crawlers toelaten",
+    "llms.txt bijhouden Shopify WordPress",
+    "voor en na per tekstwijziging titel producttekst meting",
+    "wit-label rapport PDF eigen logo bureau export CSV",
+    "Slack melding verandering plek",
+    "contentplan drie stukken uit de meting",
+    "koopklaar orienterend intentie vragen",
+    "weekmail snelmeting vijf vragen",
+    "Krillo pixel AI bezoek orders omzet per bron",
+    "concurrent alarm concurrenten in beweging",
+    "badge embed plek in de index op de eigen site",
+    "ranglijst top 10 per categorie per land openbaar",
+    "gratis check uitkomstpagina koude mail",
+]
+_STOP = set("de het een en van in op voor met aan te is dat die bij als om naar ook of uit per "
+            "the a an and of in on for with to is that this by as or from at your our it be".split())
+
+
+def _woorden(tekst):
+    import re
+    return {w for w in re.findall(r"[a-z0-9]+", (tekst or "").lower()) if len(w) > 2 and w not in _STOP}
+
+
+def lijkt_op_bestaand(titel, waarom=None, extra=None):
+    """De tekst van wat al bestaat waar dit voorstel sterk op lijkt, of None.
+
+    Sterk = minstens drie gedeelde woorden EN minstens 60 procent van de woorden
+    van het kortste van de twee. Zo valt "toon welke producten AI noemt" weg
+    tegen de productkaart, maar een voorstel dat toevallig "AI" en "winkel"
+    deelt niet."""
+    nieuw = _woorden(f"{titel} {waarom or ''}")
+    if len(nieuw) < 2:
+        return None
+    kandidaten = list(BESTAANDE_FUNCTIES) + [f"{b} {w}" for b, _, w in OP_TITEL]
+    if extra is None:
+        rijen = _sql("""SELECT titel FROM voorstellen WHERE soort = 'bouwen'
+                          AND stand IN ('akkoord', 'gebouwd', 'op de roadmap')""", alles=True) or []
+        extra = [r["titel"] if isinstance(r, dict) else r[0] for r in rijen]
+    kandidaten += list(extra)
+    for k in kandidaten:
+        oud = _woorden(k)
+        if not oud:
+            continue
+        samen = nieuw & oud
+        if len(samen) >= 3 and len(samen) >= 0.6 * min(len(nieuw), len(oud)):
+            return k
+    return None
+
+
 def stel_voor(bron, soort, titel, waarom=None, actie=None, sleutel=None, minuten=None):
     """Zet een voorstel klaar. Geeft de rij, of None als hij er al staat of kort
     geleden nee kreeg (of als de soort of actie niet bestaat)."""
@@ -177,6 +235,12 @@ def stel_voor(bron, soort, titel, waarom=None, actie=None, sleutel=None, minuten
         return None
     if any(titel.strip().startswith(begin) for begin, _, _ in OP_TITEL):
         return None
+    if soort == "bouwen":
+        try:
+            if lijkt_op_bestaand(titel, waarom):
+                return None
+        except Exception as e:
+            print(f"Voorstel, vergelijken mislukt (gaat door): {e}")
     bestaand = _sql(f"""SELECT id FROM voorstellen WHERE sleutel = %s
                           AND (stand IN ('open', 'akkoord')
                                OR (stand = 'nee' AND besloten_op > now() - interval '{int(NEE_DAGEN)} days')

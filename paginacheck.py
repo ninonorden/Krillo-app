@@ -253,6 +253,95 @@ def laatste(webshop_url):
     return {"op": rij["op"], "paginas": json.loads(u) if isinstance(u, str) else u, "site": site}
 
 
+# ---------------------------------------------------------------------------
+# Stap 331 (15 oktober, goedgekeurd 8 oktober): alle productpagina's.
+# De wekelijkse check hierboven kijkt naar de homepage en vijf pagina's. Een
+# winkel met 400 producten weet dan niet welke productpagina AI overslaat.
+# Alles in een keer ophalen past niet (512 MB, en het ziet eruit als een
+# aanval op de winkel). Daarom: de productadressen uit de sitemap, en elke
+# week PRODUCTEN_PER_WEEK ervan, eerst de nog nooit nagekeken, daarna de
+# oudste. Na een paar weken is elke productpagina langs geweest.
+# Geen AI, alleen ophalen en dezelfde keuring als hierboven (keur_pagina).
+# ---------------------------------------------------------------------------
+PRODUCTEN_PER_WEEK = 40
+MAX_PRODUCTEN = 1000          # zoveel adressen onthouden we per winkel
+PRODUCT_SLEUTEL = "productscore:"
+_LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.I)
+
+
+def productadressen(webshop_url, haal):
+    """Productadressen uit /sitemap.xml (en hoogstens drie deelsitemaps met
+    'product' in de naam, zoals bij Shopify en WooCommerce)."""
+    basis = f"{urlparse(webshop_url).scheme}://{urlparse(webshop_url).netloc}"
+    hoofd = haal(basis + "/sitemap.xml") or ""
+    locs = _LOC.findall(hoofd)
+    deel = [u for u in locs if u.lower().endswith(".xml") or "sitemap" in u.lower()]
+    adressen = [u for u in locs if u not in deel]
+    for u in [d for d in deel if "product" in d.lower()][:3]:
+        adressen += _LOC.findall(haal(u) or "")
+    gezien, uit = set(), []
+    for u in adressen:
+        if is_productpagina(u) and urlparse(u).netloc == urlparse(basis).netloc and u not in gezien:
+            gezien.add(u)
+            uit.append(u)
+    return uit[:MAX_PRODUCTEN]
+
+
+def _lees_producten(webshop_url):
+    try:
+        return json.loads(db.get_instelling(PRODUCT_SLEUTEL + webshop_url[:180]) or "null") or {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def productronde(webshop_url, haal=None, per_week=None, nu=None):
+    """Keurt de volgende portie productpagina's en bewaart alles. Geeft de stand."""
+    import scan_engine
+    per_week = PRODUCTEN_PER_WEEK if per_week is None else per_week
+    nu = (nu or datetime.now(timezone.utc)).isoformat()
+    if haal is None:
+        def haal(u):
+            r = scan_engine.fetch(u, pogingen=1)
+            return r.text if (r is not None and getattr(r, "status_code", 200) == 200) else None
+    stand = _lees_producten(webshop_url)
+    oud = stand.get("paginas") or {}
+    adressen = productadressen(webshop_url, haal)
+    if not adressen:
+        return stand or None
+    # Nog nooit gekeurd eerst, dan de oudste keuring.
+    volgorde = sorted(adressen, key=lambda u: (u in oud, (oud.get(u) or {}).get("op") or ""))
+    for u in volgorde[:per_week]:
+        html = haal(u)
+        acties = keur_pagina(u, html)
+        noindex = bool(html) and _noindex(html, "")
+        if noindex:
+            acties = ["This page tells search engines and AI not to index it (noindex). Remove that if "
+                      "you want AI to find the product."] + acties[:2]
+        oud[u] = {"op": nu, "acties": acties, "overgeslagen": html is None or noindex
+                  or any(a.startswith("Only ") for a in acties)}
+    # Alleen adressen die nog in de sitemap staan (verwijderde producten vallen weg).
+    stand = {"op": nu, "totaal": len(adressen),
+             "paginas": {u: oud[u] for u in adressen if u in oud}}
+    db.zet_instelling(PRODUCT_SLEUTEL + webshop_url[:180], json.dumps(stand))
+    return stand
+
+
+def productscore(webshop_url):
+    """Voor het dashboard: {"totaal", "gekeurd", "goed", "overgeslagen": [(pad, acties)],
+    "te_doen": [(pad, acties)]} of None."""
+    stand = _lees_producten(webshop_url)
+    paginas = stand.get("paginas") or {}
+    if not paginas:
+        return None
+    rijen = sorted(paginas.items())
+    pad = lambda u: urlparse(u).path or u  # noqa: E731
+    return {"totaal": stand.get("totaal") or len(paginas), "gekeurd": len(paginas),
+            "goed": sum(1 for _, v in rijen if not v.get("acties")),
+            "overgeslagen": [(pad(u), v.get("acties")) for u, v in rijen if v.get("overgeslagen")][:20],
+            "te_doen": [(pad(u), v.get("acties")) for u, v in rijen
+                        if v.get("acties") and not v.get("overgeslagen")][:20]}
+
+
 def ronde(webshop_url):
     """Voor de wekelijkse ronde: controleren, teksten schrijven (stap 254), bewaren."""
     uitkomst = controleer(webshop_url)
@@ -261,6 +350,10 @@ def ronde(webshop_url):
     except Exception as e:
         print(f"Paginateksten mislukt voor {webshop_url}: {e}")
     bewaar(webshop_url, uitkomst)
+    try:
+        productronde(webshop_url)
+    except Exception as e:
+        print(f"Productronde mislukt voor {webshop_url}: {e}")
     return uitkomst
 
 

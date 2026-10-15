@@ -27,6 +27,7 @@ import scan_engine
 SLEUTEL = "aanmelding:"          # aanmelding:<token> -> de stappen tot nu toe
 PER_WINKEL = "aanmelding_url:"   # aanmelding_url:<winkel> -> token (voor na de betaling)
 MAX_DOELEN = 3                   # zelfde als "Pick up to three questions to win" in het dashboard
+MAX_VOLGEN = 5                  # stap 197: hoeveel concurrenten hij bij de start volgt
 MAX_KLANTWINKELS = 25            # het pakket Brands and agencies: tot 25 winkels
 HERINNER_NA_UUR = 20             # een herinnering de volgende dag, niet midden in de nacht erna
 
@@ -63,7 +64,7 @@ def zet(token, **velden):
         return None
     for k, v in velden.items():
         if k in ("url", "naam", "categorie", "land", "doelen", "plan", "voor", "stap", "periode",
-                 "bureau", "klant_winkels") and v is not None:
+                 "bureau", "klant_winkels", "concurrenten") and v is not None:
             g[k] = v
     if g.get("url"):
         db.zet_instelling(PER_WINKEL + scan_engine.normalize_url(g["url"]), token)
@@ -125,6 +126,8 @@ def pas_toe(webshop_url):
             db.zet_land(url, land)
         for vraag in (g.get("doelen") or [])[:MAX_DOELEN]:
             db.zet_gekozen_vraag(url, vraag, True)
+        if g.get("concurrenten"):
+            zet_gevolgd(url, g["concurrenten"])
         # Bureaus (stap 354): elke klantwinkel krijgt een eigen dashboard op
         # hetzelfde mailadres. Na het inloggen kiest het bureau welke winkel.
         if g.get("voor") == "klanten":
@@ -208,3 +211,76 @@ def markeer_herinnerd(token):
     if g is not None:
         g["herinnerd"] = datetime.now(timezone.utc).isoformat()
         _schrijf(token, g)
+
+
+# 15 oktober (Nino: "denk aan klanten werven"). Van de ruim 60 mensen die vanuit
+# de koude mail naar de prijzen klikten, betaalde niemand. We weten niet waarom.
+# Daarom onderaan /start een vraag met vier knoppen: wat houdt je tegen? Een
+# klik, geen formulier, en elke knop geeft meteen een eerlijk antwoord terug met
+# iets nuttigs (geen korting: die richting wees Nino af). Het ochtendbericht
+# telt de redenen, zodat we de juiste zwakke plek aanpakken in plaats van gokken.
+WAAROM_SLEUTEL = "start_waarom"
+WAAROM_MAX = 500
+REDENEN = {
+    "prijs": "Too expensive for me right now",
+    "twijfel": "Not sure AI matters for my store",
+    "bewijs": "I want to see more proof first",
+    "kijken": "Just looking around",
+}
+REDEN_NL = {"prijs": "te duur", "twijfel": "twijfelt of AI ertoe doet", "bewijs": "wil eerst meer bewijs",
+            "kijken": "kijkt alleen rond"}
+
+
+def noteer_waarom(reden, stap=None, token=None, nu=None):
+    """Bewaar een reden. Geeft False bij een onbekende reden (geen vrije tekst:
+    dan kan niemand er rommel of persoonsgegevens in zetten)."""
+    if reden not in REDENEN:
+        return False
+    nu = nu or datetime.now(timezone.utc)
+    try:
+        lijst = json.loads(db.get_instelling(WAAROM_SLEUTEL) or "[]")
+    except (TypeError, ValueError):
+        lijst = []
+    lijst.append({"t": nu.isoformat(), "reden": reden, "stap": (stap or "")[:20]})
+    db.zet_instelling(WAAROM_SLEUTEL, json.dumps(lijst[-WAAROM_MAX:]))
+    if token:
+        g = _lees(token)
+        if g is not None:
+            g["waarom"] = reden
+            _schrijf(token, g)
+    return True
+
+
+def waarom_telling(dagen=7, nu=None):
+    """[(reden_nl, aantal)], meeste eerst, over de laatste dagen."""
+    nu = nu or datetime.now(timezone.utc)
+    try:
+        lijst = json.loads(db.get_instelling(WAAROM_SLEUTEL) or "[]")
+    except (TypeError, ValueError):
+        return []
+    tel = {}
+    for r in lijst:
+        t = _tijd(r.get("t"))
+        if t and t > nu - timedelta(days=dagen) and r.get("reden") in REDEN_NL:
+            tel[r["reden"]] = tel.get(r["reden"], 0) + 1
+    return sorted(((REDEN_NL[k], n) for k, n in tel.items()), key=lambda kv: -kv[1])
+
+
+# Stap 197 (15 oktober): bij de start kiest hij welke concurrenten hij volgt.
+# Meten hoeft niet: de hele categorie wordt al gemeten (onderscheid 2, stap 282).
+# Volgen betekent: in de ranglijst staan ze gemarkeerd, zodat hij in een
+# oogopslag ziet wat de winkels doen waar hij tegen speelt.
+VOLGT_SLEUTEL = "volgt:"
+
+
+def zet_gevolgd(webshop_url, concurrenten):
+    lijst = [scan_engine.normalize_url(u) for u in (concurrenten or []) if u][:MAX_VOLGEN]
+    db.zet_instelling(VOLGT_SLEUTEL + scan_engine.normalize_url(webshop_url), json.dumps(lijst))
+    return lijst
+
+
+def gevolgd(webshop_url):
+    try:
+        return json.loads(db.get_instelling(VOLGT_SLEUTEL + scan_engine.normalize_url(webshop_url or "")) or "[]")
+    except (TypeError, ValueError):
+        return []

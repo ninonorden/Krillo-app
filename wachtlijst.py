@@ -99,3 +99,18 @@ def ronde(basis_url, verstuur=None):
         if verstuur(rij["email"], onderwerp, alineas, link, knop="Check my store"):
             uit["gemeld"] += 1
     return uit
+
+
+# Stap 365 deel 2 (15 oktober). Installaties en checks uit landen die we nog
+# niet meten komen hier binnen (deel 1, 14 oktober). Vanaf OPEN_GRENS wachtende
+# winkels in een land staat er een regel in het ochtendbericht. Niet vanzelf
+# openen: een nieuw land kost elke maand meetgeld per categorie.
+OPEN_GRENS = 25
+
+
+def klaar_om_te_openen(rijen=None, grens=None):
+    """[(land, wachtend)] voor landen boven de grens die nog niet in de index staan."""
+    grens = OPEN_GRENS if grens is None else grens
+    rijen = telling() if rijen is None else rijen
+    return [(r["land"], r["wachtend"]) for r in rijen
+            if (r.get("wachtend") or 0) >= grens and not markten.in_index(r["land"])]
