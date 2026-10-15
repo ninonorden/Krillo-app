@@ -1933,9 +1933,9 @@
   <div><h2 class="c-kt" style="font-size:40px;line-height:1.06;margin:0">Questions</h2>
     <p style="font-size:15px;color:var(--c-soft);margin:14px 0 0;line-height:1.6">Something else? Email <a href="mailto:hello@krilloai.com" style="color:var(--c-blue)">hello@krilloai.com</a>, we answer within one working day. More in the <a href="/faq" style="color:var(--c-blue)">full list</a>.</p></div>
   <div class="k9-faq k10-faq" data-accordeon>
-    <button type="button" class="aan"><span><b>How does Krillo measure my store?</b><i>Every month we ask ChatGPT and Gemini the same buying questions for every store in your category and country, and count who is named and who is recommended. Your five key questions we ask every week.</i></span><em>&minus;</em></button>
+    <button type="button" class="aan"><span><b>How does Krillo measure my store?</b><i>Every month we ask ChatGPT and Gemini the same buying questions for every store in your category and country, and count who is named and who is recommended. Your key questions we ask every week: 5 with Watch, 15 with Fix.</i></span><em>&minus;</em></button>
     <button type="button"><span><b>Is my store already in the index?</b><i>If you sell in a category we measure in {{ index_landen_en }}, probably yes. Selling somewhere else? Leave your email on the index page and we tell you when your country goes live. Type your store at the top of this page: you see your rank for free, without an account.</i></span><em>+</em></button>
-    <button type="button"><span><b>What is the difference between Watch and Fix?</b><i>Watch shows your rank, the answers, why you lose and the fixes to do yourself. With Fix we put the changes live in your store, and the old text is kept so every change can be undone.</i></span><em>+</em></button>
+    <button type="button"><span><b>What is the difference between Watch and Fix?</b><i>Watch shows your rank, the answers, why you lose and the fixes to do yourself. Fix does the work: we put the changes live in your store (every change can be undone), write two new buying-guide pages a month for questions you lose, measure 15 questions every week and give you a ready message for every site AI cites.</i></span><em>+</em></button>
     <button type="button"><span><b>Can stores pay for a better position?</b><i>No. The index has no paid positions. The questions are published and every answer is kept.</i></span><em>+</em></button>
     <button type="button"><span><b>Can I cancel any time?</b><i>Yes, every month, from the Plan page in your dashboard. The first 14 days of Watch are free: cancel before day 15 and you pay nothing. On Fix, if you cancel within fourteen days of your first payment, you get that month back.</i></span><em>+</em></button>
     <button type="button"><span><b>Do you work with agencies?</b><i>Yes. Check up to ten client stores for free on the agencies page, and follow up to 25 stores in one plan.</i></span><em>+</em></button>
@@ -2249,7 +2249,7 @@
     h += '<h3>' + kop + '</h3><p>' + tekst + '</p>';
     h += '<div class="k10r-keuze">';
     h += '<div class="k10r-plan"><div><b>Watch</b><span>&euro;49 /mo</span></div><em>You do the work.</em><p>Your five key questions every week, all buying questions every month, why you lose them and every change written out.</p><a href="#pricing" class="k10r-knop-wit" data-kies-plan="watch">Start 14 days free</a></div>';
-    h += '<div class="k10r-plan k10r-plan-donker"><div><b>Fix</b><span>&euro;149 /mo</span></div><em>Krillo does the work.</em><p>We make the changes after your approval, measure again and show what improved.</p><a href="#pricing" class="k10r-knop-zwart" data-kies-plan="fix">Fix this for me &rarr;</a></div>';
+    h += '<div class="k10r-plan k10r-plan-donker"><div><b>Fix</b><span>&euro;149 /mo</span></div><em>Krillo does the work.</em><p>We make the changes in your store, write two buying-guide pages a month and measure 15 questions every week.</p><a href="#pricing" class="k10r-knop-zwart" data-kies-plan="fix">Fix this for me &rarr;</a></div>';
     h += '</div><div class="k10r-feiten">Cancel any month &middot; Watch: 14 days free &middot; Fix: 14 day refund</div></div>';
     return h;
   }
@@ -2689,12 +2689,12 @@
     },
     fix: {
       items: [
-        'Everything in Watch',
+        'Everything in Watch, with 15 questions measured every week',
         'We make the fixes in your store, with access you give us and can take back any time',
-        'The old text is kept, so we can put it back',
-        'At the next monthly measurement we show the difference',
-        'A message when you drop three places or more',
-        'Cancel any time, no minimum term'
+        'The old text is kept, so every change can be undone',
+        'Two new buying-guide pages a month, for questions you lose',
+        'A ready message for every review and comparison site AI cites',
+        'The hours of work we did for you, counted every month'
       ],
       delivery: 'Delivery: your first measurement starts right away. After that we email you to ask for access to your store so we can install the fixes. No access, and you get everything ready to do yourself.',
       garantie: 'Cancel within fourteen days of your first payment and you get that month back in full.'

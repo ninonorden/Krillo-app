@@ -383,8 +383,8 @@
     </div>
     {% else %}
     <div class="k10-stappen" style="grid-template-columns:repeat(3,minmax(0,1fr));">
-      <div class="k10-stap"><span class="nr">Every week</span><h3>Your five key questions</h3>
-        <p>With Watch or Fix we ask your five most important buying questions again every week, so you see within days whether a change is picked up.</p></div>
+      <div class="k10-stap"><span class="nr">Every week</span><h3>Your key questions</h3>
+        <p>Every week we ask your most important buying questions again (5 with Watch, 15 with Fix), so you see within days whether a change is picked up.</p></div>
       <div class="k10-stap"><span class="nr">Every month</span><h3>Your rank, with the change</h3>
         <p>The whole category is measured again. You see your new place next to last month, and who passed you.</p></div>
       <div class="k10-stap"><span class="nr">Every change</span><h3>Dated, with the old text</h3>
@@ -557,11 +557,15 @@
         In US dollars. Shopify converts this to the currency on your Shopify invoice.
       </div>
       <ul>
-        <li>Everything in Watch</li>
-        <li>Every change written and applied for you, in one click</li>
-        <li>New products picked up and filled in every week, without you asking</li>
-        <li>At the next monthly measurement we show you the difference</li>
-        <li>Every change can be undone, cancel any time</li>
+        {# 16 okt (Nino: Fix moet echt meer waard zijn, ook in de app). Alles hier
+           doet de app echt: zie contentmotor.py, snelmeting.AANTAL_FIX, uren.py,
+           vermeldingen.bericht en _shopify_automatisch_aanvullen. #}
+        <li>Everything in Watch, with 15 questions measured every week</li>
+        <li>Every change written and applied for you, and every change can be undone</li>
+        <li>2 new buying-guide pages a month, published in your store, for questions you lose</li>
+        <li>New products picked up and filled in every week, up to 25 changes a week</li>
+        <li>Ready-to-send messages to get listed on the sites AI cites</li>
+        <li>The hours of work we did for you, counted every month</li>
       </ul>
       <div class="voet">
         <div class="knoprij">

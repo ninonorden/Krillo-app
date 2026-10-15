@@ -1419,9 +1419,14 @@
           {% elif b.status == 'mist' %}<span style="color:#B4471A;">&#10005; {{ 'Niet gevonden' if taal == 'nl' else 'Not found' }}</span>
           {% elif b.check %}<a href="{{ b.check }}" target="_blank" rel="noopener">{{ 'Kijk na' if taal == 'nl' else 'Check' }} &#8599;</a>
           {% else %}<span class="klein">&ndash;</span>{% endif %}</td>
-        <td class="klein">{{ b.stap }}</td></tr>
+        <td class="klein">{{ b.stap }}
+          {# 16 okt: Fix krijgt per site het bericht om te versturen. #}
+          {% if b.bericht %}<details style="margin-top:6px;"><summary>{{ 'Bericht om te versturen' if taal == 'nl' else 'Ready-to-send message' }}</summary>
+            <div style="margin-top:6px;"><span class="klein">{{ 'Aan' if taal == 'nl' else 'To' }}: {{ b.bericht.aan }}<br>{{ 'Onderwerp' if taal == 'nl' else 'Subject' }}: {{ b.bericht.onderwerp }}</span>
+            <pre style="white-space:pre-wrap; font:inherit; margin:6px 0 0; background:#FAFAF9; border:1px solid var(--lijnz, #E7E7E4); border-radius:8px; padding:8px;">{{ b.bericht.tekst }}</pre></div></details>{% endif %}</td></tr>
       {% endfor %}
       </table>
+      {% if not is_fix is defined or not is_fix %}<p class="klein" style="margin:8px 0 0;">{{ 'Met Fix: per site een kant-en-klaar bericht om te versturen.' if taal == 'nl' else 'With Fix: a ready-to-send message for every site.' }}</p>{% endif %}
       <p class="klein" style="margin:10px 0 0;">{{ 'Trustpilot kijken we zelf na. Bij de andere sites opent Kijk na een zoekopdracht die laat zien of je erop staat.' if taal == 'nl'
          else 'We check Trustpilot ourselves. For the other sites, Check opens a search that shows whether you are listed.' }}</p>
       {% else %}
@@ -1703,9 +1708,10 @@
         <div class="kaartkop">FIX &middot; {{ 'AANGERADEN' if taal == 'nl' else 'RECOMMENDED' }}</div>
         <div class="plannaam">&euro;{{ prijzen.fix }} <small>/ {{ 'maand' if taal == 'nl' else 'month' }}</small></div>
         <ul class="planlijst">
-          <li>{{ 'Alles van Watch' if taal == 'nl' else 'Everything in Watch' }}</li>
-          <li>{{ 'Wij zetten elke verbetering in je winkel' if taal == 'nl' else 'We put every fix into your store for you' }}</li>
-          <li>{{ 'Elke wijziging met de oude tekst, alles kan terug' if taal == 'nl' else 'Every change with the old text, all can be undone' }}</li>
+          <li>{{ 'Alles van Watch, met 15 vragen per week' if taal == 'nl' else 'Everything in Watch, with 15 questions every week' }}</li>
+          <li>{{ 'Wij zetten elke verbetering in je winkel, alles kan terug' if taal == 'nl' else 'We put every fix into your store, and all can be undone' }}</li>
+          <li>{{ 'Twee nieuwe koopgidsen per maand, voor vragen die je verliest' if taal == 'nl' else 'Two new buying-guide pages a month, for questions you lose' }}</li>
+          <li>{{ 'Per site die AI aanhaalt een bericht om te versturen' if taal == 'nl' else 'A ready message for every site AI cites' }}</li>
         </ul>
         <a class="knop-vol" href="{{ '/uitkomst/' ~ proef ~ '/verder?plan=fix' if proef else '/?plan=fix#pricing' }}">{{ 'Start Fix' }}</a>
       </div>
@@ -1744,6 +1750,30 @@
     {% endif %}
     {# Stap 255 (1 oktober): AI-gereedheid per pagina, uit de wekelijkse scan.
        Alleen pagina's met iets te doen; hoogstens drie acties per pagina. #}
+    {# 16 okt (Fix): wat Krillo deze maand deed, en de koopgidsen van de contentmotor. #}
+    {% if pagina == 'verbeteringen' and ((uren_zin is defined and uren_zin) or (gidsen is defined and gidsen)) %}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'DOOR KRILLO GEDAAN' if taal == 'nl' else 'DONE FOR YOU' }}
+        {% if uren_zin %}<span class="uitleg">{{ uren_zin }}</span>{% endif %}</div>
+      {% if gidsen %}
+      {% for g in gidsen %}
+      <div class="binnen" style="{{ 'border-top:1px solid var(--lijnz);' if not loop.first }}">
+        <div style="font-weight:600;">{{ g.titel }}</div>
+        <div class="klein">{{ 'Voor de vraag' if taal == 'nl' else 'For the question' }}: <span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ g.vraag }}</span>
+          &middot; {% if g.geplaatst %}{{ 'live in je winkel' if taal == 'nl' else 'live in your store' }}{% else %}{{ 'klaar om te plaatsen' if taal == 'nl' else 'ready to publish' }}{% endif %}</div>
+        {% if not g.geplaatst %}
+        <details style="margin-top:6px; font-size:14px;"><summary>{{ 'Tekst om te plaatsen' if taal == 'nl' else 'Text to publish' }}</summary>
+          <pre style="white-space:pre-wrap; font:inherit; margin:6px 0 0; background:#FAFAF9; border:1px solid var(--lijnz, #E7E7E4); border-radius:8px; padding:10px;">{{ g.titel }}
+
+{{ g.leesbaar }}</pre></details>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="binnen klein">{{ 'De eerste koopgidsen schrijven we na je eerste wekelijkse meting.' if taal == 'nl' else 'We write your first buying guides after your first weekly measurement.' }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
     {% if pagina == 'verbeteringen' and paginacheck is defined and paginacheck and not dicht_nu %}
     {% set te_doen = paginacheck.paginas | selectattr('acties') | list %}
     <div class="kaartblok">

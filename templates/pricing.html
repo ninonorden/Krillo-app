@@ -97,6 +97,24 @@
   .p-nee{color:#C4C5CC;}
   .p-tabel tfoot td{padding:18px 10px; border-bottom:0;}
   .p-tabel tfoot .p-knop{height:40px; font-size:14px; margin:0 6px;}
+  /* 16 okt (Nino, telefoon): het hele vak schoof mee. Zoals bij Peec: de
+     namen van de regels blijven links staan, alleen de pakketten schuiven, en
+     de letters zijn iets kleiner. */
+  @media(max-width:760px){
+    .p-tabelvak{border-radius:16px; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain;}
+    table.p-tabel{display:table; overflow:visible; min-width:556px; width:556px; font-size:13px; table-layout:fixed;}
+    .p-tabel th, .p-tabel td{width:106px; padding:11px 8px;}
+    .p-tabel thead th:first-child, .p-tabel td:first-child{position:sticky; left:0; z-index:1; background:#fff;
+        width:132px; min-width:132px; max-width:132px; padding-left:14px; box-shadow:1px 0 0 var(--k-lijn);}
+    .p-tabel thead th:first-child{width:132px;}
+    .p-tabel tr.p-groep td{position:sticky; left:0; background:var(--k-zand); padding:10px 14px;}
+    .p-tabel tr.p-groep td:first-child{box-shadow:none;}
+    .p-tabel thead .p-naam{font-size:14px;}
+    .p-tabel td .p-uitleg{font-size:11.5px;}
+    .p-tabel tfoot .p-knop{height:36px; font-size:13px; margin:0 2px; padding:0 8px;}
+  }
+  .p-sectie p.p-schuif{display:none; font-size:12.5px; color:var(--k-grijs); margin:-14px 0 10px;}
+  @media(max-width:760px){ .p-sectie p.p-schuif{display:block;} }
 
   .p-faq{display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:40px;}
   @media(max-width:860px){ .p-faq{grid-template-columns:1fr;} }
@@ -163,16 +181,17 @@
 
     <div class="p-kaart donker">
       <div class="p-kop"><span class="p-naam">Fix</span><span class="p-pil">RECOMMENDED</span></div>
-      <div class="p-voor">For owners who want it done for them.</div>
+      <div class="p-voor">For owners who want to be recommended, not do the work.</div>
       <div class="p-prijs"><span data-alleen="maand">&euro;{{ prijs.fix }}<small>/mo</small></span><span data-alleen="jaar" hidden>&euro;{{ jaarprijs.fix }}<small>/year</small></span></div>
       <div class="p-klein">Not happy in the first 14 days? You get your first payment back.</div>
       <a class="p-knop" href="/start?plan=fix" data-maand="/start?plan=fix" data-jaar="/start?plan=fix&amp;periode=jaar">Let Krillo fix it &rarr;</a>
       <ul class="p-lijst">
-        <li><span><b>Everything in Watch</b>, with 15 questions of your own</span></li>
-        <li><span><b>We make the changes in your store</b>, after your approval</span></li>
-        <li><span>The old text is kept: undo any change in one click</span></li>
-        <li><span>We measure again and show what moved</span></li>
-        <li><span>Instructions for AI (llms.txt) on your store</span></li>
+        <li><span><b>Everything in Watch</b>, with 15 questions measured every week</span></li>
+        <li><span><b>We make the changes in your store</b>, and you can undo any of them</span></li>
+        <li><span><b>2 new buying-guide pages a month</b>, for questions you lose</span></li>
+        <li><span>Every product page fixed, up to 25 changes a week</span></li>
+        <li><span>Ready-to-send messages to get listed where AI looks</span></li>
+        <li><span>The hours of work we did for you, counted every month</span></li>
       </ul>
     </div>
 
@@ -205,7 +224,6 @@
   <div class="p-cijfers" aria-label="The Krillo Index today">
     <div><b>{{ '{:,}'.format(cijfers.winkels) }}</b>stores ranked</div>
     {% if cijfers.categorieen %}<div><b>{{ cijfers.categorieen }}</b>categories measured</div>{% endif %}
-    <div><b>0</b>paid positions</div>
   </div>
   {% endif %}
 </section>
@@ -215,6 +233,7 @@
     <span class="p-label">COMPARE PLANS</span>
     <h2 id="vergelijkKop">Everything in each plan</h2>
     <p>No hidden limits. If a line is not here, no plan has it yet.</p>
+    <p class="p-schuif">Swipe the table sideways to see every plan &rarr;</p>
     <div class="p-tabelvak">
       <table class="p-tabel">
         <thead><tr>
@@ -226,7 +245,7 @@
         </tr></thead>
         <tbody>
         {% for groep in vergelijking %}
-          <tr class="p-groep"><td colspan="5">{{ groep.naam | upper }}</td></tr>
+          <tr class="p-groep"><td>{{ groep.naam | upper }}</td><td colspan="4"></td></tr>
           {% for r in groep.rijen %}
           <tr>
             <td>{{ r.wat }}{% if r.uitleg %}<span class="p-uitleg">{{ r.uitleg }}</span>{% endif %}</td>
