@@ -239,7 +239,7 @@
 
   <section class="stap breed" data-stap="pakket">
     <h1>Choose your plan</h1>
-    <p class="onder">Your choices so far are saved in your dashboard.</p>
+    <p class="onder">Your choices so far are saved in your dashboard. Nothing else to set up: your category is already measured, so your dashboard is full from the first minute.</p>
     {# Stap 354: per maand of per jaar (twee maanden gratis), zoals op de homepage. #}
     <div class="periode" role="group" aria-label="Billing">
       <button type="button" data-periode="maand" class="aan">Monthly</button><button type="button" data-periode="jaar">Yearly <em>2 months free</em></button>
@@ -268,6 +268,18 @@
     <p class="klein" style="text-align:center; margin-top:14px;">You pay securely with Mollie (iDEAL, card, Bancontact). Brands and agencies with more stores: <a href="/agencies">see the agencies page</a>.</p>
   </section>
 </main>
+{# 15 oktober: wat houdt je tegen? Vier knoppen, geen formulier. Zo leren we
+   waarom de mensen die naar de prijzen klikten niet betaalden. #}
+<aside class="waarom" id="waarom" aria-labelledby="waaromKop">
+  <p id="waaromKop" class="klein" style="text-align:center; margin:28px 0 8px;">Not ready? Tell us why, one click. It helps us build the right thing.</p>
+  <div class="waarom-knoppen" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;">
+    <button type="button" class="knop wit klein" data-waarom="prijs">Too expensive for me right now</button>
+    <button type="button" class="knop wit klein" data-waarom="twijfel">Not sure AI matters for my store</button>
+    <button type="button" class="knop wit klein" data-waarom="bewijs">I want to see more proof first</button>
+    <button type="button" class="knop wit klein" data-waarom="kijken">Just looking around</button>
+  </div>
+  <p class="klein" id="waaromAntwoord" style="text-align:center; margin:12px auto 0; max-width:560px;" hidden></p>
+</aside>
 
 <script>
 (function(){
@@ -396,7 +408,11 @@
       h += '<div class="tegels"><div><span>Your rank</span><b>' + (r.nul ? '&ndash;' : '#' + r.positie + ' / ' + r.van) + '</b></div>';
       h += '<div><span>Named in</span><b>' + r.genoemd + ' / ' + r.telbaar + '</b></div>';
       h += '<div><span>Questions lost</span><b class="rood">' + gemist + '</b></div></div>';
-      if (r.voor && r.voor.length){
+      if (r.volgen && r.volgen.length){
+        // Stap 197: de winkels boven hem, aangevinkt om te volgen. Een klik om er een uit te zetten.
+        h += '<div class="teller" style="margin:6px 0 4px;">AI recommends these stores before you. Follow them in your dashboard:</div>';
+        r.volgen.forEach(function(w){ h += '<label class="winkelrij" style="cursor:pointer;"><input type="checkbox" data-volg="' + veilig(w.url) + '" checked> <span class="tegel">' + veilig((w.naam || '?').charAt(0).toUpperCase()) + '</span><span>' + veilig(w.naam) + '</span></label>'; });
+      } else if (r.voor && r.voor.length){
         h += '<div class="teller" style="margin:6px 0 4px;">AI recommends these stores before you</div>';
         r.voor.forEach(function(w, i){ h += '<div class="winkelrij"><span class="tegel">' + veilig((w || '?').charAt(0).toUpperCase()) + '</span><span' + (i > 0 ? ' class="vaag"' : '') + '>' + veilig(w) + '</span></div>'; });
       }
@@ -416,7 +432,11 @@
     }
     $('voorKaart').innerHTML = h;
   }
-  $('voorKnop').addEventListener('click', function(){ toon('pakket'); });
+  $('voorKnop').addEventListener('click', function(){
+    var volg = Array.prototype.map.call(document.querySelectorAll('[data-volg]:checked'), function(x){ return x.getAttribute('data-volg'); });
+    if (s.token && document.querySelector('[data-volg]')) post('/api/start/concurrenten', {token: s.token, concurrenten: volg}).catch(function(){});
+    toon('pakket');
+  });
 
   // 8. pakket en betalen: dezelfde kassa als de site, met alles al ingevuld.
   document.querySelectorAll('[data-kies]').forEach(function(b){ b.addEventListener('click', function(){
@@ -469,6 +489,20 @@
       k.disabled = false; fout('bureauBetaalFout', d.error || 'Something went wrong. Try again.');
     }).catch(function(){ k.disabled = false; fout('bureauBetaalFout', 'No connection. Try again.'); });
   });
+
+
+  // 15 oktober: de waarom-knoppen. Een keer per bezoek.
+  document.querySelectorAll('[data-waarom]').forEach(function(b){ b.addEventListener('click', function(){
+    var nu = document.querySelector('.stap.aan');
+    document.querySelectorAll('[data-waarom]').forEach(function(x){ x.disabled = true; });
+    post('/api/start/waarom', {reden: b.getAttribute('data-waarom'), token: s.token || '',
+                               stap: nu ? nu.getAttribute('data-stap') : '', winkel: s.url || ($('url') ? $('url').value : '')})
+      .then(function(d){
+        var a = $('waaromAntwoord'); a.hidden = false;
+        if (!d.ok){ a.textContent = 'Thanks.'; return; }
+        a.innerHTML = veilig(d.tekst) + ' <a href="' + veilig(d.link) + '">' + veilig(d.label) + ' &rarr;</a>';
+      }).catch(function(){ var a = $('waaromAntwoord'); a.hidden = false; a.textContent = 'Thanks.'; });
+  }); });
 
   // Het pakket dat hij koos voor hij hier kwam, krijgt de nadruk.
   if (gekozenPlan === 'fix') $('pakketFix').style.outline = '2px solid #1B3FE0'; else $('pakketWatch').style.outline = '2px solid #1B3FE0';

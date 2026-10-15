@@ -1712,7 +1712,7 @@
     <input type="text" id="scanUrlInput" placeholder="yourstore.com" aria-label="Your store address">
     <button type="button" id="scanButton">Check my store free &rarr;</button>
   </div>
-  <div class="hero-note" id="scanNote" style="font-size:13px;color:var(--c-grey);margin-top:14px">Free &middot; No account &middot; Your rank, who beats you and 13 website checks</div>
+  <div class="hero-note" id="scanNote" style="font-size:13px;color:var(--c-grey);margin-top:14px">Free &middot; No account &middot; Nothing to set up: your category is already measured</div>
   <div class="k10-ai" aria-label="Assistants we measure" style="justify-content:center;margin-top:18px"><span class="c-km" style="font-size:10.5px;color:var(--c-grey)">MEASURED IN</span>
     {% for a in assistenten %}<span class="ai-chip{{ '' if a.gemeten else ' zacht' }}"><span class="k10-logo">{% if logo_bestaat is defined and logo_bestaat(a.logo) %}<img src="/static/logos/{{ a.logo }}.svg" alt="" width="16" height="16">{% else %}<i class="k10-leeg"></i>{% endif %}</span>{{ a.naam }}{% if not a.gemeten %} <em>soon</em>{% endif %}</span>{% endfor %}
   </div>
@@ -1906,7 +1906,7 @@
   <div class="k9-binnen">
     <div class="k9-prijskop" style="text-align:center;display:block">
       <span class="k9-label">PRICING</span><h2 class="k9-h2">See the problem for free. Let Krillo fix it.</h2>
-      <p class="k9-p" style="margin:12px auto 20px">Watch: you do the work. Fix: Krillo does the work. Several stores: one plan. Cancel any month.</p>
+      <p class="k9-p" style="margin:12px auto 20px">Nothing to set up: your category is already measured, so you see your rank against your competitors on day one. Watch: you do the work. Fix: Krillo does the work. Cancel any month.</p>
       {# LET OP BIJ WIJZIGEN: de bedragen moeten gelijk zijn aan
          payments.PAKKETTEN, ook de jaarbedragen (test_jaarabonnement). Merken
          heeft GEEN jaarprijs; dat richten we samen in. #}

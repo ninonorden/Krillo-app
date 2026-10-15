@@ -1,0 +1,48 @@
+{# Stap 190 (15 okt): snelzoeken met Cmd+K (of Ctrl+K). Een pagina, een
+   verloren vraag of een concurrent meteen openen, zonder door de zijbalk te
+   klikken. Alles staat al op de pagina (geen extra verzoek naar de server),
+   dus het werkt ook in de voorproef en in het voorbeeld. #}
+{% set sz = [] %}
+{% for l in links %}{% set _ = sz.append({'t': l.label, 's': ('Pagina' if nl else 'Page'), 'h': l.href}) %}{% endfor %}
+{% if beeld %}
+{% for v in (beeld.gemiste_vragen or [])[:12] %}{% if v.vraag %}{% set _ = sz.append({'t': v.vraag, 's': ('Verloren vraag' if nl else 'Lost question'), 'h': link_van.vragen}) %}{% endif %}{% endfor %}
+{% for r in (beeld.boven_mij or []) + (beeld.achter_mij or []) %}{% set _ = sz.append({'t': (r.naam or r.webshop_url), 's': ('Concurrent, plek ' if nl else 'Competitor, rank ') ~ r.positie, 'h': link_van.ranglijst}) %}{% endfor %}
+{% endif %}
+<div id="snelzoek" hidden role="dialog" aria-modal="true" aria-label="{{ 'Snel zoeken' if nl else 'Quick search' }}"
+     style="position:fixed; inset:0; z-index:9999; background:rgba(14,15,20,.35); display:flex; align-items:flex-start; justify-content:center; padding:12vh 16px 0;">
+  <div style="width:100%; max-width:560px; background:#fff; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.25); overflow:hidden;">
+    <input id="snelzoekVeld" type="text" autocomplete="off" placeholder="{{ 'Zoek een pagina, vraag of concurrent' if nl else 'Search a page, question or competitor' }}"
+           style="width:100%; box-sizing:border-box; border:0; border-bottom:1px solid #E6E7EC; padding:16px 18px; font:500 16px Inter, sans-serif; outline:none;">
+    <ul id="snelzoekLijst" style="list-style:none; margin:0; padding:6px; max-height:52vh; overflow:auto;"></ul>
+  </div>
+</div>
+<script>
+(function(){
+  var items = {{ sz | tojson }};
+  var doos = document.getElementById('snelzoek'), veld = document.getElementById('snelzoekVeld'), lijst = document.getElementById('snelzoekLijst');
+  if (!doos) return;
+  var gekozen = 0, zicht = [];
+  function veilig(t){ var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
+  function teken(){
+    var q = veld.value.trim().toLowerCase();
+    zicht = items.filter(function(i){ return !q || (i.t + ' ' + i.s).toLowerCase().indexOf(q) !== -1; }).slice(0, 20);
+    if (gekozen >= zicht.length) gekozen = 0;
+    lijst.innerHTML = zicht.length ? zicht.map(function(i, n){
+      return '<li><a href="' + veilig(i.h) + '" style="display:flex; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:8px; text-decoration:none; color:#0E0F14;' + (n === gekozen ? ' background:#ECF0FD;' : '') + '"><span>' + veilig(i.t) + '</span><span style="color:#6B6E7A; font-size:12.5px; white-space:nowrap;">' + veilig(i.s) + '</span></a></li>';
+    }).join('') : '<li style="padding:12px; color:#6B6E7A;">{{ 'Niets gevonden' if nl else 'Nothing found' }}</li>';
+  }
+  function open(){ doos.hidden = false; veld.value = ''; gekozen = 0; teken(); veld.focus(); }
+  function dicht(){ doos.hidden = true; }
+  document.addEventListener('keydown', function(e){
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')){ e.preventDefault(); doos.hidden ? open() : dicht(); return; }
+    if (doos.hidden) return;
+    if (e.key === 'Escape') dicht();
+    else if (e.key === 'ArrowDown'){ e.preventDefault(); gekozen = Math.min(gekozen + 1, zicht.length - 1); teken(); }
+    else if (e.key === 'ArrowUp'){ e.preventDefault(); gekozen = Math.max(gekozen - 1, 0); teken(); }
+    else if (e.key === 'Enter' && zicht[gekozen]){ window.location.href = zicht[gekozen].h; }
+  });
+  veld.addEventListener('input', function(){ gekozen = 0; teken(); });
+  doos.addEventListener('click', function(e){ if (e.target === doos) dicht(); });
+  document.querySelectorAll('[data-snelzoek]').forEach(function(b){ b.addEventListener('click', open); });
+})();
+</script>

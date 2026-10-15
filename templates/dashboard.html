@@ -114,9 +114,13 @@
       </div>
       <div class="cv-rechts">
         {% if beeld and beeld.gemeten_op %}<span class="cv-gemeten"><i class="d8-live"></i>{{ 'Gemeten' if nl else 'Measured' }} {{ beeld.gemeten_op.strftime('%-d %b') }} &middot; {{ 'volgende' if nl else 'next' }} {{ (beeld.gemeten_op + volgende_meting_na).strftime('%-d %b') }}</span>{% endif %}
+        <button type="button" class="chip" data-snelzoek title="Cmd+K / Ctrl+K">{{ 'Zoeken' if nl else 'Search' }} <kbd style="font:500 11px 'IBM Plex Mono', monospace; color:#6B6E7A;">&#8984;K</kbd></button>
         {% if beeld %}
         {# Stap 184 (1 oktober): het maandrapport om door te sturen, alleen voor de klant zelf. #}
         {% if request.path.startswith('/mijn/') %}<a class="chip cv-donker" href="{{ (link_van.overzicht or '').split('?') | first }}/report.pdf" target="_blank">{{ 'Rapport (PDF)' if nl else 'Report (PDF)' }}</a>{% endif %}
+        {# Stap 227 (15 okt): ook de voorproef na de koude mail krijgt het rapport als PDF.
+           Een eigenaar stuurt een PDF makkelijker door naar zijn compagnon of bureau. #}
+        {% if proef %}<a class="chip cv-donker" href="/uitkomst/{{ proef }}/report.pdf" target="_blank">{{ 'Rapport (PDF)' if nl else 'Download report (PDF)' }}</a>{% endif %}
         {% if request.path.startswith('/admin/voorbeeld') and beeld %}<a class="chip" href="/admin/rapport.pdf?url={{ beeld.webshop_url | urlencode }}" target="_blank">Maandrapport (PDF)</a>{% endif %}
         {% endif %}
         {% if proef %}
@@ -1055,6 +1059,16 @@
         {% for p in productkaart.niet[:5] %}{{ p.naam }}{% if not loop.last %}, {% endif %}{% endfor %}.
         {{ 'Een duidelijke producttekst helpt AI ze te noemen.' if taal == 'nl' else 'A clear product text helps AI name them.' }}</div>
       {% endif %}
+      {# Stap 337 (15 okt): wat AI in jouw plaats noemde, letterlijk uit het antwoord. #}
+      {% if productkaart.in_plaats %}
+      <div class="binnen" style="border-top:1px solid var(--lijnz);">
+        <div class="klein" style="margin-bottom:4px;">{{ 'In jouw plaats noemde AI (letterlijk uit het antwoord):' if taal == 'nl' else 'In your place AI named (word for word from the answer):' }}</div>
+        {% for r in productkaart.in_plaats %}
+        <div style="margin:6px 0 0; font-size:14px; line-height:1.5;"><span class="klein">{{ r.assistent }} &middot; <span lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ r.vraag }}</span></span>
+          {% for z in r.zinnen %}<div style="border-left:2px solid var(--lijnz); padding-left:8px; margin-top:3px;">&ldquo;{{ z }}&rdquo;</div>{% endfor %}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
     {% endif %}
 
@@ -1363,7 +1377,7 @@
         {% for r in ranglijst %}
         <tr class="{{ 'jij' if r.webshop_url == beeld.webshop_url }}">
           <td class="p">{{ '&ndash;'|safe if r.nul else r.positie }}</td>
-          <td>{{ r.naam or r.webshop_url | replace('https://','') }}{% if r.webshop_url == beeld.webshop_url %} <span class="jijlabel">{{ 'jij' if taal == 'nl' else 'you' }}</span>{% endif %}</td>
+          <td>{{ r.naam or r.webshop_url | replace('https://','') }}{% if r.webshop_url == beeld.webshop_url %} <span class="jijlabel">{{ 'jij' if taal == 'nl' else 'you' }}</span>{% endif %}{% if gevolgd is defined and gevolgd and r.webshop_url in gevolgd %} <span class="jijlabel" style="background:#F2F2F5; color:#4A4A55;">{{ 'gevolgd' if taal == 'nl' else 'following' }}</span>{% endif %}</td>
           <td class="r"><strong>{{ r.aanbevolen }}</strong></td>
           <td class="r">{{ r.genoemd }} / {{ beeld.telbaar }}</td>
         </tr>
@@ -1754,6 +1768,22 @@
       {% else %}
       <div class="binnen">{{ "Alle nagekeken pagina's zijn goed te lezen voor AI." if taal == 'nl' else 'Every page we checked is easy for AI to read.' }}</div>
       {% endif %}
+      {# Stap 331 (15 okt): alle productpagina's uit de sitemap, elke week een portie. #}
+      {% if productscore is defined and productscore %}
+      {% set ps = productscore %}
+      <div class="binnen" style="border-top:1px solid var(--lijnz);">
+        <div style="font-weight:600;">{{ 'Alle productpagina\'s' if taal == 'nl' else 'All product pages' }}
+          <span class="klein">&middot; {{ ps.gekeurd }} {{ 'van' if taal == 'nl' else 'of' }} {{ ps.totaal }} {{ 'nagekeken' if taal == 'nl' else 'checked' }}, {{ ps.goed }} {{ 'goed' if taal == 'nl' else 'fine' }}{% if ps.gekeurd < ps.totaal %} &middot; {{ 'elke week komen er meer bij' if taal == 'nl' else 'more every week' }}{% endif %}</span></div>
+        {% if ps.overgeslagen %}
+        <div class="klein" style="margin:8px 0 2px;">{{ 'Deze pagina\'s slaat AI waarschijnlijk over:' if taal == 'nl' else 'AI probably skips these pages:' }}</div>
+        <ul style="margin:0; padding-left:18px; font-size:14px; line-height:1.55;">{% for pad, acties in ps.overgeslagen %}<li><span style="font-family:var(--mono); font-size:12.5px;">{{ pad }}</span>{% if acties %}: {{ acties | first }}{% endif %}</li>{% endfor %}</ul>
+        {% endif %}
+        {% if ps.te_doen %}
+        <details style="margin-top:8px; font-size:14px;"><summary>{{ ps.te_doen | length }} {{ 'pagina\'s met iets om te verbeteren' if taal == 'nl' else 'pages with something to improve' }}</summary>
+          <ul style="margin:6px 0 0; padding-left:18px; line-height:1.55;">{% for pad, acties in ps.te_doen %}<li><span style="font-family:var(--mono); font-size:12.5px;">{{ pad }}</span>: {{ acties | join(' ') }}</li>{% endfor %}</ul></details>
+        {% endif %}
+      </div>
+      {% endif %}
       {# 2 oktober: per pagina per AI-robot, uit robots.txt en een bezoek met zijn naam. #}
       {% set met_robots = paginacheck.paginas | selectattr('robots') | list %}
       {% if met_robots %}
@@ -2110,5 +2140,6 @@
     }
   })();
 </script>
+{% include '_snelzoek.html' %}
 </body>
 </html>
