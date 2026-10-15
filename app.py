@@ -22,6 +22,11 @@ import re
 import threading
 import time
 from datetime import datetime, timezone, timedelta
+
+# 15 oktober: een plafond op elk antwoord van een andere site, voordat er iets
+# ophaalt. Zie begrenzing.py (de dienst ging elk uur over de 512 MB).
+import begrenzing
+begrenzing.zet_aan()
 from urllib.parse import quote
 
 from flask import (Flask, request, jsonify, render_template, redirect, Response, send_from_directory,

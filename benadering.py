@@ -254,6 +254,13 @@ def zoek_adressen(hoeveel=None):
     for winkel in db.get_benaderingen(stand="nieuw", limiet=hoeveel):
         url = winkel["webshop_url"]
         gedaan["bekeken"] += 1
+        # 15 oktober: EERST vastleggen dat we hem bekijken. Valt de dienst
+        # tijdens het zoeken om (een site die het geheugen opblies), dan stond
+        # hij nog op "nieuw" en kwam hij elk uur opnieuw, met elk uur dezelfde
+        # crash. Nu staat hij al op "geen adres"; lukt het zoeken, dan wordt
+        # dat hieronder meteen overschreven.
+        db.zet_benadering(url, stand="geen_adres",
+                          notitie="Zoeken onderbroken (site te groot of vastgelopen).")
         try:
             uitkomst = contactvinder.zoek_adres(url)
             _onthoud_platform(url, uitkomst)
@@ -345,6 +352,10 @@ def herkans_adressen(hoeveel=None):
             continue
         behandeld.append(kaal)
         gedaan["bekeken"] += 1
+        # 15 oktober: per winkel vooraf onthouden, niet pas aan het eind. Viel
+        # de dienst halverwege om, dan was niets onthouden en kwamen alle
+        # winkels van deze ronde (ook de boosdoener) elk uur terug.
+        _onthoud_herkansing([kaal])
         try:
             uitkomst = contactvinder.zoek_adres(url)
             _onthoud_platform(url, uitkomst)
@@ -408,6 +419,9 @@ def adressen_via_zoekmachine(hoeveel=None, zoek=None):
             continue
         gehad.add(kaal)
         gedaan["bekeken"] += 1
+        # 15 oktober: vooraf bewaren, zelfde reden als bij de herkansing.
+        ruw["gehad"] = sorted(gehad)
+        db.zet_instelling(ZOEKMACHINE_SLEUTEL, json.dumps(ruw))
         uitkomst = contactvinder.zoek_via_zoekmachine(url, zoek=zoek)
         if uitkomst.get("adres"):
             db.zet_benadering(url, stand="adres", email=uitkomst["adres"],
