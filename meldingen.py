@@ -365,6 +365,12 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
             try:
                 import groeirapport
                 klant["groei"] = groeirapport.voor_klant(ronde, klant["webshop_url"], klant.get("naam"), taal)
+                # 16 okt (Fix): hoeveel werk Krillo deze maand deed, uit het echte werk (uren.py).
+                if (klant.get("pakket") or "").lower() == "fix":
+                    import uren
+                    z = uren.zin(uren.deze_maand(klant["webshop_url"]), taal)
+                    if z:
+                        klant["groei"] = list(klant.get("groei") or []) + [z]
             except Exception as e:
                 print(f"Groeirapport in de maandmail mislukt: {e}")
             try:

@@ -9,7 +9,10 @@ Kolommen: gratis check, Watch, Fix, Agencies (pakket "merken").
 EERLIJK: alleen wat er is. Wat geen enkel pakket heeft, staat er niet (zoals
 dagelijkse metingen of Perplexity): "If a line is not here, no plan has it yet."
 """
+import contentmotor
 import eigenvragen
+import shopify_werk
+import snelmeting
 
 VERGELIJKING = [
     {"naam": "Measure", "rijen": [
@@ -18,8 +21,10 @@ VERGELIJKING = [
         {"wat": "Stores", "waarden": ["1", "1", "1", "Up to 25"]},
         {"wat": "Every buying question in your category", "uitleg": "The Krillo Index, nothing to set up",
          "waarden": ["Today's snapshot", "Monthly", "Monthly", "Monthly"]},
+        # 16 okt: Fix meet 15 vragen per week (snelmeting.AANTAL_FIX).
         {"wat": "Your key questions", "uitleg": "Asked again every week, emailed to you",
-         "waarden": [False, "5, weekly", "5, weekly", "5, weekly"]},
+         "waarden": [False, f"{snelmeting.AANTAL}, weekly", f"{snelmeting.AANTAL_FIX}, weekly",
+                     f"{snelmeting.AANTAL}, weekly"]},
         # eigenvragen.MAX
         {"wat": "Questions of your own", "waarden": [False, str(eigenvragen.MAX["watch"]), str(eigenvragen.MAX["fix"]),
                                                     f"{eigenvragen.MAX['merken']} per store"]},
@@ -40,9 +45,18 @@ VERGELIJKING = [
         {"wat": "Ready-made titles, descriptions and texts per page", "waarden": [False, True, True, True]},
         {"wat": "Structured data blocks to paste", "uitleg": "Product, FAQ and store details", "waarden": [False, True, True, True]},
         {"wat": "robots.txt and llms.txt fixes", "waarden": [False, True, True, True]},
-        {"wat": "We make the changes in your store", "uitleg": "Shopify and WordPress, after your approval",
+        {"wat": "We make the changes in your store", "uitleg": "With the Shopify app; on other platforms ready to paste",
          "waarden": [False, False, True, False]},
         {"wat": "Undo any change in one click", "waarden": [False, False, True, False]},
+        # 16 okt (Fix waard maken): wat Fix nu extra doet.
+        {"wat": "New buying-guide pages for questions you lose", "uitleg": "Written in your language, from your products",
+         "waarden": [False, "Topics only", f"{contentmotor.PER_MAAND} written a month", "Topics only"]},
+        {"wat": "Product pages fixed for you", "uitleg": "Image descriptions and product texts",
+         "waarden": [False, False, f"Up to {shopify_werk.AUTOMATISCH_PER_WEEK} a week", False]},
+        {"wat": "Ready-to-send messages to get listed", "uitleg": "Per review and comparison site AI cites",
+         "waarden": [False, False, True, False]},
+        {"wat": "Hours of work done for you, counted", "uitleg": "Every month in your dashboard and email",
+         "waarden": [False, False, True, False]},
         {"wat": "Before and after per change", "uitleg": "Measured with your weekly questions",
          "waarden": [False, True, True, True]},
     ]},
@@ -80,8 +94,10 @@ VRAGEN = [
      "antwoord": "No. Your category is already measured in the Krillo Index, so you see your rank, your competitors and "
                  "the questions you lose from the first minute. You can add questions of your own later."},
     {"vraag": "What is the difference between Watch and Fix?",
-     "antwoord": "Watch shows everything and writes out every fix, so you can do it yourself. With Fix we make the "
-                 "changes in your store after your approval, keep the old text so you can undo it, and measure again."},
+     "antwoord": "Watch shows everything and writes out every fix, so you can do it yourself. Fix does the work: we "
+                 "make the changes in your store (undo any of them in one click), write two new buying-guide pages "
+                 "a month for questions you lose, give you a ready message for every site AI cites, measure 15 "
+                 "questions every week and show the hours of work we did for you."},
     {"vraag": "I am on Shopify. How do I pay?",
      "antwoord": "Install Krillo from the Shopify App Store. Your first changes are free and the plan is billed on your "
                  "Shopify invoice, so there is no separate payment."},

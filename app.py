@@ -4964,6 +4964,30 @@ def _shopify_abonnees():
     return uit
 
 
+def _contentmotor_site(webshop_url):
+    """Stap 239 voor Fix-klanten zonder Shopify: de koopgidsen van deze maand
+    schrijven; ze staan klaar op Fixes om te plakken (of via WordPress)."""
+    import contentmotor
+    import productkaart
+    import shopify_werk
+    beeld = klantbeeld.bouw(webshop_url)
+    vragen = contentmotor.onderwerpen(webshop_url, (beeld or {}).get("gemiste_vragen"))
+    if not vragen:
+        return 0
+    client, fout = shopify_werk._model(webshop_url)
+    if not client:
+        print(f"Contentmotor overgeslagen voor {webshop_url}: {fout}")
+        return 0
+    producten = [{"naam": p.get("naam")} for p in (productkaart.producten_van(webshop_url) or [])[:20]]
+    taal = (_markt_van(webshop_url) or {}).get("taal") or "Nederlands"
+    gemaakt = 0
+    for vraag in vragen:
+        if contentmotor.schrijf(webshop_url, vraag, (beeld or {}).get("naam") or webshop_url, producten, taal,
+                                lambda t: shopify_werk._vraag_json(client, t, webshop_url, "contentmotor", 3000)):
+            gemaakt += 1
+    return gemaakt
+
+
 def _shopify_automatisch_aanvullen(winkel, base_url):
     """Vult uit onszelf aan bij een winkel met een abonnement.
 
@@ -5009,7 +5033,8 @@ def _shopify_automatisch_aanvullen(winkel, base_url):
 
     try:
         markt_gegevens = _markt_van(webshop_url)
-        uitkomst = shopify_werk.maak_voorstellen(winkel, sleutel, markt_gegevens)
+        # 16 okt: Fix krijgt ook de koopgidsen van de contentmotor (stap 239).
+        uitkomst = shopify_werk.maak_voorstellen(winkel, sleutel, markt_gegevens, gidsen=True)
     except Exception as e:
         print(f"Automatisch aanvullen mislukt voor {winkel}: {e}")
         return None
@@ -5070,6 +5095,13 @@ def _draai_wekelijkse_scans(base_url, alles=False):
     try:
         vandaag = datetime.now(timezone.utc)
         customers = payments.list_active_monitoring_customers() + _shopify_abonnees()
+        # 16 okt: het pakket ook bij klanten via de site (Mollie), voor de Fix-onderdelen.
+        for c in customers:
+            if not c.get("plan"):
+                try:
+                    c["plan"] = ((db.klant_bij_url(c["webshop_url"]) or {}).get("pakket") or "").lower() or None
+                except Exception:
+                    c["plan"] = None
         aan_de_beurt = [c for c in customers
                         if _is_aan_de_beurt(c["webshop_url"], vandaag, alles)]
         print(f"{len(customers)} actieve klant(en), {len(aan_de_beurt)} vandaag aan de beurt.")
@@ -5103,7 +5135,9 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                 # loopt de rest van de ronde gewoon door.
                 try:
                     import snelmeting
-                    v = snelmeting.meet(c["webshop_url"])
+                    # 16 okt: Fix 15 vragen per week, de rest 5.
+                    v = snelmeting.meet(c["webshop_url"], aantal=snelmeting.AANTAL_FIX if c.get("plan") == "fix"
+                                        else snelmeting.AANTAL)
                     print(f"Snelmeting {c['webshop_url']}: {v}")
                     # 2 oktober (stap 180): de eigen vragen van de klant mee.
                     try:
@@ -5138,6 +5172,12 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                         _shopify_automatisch_aanvullen(c["winkel"], base_url)
                     except Exception as e:
                         print(f"Automatisch aanvullen mislukt voor {c['winkel']}: {e}")
+                # 16 okt (stap 239): Fix zonder Shopify krijgt de koopgidsen klaar op Fixes.
+                elif c.get("plan") == "fix":
+                    try:
+                        print(f"Contentmotor {c['webshop_url']}: {_contentmotor_site(c['webshop_url'])} nieuw")
+                    except Exception as e:
+                        print(f"Contentmotor mislukt voor {c['webshop_url']}: {e}")
             except Exception as e:
                 print(f"Wekelijkse scan mislukt voor {c.get('webshop_url')}: {e}")
         print("Ronde afgerond.")
@@ -9175,7 +9215,17 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 # Stap 331: alle productpagina's, een portie per week.
                 gegevens["productscore"] = paginacheck.productscore(webshop_url)
             except Exception as e:
-                print(f"Paginacheck voor het dashboard mislukt: {e}")
+                print(f"Productscore voor het dashboard mislukt: {e}")
+            # 16 okt (Fix waard maken): de koopgidsen van de contentmotor en de
+            # uren werk van deze maand, alleen voor Fix.
+            try:
+                if klant_token and ((db.get_klant(klant_token) or {}).get("pakket") or "").lower() == "fix":
+                    import contentmotor
+                    import uren
+                    gegevens["gidsen"] = contentmotor.pagina_s(webshop_url)[:6]
+                    gegevens["uren_zin"] = uren.zin(uren.deze_maand(webshop_url), taal)
+            except Exception as e:
+                print(f"Fix-werk voor het dashboard mislukt: {e}")
             # 15 oktober (voorstel 3): werkte de nieuwe titel of tekst? (tekstproef.py)
             try:
                 import tekstproef
@@ -9360,7 +9410,14 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
             # pagina wacht nooit op een andere site.
             try:
                 import vermeldingen
-                gegevens["vermeldingen"] = vermeldingen.plan(gegevens["bronnen"], webshop_url)
+                # 16 okt: Fix krijgt per site ook het bericht om te versturen.
+                is_fix = bool(klant_token) and not proef and \
+                    ((db.get_klant(klant_token) or {}).get("pakket") or "").lower() == "fix"
+                gegevens["is_fix"] = is_fix
+                gegevens["vermeldingen"] = vermeldingen.plan(
+                    gegevens["bronnen"], webshop_url,
+                    fix={"winkelnaam": winkelnaam, "categorie": categorieen.naam_en(beeld["categorie"]),
+                         "land": beeld.get("land")} if is_fix else None)
                 if any(v["naam"] == "Trustpilot" and v["status"] == "check" for v in gegevens["vermeldingen"]):
                     threading.Thread(target=vermeldingen.nakijken, args=(gegevens["bronnen"], webshop_url),
                                      daemon=True).start()
@@ -9851,9 +9908,9 @@ def _eerste_maand(webshop_url, klant_token, beeld, taal, pakket=None, gekozen=No
                     "Fixes has the text ready to copy and where it goes. Done? Tick it off here.")),
          "afvinken": not fix and not gewijzigd},
         {"titel": "Zie het effect" if nl else "See the effect", "tijd": "", "klaar": False, "info": True,
-         "tekst": ((f"Elke {dag} stellen we je vijf belangrijkste vragen opnieuw. AI pikt een wijziging meestal "
+         "tekst": ((f"Elke {dag} stellen we je {'vijftien' if fix else 'vijf'} belangrijkste vragen opnieuw. AI pikt een wijziging meestal "
                     f"binnen een paar dagen tot een paar weken op. Je nieuwe plek in de index: rond {volgende}.") if nl else
-                   (f"Every {dag} we ask your five key questions again. AI usually picks up a change within days "
+                   (f"Every {dag} we ask your {'fifteen' if fix else 'five'} key questions again. AI usually picks up a change within days "
                     f"to a few weeks. Your new rank in the index: around {volgende}."))},
     ]
     taken = [s for s in stappen if not s.get("info")]

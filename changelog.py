@@ -11,6 +11,16 @@ Deze lijst wordt ook getest (test_changelog.py): elke link erin moet laden.
 
 # (datum, titel, tekst, link of None). Nieuwste eerst.
 REGELS = [
+    # 16 oktober: Fix doet meer (akkoord Nino), en de prijzen op een eigen pagina.
+    ("2026-10-16", "Fix does more of the work",
+     "Fix now writes two new buying-guide pages a month for questions you lose (on Shopify we publish them, and "
+     "you can undo them), measures 15 questions every week instead of 5, gives you a ready-to-send message for every "
+     "review and comparison site AI cites, and shows the hours of work we did for you.", "/pricing"),
+    ("2026-10-15", "A pricing page with every feature side by side",
+     "All plans and everything in them on one page, with monthly or yearly prices.", "/pricing"),
+    ("2026-10-15", "All your product pages checked",
+     "Your Fixes page now covers every product page from your sitemap, 40 more every week, and shows which ones AI "
+     "probably skips.", None),
     # 14 oktober: feedback op Reddit (zie het projectdocument van 14 oktober).
     ("2026-10-14", "Every ranking shows the change since last month",
      "Each row in the public rankings now shows how many places a store moved since the previous measurement, "

@@ -1132,7 +1132,7 @@ def welkom_v2_html(webshop_url, report_url, pakket="watch", score=None, gratis_t
                       "Rather not? Reply and we place it for you.",
                       knop=("Show me how", f"{report_url}#start-pixel") if report_url else None)
     derde = stap("3", "Every week and every month",
-                 "Every week your five most important buying questions are asked again, so you see "
+                 "Every week your five most important buying questions (fifteen with Fix) are asked again, so you see "
                  "whether a change works. Every month we measure your whole category and send you "
                  "your position. "
                  + ("We pick the fixes that gain you the most and we install them in your store, "
@@ -1282,7 +1282,7 @@ def send_monitoring_welcome_email(to_email, webshop_url, scan_result, report_url
              + (f"; it scores {score} of 100 on them today." if (scan_result or {}).get("checks")
                 else "; the first one follows within a week.")
              + " <strong>Every week</strong> we also ask your five most important buying questions "
-               "again, so you see within a week whether a change works.")
+               "(fifteen with Fix) again, so you see within a week whether a change works.")
         + werk
         # Stap 167: bij de gratis proef precies zeggen wanneer er iets betaald wordt.
         + (_p(f"<strong>Your free trial.</strong> Watch is free until {gratis_tot.strftime('%d-%m-%Y')}. "
