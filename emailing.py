@@ -896,6 +896,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
     # waar. Nu staat er wat vandaag klopt: met Fix doen wij het in de winkel,
     # en alles kan terug. Voor WooCommerce net zo (koppeling sinds 30 sep).
     shopify_regel = ""
+    shopify_knop = False
     systeem = {"shopify": "Shopify", "woocommerce": "WooCommerce", "wordpress": "WordPress"}.get(
         (platform or "").lower())
     if systeem:
@@ -907,10 +908,11 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
         # installatie telt in de App Store; alleen als het adres in Render staat.
         winkel_url = (os.environ.get("SHOPIFY_APP_STORE_URL") or "").strip()
         if systeem == "Shopify" and winkel_url.startswith("https://apps.shopify.com/"):
+            shopify_knop = True
             shopify_regel += ('<p style="font-size:15px; color:#0A0A0B; line-height:1.65; margin:10px 0 6px;">'
-                              f'Krillo is also in the Shopify App Store: <a href="{winkel_url}" '
-                              'style="color:#1B3FE0;">install it</a> and see your rank inside your '
-                              'Shopify admin, with the first 3 fixes free.</p>')
+                              'Krillo is in the Shopify App Store: install it and see your rank inside your '
+                              'Shopify admin. The first changes are free, and a plan is billed on your '
+                              'Shopify invoice.</p>')
 
     # Stap 217 in de koude mail (30 september): bij een Shopify-winkel een
     # zin uit zijn eigen productteksten letterlijk opgezocht. Alleen als er
@@ -958,6 +960,36 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
                    f"ask in the {cat} category, and we rank the stores they name. "
                    f"{winkel} is in that ranking.</p>")
 
+    # 15 oktober (idee 15 okt, akkoord Nino): bij een Shopify-winkel is de
+    # hoofdknop de installatie (twee klikken, eerste wijzigingen gratis, betalen
+    # via de Shopify-factuur); zijn eigen pagina blijft als tweede link. Via
+    # /start/shopify, zodat de klik geteld wordt.
+    gewone_knop = f"""
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
+            <tr><td style="background:#0A0A0B; border-radius:10px;">
+              <a href="{link_url}" style="display:inline-block; padding:13px 26px;
+                 color:#FFFFFF; text-decoration:none; font-size:14.5px; font-weight:600;">
+                See my Krillo page</a>
+            </td></tr>
+          </table>
+          <p style="font-size:12.5px; color:#6E7079; margin:0 0 4px;">
+            The link goes to {zichtbaar}</p>"""
+    if shopify_knop and "/uitkomst/" in (link_url or ""):
+        from urllib.parse import quote as _quote
+        installeren = link_url.split("/uitkomst/")[0] + "/start/shopify?winkel=" + _quote(webshop_url or "")
+        knoppen = f"""
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
+            <tr><td style="background:#0A0A0B; border-radius:10px;">
+              <a href="{installeren}" style="display:inline-block; padding:13px 26px;
+                 color:#FFFFFF; text-decoration:none; font-size:14.5px; font-weight:600;">
+                Install on Shopify, first changes free</a>
+            </td></tr>
+          </table>
+          <p style="font-size:13.5px; color:#4A4A55; margin:0 0 4px;">
+            Or first <a href="{link_url}" style="color:#1B3FE0;">see my Krillo page</a> on {zichtbaar}.</p>"""
+    else:
+        knoppen = gewone_knop
+
     html = f"""
     <div style="background:#F7F7F9; padding:28px 16px; font-family:-apple-system,
                 'Segoe UI', Arial, sans-serif;">
@@ -998,15 +1030,7 @@ def send_onderzoeksmail(to_email, webshop_url, link_url, beeld=None,
           {shopify_regel}
           {klant_regel}
 
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
-            <tr><td style="background:#0A0A0B; border-radius:10px;">
-              <a href="{link_url}" style="display:inline-block; padding:13px 26px;
-                 color:#FFFFFF; text-decoration:none; font-size:14.5px; font-weight:600;">
-                See my Krillo page</a>
-            </td></tr>
-          </table>
-          <p style="font-size:12.5px; color:#6E7079; margin:0 0 4px;">
-            The link goes to {zichtbaar}</p>
+          {knoppen}
           {ondertekening}
 
           <div style="height:1px; background:#E8E8EC; margin:26px 0 16px;"></div>

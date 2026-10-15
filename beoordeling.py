@@ -30,7 +30,7 @@ import json
 import os
 import time
 
-import anthropic
+from lui_anthropic import anthropic  # pas laden bij gebruik, zie lui_anthropic.py
 
 import db
 import kosten

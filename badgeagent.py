@@ -180,6 +180,14 @@ def ronde(basis_url, bouw_beeld, categorienaam=None, landnaam=None, verstuur=Non
             continue
         pagina = f"{basis_url}/index/{(beeld.get('land') or '').lower()}/{beeld.get('categorie')}"
         code = embedcode(basis_url, token, pagina, mail["gegevens"])
+        # 15 oktober (stap 382, idee 15 okt): het Top 10-plaatje en een knop om
+        # het op LinkedIn te delen. Een winkel die zijn plek deelt, brengt zijn
+        # eigen volgers naar de ranglijst; dat bereik lieten we liggen.
+        from urllib.parse import quote
+        mail["alineas"].append(
+            f'Or share it: <a href="{pagina}/top10.png">download the top 10 as an image</a>, or '
+            f'<a href="https://www.linkedin.com/sharing/share-offsite/?url={quote(pagina, safe="")}">'
+            f'post it on LinkedIn</a> in one click.')
         _sql("UPDATE benadering SET badge_op = now(), seizoen_op = now() WHERE webshop_url = %s", (url,))
         if verstuur(w["email"], mail["onderwerp"], mail["alineas"], code, mail["slot"],
                     f"{basis_url}/uitkomst/{token}", afmeld_url=f"{basis_url}/afmelden/{token}"):

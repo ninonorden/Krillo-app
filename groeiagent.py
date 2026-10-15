@@ -341,6 +341,10 @@ def dagtaken(basis_url, te_doen=None, nu=None):
     if nu.weekday() < 5:
         try:
             import groeitaken
+            # 15 oktober: eerst de persoonlijke berichten op LinkedIn (dmlijst.py),
+            # de warmste opening die we hebben.
+            taken.append({"tekst": "10 persoonlijke berichten op LinkedIn aan de top van de ranglijsten",
+                          "minuten": 20, "link": f"{basis_url.rstrip('/')}/admin/groei#dm"})
             taken.extend(groeitaken.voor_vandaag(basis_url))
         except Exception as e:
             print(f"Groeitaken voor de dagtaken mislukt: {e}")

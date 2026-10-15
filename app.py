@@ -1664,13 +1664,29 @@ def admin_groei():
     if doorsturen:
         return redirect(doorsturen)
     import groeitaken
+    import dmlijst
     if request.method == "POST":
+        if request.form.get("dm"):
+            dmlijst.zet_gedaan(request.form.get("dm"))
+            return redirect("/admin/groei#dm")
         taak = request.form.get("taak") or ""
         groeitaken.zet_gedaan(taak, request.form.get("gedaan") == "ja")
         return redirect("/admin/groei#" + quote(taak))
     taken = [dict(t, gedaan=groeitaken.gedaan(t["id"])) for t in groeitaken.TAKEN]
+    # 15 oktober: de persoonlijke berichten voor LinkedIn (zie dmlijst.py).
+    dm = []
+    try:
+        ranglijsten = []
+        for rij in _bewaard(("landen",), db.landen_in_index) or []:
+            land = rij["land"]
+            for c in _bewaard(("perland", land), db.categorieen_per_land, land, MINIMUM_PER_LAND) or []:
+                ranglijsten.append((land, c["categorie"], categorieen.naam_van(c["categorie"]),
+                                    _ranglijst_bewaard(c["categorie"], land)))
+        dm = dmlijst.lijst_van_vandaag(ranglijsten, get_base_url(), uitsluiten=dmlijst.uitgesloten())
+    except Exception as e:
+        print(f"DM-lijst mislukt: {e}")
     return render_template("admin_groei.html", taken=taken, dag_max=groeitaken.DAG_MAX,
-                           open_aantal=sum(1 for t in taken if not t["gedaan"]))
+                           open_aantal=sum(1 for t in taken if not t["gedaan"]), dm=dm)
 
 
 @app.route("/admin/linkedin", methods=["GET", "POST"])
@@ -8437,6 +8453,11 @@ def openbare_categorie(land, slug):
         kaart=_categoriekaart_svg(lijst["rijen"], lijst["telbaar"]),
         # Stap 178: waar AI kopers naartoe stuurt.
         bronnen=_bronnen_van_ronde(lijst["ronde"]),
+        # 15 oktober: per vraag wie AI noemde (de zoektermen van kopers, met
+        # het antwoord erbij), de stijgers van de maand en het deelplaatje.
+        per_vraag=_vragen_met_namen_van_ronde(lijst["ronde"]),
+        stijgers=_stijgers(genoemd) if vorige_meting else [],
+        top10_png=(f"{basis_url}/index/{land}/{slug}/top10.png" if len(genoemd) >= 3 else None),
     )
 
 
@@ -8490,6 +8511,54 @@ def categoriekaart_png(land, slug):
 
 _kaart_png_opslag = {}
 _kaart_png_slot = threading.Lock()
+
+
+@app.route("/index/<land>/<slug>/top10.png")
+def top10_png(land, slug):
+    """Stap 382: de top 10 als plaatje (1200 x 630), ook het og:image van de pagina."""
+    import top10beeld
+    land = (land or "").lower()
+    lijst = _bewaard(("ranglijst", slug, land), db.ranglijst_per_land, slug, land, 1000) \
+        if land in sitetaal.LANDEN else None
+    if not lijst or not lijst.get("ronde") or len(top10beeld.regels(lijst["rijen"])) < 3:
+        return "Not enough stores named for a top 10.", 404
+    gemeten = next((r.get("gemeten_op") for r in lijst["rijen"] if r.get("gemeten_op")), None)
+    maand = gemeten.strftime("%m-%Y") if hasattr(gemeten, "strftime") else ""
+    sleutel = ("top10", land, slug, lijst.get("ronde"))
+    data = _kaart_png_opslag.get(sleutel)
+    if data is None:
+        with _kaart_png_slot:
+            data = _kaart_png_opslag.get(sleutel)
+            if data is None:
+                data = top10beeld.png(lijst["rijen"], categorieen.naam_en(slug), categorieen.naam_van(slug),
+                                      sitetaal.landnaam(land, "en"), maand)
+                if len(_kaart_png_opslag) >= 80:
+                    _kaart_png_opslag.clear()
+                _kaart_png_opslag[sleutel] = data
+    return Response(data, mimetype="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+
+def _vragen_met_namen_van_ronde(ronde):
+    """15 oktober: per koopvraag wie AI noemde, een keer per afgeronde ronde
+    berekend en bewaard (geen antwoordteksten nodig, zie _afgeleid)."""
+    import categorierapport
+    if not ronde:
+        return {}
+    data = _afgeleid(ronde, "vraagnamen-v1", lambda: {
+        v["vraag"]: v["namen"][:3]
+        for v in categorierapport.vragen_met_namen(db.antwoorden_van_ronde(ronde), maximaal=60)})
+    return data or {}
+
+
+def _stijgers(rijen, hoeveel=3):
+    """15 oktober (stap 360): de grootste stijgers sinds de vorige meting."""
+    uit = []
+    for r in rijen or []:
+        vorig, nu = r.get("vorige_positie"), r.get("positie")
+        if vorig and nu and not r.get("nul") and vorig > nu:
+            uit.append(dict(r, stijging=vorig - nu))
+    uit.sort(key=lambda r: (-r["stijging"], r["positie"]))
+    return uit[:hoeveel]
 
 
 def _winkel_slug(webshop_url):
