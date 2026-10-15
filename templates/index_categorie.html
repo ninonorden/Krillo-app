@@ -7,10 +7,12 @@
    bevat nu de woorden waarop een koper in dat land zoekt ("beste ... webshop"),
    in de taal van het land, net als de koopvragen op de pagina. De rest van de
    pagina blijft Engels. #}
-{% if land in ('nl', 'be') %}<title>Beste {{ naam | lower }} webshops volgens ChatGPT en Gemini{% if gemeten_op %} ({{ gemeten_op.strftime('%m-%Y') }}){% endif %} | Krillo Index {{ land | upper }}</title>
-<meta name="description" content="Welke {{ naam | lower }} webshops noemen ChatGPT en Gemini als je vraagt waar je moet kopen? De ranglijst van {{ totaal }} winkels in {{ landnaam }}, gemeten met {{ telbaar }} echte koopvragen. {{ naam_en }}: the Krillo Index.">
-{% else %}<title>{{ naam }} {{ landnaam }}: {{ t.index_kop }} | Krillo</title>
-<meta name="description" content="{{ naam }} {{ landnaam }}. {{ t.index_omschrijving }}">{% endif %}
+{# 15 oktober (Nino: alles Engels, maar voor de markten). De titel is Engels,
+   met de naam van de categorie in de taal van het land (het woord waarop een
+   koper daar zoekt, "speelgoed webshop"). Werkt zo voor elk volgend land. #}
+{# 15 oktober: een titelproef van de SEO-agent gaat voor (seoagent.py). #}
+<title>{% if titel_proef is defined and titel_proef %}{{ titel_proef }}{% else %}{{ naam }} webshops: who ChatGPT and Gemini recommend in {{ landnaam }}{% if gemeten_op %} ({{ gemeten_op.strftime('%m-%Y') }}){% endif %} | Krillo Index{% endif %}</title>
+<meta name="description" content="Which {{ naam | lower }} webshops do ChatGPT and Gemini recommend when you ask where to buy? The ranking of {{ totaal }} stores in {{ landnaam }}, measured with {{ telbaar }} real buying questions{% if naam | lower != naam_en | lower %} ({{ naam_en | lower }}){% endif %}. The Krillo Index.">
 <link rel="canonical" href="{{ basis_url }}{{ canonical }}">
 {# TAAL EN LAND. De pagina staat in het Engels, maar hij gaat over EEN markt.
    Daarom taal-en-land samen (en-NL, en-BE): zo weet een zoekmachine dat dit
@@ -21,6 +23,18 @@
 <link rel="alternate" hreflang="{{ taal }}-{{ l.code | upper }}" href="{{ basis_url }}/index/{{ l.code }}/{{ slug }}">
 {% endfor %}
 <link rel="icon" href="/static/favicon.png?v=2026" type="image/png">
+{# 15 oktober (stap 382): wie de link deelt, ziet de top 10 als plaatje. #}
+{% if top10_png is defined and top10_png %}
+<meta property="og:type" content="website">
+<meta property="og:title" content="Top 10 {{ naam_en | lower }} stores according to ChatGPT and Gemini{% if naam | lower != naam_en | lower %} ({{ naam | lower }}){% endif %}, {{ landnaam }}">
+<meta property="og:description" content="{{ totaal }} stores measured with {{ telbaar }} real buying questions. The Krillo Index.">
+<meta property="og:url" content="{{ basis_url }}{{ canonical }}">
+<meta property="og:image" content="{{ top10_png }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{{ top10_png }}">
+{% endif %}
 {% include "_stijl.html" %}
 <script type="application/ld+json">
 {
@@ -143,6 +157,17 @@
     </tr>
     {% endfor %}
   </table>
+  {% if stijgers is defined and stijgers %}
+  {# 15 oktober (stap 360): de stijgers van de maand. Nieuws op de pagina zelf,
+     en een reden om volgende maand terug te komen. #}
+  <p style="font-size:14px; margin-top:12px;"><strong>{{ 'Grootste stijgers sinds de vorige meting' if taal == 'nl' else 'Biggest risers since last month' }}:</strong>
+    {% for r in stijgers %}{{ r.naam if (r.naam and not r.naam.startswith('http')) else r.webshop_url | replace('https://','') | replace('www.','') }} <span class="op">&#9650;{{ r.stijging }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+  {% endif %}
+  {% if top10_png is defined and top10_png %}
+  <p style="font-size:14px; margin-top:8px;">{{ 'In de top 10? Deel hem:' if taal == 'nl' else 'In the top 10? Share it:' }}
+    <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ (basis_url ~ canonical) | urlencode }}" target="_blank" rel="noopener">LinkedIn</a> &middot;
+    <a href="{{ top10_png }}" target="_blank" rel="noopener">{{ 'download het plaatje' if taal == 'nl' else 'download the image' }}</a></p>
+  {% endif %}
   {% if mediaan is not none %}
   {# 14 oktober (Reddit): de mediaan van de categorie, zodat elke rij iets heeft
      om zich aan te meten. "+n" in de rij is hoeveel vragen boven die mediaan. #}
@@ -224,7 +249,9 @@
   <p style="margin-bottom:16px;">{{ t.vragen_uitleg }}</p>
   <div class="blok">
     <ul>
-      {% for v in vragen %}<li>{{ v }}</li>{% endfor %}
+      {# 15 oktober: bij elke vraag wie AI noemde. De vraag is de zoekterm van
+         de koper; het antwoord erbij maakt de pagina het antwoord op die zoekterm. #}
+      {% for v in vragen %}<li><span lang="{{ 'nl' if land in ('nl', 'be') else taal }}">{{ v }}</span>{% if per_vraag is defined and per_vraag.get(v) %}<br><span class="klein">{{ 'AI noemde' if taal == 'nl' else 'AI named' }}: {{ per_vraag.get(v) | join(', ') }}</span>{% endif %}</li>{% endfor %}
     </ul>
   </div>
   {% endif %}

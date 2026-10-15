@@ -13,10 +13,10 @@
         <a href="/index">All rankings</a><a href="/how-we-measure">How we measure</a>
         <a href="/news/nl">This month in the index</a><a href="/articles">Articles</a>
         {# 14 okt (stap 379): de Nederlandse pagina's, ook als interne link voor Google. #}
-        <a href="/nl/webshop-vindbaar-in-chatgpt" lang="nl">Webshop vindbaar in ChatGPT</a><a href="/nl/ai-seo-voor-webshops" lang="nl">AI SEO voor webshops</a></div>
+        <a href="/guides/shopify-store-in-chatgpt">Shopify store in ChatGPT</a><a href="/guides/ai-visibility-for-online-stores">AI visibility for stores</a><a href="/nl/webshop-vindbaar-in-chatgpt" lang="nl">Webshop vindbaar in ChatGPT</a><a href="/nl/ai-seo-voor-webshops" lang="nl">AI SEO voor webshops</a></div>
       <div class="k-kol"><span>COMPARE</span>
         <a href="/compare">Compare tools</a><a href="/agencies">Brands and agencies</a>
-        <a href="/partners">Become a partner</a></div>
+        <a href="/partners">Become a partner</a>{% if shopify_app_store_url is defined and shopify_app_store_url() %}<a href="{{ shopify_app_store_url() }}" target="_blank" rel="noopener">Shopify app</a>{% endif %}</div>
       <div class="k-kol"><span>COMPANY</span>
         <a href="/about">About Krillo</a><a href="/changelog">What is new</a><a href="/faq">Questions</a>
         <a href="mailto:hello@krilloai.com">hello@krilloai.com</a><a href="/get-my-link">Lost my link</a></div>

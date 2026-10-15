@@ -27,6 +27,41 @@
 <body><div class="wrap">
   <h1>Groeitaken</h1>
   <p class="grijs">{{ open_aantal }} open van {{ taken | length }}. Het ochtendbericht zet er elke werkdag {{ dag_max }} bovenaan. Doel: links van buiten en bezoekers die zelf komen kijken.</p>
+  {% if kansen %}
+  {# 15 oktober (kansenagent.py): draadjes waar winkeliers zelf om hulp vragen,
+     met een antwoord klaar. Zelf plaatsen, vanaf je eigen account. #}
+  <div class="taak" id="kansen">
+    <div class="kop"><h2>Vragen van winkeliers om op te antwoorden ({{ kansen | length }})</h2><span class="min">5 MIN PER STUK</span></div>
+    <p>Open het draadje, lees de vraag en de andere antwoorden, en pas het antwoord aan waar het niet past. Plaats het vanaf je eigen account (op Reddit eerst een paar dagen gewoon meedoen zonder Krillo te noemen; een account zonder geschiedenis wordt weggefilterd). Daarna Geplaatst of Overslaan.</p>
+    {% for k in kansen %}
+    <div style="border-top:1px solid #E7E7E4; padding:12px 0;">
+      <b>{{ k.titel or k.url }}</b> <span class="grijs">{{ k.plek }} &middot; {{ k.gevonden_op }}</span><br>
+      <a href="{{ k.url }}" target="_blank" rel="noopener">{{ k.url }}</a>
+      <pre id="kans-{{ loop.index }}">{{ k.antwoord }}</pre>
+      <button type="button" class="licht" onclick="navigator.clipboard.writeText(document.getElementById('kans-{{ loop.index }}').innerText);this.textContent='Gekopieerd'">Kopieer het antwoord</button>
+      <form method="post" style="display:inline;"><input type="hidden" name="kans" value="{{ k.url }}"><input type="hidden" name="stand" value="geplaatst"><button type="submit">Geplaatst</button></form>
+      <form method="post" style="display:inline;"><input type="hidden" name="kans" value="{{ k.url }}"><input type="hidden" name="stand" value="overgeslagen"><button type="submit" class="licht">Overslaan</button></form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if dm %}
+  {# 15 oktober (dmlijst.py): elke dag 10 winkels uit de top 5, met een bericht
+     dat past in een connectieverzoek op LinkedIn. Zelf sturen, vanaf je eigen profiel. #}
+  <div class="taak" id="dm">
+    <div class="kop"><h2>Vandaag: {{ dm | length }} persoonlijke berichten op LinkedIn</h2><span class="min">20 MIN</span></div>
+    <p>Per winkel: zoek de winkel op LinkedIn, open de bedrijfspagina en dan <b>Personen</b>. Kies de eigenaar of oprichter (anders iemand van marketing), klik <b>Verbinden</b> en dan <b>Notitie toevoegen</b>. Plak het bericht en klik <b>Versturen</b>. Daarna hier op Gedaan. Geen eigenaar te vinden? Ook op Gedaan, dan komt de volgende.</p>
+    {% for d in dm %}
+    <div style="border-top:1px solid #E7E7E4; padding:12px 0;">
+      <b>#{{ d.plek }} {{ d.winkel }}</b> <span class="grijs">{{ d.categorie }}, {{ d.land | upper }}</span>
+      &middot; <a href="https://www.linkedin.com/search/results/companies/?keywords={{ d.winkel | urlencode }}" target="_blank" rel="noopener">zoek op LinkedIn</a>
+      <pre id="dm-{{ loop.index }}">{{ d.bericht }}</pre>
+      <button type="button" class="licht" onclick="navigator.clipboard.writeText(document.getElementById('dm-{{ loop.index }}').innerText);this.textContent='Gekopieerd'">Kopieer het bericht</button>
+      <form method="post" style="display:inline;"><input type="hidden" name="dm" value="{{ d.webshop_url }}"><button type="submit">Gedaan</button></form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% for t in taken %}
   <div class="taak{% if t.gedaan %} klaar{% endif %}" id="{{ t.id }}">
     <div class="kop"><h2>{{ t.titel }}</h2><span class="min">{{ t.minuten }} MIN</span></div>

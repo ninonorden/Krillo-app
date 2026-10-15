@@ -323,6 +323,12 @@
      volledige dashboard. Zonder plan: hoe je straks ziet of het werkt, zonder
      iets te beloven. #}
   {% if beeld %}
+  {% if thema_link %}
+  <section class="vlak" id="ai-data" style="text-align:center;">
+    <p style="margin:0 0 12px;"><strong>Let AI read your store as facts.</strong> Turn on "Krillo AI data" in your theme: your store details and FAQ answers go into the page code as structured data. Nothing changes in how your store looks.</p>
+    <a class="heroknop" href="{{ thema_link }}" target="_top">Turn on AI data</a>
+  </section>
+  {% endif %}
   {% if review_url %}
   <section class="vlak" id="review" style="text-align:center;">
     <p style="margin:0 0 12px;"><strong>Was this useful?</strong> A short review in the Shopify App Store helps other store owners find Krillo. It takes a minute.</p>

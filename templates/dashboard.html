@@ -1532,6 +1532,14 @@
           {% for l in vragen.labels %}<button type="button" data-label="{{ l.sleutel }}">{{ labelnaam(l.sleutel, taal) }} &middot; {{ l.verloren }}/{{ l.totaal }} {{ 'verloren' if taal == 'nl' else 'lost' }}</button>{% endfor %}
         </div>
         {% endif %}
+        {# 15 oktober (voorstel 9): word je genoemd als iemand NU wil kopen? #}
+        {% if vragen.intentie and vragen.intentie.orienterend.totaal %}
+        <div class="klein" style="margin-top:8px;">
+          <strong>{{ 'Koopklaar' if taal == 'nl' else 'Ready to buy' }}</strong>: {{ 'genoemd bij' if taal == 'nl' else 'named in' }} {{ vragen.intentie.koopklaar.gewonnen }} {{ 'van' if taal == 'nl' else 'of' }} {{ vragen.intentie.koopklaar.totaal }}
+          &middot; <strong>{{ 'Orienterend' if taal == 'nl' else 'Exploring' }}</strong>: {{ vragen.intentie.orienterend.gewonnen }} {{ 'van' if taal == 'nl' else 'of' }} {{ vragen.intentie.orienterend.totaal }}
+          <span>({{ 'koopklaar: de koper wil nu kopen en vraagt waar' if taal == 'nl' else 'ready to buy: the shopper wants to buy now and asks where' }})</span>
+        </div>
+        {% endif %}
       </div>
       {% for v in vragen.vragen %}
       <details class="vraagrij" data-stand="{{ 'gewonnen' if v.gewonnen else 'verloren' }}" data-label="{{ v.label or 'algemeen' }}">
@@ -1759,6 +1767,55 @@
         <div class="klein" style="margin-top:6px;">{{ 'GPTBot is training. Die blokkeren haalt je niet uit ChatGPT search.' if taal == 'nl' else 'GPTBot is training only. Blocking it does not remove you from ChatGPT search.' }}</div>
       </div>
       {% endif %}
+      {# 15 oktober (fixkit.py): per probleem de oplossing om te plakken. #}
+      {% set site = paginacheck.site or {} %}
+      {% set met_schema = paginacheck.paginas | selectattr('schema') | list %}
+      {% if (site.robots) or met_schema or site.llms_txt %}
+      <div class="binnen" style="border-top:1px solid var(--lijnz);">
+        <div class="klein" style="margin-bottom:6px;">{{ 'KANT-EN-KLARE OPLOSSINGEN' if taal == 'nl' else 'READY-MADE FIXES' }}{% if werkblok and werkblok.doet_werk %} &middot; {{ 'wij zetten ze voor je goed' if taal == 'nl' else 'we put them in for you' }}{% endif %}</div>
+        {% if site.robots %}
+        <details style="font-size:14px; margin:4px 0;"><summary><strong>robots.txt</strong>: {{ 'deze AI-zoekrobots mogen niet binnen' if taal == 'nl' else 'these AI search robots are kept out' }}: {{ site.robots.geweerd | map('first') | join(', ') }}</summary>
+          <p class="klein" style="margin:6px 0;">{{ site.robots.waar }}</p>
+          <pre style="white-space:pre-wrap; font-size:12.5px; background:var(--paper,#F7F7F5); padding:10px; border-radius:8px;">{{ site.robots.regels }}</pre></details>
+        {% endif %}
+        {% for p in met_schema %}{% for f in p.schema %}
+        <details style="font-size:14px; margin:4px 0;"><summary><span style="font-family:var(--mono); font-size:12.5px;">{{ p.pad }}</span> &middot; <strong>{{ f.wat }}</strong>: {{ f.uitleg }}</summary>
+          {% if f.fix %}<p class="klein" style="margin:6px 0;">{{ 'Plak dit in de pagina als gestructureerde gegevens (een script van het type application/ld+json). Vervang FILL_IN.' if taal == 'nl' else 'Paste this into the page as structured data (a script of type application/ld+json). Replace FILL_IN.' }}</p>
+          <pre style="white-space:pre-wrap; font-size:12.5px; background:var(--paper,#F7F7F5); padding:10px; border-radius:8px;">{{ f.fix }}</pre>{% endif %}</details>
+        {% endfor %}{% endfor %}
+        {% if site.llms_txt %}
+        <details style="font-size:14px; margin:4px 0;"><summary><strong>llms.txt</strong>: {{ 'een korte uitleg van je winkel voor AI (optioneel, kan geen kwaad)' if taal == 'nl' else 'a short summary of your store for AI (optional, does no harm)' }}</summary>
+          <pre style="white-space:pre-wrap; font-size:12.5px; background:var(--paper,#F7F7F5); padding:10px; border-radius:8px;">{{ site.llms_txt }}</pre></details>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if pagina == 'verbeteringen' and tekstproeven is defined and tekstproeven %}
+    {# 15 oktober (voorstel 3): voor en na per tekstwijziging, uit de wekelijkse snelmeting. #}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'WERKTE HET? VOOR EN NA ELKE WIJZIGING' if taal == 'nl' else 'DID IT WORK? BEFORE AND AFTER EACH CHANGE' }}
+        <span class="uitleg">{{ 'je vijf vragen van de week' if taal == 'nl' else 'your five weekly questions' }}</span></div>
+      <table class="tabel" style="font-size:13.5px;"><thead><tr><th style="text-align:left;">{{ 'Wijziging' if taal == 'nl' else 'Change' }}</th><th>{{ 'Ervoor' if taal == 'nl' else 'Before' }}</th><th>{{ 'Erna' if taal == 'nl' else 'After' }}</th><th>{{ 'Uitkomst' if taal == 'nl' else 'Result' }}</th></tr></thead><tbody>
+      {% for p in tekstproeven %}<tr><td>{{ p.wat }}{% if p.product %} <span class="klein">({{ 'dit product genoemd' if taal == 'nl' else 'this product named' }})</span>{% endif %}</td>
+        <td style="text-align:center;">{{ p.voor | first }}/{{ p.voor | last }}</td><td style="text-align:center;">{{ p.na | first }}/{{ p.na | last }}</td>
+        <td style="text-align:center;">{% if p.oordeel == 'wacht' %}{{ 'nog wachten' if taal == 'nl' else 'too early' }}{% elif p.oordeel == 'beter' %}{{ 'vaker genoemd' if taal == 'nl' else 'named more often' }}{% elif p.oordeel == 'slechter' %}{{ 'minder vaak' if taal == 'nl' else 'named less often' }}{% else %}{{ 'geen verschil te zien' if taal == 'nl' else 'no clear difference' }}{% endif %}</td></tr>{% endfor %}
+      </tbody></table>
+      <div class="binnen klein">{{ 'Voor en na, geen gelijktijdige proef: AI ziet maar een versie van een pagina. AI-antwoorden wisselen per week, dus pas na twee weken een uitkomst, en alleen bij een duidelijk verschil.' if taal == 'nl' else 'Before and after, not a side-by-side test: AI only sees one version of a page. AI answers vary week to week, so a result only after two weeks, and only for a clear difference.' }}</div>
+    </div>
+    {% endif %}
+    {% if pagina == 'verbeteringen' and contentplan is defined and contentplan %}
+    {# 15 oktober (voorstel 8): wat je als volgende publiceert, uit de meting van je categorie. #}
+    <div class="kaartblok">
+      <div class="kaartkop">{{ 'WAT JE ALS VOLGENDE PUBLICEERT' if taal == 'nl' else 'WHAT TO PUBLISH NEXT' }}
+        <span class="uitleg">{{ 'uit wat AI in jouw categorie aanhaalt' if taal == 'nl' else 'from what AI cites in your category' }}</span></div>
+      {% for c in contentplan %}
+      <div class="binnen" style="{{ 'border-top:1px solid var(--lijnz);' if not loop.first }}">
+        <div class="klein">{{ c.soort }}</div>
+        <div style="font-weight:600; margin:2px 0 4px;">{{ c.titel }}</div>
+        <div style="font-size:14px; line-height:1.55;">{{ c.waarom }}</div>
+      </div>
+      {% endfor %}
     </div>
     {% endif %}
     {% if pagina == 'verbeteringen' and gekozen %}
@@ -1834,6 +1891,37 @@
       <p class="klein">{{ plan_uitleg.betaling }}</p>
     </div>
     {% if assistenten_keuze is defined %}{% include "_assistenten.html" %}{% endif %}
+    {% if pagina == 'abonnement' and koppelingen is defined and koppelingen %}
+    {# 15 oktober (voorstellen 4 en 5): export, Slack en het rapport onder eigen naam. #}
+    <div class="kaartblok" id="slack">
+      <div class="kaartkop">{{ 'EXPORT EN MELDINGEN' if taal == 'nl' else 'EXPORT AND ALERTS' }}</div>
+      {% if koppelingen.melding == 'fout' %}<div class="binnen" style="color:#B42318;">{{ 'Dat adres klopt niet. Een Slack-adres begint met https://hooks.slack.com/services/' if taal == 'nl' else 'That address is not valid. A Slack address starts with https://hooks.slack.com/services/' }}</div>{% elif koppelingen.melding == 'ok' %}<div class="binnen">{{ 'Opgeslagen.' if taal == 'nl' else 'Saved.' }}</div>{% endif %}
+      <div class="binnen">
+        <a href="/mijn/{{ koppelingen.token }}/export.csv">{{ 'Download je plek en elke koopvraag (CSV, opent in Excel)' if taal == 'nl' else 'Download your rank and every buying question (CSV, opens in Excel)' }}</a>
+      </div>
+      <div class="binnen" style="border-top:1px solid var(--lijnz);">
+        <div style="font-weight:600;">Slack</div>
+        <p class="klein" style="margin:4px 0 8px;">{{ 'Krijg een bericht in je Slack-kanaal als je plek verandert. In Slack: Apps, zoek "Incoming Webhooks", kies een kanaal en kopieer de Webhook URL.' if taal == 'nl' else 'Get a message in your Slack channel when your place changes. In Slack: Apps, search "Incoming Webhooks", pick a channel and copy the Webhook URL.' }}</p>
+        <form method="post" action="/mijn/{{ koppelingen.token }}/slack" style="display:flex; gap:8px; flex-wrap:wrap;">
+          <input type="url" name="webhook" placeholder="https://hooks.slack.com/services/..." style="flex:1; min-width:220px; height:40px; border:1px solid var(--lijnz); border-radius:8px; padding:0 10px;">
+          <button type="submit" class="knop">{{ 'Koppelen' if taal == 'nl' else 'Connect' }}</button>
+        </form>
+        {% if koppelingen.slack %}<p class="klein" style="margin:6px 0 0;">{{ 'Gekoppeld. Leeg opslaan ontkoppelt.' if taal == 'nl' else 'Connected. Save it empty to disconnect.' }}</p>{% endif %}
+      </div>
+      {% if koppelingen.witlabel_mag %}
+      <div class="binnen" id="witlabel" style="border-top:1px solid var(--lijnz);">
+        <div style="font-weight:600;">{{ 'Rapport onder je eigen naam' if taal == 'nl' else 'Report under your own name' }}</div>
+        <p class="klein" style="margin:4px 0 8px;">{{ 'Je naam en logo bovenaan het maandrapport, zonder Krillo erop. Voor je eigen klanten.' if taal == 'nl' else 'Your name and logo on top of the monthly report, without Krillo on it. For your own clients.' }}</p>
+        <form method="post" action="/mijn/{{ koppelingen.token }}/witlabel" style="display:flex; gap:8px; flex-wrap:wrap;">
+          <input type="text" name="naam" value="{{ koppelingen.witlabel.naam or '' }}" placeholder="{{ 'Naam van je bureau' if taal == 'nl' else 'Your agency name' }}" style="flex:1; min-width:160px; height:40px; border:1px solid var(--lijnz); border-radius:8px; padding:0 10px;">
+          <input type="url" name="logo" value="{{ koppelingen.witlabel.logo_url or '' }}" placeholder="https://.../logo.png" style="flex:1; min-width:200px; height:40px; border:1px solid var(--lijnz); border-radius:8px; padding:0 10px;">
+          <button type="submit" class="knop">{{ 'Opslaan' if taal == 'nl' else 'Save' }}</button>
+        </form>
+        <p class="klein" style="margin:6px 0 0;"><a href="/mijn/{{ koppelingen.token }}/report.pdf?label=1">{{ 'Open het rapport onder je eigen naam (PDF)' if taal == 'nl' else 'Open the report under your own name (PDF)' }}</a></p>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
 
     {# Stap 94: de eigen link. Een winkel die via deze link betalend klant wordt,
        geeft deze klant een maand van zijn pakket terug (na 30 dagen). #}
