@@ -4,8 +4,8 @@ WAAROM. Nino: "we hebben bijna geen traffic, de Shopify App Store heeft
 miljoenen apps." Een winkelier die "how to get my Shopify store recommended by
 ChatGPT" zoekt, vindt nu geen pagina van ons. Deze gidsen beantwoorden precies
 die zoekvragen, met wat wij elke maand meten, en sturen door naar de gratis
-check, de ranglijsten en (voor Shopify) de App Store. Engels, zoals de rest van
-de site; de Nederlandse gidsen staan onder /nl/.
+check, de ranglijsten en (voor Shopify) de App Store. Engels, zoals de hele
+site (de Nederlandse pagina's van 14 oktober zijn op 15 oktober weggehaald).
 
 Regels: geen verzonnen cijfers of klanten, geen beloftes over een plek in AI,
 geen lange streepjes. Het enige cijfer komt live uit de index.
