@@ -19,8 +19,13 @@ def _winkel(url):
     return (url or "").replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
 
 
-def pdf(beeld, categorienaam, landnaam, imago=None, maand=""):
-    """Geeft de PDF als bytes. beeld: klantbeeld.bouw()."""
+def pdf(beeld, categorienaam, landnaam, imago=None, maand="", merk=None):
+    """Geeft de PDF als bytes. beeld: klantbeeld.bouw().
+
+    15 oktober (voorstel 4, wit-label voor bureaus): merk = {"naam", "logo"
+    (PNG/JPG-bytes of None)}. Dan staat het bureau bovenaan in plaats van Krillo,
+    en verwijst de voettekst niet naar krilloai.com. De meting zelf blijft wat
+    hij is: "ChatGPT and Gemini, N buying questions"."""
     from PIL import Image, ImageDraw
     import linkedinagent as la
     im = Image.new("RGB", (W, H), la.WIT)
@@ -31,9 +36,24 @@ def pdf(beeld, categorienaam, landnaam, imago=None, maand=""):
     med = lambda n: f("SpaceGrotesk-Medium.ttf", n)  # noqa: E731
     L, R = 90, W - 90
 
-    d.rectangle((0, 0, W, 10), fill=la.BLAUW)
-    d.text((L, 90), "KRILLO", font=bold(34), fill=la.INKT, anchor="ls")
-    d.text((L + d.textlength("KRILLO", font=bold(34)) + 12, 90), "INDEX", font=mono(18), fill=la.GRIJS, anchor="ls")
+    d.rectangle((0, 0, W, 10), fill=la.BLAUW if not merk else la.INKT)
+    if merk:
+        geplaatst = False
+        if merk.get("logo"):
+            try:
+                import io as _io
+                logo = Image.open(_io.BytesIO(merk["logo"])).convert("RGBA")
+                schaal = min(60 / max(logo.height, 1), 360 / max(logo.width, 1))
+                logo = logo.resize((max(1, int(logo.width * schaal)), max(1, int(logo.height * schaal))))
+                im.paste(logo, (L, 40), logo)
+                geplaatst = True
+            except Exception as e:
+                print(f"Logo in het rapport mislukt: {e}")
+        if not geplaatst:
+            d.text((L, 90), (merk.get("naam") or "")[:40], font=bold(34), fill=la.INKT, anchor="ls")
+    else:
+        d.text((L, 90), "KRILLO", font=bold(34), fill=la.INKT, anchor="ls")
+        d.text((L + d.textlength("KRILLO", font=bold(34)) + 12, 90), "INDEX", font=mono(18), fill=la.GRIJS, anchor="ls")
     d.text((R, 90), f"MONTHLY REPORT{(' · ' + maand.upper()) if maand else ''}", font=mono(18), fill=la.GRIJS,
            anchor="rs")
 
@@ -104,7 +124,7 @@ def pdf(beeld, categorienaam, landnaam, imago=None, maand=""):
     # Onderaan: hoe er gemeten is, en waar de rest staat.
     d.line((L, H - 150, R, H - 150), fill=la.LIJN, width=2)
     uitleg = (f"Measured by asking ChatGPT and Gemini {telbaar} buying questions shoppers in {landnaam} ask, the same "
-              f"for every store in this category. The full ranking and every question: krilloai.com/index.")
+              f"for every store in this category." + ("" if merk else " The full ranking and every question: krilloai.com/index."))
     yy = H - 110
     for regel in la._regels_passend(d, uitleg, med(19), R - L)[:3]:
         d.text((L, yy), regel, font=med(19), fill=la.GRIJS, anchor="ls")

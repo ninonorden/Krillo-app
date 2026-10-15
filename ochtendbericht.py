@@ -432,6 +432,21 @@ def verzamel(basis_url):
             doen.insert(0, (regel, f"{basis_url}/admin/benadering"))
     except Exception as e:
         print(f"Ochtendbericht, voorraadmeter mislukt: {e}")
+    # 15 oktober: de verkeersagent, wat elke bron deze week opleverde.
+    try:
+        import verkeersagent
+        vb = verkeersagent.beeld()
+        verkeersagent.bewaar_dag(vb)
+        doen.append((verkeersagent.ochtendregel(vb), f"{basis_url}/admin/bezoek"))
+    except Exception as e:
+        print(f"Ochtendbericht, verkeer mislukt: {e}")
+    try:
+        import os
+        import seoagent
+        if os.environ.get("GSC_SERVICE_ACCOUNT_JSON") or seoagent.proeven():
+            doen.append((seoagent.ochtendregel(), f"{basis_url}/admin/bezoek"))
+    except Exception as e:
+        print(f"Ochtendbericht, SEO-agent mislukt: {e}")
     try:
         regel = herstartregel()
         if regel:

@@ -189,6 +189,15 @@ def controleer(webshop_url, haal=None, robots_tekst=None, haal_als=None):
     home = haal(webshop_url)
     paginas = [webshop_url] + (scan_engine.find_relevant_pages(webshop_url, home, limit=MAX_PAGINAS) if home else [])
     paginas = paginas[:MAX_PAGINAS + 1]
+    # 15 oktober (fixkit.py): robots.txt een keer ophalen, voor de crawlcheck en
+    # voor de kant-en-klare regels.
+    if robots_tekst is None:
+        try:
+            basis = f"{urlparse(webshop_url).scheme}://{urlparse(webshop_url).netloc}"
+            r = scan_engine.fetch(basis + "/robots.txt", pogingen=1)
+            robots_tekst = r.text if (r is not None and r.status_code == 200) else ""
+        except Exception:
+            robots_tekst = ""
     try:
         crawl = crawlbaarheid(webshop_url, paginas, robots_tekst=robots_tekst, haal_als=haal_als)
     except Exception as e:
@@ -199,9 +208,26 @@ def controleer(webshop_url, haal=None, robots_tekst=None, haal_als=None):
         html = home if u == webshop_url else haal(u)
         info = crawl.get(u)
         acties = (crawl_acties(info) + keur_pagina(u, html))[:3]
-        uit.append({"url": u, "pad": urlparse(u).path or "/", "acties": acties,
+        # 15 oktober: per pagina wat er aan gestructureerde gegevens ontbreekt,
+        # met een blok om te plakken (fixkit.py).
+        try:
+            import fixkit
+            schema = fixkit.schema_check(html, u, is_productpagina(u), is_home=(u == webshop_url))
+        except Exception as e:
+            print(f"Schemacheck mislukt voor {u}: {e}")
+            schema = []
+        uit.append({"url": u, "pad": urlparse(u).path or "/", "acties": acties, "schema": schema,
                     "robots": (info or {}).get("robots") or [], "noindex": (info or {}).get("noindex", False)})
+    try:
+        import fixkit
+        _site_fixes[webshop_url] = fixkit.site_fixes(webshop_url, robots_tekst, home)
+    except Exception as e:
+        print(f"Site-fixes mislukt voor {webshop_url}: {e}")
     return uit
+
+
+# De oplossingen op siteniveau van de laatste controle (robots, llms.txt), tot bewaar().
+_site_fixes = {}
 
 
 def bewaar(webshop_url, uitkomst):
@@ -209,6 +235,9 @@ def bewaar(webshop_url, uitkomst):
     _sql("""INSERT INTO paginachecks (webshop_url, op, uitkomst) VALUES (%s, %s, %s)
             ON CONFLICT (webshop_url) DO UPDATE SET op = EXCLUDED.op, uitkomst = EXCLUDED.uitkomst""",
          (webshop_url, datetime.now(timezone.utc), json.dumps(uitkomst)))
+    site = _site_fixes.pop(webshop_url, None)
+    if site is not None:
+        db.zet_instelling("fixkit:" + webshop_url[:180], json.dumps(site))
 
 
 def laatste(webshop_url):
@@ -217,7 +246,11 @@ def laatste(webshop_url):
     if not rij:
         return None
     u = rij["uitkomst"]
-    return {"op": rij["op"], "paginas": json.loads(u) if isinstance(u, str) else u}
+    try:
+        site = json.loads(db.get_instelling("fixkit:" + webshop_url[:180]) or "null")
+    except (TypeError, ValueError):
+        site = None
+    return {"op": rij["op"], "paginas": json.loads(u) if isinstance(u, str) else u, "site": site}
 
 
 def ronde(webshop_url):

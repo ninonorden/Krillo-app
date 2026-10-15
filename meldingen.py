@@ -44,6 +44,7 @@ bent. Alleen de nachtronde verstuurt echt. Op de beheerpagina kun je wel zien
 wat er verstuurd ZOU worden, zonder dat er iets uitgaat.
 """
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 import db
@@ -387,6 +388,15 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
         # en omdat het bericht al vastgelegd was, kwam hij nooit meer. Een
         # betalende klant miste dan zijn maandbericht en niemand wist het. Nu
         # telt hij als mislukt en krijg jij een mail.
+        # 15 oktober (voorstel 5): dezelfde melding ook in Slack, als de klant dat koppelde.
+        if gelukt and klant.get("klant_token"):
+            try:
+                import slackmelding
+                slackmelding.stuur(klant["klant_token"],
+                                   f"*{onderwerp(keuze, naam, taal=taal)}*\n" + re.sub(r"<[^>]+>", "", tekst(klant, keuze, naam, taal=taal))[:600],
+                                   link)
+            except Exception as e:
+                print(f"Slack na de meting mislukt: {e}")
         if gelukt:
             verslag["verstuurd"] += 1
         else:

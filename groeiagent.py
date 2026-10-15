@@ -343,8 +343,32 @@ def dagtaken(basis_url, te_doen=None, nu=None):
             import groeitaken
             # 15 oktober: eerst de persoonlijke berichten op LinkedIn (dmlijst.py),
             # de warmste opening die we hebben.
-            taken.append({"tekst": "10 persoonlijke berichten op LinkedIn aan de top van de ranglijsten",
-                          "minuten": 20, "link": f"{basis_url.rstrip('/')}/admin/groei#dm"})
+            try:
+                import kansenagent
+                open_kansen = len(kansenagent.lijst())
+            except Exception:
+                open_kansen = 0
+            # 15 oktober: de verkeersagent bepaalt de volgorde (wat de laatste
+            # twee weken de meeste mensen en checks opleverde eerst) en haalt een
+            # actie weg die na genoeg pogingen niets opleverde.
+            try:
+                import verkeersagent
+                b = verkeersagent.beeld()
+                volgorde, gestopt = b["volgorde"], set(b["gestopt"])
+            except Exception as e:
+                print(f"Verkeersagent voor de dagtaken mislukt: {e}")
+                volgorde, gestopt = ["kansen", "dm"], set()
+            kanaaltaken = {}
+            if open_kansen and "kansen" not in gestopt:
+                kanaaltaken["kansen"] = {"tekst": f"{open_kansen} vraag/vragen van winkeliers op Reddit en fora: antwoord staat klaar",
+                                         "minuten": 5 * min(open_kansen, 6),
+                                         "link": f"{basis_url.rstrip('/')}/admin/groei#kansen"}
+            if "dm" not in gestopt:
+                kanaaltaken["dm"] = {"tekst": "10 persoonlijke berichten op LinkedIn aan de top van de ranglijsten",
+                                     "minuten": 20, "link": f"{basis_url.rstrip('/')}/admin/groei#dm"}
+            for actie in volgorde + [a for a in kanaaltaken if a not in volgorde]:
+                if actie in kanaaltaken:
+                    taken.append(kanaaltaken.pop(actie))
             taken.extend(groeitaken.voor_vandaag(basis_url))
         except Exception as e:
             print(f"Groeitaken voor de dagtaken mislukt: {e}")

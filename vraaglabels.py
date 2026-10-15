@@ -61,3 +61,38 @@ def telling(vragen):
         p["verloren"] += 0 if v.get("gewonnen") else 1
     volgorde = [s for s, _, _ in _GECOMPILEERD] + [ALGEMEEN[0]]
     return [dict(sleutel=s, **per[s]) for s in volgorde if s in per]
+
+
+# 15 oktober (goedgekeurd voorstel 9): koopklaar of orienterend. Otterly labelt
+# elke vraag op fase in de aankoop. Een winkelier wil vooral weten: word ik
+# genoemd als iemand NU wil kopen? Ook hier met woorden, in de talen van de markt.
+# Een vraag met een koopwoord ("kopen", "bestellen", "webshop", "waar") is
+# koopklaar; een vraag die uitleg of vergelijking zoekt zonder koopwoord is
+# orienterend. Twijfel: koopklaar, want onze koopvragen zijn zo gemaakt.
+_KOOP = re.compile(r"kopen|koop\b|bestel|webshop|webwinkel|winkel|online|waar\b|leverancier|\bbuy\b|order|"
+                   r"\bshop\b|store|where to|kaufen|bestellen|online.?shop|acheter|boutique|o[uù] (acheter|trouver)",
+                   re.I)
+_ORIENT = re.compile(r"\bwat is\b|\bhoe\b|verschil|vergelijk|\bvs\.?\b|ervaring|review|tips|idee|uitleg|"
+                     r"welke .* past|\bwhat is\b|\bhow\b|difference|compare|ideas|explain|was ist|wie\b|unterschied|"
+                     r"qu.est.ce|comment|diff[ée]rence", re.I)
+INTENTIES = {"koopklaar": {"en": "Ready to buy", "nl": "Koopklaar"},
+             "orienterend": {"en": "Exploring", "nl": "Orienterend"}}
+
+
+def intentie(vraag):
+    v = vraag or ""
+    if _KOOP.search(v):
+        return "koopklaar"
+    if _ORIENT.search(v):
+        return "orienterend"
+    return "koopklaar"
+
+
+def intentie_telling(vragen):
+    """{"koopklaar": {"totaal", "gewonnen"}, "orienterend": {...}} voor items met "intentie" en "gewonnen"."""
+    uit = {k: {"totaal": 0, "gewonnen": 0} for k in INTENTIES}
+    for v in vragen:
+        t = uit[v.get("intentie") or "koopklaar"]
+        t["totaal"] += 1
+        t["gewonnen"] += 1 if v.get("gewonnen") else 0
+    return uit

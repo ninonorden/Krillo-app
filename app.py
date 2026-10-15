@@ -1032,6 +1032,33 @@ def nl_pagina(slug):
                            basis_url=get_base_url().rstrip("/"))
 
 
+def _titel_proef(pad):
+    """15 oktober: de titel uit een proef van de SEO-agent, of None (zie seoagent.py)."""
+    try:
+        import seoagent
+        return seoagent.titel_voor(pad)
+    except Exception:
+        return None
+
+
+@app.route("/guides/<slug>")
+def gids_pagina(slug):
+    """15 oktober: Engelse gidsen op de zoekvragen van winkeliers (zie seo_en.py)."""
+    import seo_en
+    p = seo_en.PER_SLUG.get(slug)
+    if not p:
+        return render_template("fout.html"), 404
+    try:
+        cijfers = _bewaard(("cijfers",), db.index_cijfers)
+    except Exception:
+        cijfers = None
+    return render_template("gids_pagina.html", p=p, faq_ld=seo_en.faq_ld(p), cijfers=cijfers,
+                           titel_proef=_titel_proef(f"/guides/{slug}"),
+                           app_store=shopify_app_store_url(),
+                           andere=[a for a in seo_en.PAGINAS if a["slug"] != slug],
+                           basis_url=get_base_url().rstrip("/"))
+
+
 @app.route("/faq")
 def veelgestelde_vragen():
     return render_template("faq.html")
@@ -1669,6 +1696,11 @@ def admin_groei():
         if request.form.get("dm"):
             dmlijst.zet_gedaan(request.form.get("dm"))
             return redirect("/admin/groei#dm")
+        if request.form.get("kans"):
+            import kansenagent
+            kansenagent.zet_stand(request.form.get("kans"),
+                                  "geplaatst" if request.form.get("stand") == "geplaatst" else "overgeslagen")
+            return redirect("/admin/groei#kansen")
         taak = request.form.get("taak") or ""
         groeitaken.zet_gedaan(taak, request.form.get("gedaan") == "ja")
         return redirect("/admin/groei#" + quote(taak))
@@ -1685,8 +1717,14 @@ def admin_groei():
         dm = dmlijst.lijst_van_vandaag(ranglijsten, get_base_url(), uitsluiten=dmlijst.uitgesloten())
     except Exception as e:
         print(f"DM-lijst mislukt: {e}")
+    try:
+        import kansenagent
+        kansen = kansenagent.lijst()[-15:][::-1]
+    except Exception as e:
+        print(f"Kansen ophalen mislukt: {e}")
+        kansen = []
     return render_template("admin_groei.html", taken=taken, dag_max=groeitaken.DAG_MAX,
-                           open_aantal=sum(1 for t in taken if not t["gedaan"]), dm=dm)
+                           open_aantal=sum(1 for t in taken if not t["gedaan"]), dm=dm, kansen=kansen)
 
 
 @app.route("/admin/linkedin", methods=["GET", "POST"])
@@ -3110,6 +3148,8 @@ def _bouw_sitemap():
     # Stap 379: de Nederlandse pagina's voor webshophouders.
     import seo_nl
     regels += [(f"/nl/{p['slug']}", "2026-10-14") for p in seo_nl.PAGINAS]
+    import seo_en
+    regels += [(f"/guides/{p['slug']}", "2026-10-15") for p in seo_en.PAGINAS]
     # Stap 162 en 163: de gratis tools en de vergelijkingen.
     import gratistools
     import vergelijkingen
@@ -6480,6 +6520,31 @@ def _wachtklok_tik(nu=None):
                 print(f"Oplevering vanzelf mislukt: {e}")
         threading.Thread(target=_oplever, daemon=True).start()
         gedaan.append("oplevering")
+    # 15 oktober: de SEO-agent, elke ochtend voor het ochtendbericht (seoagent.py).
+    # Alleen als Search Console gekoppeld is (GSC_SERVICE_ACCOUNT_JSON in Render).
+    if 5 <= nu.hour < 8 and os.environ.get("GSC_SERVICE_ACCOUNT_JSON") and db.claim_moment("seoagent_klok", 20 * 3600):
+        def _seo():
+            try:
+                import seoagent
+                per_pagina, per_vraag = seoagent.haal_op()
+                if per_pagina is not None:
+                    print(f"SEO-agent: {seoagent.ronde(per_pagina, per_vraag)}")
+                    _bewaard_opslag.clear()
+            except Exception as e:
+                print(f"SEO-agent mislukt: {e}")
+        threading.Thread(target=_seo, daemon=True).start()
+        gedaan.append("seoagent")
+    # 15 oktober: de kansenagent zoekt elke werkdag draadjes waar winkeliers zelf
+    # om hulp vragen, en schrijft een antwoord (zie kansenagent.py).
+    if nu.weekday() < 5 and 9 <= nu.hour < 17 and db.claim_moment("kansenagent_klok", 20 * 3600):
+        def _kansen():
+            try:
+                import kansenagent
+                print(f"Kansenagent: {kansenagent.ronde()}")
+            except Exception as e:
+                print(f"Kansenagent mislukt: {e}")
+        threading.Thread(target=_kansen, daemon=True).start()
+        gedaan.append("kansenagent")
     # 14 oktober (stap 375): een keer per dag de bestellingen uit AI ophalen bij
     # Shopify-winkels die het recht read_orders gaven (zie shopify_aiverkoop.py).
     if 3 <= nu.hour < 6 and db.claim_moment("shopify_aiverkoop", 20 * 3600):
@@ -8458,6 +8523,7 @@ def openbare_categorie(land, slug):
         per_vraag=_vragen_met_namen_van_ronde(lijst["ronde"]),
         stijgers=_stijgers(genoemd) if vorige_meting else [],
         top10_png=(f"{basis_url}/index/{land}/{slug}/top10.png" if len(genoemd) >= 3 else None),
+        titel_proef=_titel_proef(f"/index/{land}/{slug}"),
     )
 
 
@@ -8981,6 +9047,18 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                         "actie": f"/mijn/{klant_token}/eigen-vragen"}
                 except Exception as e:
                     print(f"Eigen vragen voor het dashboard mislukt: {e}")
+        if pagina == "abonnement" and klant_token and not proef:
+            # 15 oktober (voorstellen 4 en 5): export, Slack en het rapport onder eigen naam.
+            try:
+                import slackmelding
+                import witlabel
+                pakket = (db.get_klant(klant_token) or {}).get("pakket")
+                gegevens["koppelingen"] = {
+                    "token": klant_token, "slack": bool(slackmelding.van(klant_token)),
+                    "witlabel_mag": witlabel.mag(pakket), "witlabel": witlabel.van(klant_token) or {},
+                    "melding": request.args.get("slack") or request.args.get("witlabel") or ""}
+            except Exception as e:
+                print(f"Koppelingen voor het dashboard mislukt: {e}")
         if pagina == "verbeteringen" and werk and not proef:
             # Stap 255: AI-gereedheid per pagina, uit de wekelijkse ronde.
             try:
@@ -8988,6 +9066,12 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 gegevens["paginacheck"] = paginacheck.laatste(webshop_url)
             except Exception as e:
                 print(f"Paginacheck voor het dashboard mislukt: {e}")
+            # 15 oktober (voorstel 3): werkte de nieuwe titel of tekst? (tekstproef.py)
+            try:
+                import tekstproef
+                gegevens["tekstproeven"] = tekstproef.per_wijziging(webshop_url)
+            except Exception as e:
+                print(f"Tekstproeven voor het dashboard mislukt: {e}")
         if pagina == "verbeteringen":
             # 1 oktober: per verloren vraag wat je concreet doet (vraagaanpak.py).
             try:
@@ -9008,6 +9092,21 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                                             pc.get("paginas"))
                     except Exception as e:
                         print(f"Bronnen en pagina per vraag mislukt voor {webshop_url}: {e}")
+                # 15 oktober (voorstel 8): wat publiceer je als volgende (contentplan.py).
+                try:
+                    import contentplan
+                    een = None
+                    try:
+                        rij_een = next((r for r in (_ranglijst_bewaard(beeld.get("categorie"), (beeld.get("land") or "").lower())
+                                                    or {}).get("rijen", []) if r.get("positie") == 1), None)
+                        if rij_een:
+                            een = (_imago(beeld["ronde"], rij_een["webshop_url"], _winkel_naam(rij_een),
+                                          land=(beeld.get("land") or "").lower()) or {}).get("kenmerken")
+                    except Exception:
+                        een = None
+                    gegevens["contentplan"] = contentplan.plan(vo, _bronnen_van_ronde(beeld["ronde"]), een, taal)
+                except Exception as e:
+                    print(f"Contentplan mislukt voor {webshop_url}: {e}")
             except Exception as e:
                 print(f"Aanpak per vraag mislukt voor {webshop_url}: {e}")
         if klant_token and not proef:
@@ -10227,12 +10326,12 @@ def admin_rapport_pdf():
     return _rapport_pdf_antwoord(url, beeld)
 
 
-def _rapport_pdf_antwoord(url, beeld):
+def _rapport_pdf_antwoord(url, beeld, merk=None):
     import klantrapport
     maand = beeld.get("gemeten_op").strftime("%B %Y") if hasattr(beeld.get("gemeten_op"), "strftime") else ""
     data = klantrapport.pdf(beeld, categorieen.naam_en(beeld["categorie"]),
                             sitetaal.landnaam(beeld.get("land"), "en") if beeld.get("land") else "",
-                            imago=_imago(beeld["ronde"], url, beeld.get("naam")), maand=maand)
+                            imago=_imago(beeld["ronde"], url, beeld.get("naam")), maand=maand, merk=merk)
     naam = _winkel_slug(url).replace(".", "-")
     return Response(data, mimetype="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="krillo-{naam}.pdf"',
@@ -10252,7 +10351,60 @@ def klant_rapport_pdf(klant_token):
         return render_template("fout.html", titel="No report yet",
                                bericht="Your category has not been measured yet. The report is here after the "
                                        "first measurement."), 404
-    return _rapport_pdf_antwoord(url, beeld)
+    # 15 oktober: ?label=1 geeft het rapport onder de naam van het bureau (witlabel.py).
+    merk = None
+    if request.args.get("label") == "1":
+        import witlabel
+        if witlabel.mag(klant.get("pakket")):
+            merk = witlabel.merk(klant_token)
+    return _rapport_pdf_antwoord(url, beeld, merk=merk)
+
+
+@app.route("/mijn/<klant_token>/export.csv")
+def klant_export_csv(klant_token):
+    """15 oktober (voorstel 4): plek en elke koopvraag als CSV, voor Excel of een bureau."""
+    import witlabel
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return render_template("fout.html", titel="This link no longer works",
+                               bericht="Ask for a new one on /get-my-link and we will email it again."), 404
+    beeld = klantbeeld.bouw(klant["webshop_url"], max_vragen=5)
+    if not beeld:
+        return render_template("fout.html", titel="No data yet",
+                               bericht="Your category has not been measured yet."), 404
+    import dashboardpaginas as dp
+    vo = dp.vragen_overzicht(beeld["ronde"], klant["webshop_url"], beeld.get("naam"))
+    naam = _winkel_slug(klant["webshop_url"]).replace(".", "-")
+    return Response(witlabel.csv_export(beeld, vo), mimetype="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="krillo-{naam}.csv"',
+                             "Cache-Control": "private, max-age=600"})
+
+
+@app.route("/mijn/<klant_token>/witlabel", methods=["POST"])
+def klant_witlabel(klant_token):
+    """15 oktober: naam en logo van het bureau voor het rapport onder eigen naam."""
+    import witlabel
+    klant = db.get_klant(klant_token)
+    if not klant or not witlabel.mag(klant.get("pakket")):
+        return render_template("fout.html", titel="Not in your plan",
+                               bericht="Reports under your own name are part of the plan for brands and agencies."), 404
+    ok = witlabel.zet(klant_token, request.form.get("naam"), request.form.get("logo"))
+    return redirect(f"/mijn/{klant_token}/plan?witlabel={'ok' if ok else 'fout'}#witlabel", code=303)
+
+
+@app.route("/mijn/<klant_token>/slack", methods=["POST"])
+def klant_slack(klant_token):
+    """15 oktober (voorstel 5): de Slack-koppeling voor meldingen bij een nieuwe plek."""
+    import slackmelding
+    klant = db.get_klant(klant_token)
+    if not klant:
+        return render_template("fout.html", titel="This link no longer works",
+                               bericht="Open your dashboard and try again."), 404
+    ok = slackmelding.zet(klant_token, request.form.get("webhook"))
+    if ok and request.form.get("webhook"):
+        slackmelding.stuur(klant_token, "Krillo is connected. You will hear it here when your place in the "
+                                        "Krillo Index changes.", f"{get_base_url().rstrip('/')}/mijn/{klant_token}")
+    return redirect(f"/mijn/{klant_token}/plan?slack={'ok' if ok else 'fout'}#slack", code=303)
 
 
 @app.route("/mijn/<klant_token>/checks.pdf")
@@ -12888,6 +13040,12 @@ def _shopify_scherm(winkel, rij):
         # installaties). Pas vragen NA een eerste wijziging in zijn winkel: dan
         # heeft hij iets gezien om over te oordelen. Nooit met een beloning, dat
         # verbiedt Shopify.
+        # 15 oktober (roadmap 242): de knop om "Krillo AI data" in het thema aan te
+        # zetten. Pas als de uitbreiding met de CLI naar Shopify gestuurd is
+        # (SHOPIFY_THEMA_UITBREIDING=ja in Render), anders zou de knop nergens heen gaan.
+        thema_link=(f"https://{winkel}/admin/themes/current/editor?context=apps&activateAppId="
+                    f"{os.environ.get('SHOPIFY_API_KEY', '')}/krillo-ai-data"
+                    if os.environ.get("SHOPIFY_THEMA_UITBREIDING") == "ja" and os.environ.get("SHOPIFY_API_KEY") else ""),
         review_url=(shopify_app_store_url() + "#modal-show=WriteReviewModal"
                     if shopify_app_store_url() and int(rij.get("wijzigingen_ooit") or 0) >= 1 else ""),
         slot=slot,
