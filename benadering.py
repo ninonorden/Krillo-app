@@ -1174,6 +1174,12 @@ def markeer_gemaild(webshop_url, gelukt, fout=None):
     reden = (fout or "Verzenden mislukt.")[:400]
     if reden.startswith("TE_WEINIG_VRAGEN"):
         return db.zet_benadering(webshop_url, stand="adres", notitie=reden)
+    # 15 oktober (careofcarl.be stond elke ronde in het verslag): een ongeldig
+    # mailadres wordt niet beter door het opnieuw te proberen. Uit de rij, naar
+    # "geen adres"; de zoekmachine of herkansing kan later een goed adres vinden.
+    if reden.startswith("Geen geldig mailadres"):
+        return db.zet_benadering(webshop_url, stand="geen_adres",
+                                 notitie="Ongeldig mailadres gevonden; uit de rij voor de post.")
     # Achteraan in de rij (24 september). De rij is oudste eerst; een winkel
     # die blijft mislukken stond dus elke ronde weer vooraan, en een paar van
     # zulke winkels konden alle post stilleggen.

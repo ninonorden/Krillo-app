@@ -7860,10 +7860,17 @@ def categorieen_met_wachtende_winkels():
                        AND b.email IS NOT NULL AND b.email <> '' AND b.gemaild_op IS NULL
                        AND coalesce(b.soort, 'winkel') = 'winkel' AND b.categorie IS NOT NULL
                        AND (b.hoort_bij IS NULL OR b.hoort_bij = b.webshop_url)
+                       -- 15 oktober: "in geen ranglijst" betekent: niet in de ranglijst
+                       -- van zijn EIGEN categorie (of familie). Een winkel die de
+                       -- categoriecheck verhuisde, had nog een plek in zijn oude
+                       -- categorie en werd daarom nooit in de nieuwe gezet. Hij telde
+                       -- als "klaar", maar de mail (terecht alleen over de eigen
+                       -- categorie) sloeg hem over. 31 klaar, 1 mail per ronde.
                        AND NOT EXISTS (SELECT 1 FROM categorie_uitkomsten u
                                          JOIN categorie_rondes r ON r.id = u.ronde
-                                        WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL)
-                  GROUP BY b.categorie ORDER BY count(*) DESC""")
+                                        WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
+                                          AND (u.categorie = b.categorie OR u.categorie = ANY(ARRAY(SELECT jsonb_array_elements_text(%s::jsonb -> b.categorie)))))
+                  GROUP BY b.categorie ORDER BY count(*) DESC""", (_familie_json(),))
                 return [(r[0], r[1]) for r in cur.fetchall()]
     except Exception as e:
         print(f"Categorieen met wachtende winkels mislukt: {e}")
@@ -7948,13 +7955,19 @@ ADRES_REDENEN = [
     ("geen_categorie", "nog geen categorie"),
     ("niet_gemeten", "categorie nog niet gemeten"),
     ("te_weinig", "wel in de meting, maar te weinig bruikbare antwoorden (minder dan 3)"),
-    ("niet_in_lijst", "categorie gemeten, maar de winkel staat er niet in"),
+    ("niet_in_lijst", "categorie gemeten, maar de winkel staat er (nog) niet in, vaak net verhuisd door de categoriecheck; het plaatsen zet hem er elk uur in"),
 ]
 
 
 def adres_uitsplitsing():
     """Waar de winkels met een adres blijven: {reden: aantal}, plus 'soorten'
-    (welke soort de niet-winkels hebben) en 'totaal'."""
+    (welke soort de niet-winkels hebben) en 'totaal'.
+
+    15 oktober: een plek telt alleen in de ranglijst van zijn EIGEN categorie of
+    familie, net als bij de mail (te_mailen_met_positie). Een door de
+    categoriecheck verhuisde winkel telde als "klaar" door zijn oude plek, maar
+    kreeg nooit post. Nu staat hij bij "niet_in_lijst", en het plaatsen zet hem
+    in zijn nieuwe ranglijst."""
     conn = _get_connection()
     if conn is None:
         return None
@@ -7971,13 +7984,16 @@ def adres_uitsplitsing():
                       WHEN b.overgeslagen_op > now() - interval '7 days' THEN 'geen_plek'
                       WHEN EXISTS (SELECT 1 FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
                                     WHERE u.webshop_url = b.webshop_url AND coalesce(u.telbaar, 0) >= 3
-                                      AND r.afgerond_op IS NOT NULL)
+                                      AND r.afgerond_op IS NOT NULL
+                                      AND (u.categorie = b.categorie OR u.categorie = ANY(ARRAY(SELECT jsonb_array_elements_text(%(fam)s::jsonb -> b.categorie)))))
                            AND b.categorie_klopt IS NOT TRUE THEN 'site_niet_nagekeken'
                       WHEN EXISTS (SELECT 1 FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
                                     WHERE u.webshop_url = b.webshop_url AND coalesce(u.telbaar, 0) >= 3
-                                      AND r.afgerond_op IS NOT NULL) THEN 'klaar'
+                                      AND r.afgerond_op IS NOT NULL
+                                      AND (u.categorie = b.categorie OR u.categorie = ANY(ARRAY(SELECT jsonb_array_elements_text(%(fam)s::jsonb -> b.categorie))))) THEN 'klaar'
                       WHEN EXISTS (SELECT 1 FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
-                                    WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL)
+                                    WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL
+                                      AND (u.categorie = b.categorie OR u.categorie = ANY(ARRAY(SELECT jsonb_array_elements_text(%(fam)s::jsonb -> b.categorie)))))
                            THEN 'te_weinig'
                       WHEN b.categorie IS NULL THEN 'geen_categorie'
                       WHEN NOT EXISTS (SELECT 1 FROM categorie_rondes r WHERE r.categorie = b.categorie
@@ -7986,7 +8002,7 @@ def adres_uitsplitsing():
                       coalesce(b.soort, 'winkel') AS soort, count(*)
                       FROM benadering b
                      WHERE b.stand IN ('adres', 'meten', 'gemeten')
-                  GROUP BY 1, 2""")
+                  GROUP BY 1, 2""", {"fam": _familie_json()})
                 uit = {sleutel: 0 for sleutel, _ in ADRES_REDENEN}
                 soorten = {}
                 for reden, soort, n in cur.fetchall():
