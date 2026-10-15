@@ -14,3 +14,13 @@ De stappen staan in het bericht van Claude (15 oktober). Kort:
 4. shopify app config link   (inloggen met je Partner-account, app Krillo kiezen)
 5. shopify app deploy        (bevestigen; daarna staat de uitbreiding live)
 6. In je testwinkel: Online Store > Themes > Customize > App embeds > Krillo AI data aanzetten.
+
+15 OKTOBER, AVOND: DE BADGE (stap 369)
+Er zit nu een tweede blok in dezelfde uitbreiding: "Krillo Index badge".
+Een winkelier zet die zelf in een sectie (homepage of voettekst). Hij toont
+zijn plek in de index met een link ernaartoe, en alleen als hij echt genoemd
+wordt. Zo zet je hem live:
+1. Open Terminal in de map shopify-extensie (cd, map erin slepen, Enter).
+2. Typ: shopify app deploy   en kies Yes, release this new version.
+3. Zet in Render: SHOPIFY_BADGE = ja
+Daarna staat in de app de knop "Add the badge".

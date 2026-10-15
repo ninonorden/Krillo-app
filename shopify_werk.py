@@ -998,6 +998,31 @@ def zet_schema_gegevens(winkel, sleutel, faq=None, organisatie=None, graphql=Non
     return {"gelukt": True}
 
 
+def badge_van(beeld, categorienaam, landnaam, pagina_url):
+    """Stap 369: de gegevens voor de badge, of None als de winkel niet genoemd
+    wordt (dan geen badge: een plek waar AI je niet noemt is niets om te laten zien)."""
+    if not beeld or beeld.get("nul") or not beeld.get("positie") or not (beeld.get("genoemd") or 0):
+        return None
+    return {"rank": int(beeld["positie"]), "of": int(beeld.get("van") or 0), "category": categorienaam,
+            "country": landnaam, "url": pagina_url + ("&" if "?" in pagina_url else "?") + "ref=shopify-badge"}
+
+
+def zet_badge_gegevens(winkel, sleutel, badge, graphql=None):
+    """Zet krillo.badge op de app-installatie (leeg = geen badge). Geeft {"gelukt", "fout"}."""
+    graphql = graphql or _graphql
+    uit = graphql(winkel, sleutel, APP_INSTALLATIE)
+    eigen = ((uit.get("gegevens") or {}).get("currentAppInstallation") or {}).get("id") if uit.get("gelukt") else None
+    if not eigen:
+        return {"gelukt": False, "fout": uit.get("fout") or "Geen app-installatie gevonden."}
+    veld = {"ownerId": eigen, "namespace": "krillo", "key": "badge", "type": "json",
+            "value": json.dumps(badge or {}, ensure_ascii=False)}
+    uit = graphql(winkel, sleutel, ZET_METAFIELDS, {"velden": [veld]})
+    fouten = (((uit.get("gegevens") or {}).get("metafieldsSet") or {}).get("userErrors") or [])
+    if not uit.get("gelukt") or fouten:
+        return {"gelukt": False, "fout": uit.get("fout") or "; ".join(f.get("message", "") for f in fouten)[:250]}
+    return {"gelukt": True}
+
+
 def faq_paren(tekst):
     """De paren uit de leesbare FAQ-tekst van een voorstel ("vraag\nantwoord\n\n...")."""
     paren = []
