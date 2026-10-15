@@ -278,6 +278,40 @@ def nachtregel(geheugen=None, nu=None):
                       + ". Waarschijnlijk een herstart van Render. De site probeert het tot 7 uur opnieuw." + mb)}
 
 
+# 15 oktober (idee 15 okt): de site viel die nacht elk uur om en dat zag je
+# pas in Render. Nu telt de site zijn eigen starts (app.py, _noteer_start) en
+# staat het bovenaan als het er in 24 uur meer zijn dan een paar uploads.
+HERSTART_SLEUTEL = "herstarts"
+HERSTART_GRENS = 3
+
+
+def noteer_start(nu=None):
+    import json
+    import time
+    nu = nu or time.time()
+    try:
+        oud = json.loads(db.get_instelling(HERSTART_SLEUTEL) or "[]")
+    except (TypeError, ValueError):
+        oud = []
+    nieuw = [t for t in oud if isinstance(t, (int, float)) and nu - t < 7 * 86400][-60:] + [int(nu)]
+    db.zet_instelling(HERSTART_SLEUTEL, json.dumps(nieuw))
+
+
+def herstartregel(nu=None):
+    """Een regel als de site in 24 uur vaker dan HERSTART_GRENS keer startte, anders None."""
+    import json
+    import time
+    nu = nu or time.time()
+    try:
+        starts = [t for t in json.loads(db.get_instelling(HERSTART_SLEUTEL) or "[]") if nu - t < 86400]
+    except (TypeError, ValueError):
+        return None
+    if len(starts) <= HERSTART_GRENS:
+        return None
+    return (f"De site startte {len(starts)} keer opnieuw in 24 uur (een upload telt ook mee). "
+            f"Kijk in Render bij Events of er 'Instance failed' staat, en stuur het door")
+
+
 def voorraadregel(klaar, doel=None, delen=None):
     """Een regel voor 'wat jij moet doen' als de voorraad te klein is, anders None."""
     import benadering
@@ -398,6 +432,12 @@ def verzamel(basis_url):
             doen.insert(0, (regel, f"{basis_url}/admin/benadering"))
     except Exception as e:
         print(f"Ochtendbericht, voorraadmeter mislukt: {e}")
+    try:
+        regel = herstartregel()
+        if regel:
+            doen.insert(0, (regel, "https://dashboard.render.com"))
+    except Exception as e:
+        print(f"Ochtendbericht, herstarts mislukt: {e}")
     if neon_waarschuwing:
         doen.append((neon_waarschuwing, "https://console.neon.tech"))
     gegevens = {"te_doen": doen, "gisteren": gisteren, "klaar_voor_post": klaar_voor_post}

@@ -380,7 +380,11 @@ def herkans_adressen(hoeveel=None):
 # ADRES_ZOEKMACHINE_PER_RONDE per ronde. Zet MAX hoger als de proef iets oplevert.
 ZOEKMACHINE_SLEUTEL = "benadering_adres_zoekmachine_v1"
 ZOEKMACHINE_PER_RONDE = int(os.environ.get("ADRES_ZOEKMACHINE_PER_RONDE", "25"))
-ZOEKMACHINE_MAX = int(os.environ.get("ADRES_ZOEKMACHINE_MAX", "200"))
+# 15 oktober: de proef leverde 40 adressen op 200 winkels (20 procent), voor
+# ongeveer een euro. Er staan 2671 winkels zonder adres op hun site. Daarom
+# 1500: ongeveer 300 adressen extra voor ongeveer 7,50 euro, gespreid over een
+# paar dagen (25 per ronde) en altijd binnen de dagrem van bronnen.zoek.
+ZOEKMACHINE_MAX = int(os.environ.get("ADRES_ZOEKMACHINE_MAX", "1500"))
 
 
 def zoekmachine_stand():

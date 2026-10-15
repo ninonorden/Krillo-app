@@ -411,6 +411,11 @@ def _warm_op_na_start():
     _opgewarmd["gestart"] = True
     _start_wachtklok()
     _start_geheugenwacht()
+    try:
+        import ochtendbericht
+        ochtendbericht.noteer_start()
+    except Exception as e:
+        print(f"Start noteren mislukt: {e}")
 
     def _warm():
         try:
@@ -5141,6 +5146,11 @@ def _shopify_inbed_kop(antwoord):
 _benadering_slot = threading.Lock()
 
 
+# 15 oktober: hoeveel winkels de sitecheck per ronde nakijkt als er minder
+# klaar staan dan er per dag gemaild mag worden (anders CATEGORIECHECK_PER_RONDE).
+CATEGORIECHECK_KRAP = int(os.environ.get("CATEGORIECHECK_KRAP", "72"))
+
+
 def _benadering_ronde():
     """Een ronde, maar nooit twee tegelijk (24 september).
 
@@ -5588,6 +5598,31 @@ def _benadering_ronde_werk():
         verslag["mislukt"].append(f"meten: {e}")
         print(f"Benadering, meten mislukt: {e}")
 
+    # 15 oktober: de sitecheck en het plaatsen ELKE ronde, niet alleen als er
+    # post uit mag. Ze stonden binnen het mailstuk, dat buiten 8 tot 20 uur (en
+    # na de dagrem) meteen stopte. Zo bleven er 175 winkels op "site nog niet
+    # nagekeken" staan, terwijl er 7 klaar waren voor de post. Nu werkt de
+    # nacht de voorraad bij voor de volgende ochtend. Niet tijdens het
+    # nachtwerk (geheugen), en bij een krappe voorraad een grotere hap.
+    if not onderhoud._stand.get("bezig"):
+        try:
+            import categoriecheck
+            klaar = (db.adres_uitsplitsing() or {}).get("klaar")
+            per_dag = (benadering.instellingen() or {}).get("per_dag") or 80
+            hap = CATEGORIECHECK_KRAP if (klaar is not None and klaar < per_dag) else None
+            verslag["categoriecheck"] = categoriecheck.ronde(hoeveel=hap)
+        except Exception as e:
+            verslag["mislukt"].append(f"categoriecheck: {e}")
+            print(f"Categoriecheck mislukt: {e}")
+        _geheugen_stap(verslag, "categoriecheck")
+        # 14 oktober: wie net ingedeeld of verhuisd is, meteen in de ranglijst.
+        try:
+            verslag["geplaatst"] = _plaats_wachtende_winkels()
+        except Exception as e:
+            verslag["mislukt"].append(f"plaatsen: {e}")
+            print(f"Wachtende winkels plaatsen mislukt: {e}")
+        _geheugen_stap(verslag, "plaatsen")
+
     try:
         mag, reden = benadering.hoeveel_mag_er_nu()
         if not mag:
@@ -5602,20 +5637,6 @@ def _benadering_ronde_werk():
         # weer: de post stond stil terwijl er honderden klaar lagen.
         # 30 september (bel-air.be): eerst de site zelf lezen. Alleen wie daar
         # als webshop in de goede categorie uitkomt, kan hierna post krijgen.
-        try:
-            import categoriecheck
-            verslag["categoriecheck"] = categoriecheck.ronde()
-        except Exception as e:
-            verslag["mislukt"].append(f"categoriecheck: {e}")
-            print(f"Categoriecheck mislukt: {e}")
-        _geheugen_stap(verslag, "categoriecheck")
-        # 14 oktober: wie net ingedeeld of verhuisd is, meteen in de ranglijst.
-        try:
-            verslag["geplaatst"] = _plaats_wachtende_winkels()
-        except Exception as e:
-            verslag["mislukt"].append(f"plaatsen: {e}")
-            print(f"Wachtende winkels plaatsen mislukt: {e}")
-        _geheugen_stap(verslag, "plaatsen")
         beurt = benadering.te_mailen(mag * KANDIDATEN_FACTOR)
         if not beurt:
             verslag["redenen"].append("Er mocht wel post uit, maar geen enkele winkel "
@@ -6340,6 +6361,15 @@ def _wachtklok_tik(nu=None):
                 gedaan.append(f"klantmeting {gestart}")
         except Exception as e:
             print(f"Klantmeetrij mislukt: {e}")
+    # 15 oktober: te weinig winkels klaar voor de mail, dan overdag een
+    # categorie extra meten (zie voorraadmeting.py).
+    if not (2 <= nu.hour < 7):
+        try:
+            gestart = _voorraadmeting(nu)
+            if gestart:
+                gedaan.append(f"voorraadmeting {gestart}")
+        except Exception as e:
+            print(f"Voorraadmeting mislukt: {e}")
     # 8 oktober (controle "maakt Krillo het waar?"): alle weekbeloftes (vijf
     # vragen, dertien controles, de weekmail) hingen aan een cron in Render.
     # Ontbreekt die, dan gebeurde er niets. Nu ook vanuit de wachtklok, tussen
@@ -9275,6 +9305,46 @@ def _klantmeetrij():
         return rij if isinstance(rij, list) else []
     except Exception:
         return []
+
+
+def _voorraadmeting(nu):
+    """Zie voorraadmeting.py. Geeft de gestarte categorie of None."""
+    import categoriemeting
+    import voorraadmeting as vm
+    ja, _ = vm.moet_nu(nu.hour, None, None, onderhoud._stand.get("bezig"),
+                       categoriemeting.stand().get("bezig"))
+    if not ja or not db.claim_moment("voorraadmeting", vm.VOORRAAD_ELKE_MINUTEN * 60 - 120):
+        return None
+    klaar = len(db.te_mailen_met_positie(10000))
+    per_dag = (benadering.instellingen() or {}).get("per_dag") or 80
+    ja, reden = vm.moet_nu(nu.hour, klaar, per_dag, False, False)
+    if not ja:
+        return None
+    if not kosten.ruimte_vandaag().get("past_een_categorie"):
+        print("Voorraadmeting: geen hele meting meer in de dagpot vandaag.")
+        return None
+    cat = vm.kies(db.categorieen_om_te_meten(onderhoud.MINIMUM, onderhoud.OPNIEUW_METEN_NA_DAGEN),
+                  vm.wachtend_per_categorie())
+    if not cat:
+        return None
+
+    def _na(uitkomst):
+        # Zelfde als na een nachtmeting: berichten, klantwerk, verse ranglijsten.
+        import meldingen
+        try:
+            meldingen.na_meting(uitkomst["ronde"], cat, verstuur=True, basis=get_base_url())
+        except Exception as e:
+            print(f"Voorraadmeting, berichten mislukt: {e}")
+        try:
+            _ververs_klantwerk(uitkomst["ronde"], cat, get_base_url())
+        except Exception as e:
+            print(f"Voorraadmeting, klantwerk mislukt: {e}")
+        db.vergeet_onthouden()
+        _bewaard_opslag.clear()
+    if not categoriemeting.start_meting(cat, na=_na):
+        return None
+    print(f"Voorraadmeting: {klaar} klaar, {per_dag} per dag; {cat} wordt nu gemeten.")
+    return cat
 
 
 def _meet_klantcategorie(nu=None):
