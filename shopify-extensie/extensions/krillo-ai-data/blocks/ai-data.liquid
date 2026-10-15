@@ -1,0 +1,71 @@
+{%- comment -%}
+  Krillo AI data (15 oktober 2026, roadmap 242). Zet gestructureerde gegevens
+  (JSON-LD) in de kop van elke pagina, zodat ChatGPT en Gemini de winkel en de
+  veelgestelde vragen als feiten lezen. De winkel ziet niets veranderen.
+  - Bedrijfsgegevens (Organization) op elke pagina, uit de winkel zelf en wat
+    Krillo bewaarde (app.metafields.krillo.org).
+  - Veelgestelde vragen (FAQPage) uit wat de Krillo-app schreef (app.metafields.krillo.faq),
+    alleen op de vragenpagina die de app maakte (daar staan ze ook zichtbaar).
+  - Productgegevens (Product) alleen als de winkelier dat aanzet: de meeste
+    thema's hebben dat al, en twee keer hetzelfde product verwart.
+{%- endcomment -%}
+{%- assign org = app.metafields.krillo.org.value -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": {{ org.name | default: shop.name | json }},
+  "url": {{ shop.url | json }}
+  {%- if org.logo %}, "logo": {{ org.logo | json }}{% endif -%}
+  {%- if org.email %}, "contactPoint": {"@type": "ContactPoint", "email": {{ org.email | json }}}{% endif %}
+}
+</script>
+{%- assign faq = app.metafields.krillo.faq.value -%}
+{%- comment -%} Alleen op de vragenpagina zelf: Google wil dat de vragen in de gegevens ook zichtbaar op de pagina staan. {%- endcomment -%}
+{%- if faq and request.page_type == 'page' and page.handle == 'veelgestelde-vragen-krillo' -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {%- for item in faq -%}
+    {"@type": "Question", "name": {{ item.q | json }}, "acceptedAnswer": {"@type": "Answer", "text": {{ item.a | json }}}}{% unless forloop.last %},{% endunless %}
+    {%- endfor -%}
+  ]
+}
+</script>
+{%- endif -%}
+{%- if block.settings.product and request.page_type == 'product' and product -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": {{ product.title | json }},
+  "description": {{ product.description | strip_html | truncate: 500 | json }},
+  "url": {{ shop.url | append: product.url | json }},
+  {%- if product.featured_image %}"image": {{ product.featured_image | image_url: width: 1200 | prepend: 'https:' | json }},{% endif %}
+  "brand": {"@type": "Brand", "name": {{ product.vendor | json }}},
+  "offers": {
+    "@type": "Offer",
+    "price": {{ product.selected_or_first_available_variant.price | divided_by: 100.0 | json }},
+    "priceCurrency": {{ cart.currency.iso_code | json }},
+    "availability": "{% if product.available %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}"
+  }
+}
+</script>
+{%- endif -%}
+{% schema %}
+{
+  "name": "Krillo AI data",
+  "target": "head",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "product",
+      "label": "Add product data on product pages",
+      "info": "Only turn this on if your theme has no product data of its own.",
+      "default": false
+    }
+  ]
+}
+{% endschema %}

@@ -926,6 +926,11 @@ def pas_toe(winkel, sleutel, voorstel, klant_url):
                                   "isPublished": True}},
                       "pageCreate")
         if uit["gelukt"]:
+            # 15 oktober: dezelfde vragen ook als gestructureerde gegevens (FAQPage).
+            try:
+                zet_schema_gegevens(winkel, sleutel, faq=faq_paren(voorstel.get("nieuw")))
+            except Exception as e:
+                print(f"Schema-gegevens zetten mislukt voor {winkel}: {e}")
             nieuwe = _nummer(((uit["gegevens"] or {}).get("page") or {}).get("id"))
             db.bewaar_wijziging(
                 webshop_url=klant_url, taak_id=voorstel["id"], wat=voorstel.get("wat"),
@@ -953,6 +958,54 @@ def pas_toe(winkel, sleutel, voorstel, klant_url):
         db.verwijder_wijziging(klant_url, voorstel["id"])
         return {"gelukt": False, "fout": uit["fout"]}
     return {"gelukt": True, "id": voorstel["id"]}
+
+
+# ---------------------------------------------------------------------------
+# 15 oktober (goedgekeurd voorstel 1, roadmap 242): gestructureerde gegevens
+# via de app. De gegevens (veelgestelde vragen, bedrijfsgegevens) staan als
+# app-gegevens bij de installatie (metafields op de AppInstallation, namespace
+# "krillo"). Het blok "Krillo AI data" in het thema (de theme app extension in
+# shopify-extensie/) zet ze als JSON-LD in de kop van elke pagina. De winkel
+# ziet niets veranderen; AI leest het. Zonder dat blok gebeurt er niets, dus het
+# kan geen kwaad om de gegevens altijd te zetten.
+# ---------------------------------------------------------------------------
+APP_INSTALLATIE = "query { currentAppInstallation { id } }"
+ZET_METAFIELDS = """mutation zet($velden: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $velden) { metafields { key } userErrors { field message } } }"""
+
+
+def zet_schema_gegevens(winkel, sleutel, faq=None, organisatie=None, graphql=None):
+    """faq: [(vraag, antwoord)]; organisatie: {"name", "url", "email", "logo"}.
+    Geeft {"gelukt", "fout"}."""
+    graphql = graphql or _graphql
+    uit = graphql(winkel, sleutel, APP_INSTALLATIE)
+    eigen = ((uit.get("gegevens") or {}).get("currentAppInstallation") or {}).get("id") if uit.get("gelukt") else None
+    if not eigen:
+        return {"gelukt": False, "fout": uit.get("fout") or "Geen app-installatie gevonden."}
+    velden = []
+    if faq:
+        velden.append({"ownerId": eigen, "namespace": "krillo", "key": "faq", "type": "json",
+                       "value": json.dumps([{"q": v, "a": a} for v, a in faq][:20], ensure_ascii=False)})
+    if organisatie:
+        velden.append({"ownerId": eigen, "namespace": "krillo", "key": "org", "type": "json",
+                       "value": json.dumps({k: v for k, v in organisatie.items() if v}, ensure_ascii=False)})
+    if not velden:
+        return {"gelukt": True}
+    uit = graphql(winkel, sleutel, ZET_METAFIELDS, {"velden": velden})
+    fouten = (((uit.get("gegevens") or {}).get("metafieldsSet") or {}).get("userErrors") or [])
+    if not uit.get("gelukt") or fouten:
+        return {"gelukt": False, "fout": uit.get("fout") or "; ".join(f.get("message", "") for f in fouten)[:250]}
+    return {"gelukt": True}
+
+
+def faq_paren(tekst):
+    """De paren uit de leesbare FAQ-tekst van een voorstel ("vraag\nantwoord\n\n...")."""
+    paren = []
+    for blok in (tekst or "").split("\n\n"):
+        delen = blok.strip().split("\n", 1)
+        if len(delen) == 2 and delen[0].strip() and delen[1].strip():
+            paren.append((delen[0].strip(), delen[1].strip()))
+    return paren
 
 
 def zet_terug(winkel, sleutel, wijziging, klant_url=None):

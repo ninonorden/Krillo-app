@@ -1,0 +1,16 @@
+Krillo AI data: de uitbreiding voor het Shopify-thema (15 oktober 2026, roadmap 242)
+
+Wat het doet: zet bedrijfsgegevens en de veelgestelde vragen die de Krillo-app
+schreef als gestructureerde gegevens (JSON-LD) in de kop van de winkel. De
+winkel ziet er niets van; ChatGPT en Gemini lezen het als feiten.
+
+Waarom apart: een thema-uitbreiding kan alleen met de Shopify CLI naar Shopify
+worden gestuurd, niet via GitHub of Render. Eenmalig, daarna hoeft er niets meer.
+
+De stappen staan in het bericht van Claude (15 oktober). Kort:
+1. Node.js installeren (nodejs.org, de LTS-versie).
+2. In Terminal: npm install -g @shopify/cli@latest
+3. In Terminal naar deze map (shopify-extensie) gaan.
+4. shopify app config link   (inloggen met je Partner-account, app Krillo kiezen)
+5. shopify app deploy        (bevestigen; daarna staat de uitbreiding live)
+6. In je testwinkel: Online Store > Themes > Customize > App embeds > Krillo AI data aanzetten.
