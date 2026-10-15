@@ -194,7 +194,7 @@ def _wacht_je_beurt():
     _laatste_zoekopdracht[0] = time.monotonic()
 
 
-def _zoek_brave(vraag, land=None, taal=None):
+def _zoek_brave(vraag, land=None, taal=None, vers=False):
     resp = requests.get(
         "https://api.search.brave.com/res/v1/web/search",
         headers={
@@ -213,6 +213,9 @@ def _zoek_brave(vraag, land=None, taal=None):
             # hebben we in augustus al een keer gemaakt.
             "country": (land or ZOEK_LAND).upper(),
             "search_lang": (taal or ZOEK_TAAL).lower(),
+            # 15 okt (kansenagent): vers=True alleen de laatste maand. Zonder dit
+            # kwam een Reddit-draadje van vier jaar oud (gearchiveerd) boven.
+            **({"freshness": "pm"} if vers else {}),
         },
         timeout=30,
     )
@@ -225,11 +228,13 @@ def _zoek_brave(vraag, land=None, taal=None):
                 "url": r["url"],
                 "titel": (r.get("title") or "").strip(),
                 "omschrijving": (r.get("description") or "").strip(),
+                # De datum van de pagina volgens Brave (ISO), als hij die weet.
+                "datum": (r.get("page_age") or "")[:10] or None,
             })
     return uit
 
 
-def _zoek_google(vraag, land=None, taal=None):
+def _zoek_google(vraag, land=None, taal=None, vers=False):
     resp = requests.get(
         "https://www.googleapis.com/customsearch/v1",
         params={
@@ -241,6 +246,7 @@ def _zoek_google(vraag, land=None, taal=None):
             "num": min(MAX_RESULTATEN, 10),
             "gl": (land or ZOEK_LAND).lower(),
             "hl": (taal or ZOEK_TAAL).lower(),
+            **({"dateRestrict": "m1"} if vers else {}),
         },
         timeout=30,
     )
@@ -260,7 +266,7 @@ def _zoek_google(vraag, land=None, taal=None):
 _ZOEKERS = {"brave": _zoek_brave, "google": _zoek_google}
 
 
-def zoek(vraag, webshop_url=None, land=None, taal=None):
+def zoek(vraag, webshop_url=None, land=None, taal=None, vers=False):
     """Eén zoekopdracht, met de kosten erbij geregistreerd.
 
     Geeft altijd een lijst terug, ook bij een storing. Een zoekmachine die
@@ -280,7 +286,7 @@ def zoek(vraag, webshop_url=None, land=None, taal=None):
     gestart = time.monotonic()
     try:
         _wacht_je_beurt()
-        resultaten = zoeker(vraag, land=land, taal=taal)
+        resultaten = zoeker(vraag, land=land, taal=taal, **({"vers": True} if vers else {}))
         gelukt, foutsoort = True, None
     except Exception as e:
         resultaten = []

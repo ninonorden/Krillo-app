@@ -36,6 +36,12 @@ MODEL = os.environ.get("KANSEN_MODEL", "claude-sonnet-4-6")
 SLEUTEL_GEZIEN = "kansen_gezien"
 SLEUTEL_LIJST = "kansen_lijst"
 SLEUTEL_BEURT = "kansen_beurt"
+# 15 oktober (Nino: "de reddit dingen zijn oud", een draadje van vier jaar,
+# gearchiveerd, reageren kan niet eens). Nu: alleen zoeken in de laatste maand,
+# een resultaat met een bekende datum ouder dan MAX_DAGEN overslaan, en een
+# draadje zonder bekende datum alleen als de zoekmachine zelf op versheid filterde.
+# Reddit sluit draadjes na zes maanden; wat ouder is, is onbruikbaar.
+MAX_DAGEN = 45
 
 # Plekken waar winkeliers zelf vragen stellen en waar een antwoord mag.
 PLEKKEN = {"reddit.com": "Reddit", "community.shopify.com": "Shopify Community",
@@ -83,8 +89,21 @@ def _json(sleutel, standaard):
 
 
 def lijst():
-    """De kansen die nog open staan, nieuwste eerst."""
-    return [k for k in _json(SLEUTEL_LIJST, []) if k.get("stand") == "open"]
+    """De kansen die nog open staan, nieuwste eerst. Kansen van voor de
+    datumcontrole (zonder "vers") tonen we niet meer: daar zaten oude,
+    gesloten draadjes tussen."""
+    return [k for k in _json(SLEUTEL_LIJST, []) if k.get("stand") == "open" and k.get("vers")]
+
+
+def te_oud(datum, nu, max_dagen=None):
+    """True als de datum (JJJJ-MM-DD) bekend is en ouder dan max_dagen."""
+    if not datum:
+        return False
+    try:
+        d = datetime.strptime(str(datum)[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return False
+    return (nu - d).days > (MAX_DAGEN if max_dagen is None else max_dagen)
 
 
 def zet_stand(url, stand):
@@ -146,14 +165,15 @@ def ronde(zoek=None, vraag_model=None, nu=None):
     db.zet_instelling(SLEUTEL_BEURT, str((beurt + len(vragen)) % len(ZOEKVRAGEN)))
     nieuw = []
     for vraag, land, taal in vragen:
-        for r in zoek(vraag, land=land, taal=taal) or []:
+        for r in zoek(vraag, land=land, taal=taal, vers=True) or []:
             url = (r.get("url") or "").split("?")[0].split("#")[0]
             plek = plek_van(url)
-            if not plek or not lijkt_draadje(url) or url in gezien:
+            if not plek or not lijkt_draadje(url) or url in gezien or te_oud(r.get("datum"), nu):
                 continue
             gezien.add(url)
             nieuw.append({"url": url, "plek": plek, "titel": r.get("titel") or "", "taal": taal,
-                          "omschrijving": (r.get("omschrijving") or "")[:400]})
+                          "omschrijving": (r.get("omschrijving") or "")[:400], "datum": r.get("datum"),
+                          "vers": True})
     geschreven = []
     for kans in nieuw[:ANTWOORD_PER_DAG]:
         try:

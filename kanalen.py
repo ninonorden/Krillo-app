@@ -101,3 +101,39 @@ def ochtendregel(o=None):
             stuk += f", {r['ai_kosten']:.2f} euro AI in 30 dagen"
         delen.append(stuk)
     return "; ".join(delen)
+
+
+# 15 oktober (Nino: "als er echt boven de 20k verdiend wordt moet het
+# veranderd worden toch?"). Ja. Krillo valt onder de kleineondernemersregeling
+# (KOR): geen btw zolang de omzet in een kalenderjaar onder 20.000 euro blijft.
+# Gaat hij erover, dan geldt de KOR vanaf die betaling niet meer en moet er btw
+# op de factuur, en moeten de prijzen, de site, de voorwaarden en de facturen
+# mee (stap 412). Daarom telt het ochtendbericht de omzet van dit jaar en
+# waarschuwt het ruim voor de grens. Geen fiscaal advies: bij de waarschuwing
+# met een boekhouder overleggen.
+KOR_GRENS = 20000
+KOR_WAARSCHUW = 15000
+
+
+def omzet_dit_jaar(rijen=None):
+    """Som van de Mollie-facturen dit kalenderjaar (de 1 cent-checks tellen niet)."""
+    if rijen is None:
+        rijen = _sql("""SELECT coalesce(sum(bedrag), 0) AS som FROM facturen
+                        WHERE aangemaakt_op >= date_trunc('year', now()) AND bedrag >= 1""")
+    return float((rijen[0] if rijen else {}).get("som") or 0)
+
+
+def kor_regel(omzet=None, shopify_maand=None):
+    """Een regel voor het ochtendbericht, of None onder de waarschuwgrens."""
+    omzet = omzet_dit_jaar() if omzet is None else omzet
+    if shopify_maand is None:
+        try:
+            shopify_maand = overzicht()["shopify"]["omzet_maand"]
+        except Exception:
+            shopify_maand = 0.0
+    if omzet + shopify_maand * 3 < KOR_WAARSCHUW:
+        return None
+    return (f"Omzet dit kalenderjaar via Mollie: {omzet:,.0f} euro (Shopify-uitbetalingen komen erbij, nu ongeveer "
+            f"{shopify_maand:,.0f} euro per maand). De grens van de kleineondernemersregeling is {KOR_GRENS:,} euro. "
+            "Plan nu met je boekhouder het overstappen op btw, en zeg het tegen Claude: dan passen we prijzen, "
+            "site, voorwaarden en facturen aan").replace(",", ".")

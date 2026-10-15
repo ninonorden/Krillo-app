@@ -381,6 +381,10 @@ def verzamel(basis_url):
         # Stap 143 (15 oktober): per kanaal (kanalen.py).
         import kanalen
         gisteren.append(("Per kanaal (betalende klanten, omzet, AI-kosten)", kanalen.ochtendregel()))
+        # 15 okt: de grens van de kleineondernemersregeling (zie kanalen.kor_regel).
+        kor = kanalen.kor_regel()
+        if kor:
+            gisteren.append(("Btw-grens (KOR)", kor))
     except Exception:
         pass
     # 14 oktober (stap 137): rapporten aangevraagd op de ranglijsten.
