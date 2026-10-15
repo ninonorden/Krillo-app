@@ -1112,6 +1112,20 @@ def waarom_gaat_er_niets_uit(moment_laatste_ronde=None, meetruimte=None,
             uit.append(("wacht", f"Van de {delen['totaal']} winkels met een adres staan er "
                                  f"{delen.get('klaar') or 0} klaar voor post. De rest: "
                                  + "; ".join(stukken) + "."))
+        # 14 oktober avond: waar zitten ze vast, per categorie.
+        try:
+            vast = db.vast_per_categorie()
+        except Exception:
+            vast = []
+        if vast:
+            def _uitleg(v):
+                if not v["bekend"]:
+                    return "onbekende categorie, de check deelt hem opnieuw in"
+                if v["eigen_meting"] or v["ouder_meting"]:
+                    return "gemeten, de mailronde zet ze er binnen het uur in"
+                return "geen ranglijst, de check verhuist ze naar een gemeten deelcategorie"
+            uit.append(("wacht", "Vast per categorie: " + "; ".join(
+                f"{v['categorie']} {v['aantal']} ({_uitleg(v)})" for v in vast) + "."))
     return uit
 
 

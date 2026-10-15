@@ -405,6 +405,7 @@ def _warm_op_na_start():
         return
     _opgewarmd["gestart"] = True
     _start_wachtklok()
+    _start_geheugenwacht()
 
     def _warm():
         try:
@@ -610,9 +611,11 @@ def api_mens():
 # de tien minuten een bezoeker de klos, en dat is precies de bezoeker die Neon
 # net in slaap heeft zien vallen. Zo wacht er nooit iemand op het verversen.
 # ---------------------------------------------------------------------------
-# 14 oktober (Neon zuiniger): 30 minuten in plaats van 10. Na elke meting wordt
-# _bewaard_opslag toch leeggemaakt, dus een nieuwe ranglijst staat er meteen.
-THUIS_VERS_SECONDEN = int(os.environ.get("THUIS_VERS_SECONDEN", "1800"))
+# 14 oktober (Neon zuiniger): 30 minuten in plaats van 10.
+# 15 oktober: terug naar 10 minuten. In de nacht erna ging de dienst elk uur
+# over de 512 MB van Render. Langer bewaren spaart Neon, maar het geheugen is
+# de harde grens: daar valt de site om, bij Neon kost het hooguit een paar cent.
+THUIS_VERS_SECONDEN = int(os.environ.get("THUIS_VERS_SECONDEN", "600"))
 
 # Bij het testen staat het onthouden uit. Tests vullen de database en kijken
 # daarna meteen of de homepage het laat zien; met een geheugen ertussen zien ze
@@ -1463,6 +1466,10 @@ def robots_txt():
     # hoewel geblokkeerd door robots.txt": het adres kwam in Google zonder dat
     # Google de noindex kon zien. Zonder Disallow ziet hij de tag en haalt hij
     # de pagina er zelf uit.
+    # 15 oktober: de SEO-robots (Semrush, Ahrefs en dergelijke) helemaal niet.
+    # Ze haalden 's nachts honderden zware pagina's op (/?winkel=..., 300 kB
+    # per stuk) terwijl de dienst al krap zat, en ze brengen geen bezoeker of
+    # klant. Google, Bing en de AI-robots blijven welkom.
     basis = get_base_url().rstrip("/")
     inhoud = f"""User-agent: *
 Allow: /
@@ -1472,6 +1479,24 @@ Disallow: /rapport/
 Disallow: /mijn/
 Disallow: /admin/
 Disallow: /api/
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: PetalBot
+Disallow: /
+
+User-agent: DataForSeoBot
+Disallow: /
 
 User-agent: GPTBot
 Allow: /
@@ -5142,6 +5167,7 @@ def _benadering_ronde_werk():
                "doorgezet": 0, "gemaild": 0, "mislukt": [], "redenen": []}
     benadering.onthoud_ronde()
 
+    _geheugen_stap(verslag, "start")
     # De verkoopagent (stap 125): wie zijn pagina bekeek krijgt een persoonlijke
     # opvolging. Draait ook als de koude mail uit staat: dit zijn mensen die al
     # reageerden. Een fout hier mag de rest van de ronde nooit tegenhouden.
@@ -5193,6 +5219,7 @@ def _benadering_ronde_werk():
             verslag["mislukt"].append(f"badge: {e}")
             print(f"Badge-agent mislukt: {e}")
 
+    _geheugen_stap(verslag, "opvolgagenten")
     # De bureauvinder (stap 115): elk uur 15 winkels uit de index op een bureau
     # in de voettekst bekijken. Mailen gaat met de hand tot er tien weg zijn;
     # daarna alleen met BUREAUMAIL_AUTO=1, hoogstens twee per dag, in kantooruren.
@@ -5207,6 +5234,7 @@ def _benadering_ronde_werk():
             verslag["mislukt"].append(f"bureaus: {e}")
             print(f"Bureauvinder mislukt: {e}")
 
+    _geheugen_stap(verslag, "bureauvinder")
     # De klantagenten (stap 99, 130, 152): behouden, overstappen, terugwinnen.
     # Alleen in kantooruren; elke mail langs de controleagent.
     if commandocentrum.aan("klant"):
@@ -5314,6 +5342,7 @@ def _benadering_ronde_werk():
             verslag["mislukt"].append(f"wachtlijst: {e}")
             print(f"Wachtlijst mislukt: {e}")
 
+    _geheugen_stap(verslag, "klantmails")
     # Eerst kijken of de lijst zichzelf moet aanvullen. Zonder dit raakt de
     # benaderlijst gewoon op: bij vijftien mails per dag is tweehonderd winkels
     # binnen twee weken leeg, en dan staat de machine stil zonder dat er iets
@@ -5361,6 +5390,7 @@ def _benadering_ronde_werk():
         verslag["mislukt"].append(f"adressen via zoekmachine: {e}")
         print(f"Benadering, zoekmachine mislukt: {e}")
 
+    _geheugen_stap(verslag, "adressen")
     try:
         # Winkels die geklikt hebben maar geen meting kregen omdat de dagpot op
         # was. Die staan vooraan in de rij: iemand die op zijn uitkomst klikt is
@@ -5573,12 +5603,14 @@ def _benadering_ronde_werk():
         except Exception as e:
             verslag["mislukt"].append(f"categoriecheck: {e}")
             print(f"Categoriecheck mislukt: {e}")
+        _geheugen_stap(verslag, "categoriecheck")
         # 14 oktober: wie net ingedeeld of verhuisd is, meteen in de ranglijst.
         try:
             verslag["geplaatst"] = _plaats_wachtende_winkels()
         except Exception as e:
             verslag["mislukt"].append(f"plaatsen: {e}")
             print(f"Wachtende winkels plaatsen mislukt: {e}")
+        _geheugen_stap(verslag, "plaatsen")
         beurt = benadering.te_mailen(mag * KANDIDATEN_FACTOR)
         if not beurt:
             verslag["redenen"].append("Er mocht wel post uit, maar geen enkele winkel "
@@ -6472,6 +6504,77 @@ def _shopify_opvolging():
     except Exception as e:
         print(f"Shopify-opvolging mislukt: {e}")
         return None
+
+
+# ---------------------------------------------------------------------------
+# DE GEHEUGENWACHT (15 oktober). In de nacht van 14 op 15 oktober ging de dienst
+# van 2 uur tot 8 uur ELK UUR over de 512 MB van Render, telkens vlak na de
+# start van de uurronde. Elke herstart gooit lopend werk weg (metingen, de nacht,
+# de post) en de eerste bezoeker daarna wacht. De remmen die er waren keken
+# alleen op vaste momenten (start van de ronde, tussen nachtstappen). Tussen die
+# momenten konden de bewaarde ranglijsten, pagina's en antwoorden ongezien
+# groeien, en dan duwde de ronde het over de rand.
+# Nu kijkt een eigen draad elke GEHEUGENWACHT_SECONDEN. Boven GEHEUGEN_LEEG_MB
+# gooit hij al het bewaarde weg en geeft het geheugen terug aan het systeem.
+# Bewaard is alleen tijdwinst: de volgende bezoeker haalt het opnieuw op. Een
+# herstart kost veel meer.
+# ---------------------------------------------------------------------------
+GEHEUGENWACHT_SECONDEN = int(os.environ.get("GEHEUGENWACHT_SECONDEN", "15"))
+GEHEUGEN_LEEG_MB = int(os.environ.get("GEHEUGEN_LEEG_MB", "360"))
+_geheugenwacht = {"gestart": False, "geleegd": 0, "laatst_mb": None, "hoogste_mb": 0}
+
+
+def _maak_geheugen_vrij(reden=""):
+    """Alles wat alleen tijdwinst is weggooien. Geeft (voor, na) in MB."""
+    voor = geheugen_mb()
+    tellingen = (len(_bewaard_opslag), len(db._ONTHOUD), len(db._TEKST_VOORRAAD), len(_demo_bewaard))
+    with _bewaard_slot:
+        _bewaard_opslag.clear()
+    _demo_bewaard.clear()
+    db.vergeet_onthouden()
+    db.geef_geheugen_terug()
+    na = geheugen_mb()
+    _geheugenwacht["geleegd"] += 1
+    print(f"GEHEUGEN {reden}: {voor} MB, na leegmaken {na} MB "
+          f"(bewaard {tellingen[0]}, onthouden {tellingen[1]}, teksten {tellingen[2]}, voorbeeld {tellingen[3]})")
+    return voor, na
+
+
+def _geheugenwacht_tik():
+    mb = geheugen_mb()
+    _geheugenwacht["laatst_mb"] = mb
+    if mb:
+        _geheugenwacht["hoogste_mb"] = max(_geheugenwacht["hoogste_mb"], mb)
+    if mb and mb > GEHEUGEN_LEEG_MB:
+        _maak_geheugen_vrij("geheugenwacht")
+        return True
+    return False
+
+
+def _start_geheugenwacht():
+    if _geheugenwacht["gestart"] or app.testing:
+        return
+    _geheugenwacht["gestart"] = True
+
+    def lus():
+        while True:
+            time.sleep(GEHEUGENWACHT_SECONDEN)
+            try:
+                _geheugenwacht_tik()
+            except Exception as e:
+                print(f"Geheugenwacht mislukt: {e}")
+    threading.Thread(target=lus, daemon=True).start()
+
+
+def _geheugen_stap(verslag, naam):
+    """15 oktober: na elke grote stap van de uurronde het geheugen noteren (komt
+    in het rondeverslag op /admin/benadering en in de log), en boven de grens
+    meteen leegmaken in plaats van te wachten op de volgende tik van de wacht."""
+    mb = geheugen_mb()
+    verslag.setdefault("geheugen", {})[naam] = mb
+    print(f"Benadering, geheugen na {naam}: {mb} MB")
+    if mb and mb > GEHEUGEN_LEEG_MB:
+        _maak_geheugen_vrij(f"uurronde na {naam}")
 
 
 def _start_wachtklok():
@@ -8523,6 +8626,46 @@ def api_plekmelding():
     return jsonify({"ok": True})
 
 
+@app.route("/api/rapport", methods=["POST"])
+def api_rapport():
+    """Stap 137: de ranglijst van een categorie als rapport per mail (zie categorierapport.py)."""
+    import categorierapport
+    import gratistools
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    land, slug = (data.get("land") or "").lower(), (data.get("slug") or "")[:80]
+    if not _EMAIL_VORM.match(email) or len(email) > 190:
+        return jsonify({"fout": "Enter a valid email address."}), 400
+    if not gratistools.mag_nu("rapport:" + (_bezoeker_kenmerk() or request.remote_addr or "?")):
+        return jsonify({"fout": "Check your inbox: the report is on its way."}), 429
+    lijst = _ranglijst_bewaard(slug, land) if land in sitetaal.LANDEN else None
+    if not lijst or not lijst.get("ronde") or len(lijst.get("rijen") or []) < MINIMUM_PER_LAND:
+        return jsonify({"fout": "We could not find this ranking."}), 404
+    token, nieuw = categorierapport.leg_vast(email, land, slug, bool(data.get("maandelijks")))
+    if not token:
+        return jsonify({"fout": "Something went wrong. Try again in a moment."}), 500
+    genoemd = [r for r in lijst["rijen"] if (r.get("genoemd") or 0) > 0]
+    imago_een = _imago(lijst["ronde"], genoemd[0]["webshop_url"], _winkel_naam(genoemd[0]), land=land,
+                       rijen=genoemd) if genoemd else None
+    basis = get_base_url().rstrip("/")
+    onderwerp, html = categorierapport.rapport_html(
+        categorieen.naam_en(slug), sitetaal.landnaam(land, "en"), lijst, mediaan=_mediaan_genoemd(lijst["rijen"]),
+        vragen_met_namen=categorierapport.vragen_met_namen(db.antwoorden_van_ronde(lijst["ronde"])),
+        bronnen=_bronnen_van_ronde(lijst["ronde"]), imago_een=imago_een,
+        pagina_url=f"{basis}/index/{land}/{slug}")
+    if not emailing.send_email(email, onderwerp, html):
+        return jsonify({"fout": "We could not send the email. Try again in a moment."}), 500
+    if nieuw:
+        try:
+            _meld_aan_beheer("Rapport aangevraagd (warme lead)",
+                             f"{escape(email)} vroeg het rapport van {escape(slug)} ({land.upper()}) aan"
+                             f"{', en wil het elke maand' if data.get('maandelijks') else ''}. Een winkelier, "
+                             f"bureau of journalist die zich voor deze categorie interesseert.")
+        except Exception as e:
+            print(f"Melding rapport mislukt: {e}")
+    return jsonify({"ok": True})
+
+
 @app.route("/plekmelding/<token>/bevestig")
 def plekmelding_bevestig(token):
     import plekmelding
@@ -9825,7 +9968,11 @@ def openbaar_voorbeeld(pad=""):
     # 29 september, Nino: "de productpagina is sloom". Elke keer werd het hele
     # dashboard van de voorbeeldwinkel opnieuw opgebouwd uit de database. Het is
     # voor iedereen dezelfde pagina, dus bewaren wij hem tien minuten.
-    sleutel = (pad, request.args.get("taal") or "")
+    # 15 oktober (geheugen): alleen bekende talen als sleutel. Met elke willekeurige
+    # ?taal= erachter kreeg een robot een eigen, nooit opgeruimde kopie van de
+    # hele pagina in het geheugen.
+    taal = (request.args.get("taal") or "").lower()
+    sleutel = (pad, taal if taal in ("nl", "en", "de", "fr") else "")
     bewaard = _demo_bewaard.get(sleutel)
     if bewaard and _thuis_onthouden_aan():
         # 30 september: na tien minuten wachtte de volgende bezoeker weer op het

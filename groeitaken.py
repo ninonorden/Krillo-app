@@ -126,6 +126,37 @@ TAKEN = [
      "stappen": "Winkels die bovenaan staan zijn trots en plaatsen de badge: een link naar de index. "
                 "De badgeagent doet dit al voor een deel; kijk wie nog niets kreeg.",
      "tekst": ""},
+    # 14 oktober avond (stap 140 en 210): platforms en de LinkedIn-nieuwsbrief.
+    {"id": "linkedin-nieuwsbrief", "titel": "LinkedIn: start de nieuwsbrief van de bedrijfspagina", "minuten": 15,
+     "link": "https://www.linkedin.com/company/",
+     "stappen": "Bedrijfspagina, Beheerdersweergave, Maken, Nieuwsbrief starten. Naam: De Krillo Index. "
+                "Frequentie: maandelijks. Elke volger krijgt een melding bij een nieuwe uitgave, ook als hij "
+                "de tijdlijn niet ziet. De eerste uitgave: de ranglijst van een categorie met een korte uitleg.",
+     "tekst": "Naam: De Krillo Index\nOmschrijving: Elke maand: welke webshops ChatGPT en Gemini aanraden, "
+              "per categorie, in Nederland en Belgie. Met de echte koopvragen erbij."},
+    {"id": "platform-lightspeed", "titel": "Lightspeed: vraag een partnervermelding aan", "minuten": 15,
+     "link": "https://www.lightspeedhq.nl/partners/",
+     "stappen": "Lightspeed heeft een partnerprogramma en een nieuwsbrief voor winkeliers. Vraag als "
+                "technologiepartner aan; een vermelding bereikt duizenden winkels tegelijk.",
+     "tekst": "Krillo meet elke maand welke webshops ChatGPT en Gemini aanraden, per categorie, en schrijft de "
+              "teksten die een winkel mist. Voor Lightspeed-winkels: een gratis check en een openbare "
+              "ranglijst per categorie (" + SITE + "/index/nl). Wij zoeken een vermelding in jullie "
+              "partnerlijst of nieuwsbrief."},
+    {"id": "platform-mijnwebwinkel", "titel": "Mijnwebwinkel en CCV Shop: vraag een vermelding aan", "minuten": 15,
+     "link": "https://www.mijnwebwinkel.nl/contact",
+     "stappen": "Zelfde tekst als bij Lightspeed. Mijnwebwinkel en CCV Shop hebben veel kleine winkels, precies "
+                "onze doelgroep. Zoek op hun site naar 'partners' of 'koppelingen'.",
+     "tekst": "Krillo meet elke maand welke webshops ChatGPT en Gemini aanraden, per categorie, en schrijft de "
+              "teksten die een winkel mist. Een gratis check en een openbare ranglijst per categorie: "
+              + SITE + "/index/nl. Kunnen wij in jullie partnerlijst of nieuwsbrief?"},
+    {"id": "platform-hosters", "titel": "WooCommerce-hosters (Savvii, Byte): vraag een vermelding aan", "minuten": 15,
+     "link": "https://www.savvii.com/contact/",
+     "stappen": "WooCommerce-winkels kunnen Krillo koppelen met een wachtwoord voor apps (Fix doet de "
+                "wijzigingen dan zelf). Hosters met veel webshops sturen nieuwsbrieven met tips; vraag of "
+                "Krillo erin mag.",
+     "tekst": "Krillo laat webshops zien of ChatGPT en Gemini ze aanraden, en zet met een WooCommerce-koppeling de "
+              "ontbrekende teksten er zelf in. Gratis check: " + SITE + ". Past dit in jullie nieuwsbrief of "
+              "kennisbank?"},
     {"id": "bureaus-mail", "titel": "Partners: mail 3 webshopbouwers (bureaus) uit /admin/bureaus", "minuten": 20,
      "link": SITE + "/admin/bureaus",
      "stappen": "Bureaus hebben tien tot honderd webshops als klant. De mail staat per bureau klaar.",

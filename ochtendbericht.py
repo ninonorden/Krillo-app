@@ -278,6 +278,24 @@ def nachtregel(geheugen=None, nu=None):
                       + ". Waarschijnlijk een herstart van Render. De site probeert het tot 7 uur opnieuw." + mb)}
 
 
+def voorraadregel(klaar, doel=None, delen=None):
+    """Een regel voor 'wat jij moet doen' als de voorraad te klein is, anders None."""
+    import benadering
+    if klaar is None:
+        return None
+    doel = doel if doel is not None else (benadering.instellingen() or {}).get("per_dag") or 80
+    if klaar >= doel:
+        return None
+    delen = delen if delen is not None else (db.adres_uitsplitsing() or {})
+    redenen = dict(db.ADRES_REDENEN)
+    grootste = max(((k, v) for k, v in delen.items()
+                    if k in redenen and k not in ("klaar", "al_gemaild", "afgemeld", "geen_winkel", "keten")
+                    and isinstance(v, int)), key=lambda kv: kv[1], default=None)
+    blok = f" Grootste blokkade: {redenen[grootste[0]]} ({grootste[1]})." if grootste and grootste[1] else ""
+    return (f"Voorraad voor de koude mail: {klaar} klaar, {doel} nodig per dag.{blok} "
+            "Claude lost dit op; geef het door als het morgen niet beter is")
+
+
 def verzamel(basis_url):
     gisteren = [(wat, _tel(sql)) for wat, sql in GISTEREN]
     # Hoe de post landt (stap 117): zelfde telling als de automatische rem.
@@ -297,6 +315,12 @@ def verzamel(basis_url):
         gisteren.append(("Opbrengst per maand van betalende klanten (euro)", f"{o:.2f}"))
     except Exception:
         pass
+    # 14 oktober (stap 137): rapporten aangevraagd op de ranglijsten.
+    try:
+        import categorierapport
+        gisteren.append(("Rapporten aangevraagd op een ranglijst (7 dagen, warme leads)", categorierapport.tel(7)))
+    except Exception as e:
+        print(f"Ochtendbericht, rapporten mislukt: {e}")
     # 14 oktober: het verbruik van Neon, zodat een lek binnen een dag opvalt.
     try:
         import neonverbruik
@@ -365,6 +389,15 @@ def verzamel(basis_url):
     except Exception:
         klaar_voor_post = None
     doen = te_doen(basis_url)
+    # 14 oktober (idee 14 okt): de voorraadmeter. Staan er minder winkels klaar
+    # dan er morgen mails uit moeten, dan staat dat bovenaan, met de grootste
+    # blokkade erbij. Zo zie je een leeglopende voorraad voordat de post stilvalt.
+    try:
+        regel = voorraadregel(klaar_voor_post)
+        if regel:
+            doen.insert(0, (regel, f"{basis_url}/admin/benadering"))
+    except Exception as e:
+        print(f"Ochtendbericht, voorraadmeter mislukt: {e}")
     if neon_waarschuwing:
         doen.append((neon_waarschuwing, "https://console.neon.tech"))
     gegevens = {"te_doen": doen, "gisteren": gisteren, "klaar_voor_post": klaar_voor_post}

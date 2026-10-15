@@ -7414,7 +7414,8 @@ def _antwoorden_van_ronde_vers(ronde):
 #    hooguit TEKST_RONDES_MAX rondes. Klein gehouden, want de vorige keer dat
 #    alle rondes met tekst onthouden werden ging Render over de 512 MB.
 # ---------------------------------------------------------------------------
-TEKST_RONDES_MAX = int(os.environ.get("TEKST_RONDES_MAX", "4"))
+# 15 oktober: 2 in plaats van 4 (geheugen, zie de geheugenwacht in app.py).
+TEKST_RONDES_MAX = int(os.environ.get("TEKST_RONDES_MAX", "2"))
 _TEKST_VOORRAAD = {}   # ronde -> (tijd, rijen)
 
 
@@ -7491,7 +7492,10 @@ def antwoorden_met_tekst_van_ronde(ronde):
             rijen = vak[1]
     if rijen is None:
         rijen = _antwoorden_met_tekst_vers(ronde)
-        if rijen and _onthouden_aan():
+        # 15 oktober: ook niet bewaren tijdens het nachtwerk (onthouden_pauze).
+        # Het lezen keek daar al naar, het bewaren niet, dus 's nachts groeide
+        # de voorraad toch.
+        if rijen and _onthouden_aan() and not _PAUZE["aan"]:
             with _ONTHOUD_SLOT:
                 _TEKST_VOORRAAD.pop(ronde, None)
                 while len(_TEKST_VOORRAAD) >= max(1, TEKST_RONDES_MAX):
@@ -7828,6 +7832,7 @@ def categorieen_met_wachtende_winkels():
                      WHERE b.stand IN ('adres', 'meten', 'gemeten') AND NOT b.afgemeld
                        AND b.email IS NOT NULL AND b.email <> '' AND b.gemaild_op IS NULL
                        AND coalesce(b.soort, 'winkel') = 'winkel' AND b.categorie IS NOT NULL
+                       AND (b.hoort_bij IS NULL OR b.hoort_bij = b.webshop_url)
                        AND NOT EXISTS (SELECT 1 FROM categorie_uitkomsten u
                                          JOIN categorie_rondes r ON r.id = u.ronde
                                         WHERE u.webshop_url = b.webshop_url AND r.afgerond_op IS NOT NULL)
@@ -7838,6 +7843,23 @@ def categorieen_met_wachtende_winkels():
         return []
     finally:
         conn.close()
+
+
+def vast_per_categorie(limiet=8):
+    """14 oktober avond: de categorieen waar winkels met een adres vastzitten
+    (nog in geen ranglijst), met het aantal en of de categorie zelf of haar
+    bovencategorie een afgeronde meting heeft. Voor /admin/benadering, zodat je
+    ziet WAAR het vastzit in plaats van alleen hoeveel."""
+    import categorieen
+    rijen = categorieen_met_wachtende_winkels()
+    gemeten = set(gemeten_categorieen())
+    uit = []
+    for cat, n in rijen[:limiet]:
+        ouder = categorieen.OUDER.get(cat)
+        uit.append({"categorie": cat, "aantal": n, "eigen_meting": cat in gemeten,
+                    "ouder": ouder, "ouder_meting": bool(ouder and ouder in gemeten),
+                    "bekend": cat in categorieen.GELDIG})
+    return uit
 
 
 def adres_zonder_plek():
@@ -7890,6 +7912,10 @@ ADRES_REDENEN = [
     ("geen_email", "stand adres maar geen mailadres"),
     ("al_gemaild", "al eens gemaild"),
     ("geen_winkel", "geen gewone winkel (merk, platform of keten)"),
+    # 14 oktober avond: een tweede adres van een keten (x.be hoort bij x.nl)
+    # krijgt nooit een eigen plek: rol_ketens_op telt hem bij het hoofdadres.
+    # Hij stond tot nu bij "gemeten, maar staat er niet in" en leek vast te zitten.
+    ("keten", "tweede adres van een keten (het hoofdadres krijgt de post)"),
     ("site_niet_nagekeken", "site nog niet nagekeken door de categoriecheck (of twijfel)"),
     ("geen_plek", "in de index, maar zonder bruikbare plek voor de mail (een week overgeslagen)"),
     ("geen_categorie", "nog geen categorie"),
@@ -7914,6 +7940,7 @@ def adres_uitsplitsing():
                       WHEN b.email IS NULL OR b.email = '' THEN 'geen_email'
                       WHEN b.gemaild_op IS NOT NULL THEN 'al_gemaild'
                       WHEN coalesce(b.soort, 'winkel') <> 'winkel' THEN 'geen_winkel'
+                      WHEN b.hoort_bij IS NOT NULL AND b.hoort_bij <> b.webshop_url THEN 'keten'
                       WHEN b.overgeslagen_op > now() - interval '7 days' THEN 'geen_plek'
                       WHEN EXISTS (SELECT 1 FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
                                     WHERE u.webshop_url = b.webshop_url AND coalesce(u.telbaar, 0) >= 3
@@ -8136,7 +8163,9 @@ _ONTHOUD_SLOT = threading.Lock()
 # 14 oktober (Neon zuiniger): 15 minuten in plaats van 5. Wat hier onthouden
 # wordt verandert alleen na een meting, en na elke meting maakt
 # vergeet_onthouden() alles leeg. Langer onthouden kost dus geen juistheid.
-ONTHOUD_SECONDEN = int(os.environ.get("DB_ONTHOUD_SECONDEN", "900"))
+# 15 oktober: terug naar 5 minuten, zie THUIS_VERS_SECONDEN in app.py (de dienst
+# ging de nacht erna elk uur over de 512 MB).
+ONTHOUD_SECONDEN = int(os.environ.get("DB_ONTHOUD_SECONDEN", "300"))
 
 
 def _onthouden_aan():
