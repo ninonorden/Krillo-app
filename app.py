@@ -10805,6 +10805,7 @@ def start_pagina():
     periode = "jaar" if request.args.get("periode") == "jaar" else "maand"
     voor = "klanten" if request.args.get("voor") == "klanten" else ""
     return render_template("start.html", plan=plan, winkel=winkel, sessie_email=sessie_email, periode=periode, voor=voor,
+                           via_shopify=_shopify_route(winkel),
                            prijs_merken=payments.PAKKETTEN["merken"]["prijs"]["value"].split(".")[0],
                            jaar_watch=payments.PAKKETTEN["watch"]["jaarprijs"]["value"].split(".")[0],
                            jaar_fix=payments.PAKKETTEN["fix"]["jaarprijs"]["value"].split(".")[0],
@@ -10908,6 +10909,39 @@ def start_plan():
         return jsonify({"ok": False}), 400
     aanmelden.zet(d["token"], plan=plan, stap="betalen")
     return jsonify({"ok": True})
+
+
+def _shopify_route(winkel):
+    """15 oktober: draait deze winkel op Shopify en staat de app in de App Store,
+    dan de link via /start/shopify (geteld), anders "".
+
+    WAAROM. Van de ongeveer 60 winkeliers die vanuit de mail naar /start gingen,
+    betaalde niemand. Daar moet je een account maken en daarna je betaalgegevens
+    invullen bij een bedrijf dat je net kent. Een Shopify-winkelier kan in de
+    App Store met twee klikken installeren, krijgt de eerste wijzigingen gratis
+    en betaalt later via zijn eigen Shopify-factuur. Voor hem is dat de kortste
+    weg naar een klant."""
+    if not winkel or not shopify_app_store_url():
+        return ""
+    platform = db.platform_van(winkel) or ("shopify" if ".myshopify.com" in winkel else None)
+    if platform != "shopify":
+        return ""
+    return f"/start/shopify?winkel={quote(winkel)}"
+
+
+@app.route("/start/shopify")
+def start_via_shopify():
+    """Telt de klik (staat als bezoek in de trechter) en stuurt door naar de App Store."""
+    url = shopify_app_store_url()
+    if not url:
+        return redirect("/start")
+    winkel = scan_engine.normalize_url(request.args.get("winkel") or "") if request.args.get("winkel") else ""
+    if winkel:
+        try:
+            db.zet_instelling("shopify_doorklik:" + winkel[:180], datetime.now(timezone.utc).isoformat())
+        except Exception as e:
+            print(f"Shopify-doorklik noteren mislukt: {e}")
+    return redirect(url + ("&" if "?" in url else "?") + "utm_source=krillo&utm_medium=start")
 
 
 @app.route("/uitkomst/<token>/verder")
@@ -12781,6 +12815,12 @@ def _shopify_scherm(winkel, rij):
         betaalt=betaalt,
         dashboard_url=dashboard_url,
         aiverkoop=_aiverkoop_rijen(webshop_url),
+        # 15 oktober: reviews wegen zwaar in de App Store (na de naam en de
+        # installaties). Pas vragen NA een eerste wijziging in zijn winkel: dan
+        # heeft hij iets gezien om over te oordelen. Nooit met een beloning, dat
+        # verbiedt Shopify.
+        review_url=(shopify_app_store_url() + "#modal-show=WriteReviewModal"
+                    if shopify_app_store_url() and int(rij.get("wijzigingen_ooit") or 0) >= 1 else ""),
         slot=slot,
         proef_over=proef_over,
         proefdagen=shopify_billing.PROEFDAGEN,

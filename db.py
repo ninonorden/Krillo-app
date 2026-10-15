@@ -4643,6 +4643,26 @@ def zet_platform(webshop_url, platform):
         conn.close()
 
 
+def platform_van(webshop_url):
+    """Het platform uit het winkelprofiel ("shopify", "woocommerce", ...) of None."""
+    if not webshop_url:
+        return None
+    conn = _get_connection()
+    if conn is None:
+        return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT platform FROM winkelprofielen WHERE webshop_url = %s", (webshop_url,))
+                rij = cur.fetchone()
+                return (rij[0] or "").lower() or None if rij else None
+    except Exception as e:
+        print(f"Platform ophalen mislukt: {e}")
+        return None
+    finally:
+        conn.close()
+
+
 def winkels_met_genoeg_vragen(minimum=10):
     """De winkels waarvan de meting bruikbaar is, als verzameling webadressen.
 
