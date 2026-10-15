@@ -63,6 +63,10 @@ def maak_tabel():
     _sql("CREATE INDEX IF NOT EXISTS snelmetingen_winkel ON snelmetingen (webshop_url, ronde_op)")
     # 2 oktober (productkaart.py): welke producten van de winkel in het antwoord staan.
     _sql("ALTER TABLE snelmetingen ADD COLUMN IF NOT EXISTS producten JSONB")
+    # Stap 337 (15 oktober): als de winkel NIET genoemd werd, de letterlijke
+    # zinnen waarin AI een concurrent noemt. Daar staat vaak het product dat in
+    # zijn plaats genoemd wordt. Letterlijk, niets geraden (productkaart.zinnen_met).
+    _sql("ALTER TABLE snelmetingen ADD COLUMN IF NOT EXISTS in_plaats JSONB")
 
 
 def kies_vragen(vragen_overzicht, gekozen=None, aantal=AANTAL):
@@ -147,11 +151,15 @@ def meet(webshop_url, vragen=None, aanbieders=None, vraag_aan=None, lees=None, n
                 in_antwoord = productkaart.genoemd_in(producten, uitkomst.get("antwoord"))
             except Exception:
                 in_antwoord = []
+            try:
+                in_plaats = [] if genoemd else productkaart.zinnen_met(anderen, uitkomst.get("antwoord"))
+            except Exception:
+                in_plaats = []
             _sql("""INSERT INTO snelmetingen (webshop_url, ronde_op, vraag, assistent, genoemd, aanbevolen, anderen,
-                                              producten)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                                              producten, in_plaats)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                  (webshop_url, moment, vraag, dp.assistent_naam(a["model"]), genoemd, aanbevolen,
-                  json.dumps(anderen), json.dumps(in_antwoord)))
+                  json.dumps(anderen), json.dumps(in_antwoord), json.dumps(in_plaats)))
             verslag["gemeten"] += 1
         if verslag["gestopt"]:
             break
