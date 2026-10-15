@@ -694,7 +694,38 @@ Antwoord ALLEEN met een JSON-lijst, niets ervoor of erna:
     }]}
 
 
-def maak_voorstellen(winkel, sleutel, markt=None):
+def maak_gids_voorstellen(winkel, gebreken, markt, vraag_json=None):
+    """Stap 239 (16 okt, Fix): de koopgidsen van de contentmotor als voorstellen.
+    Eerst wat nog niet geplaatst is, dan deze maand hoogstens contentmotor.PER_MAAND nieuwe."""
+    import contentmotor
+    import klantbeeld
+    rij = db.get_shopify_winkel(winkel) or {}
+    url = rij.get("webshop_url") or ""
+    if not url:
+        return {"gelukt": True, "voorstellen": []}
+    link = f"https://{shopify_app._schoon(winkel)}/admin/pages"
+    uit = [contentmotor.voorstel(p, link) for p in contentmotor.pagina_s(url) if not p.get("geplaatst")]
+    beeld = klantbeeld.bouw(url)
+    vragen = contentmotor.onderwerpen(url, (beeld or {}).get("gemiste_vragen"))
+    if vragen and vraag_json is None:
+        client, fout = _model(winkel)
+        if not client:
+            return {"gelukt": not uit, "fout": fout, "voorstellen": uit}
+        vraag_json = lambda tekst: _vraag_json(client, tekst, winkel, "contentmotor", max_tokens=3000)  # noqa: E731
+    for vraag in vragen:
+        try:
+            pagina = contentmotor.schrijf(url, vraag, (beeld or {}).get("naam") or shopify_app._schoon(winkel),
+                                          gebreken.get("voorbeeldproducten") or [],
+                                          (markt or {}).get("taal") or "Nederlands", vraag_json)
+        except Exception as e:
+            print(f"Contentmotor mislukt voor {winkel}: {e}")
+            break
+        if pagina:
+            uit.append(contentmotor.voorstel(pagina, link))
+    return {"gelukt": True, "voorstellen": uit}
+
+
+def maak_voorstellen(winkel, sleutel, markt=None, gidsen=False):
     """Alles bij elkaar: kijken wat er mis is en er tekst voor maken.
 
     Er gaat hier nog niets de winkel in. Dit is wat de eigenaar te zien krijgt
@@ -721,9 +752,16 @@ def maak_voorstellen(winkel, sleutel, markt=None):
             alles.append(llms)
     except Exception as e:
         fouten.append(f"llms.txt: {e}"[:200])
-    for stuk in (maak_faq_voorstel(winkel, sleutel, gebreken, markt),
-                 maak_tekst_voorstellen(winkel, sleutel, gebreken, markt),
-                 maak_alt_voorstellen(winkel, sleutel, gebreken, markt)):
+    stukken = [maak_faq_voorstel(winkel, sleutel, gebreken, markt),
+               maak_tekst_voorstellen(winkel, sleutel, gebreken, markt),
+               maak_alt_voorstellen(winkel, sleutel, gebreken, markt)]
+    # 16 okt: Fix krijgt elke maand ook de koopgidsen van de contentmotor.
+    if gidsen:
+        try:
+            stukken.insert(1, maak_gids_voorstellen(winkel, gebreken, markt))
+        except Exception as e:
+            fouten.append(f"contentmotor: {e}"[:200])
+    for stuk in stukken:
         alles.extend(stuk.get("voorstellen") or [])
         if not stuk.get("gelukt") and stuk.get("fout"):
             fouten.append(stuk["fout"])
@@ -869,7 +907,7 @@ def _huidige_waarde(winkel, sleutel, voorstel):
         if product is None:
             return None, "Dit product bestaat niet meer in de winkel."
         return product.get("descriptionHtml") or "", None
-    if soort == "faq":
+    if soort in ("faq", "gids"):
         return "", None
     if soort == "llms":
         pagina = _llms_pagina(winkel, sleutel)
@@ -898,9 +936,10 @@ def pas_toe(winkel, sleutel, voorstel, klant_url):
             return {"gelukt": False, "overgeslagen": True,
                     "fout": "Hier staat inmiddels al een tekst. Die laten wij staan."}
 
-    if soort == "faq":
+    if soort in ("faq", "gids"):
+        zoek = FAQ_HANDLE if soort == "faq" else voorstel.get("handle")
         for pagina in haal_paginas(winkel, sleutel):
-            if (pagina.get("handle") or "") == FAQ_HANDLE:
+            if (pagina.get("handle") or "") == zoek:
                 return {"gelukt": False, "overgeslagen": True,
                         "fout": "Deze pagina bestaat al."}
 
@@ -936,6 +975,16 @@ def pas_toe(winkel, sleutel, voorstel, klant_url):
                 webshop_url=klant_url, taak_id=voorstel["id"], wat=voorstel.get("wat"),
                 waar=voorstel.get("waar") or f"page {nieuwe}", oude_waarde="",
                 nieuwe_waarde=voorstel.get("nieuw_html") or voorstel["nieuw"])
+    elif soort == "gids":
+        # Stap 239: een koopgids van de contentmotor als eigen pagina.
+        uit = _muteer(winkel, sleutel, MAAK_PAGINA,
+                      {"pagina": {"title": voorstel.get("titel") or "Buying guide", "handle": voorstel["handle"],
+                                  "body": voorstel.get("nieuw_html") or voorstel["nieuw"], "isPublished": True}},
+                      "pageCreate")
+        if uit["gelukt"]:
+            import contentmotor
+            nieuwe = _nummer(((uit["gegevens"] or {}).get("page") or {}).get("id"))
+            contentmotor.markeer_geplaatst(klant_url, voorstel["handle"], waar=f"page {nieuwe}")
     elif soort == "llms":
         # Bestaat de pagina al (eerder gemaakt), dan bijwerken; anders maken.
         import llmstxt
@@ -1071,6 +1120,15 @@ def zet_terug(winkel, sleutel, wijziging, klant_url=None):
             return {"gelukt": True, "id": taak_id}
         uit = _muteer(winkel, sleutel, WEG_PAGINA,
                       {"id": _gid("Page", pagina_id)}, "pageDelete")
+    elif delen[1] == "gids":
+        import contentmotor
+        handle = contentmotor.HANDLE_BEGIN + ":".join(delen[2:])
+        pagina_id = next((p["id"] for p in haal_paginas(winkel, sleutel) if (p.get("handle") or "") == handle), None)
+        if pagina_id is None:
+            if klant_url:
+                db.verwijder_wijziging(klant_url, taak_id)
+            return {"gelukt": True, "id": taak_id}
+        uit = _muteer(winkel, sleutel, WEG_PAGINA, {"id": _gid("Page", pagina_id)}, "pageDelete")
     elif delen[1] == "llms":
         # Stond er eerst een andere llms.txt, dan die terug; anders de pagina weg.
         pagina = _llms_pagina(winkel, sleutel)

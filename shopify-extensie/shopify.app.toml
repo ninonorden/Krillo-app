@@ -1,0 +1,26 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "3c76f1fa1ba45477d33c562d4a69e0ce"
+name = "Krillo"
+application_url = "https://krilloai.com/shopify"
+embedded = true
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_content,read_products,write_content,write_files,write_products"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ "https://krilloai.com/shopify/callback" ]
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  uri = "https://www.krillo.nl/shopify/webhooks/naleving"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "https://www.krillo.nl/shopify/webhooks/verwijderd"
+  topics = [ "app/uninstalled" ]

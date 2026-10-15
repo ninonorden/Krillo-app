@@ -31,6 +31,10 @@ from datetime import datetime, timezone
 import db
 
 AANTAL = 5
+# 16 oktober (Fix waard maken, akkoord Nino): Fix meet elke week 15 vragen in
+# plaats van 5, zodat het effect van ons werk sneller en breder te zien is.
+# Kost per Fix-klant ongeveer 30 korte vragen per week, binnen de dagrem.
+AANTAL_FIX = 15
 
 
 def _sql(opdracht, waarden=None, alles=False):
@@ -82,18 +86,19 @@ def kies_vragen(vragen_overzicht, gekozen=None, aantal=AANTAL):
     return uit[:aantal]
 
 
-def vragen_voor(webshop_url):
-    """De vijf vragen voor deze winkel, of [] als hij (nog) nergens in staat."""
+def vragen_voor(webshop_url, aantal=AANTAL):
+    """De vragen voor deze winkel (5, of 15 bij Fix), of [] als hij (nog) nergens in staat."""
     import klantbeeld
     import dashboardpaginas as dp
     beeld = klantbeeld.bouw(webshop_url, max_vragen=1)
     if not beeld:
         return []
     vo = dp.vragen_overzicht(beeld["ronde"], webshop_url, beeld.get("naam"))
-    return kies_vragen(vo, db.gekozen_vragen(webshop_url))
+    return kies_vragen(vo, db.gekozen_vragen(webshop_url), aantal=aantal)
 
 
-def meet(webshop_url, vragen=None, aanbieders=None, vraag_aan=None, lees=None, nu=None, haal_producten=None):
+def meet(webshop_url, vragen=None, aanbieders=None, vraag_aan=None, lees=None, nu=None, haal_producten=None,
+         aantal=AANTAL):
     """De snelmeting voor een winkel. Geeft een verslag.
 
     vraag_aan en lees zijn alleen voor de test (geen echte AI-aanroepen)."""
@@ -103,7 +108,7 @@ def meet(webshop_url, vragen=None, aanbieders=None, vraag_aan=None, lees=None, n
     import categoriemeting
     import dashboardpaginas as dp
     maak_tabel()
-    vragen = vragen if vragen is not None else vragen_voor(webshop_url)
+    vragen = vragen if vragen is not None else vragen_voor(webshop_url, aantal=aantal)
     if not vragen:
         return {"gemeten": 0, "reden": "geen vragen (de winkel staat nog in geen ranglijst)"}
     aanbieders = aanbieders if aanbieders is not None else metingen.beschikbare_aanbieders()

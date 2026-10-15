@@ -95,7 +95,43 @@ def nakijken(bronnen, webshop_url, get=requests.get):
         _trustpilot(winkel, get=get)
 
 
-def plan(bronnen, webshop_url, maximaal=6, get=requests.get, alleen_onthouden=True):
+# 16 oktober (Fix waard maken): bij Fix per site een kant-en-klaar bericht.
+# Reviewsites: een bericht aan je eigen klanten (AI haalt reviews aan als bewijs).
+# Vergelijkers: een aanvraag aan de site om je winkel op te nemen. Geen bericht
+# waar dat niets oplevert (testorganisaties, communities, marktplaatsen).
+# In de taal van je klanten: Nederlands voor NL en BE, anders Engels.
+REVIEW_SITES = {"Trustpilot", "Kiyoh", "Feedback Company", "WebwinkelKeur", "Google reviews"}
+VERGELIJKERS = {"Kieskeurig", "Tweakers", "Beslist"}
+
+
+def bericht(naam, winkelnaam, categorie, land):
+    """{"aan", "onderwerp", "tekst"} of None. [REVIEW LINK] is een plek om zelf in te vullen."""
+    nl = (land or "").lower() in ("nl", "be")
+    if naam in REVIEW_SITES:
+        if nl:
+            return {"aan": "Je klanten (een week na levering)", "onderwerp": f"Hoe bevalt je bestelling bij {winkelnaam}?",
+                    "tekst": f"Hoi,\n\nBedankt voor je bestelling bij {winkelnaam}. Wil je in een minuut laten weten hoe "
+                             f"het bevalt? Je review helpt andere kopers kiezen.\n\n[REVIEW LINK {naam}]\n\n"
+                             f"Groet,\n{winkelnaam}"}
+        return {"aan": "Your customers (a week after delivery)", "onderwerp": f"How is your order from {winkelnaam}?",
+                "tekst": f"Hi,\n\nThank you for your order at {winkelnaam}. Could you take a minute to share how it is "
+                         f"going? Your review helps other shoppers choose.\n\n[REVIEW LINK {naam}]\n\n"
+                         f"Best,\n{winkelnaam}"}
+    if naam in VERGELIJKERS:
+        if nl:
+            return {"aan": f"{naam} (winkeliers of partners)", "onderwerp": f"Aanmelding winkel: {winkelnaam}",
+                    "tekst": f"Hallo,\n\nWij zijn {winkelnaam}, een webwinkel in {categorie.lower()}. Graag staan wij "
+                             f"met onze producten op {naam}. Wij kunnen een productfeed aanleveren met namen, prijzen en "
+                             f"voorraad. Wat is de volgende stap?\n\nMet vriendelijke groet,\n{winkelnaam}"}
+        return {"aan": f"{naam} (shop or partner team)", "onderwerp": f"Shop listing request: {winkelnaam}",
+                "tekst": f"Hello,\n\nWe are {winkelnaam}, an online store in {categorie.lower()}. We would like our "
+                         f"products listed on {naam}. We can provide a product feed with names, prices and stock. "
+                         f"What is the next step?\n\nKind regards,\n{winkelnaam}"}
+    return None
+
+
+def plan(bronnen, webshop_url, maximaal=6, get=requests.get, alleen_onthouden=True, fix=None):
+    """fix: {"winkelnaam", "categorie", "land"} bij een Fix-klant: dan per site ook het bericht."""
     """[{"naam", "soort_en", "aantal", "van", "status", "check", "stap"}], vaakst genoemd eerst.
 
     status: "aan" (nagekeken, je staat erop), "mist" (nagekeken, je staat er niet),
@@ -113,5 +149,6 @@ def plan(bronnen, webshop_url, maximaal=6, get=requests.get, alleen_onthouden=Tr
                 check = "https://www.google.com/search?q=" + quote(f'site:{site} "{winkel}"')
         uit.append({"naam": naam, "soort_en": b.get("soort_en") or "", "aantal": b.get("aantal") or 0,
                     "van": b.get("van") or 0, "status": status, "check": check,
-                    "stap": STAP.get(naam) or b.get("advies") or ""})
+                    "stap": STAP.get(naam) or b.get("advies") or "",
+                    "bericht": bericht(naam, fix["winkelnaam"], fix["categorie"], fix["land"]) if fix else None})
     return uit
