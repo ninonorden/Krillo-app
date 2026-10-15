@@ -1018,18 +1018,13 @@ def voorwaarden():
 
 @app.route("/nl/<slug>")
 def nl_pagina(slug):
-    """Stap 379: Nederlandse pagina's voor webshophouders (zie seo_nl.py)."""
-    import seo_nl
-    p = seo_nl.PER_SLUG.get(slug)
-    if not p:
-        return render_template("fout.html"), 404
-    try:
-        cijfers = _bewaard(("cijfers",), db.index_cijfers)
-    except Exception:
-        cijfers = None
-    return render_template("nl_pagina.html", p=p, faq_ld=seo_nl.faq_ld(p), cijfers=cijfers,
-                           andere=[a for a in seo_nl.PAGINAS if a["slug"] != slug],
-                           basis_url=get_base_url().rstrip("/"))
+    """14 oktober waren hier drie Nederlandse pagina's (stap 379). 15 oktober
+    (Nino: "alles gewoon Engels"): weg. De adressen sturen voorgoed door naar de
+    Engelse gidsen, zodat Google en wie een oude link heeft geen foutpagina krijgt."""
+    doel = {"webshop-vindbaar-in-chatgpt": "/guides/ai-visibility-for-online-stores",
+            "ai-seo-voor-webshops": "/guides/ai-visibility-for-online-stores",
+            "raadt-chatgpt-mijn-webshop-aan": "/guides/how-chatgpt-picks-stores"}.get(slug)
+    return redirect(doel or "/guides/ai-visibility-for-online-stores", code=301)
 
 
 def _titel_proef(pad):
@@ -3146,8 +3141,6 @@ def _bouw_sitemap():
     regels += [(f"/news/{land}", nieuwste) for land in markten.index_landen()]
     regels += [(f"/articles/{a['slug']}", a["datum"]) for a in artikelen.alle()]
     # Stap 379: de Nederlandse pagina's voor webshophouders.
-    import seo_nl
-    regels += [(f"/nl/{p['slug']}", "2026-10-14") for p in seo_nl.PAGINAS]
     import seo_en
     regels += [(f"/guides/{p['slug']}", "2026-10-15") for p in seo_en.PAGINAS]
     # Stap 162 en 163: de gratis tools en de vergelijkingen.
