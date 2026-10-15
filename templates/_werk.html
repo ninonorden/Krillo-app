@@ -111,7 +111,7 @@
   {# Afgelopen abonnement (27 september): de betaalde inhoud is voorbij. #}
   {% if afgelopen %}
   <div class="werk-leeg"><strong>{{ wt.afgelopen_kop }}</strong>{{ wt.afgelopen_tekst }}<br>
-    <a class="knop-rand" href="/#pricing" style="display:inline-block; margin-top:10px;">{{ wt.eenmalig_knop }}</a></div>
+    <a class="knop-rand" href="/pricing" style="display:inline-block; margin-top:10px;">{{ wt.eenmalig_knop }}</a></div>
   {% endif %}
 
   {# Wie betaald heeft om het NIET zelf te doen, ziet eerst hoe ver wij zijn. #}
@@ -272,7 +272,7 @@
     <strong>{% if afgelopen %}{{ wt.afgelopen_kop }}{% else %}{{ wt.opgezegd_kop }}{% endif %}</strong>
     {% if opgezegd_tot and not afgelopen %}{{ wt.opgezegd_tot }} {{ opgezegd_tot.strftime('%d-%m-%Y') }}. {% endif %}
     {{ wt.opgezegd_tekst }}<br>
-    <a class="knop-rand" href="/#pricing">{{ wt.eenmalig_knop }}</a>
+    <a class="knop-rand" href="/pricing">{{ wt.eenmalig_knop }}</a>
   {% elif abonnement %}
     <strong>{{ wt.abo_kop }}</strong>
     {{ wt.abo_tekst }}<br>
@@ -281,7 +281,7 @@
   {% else %}
     <strong>{{ wt.eenmalig_kop }}</strong>
     {{ wt.eenmalig_tekst }}<br>
-    <a class="knop-rand" href="/#pricing">{{ wt.eenmalig_knop }}</a>
+    <a class="knop-rand" href="/pricing">{{ wt.eenmalig_knop }}</a>
   {% endif %}
   </div>
   {% endif %}

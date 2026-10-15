@@ -101,6 +101,15 @@
        where it does not have to guess.</p>
     <p>Paste the address of one of your product pages. We read it and list which details are there and which are
        missing, and why each one matters.</p>
+  {% elif slug == 'product-pages-check' %}
+    <h2>What this checks</h2>
+    <p>AI recommends products, not just stores. If a product page tells robots not to index it, shows almost no
+       text without scripts, or has no product data, AI is likely to skip it. We read the product list from your
+       sitemap and check a sample of eight pages the same way your Krillo dashboard checks all of them.</p>
+    <h2>What to do with the result</h2>
+    <p>Fix the pages marked with a cross first: remove a noindex you did not mean, put the product text in the
+       page itself, and add product data (price, stock, brand). With Watch or Fix, every product page is checked,
+       40 more every week.</p>
   {% else %}
     <h2>What the Krillo Index is</h2>
     <p>Every month we ask ChatGPT and Gemini the buying questions shoppers in {{ index_landen_en }} ask in each

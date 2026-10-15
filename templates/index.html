@@ -1900,94 +1900,31 @@
 </div>
 </div>
 
-<section id="pricing" class="k9-sectie k9-prijzen k10-prijzen">
-  {# Het oude anker, zodat links met #prijzen uit verstuurde mails blijven werken. #}
+<section id="pricing" class="k9-sectie k9-prijzen k10-prijzen" aria-label="Pricing">
+  {# 15 oktober (Nino: "een aparte pricing pagina, en haal het van de homepage af").
+     De vier kaarten en de vergelijking staan nu op /pricing. Hier alleen een strook
+     met een link. De ankers #pricing en #prijzen blijven, zodat links uit mails
+     werken: zonder ?plan= stuurt het script hieronder door naar /pricing. De twee
+     knoppen blijven (verborgen): ?plan=watch of ?plan=fix uit oude mails en de
+     knoppen onder de gratis check openen daarmee nog steeds het afrekenvenster. #}
   <span id="prijzen" style="position:absolute;"></span>
-  <div class="k9-binnen">
-    <div class="k9-prijskop" style="text-align:center;display:block">
-      <span class="k9-label">PRICING</span><h2 class="k9-h2">See the problem for free. Let Krillo fix it.</h2>
-      <p class="k9-p" style="margin:12px auto 20px">Nothing to set up: your category is already measured, so you see your rank against your competitors on day one. Watch: you do the work. Fix: Krillo does the work. Cancel any month.</p>
-      {# LET OP BIJ WIJZIGEN: de bedragen moeten gelijk zijn aan
-         payments.PAKKETTEN, ook de jaarbedragen (test_jaarabonnement). Merken
-         heeft GEEN jaarprijs; dat richten we samen in. #}
-      <div class="periode-keuze" role="group" aria-label="Billing period" style="display:inline-flex">
-        <button type="button" class="aan" data-periode="maand">Monthly</button>
-        <button type="button" data-periode="jaar">Yearly <span class="gratis">2 months free</span></button>
-      </div>
-    </div>
-    <div class="price-grid">
-      <div class="price-card">
-        <div class="price-top"><span class="price-name">Free check</span><span class="price-tag k9-mono">NO ACCOUNT</span></div>
-        <div class="price-rol">See where you stand today.</div>
-        <div class="price-amount">&euro;0</div>
-        <div class="price-amount proef-noot">No card, no account.</div>
-        <ul class="price-feats">
-          <li>Your place in the index, if your category is measured</li>
-          <li>The stores AI recommends instead of you</li>
-          <li>The buying questions you lose</li>
-          <li>13 checks of what AI can read on your site</li>
-        </ul>
-        <a class="price-btn ghost" href="#scan" data-naar-scan>Check my store</a>
-      </div>
-      <div class="price-card">
-        <div class="price-top"><span class="price-name">Watch</span><span class="price-tag blauw k9-mono">14 DAYS FREE</span></div>
-        <div class="price-rol">You do the work.</div>
-        <div class="price-amount" data-maand="&euro;49 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;490 &lt;span&gt;/year&lt;/span&gt;">&euro;49 <span>/mo</span></div>
-        <div class="price-amount proef-noot" data-maand="First 14 days free. Cancel before then and you pay nothing." data-jaar="Paid yearly. The free trial is for the monthly plan.">First 14 days free. Cancel before then and you pay nothing.</div>
-        <ul class="price-feats">
-          <li><strong>Your rank every month</strong>, and who passes you</li>
-          <li>Every buying question you lose, with the real AI answer, and why you lose it</li>
-          <li><strong>Every week</strong>, your five key questions by email; five questions of your own on your dashboard</li>
-          <li>Your homepage and up to five key pages: can AI read them, and which products AI names</li>
-          <li>Your visits and revenue from AI, next to what Krillo costs you</li>
-        </ul>
-        <a class="price-btn ghost" href="#scan" id="watchCheckoutBtn" data-maand="Start Watch free for 14 days" data-jaar="Start Watch">Start Watch free for 14 days</a>
-      </div>
-      <div class="price-card featured k10-donker">
-        <div class="price-top"><span class="price-name">Fix</span><span class="price-tag blauw k9-mono">RECOMMENDED</span></div>
-        <div class="price-rol">Krillo does the work.</div>
-        <div class="price-amount" data-maand="&euro;149 &lt;span&gt;/mo&lt;/span&gt;" data-jaar="&euro;1,490 &lt;span&gt;/year&lt;/span&gt;">&euro;149 <span>/mo</span></div>
-        <div class="price-amount proef-noot" data-maand="Cancel within 14 days of your first payment and you get it back." data-jaar="Two months free compared to monthly.">Cancel within 14 days of your first payment and you get it back.</div>
-        <ul class="price-feats">
-          <li><strong>Everything in Watch</strong>, with fifteen questions of your own</li>
-          <li><strong>We make the fixes in your store</strong>, with access you give us and can take back any time</li>
-          <li>The old text is kept, so we can put it back</li>
-          <li>Instructions for AI (llms.txt) on your store</li>
-        </ul>
-        <a class="price-btn solid" href="#scan" id="fixCheckoutBtn">Let Krillo fix it &rarr;</a>
-      </div>
-      <div class="price-card">
-        <div class="price-top"><span class="price-name">Brands and agencies</span><span class="price-tag k9-mono">UP TO 25 STORES</span></div>
-        <div class="price-rol">For several stores at once.</div>
-        <div class="price-amount">&euro;490 <span>/mo</span></div>
-        <div class="price-amount proef-noot">Monthly only. Start in two minutes.</div>
-        <ul class="price-feats">
-          <li><strong>Up to 25 stores</strong>, each with its own dashboard</li>
-          <li>Every category they appear in</li>
-          <li>Every buying question, and who beats you</li>
-          <li>One login for all your stores</li>
-        </ul>
-        {# 9 oktober (stap 354): bureaus en merken beginnen nu zelf in /start, net als een winkel. #}
-        <a class="price-btn ghost" href="/start?voor=klanten">Start for your stores &rarr;</a>
-        <p style="font-size:12.5px; margin:10px 0 0; text-align:center;"><a href="/agencies" style="color:var(--c-grey, #6E7079);">Or check up to ten stores free first</a></p>
-      </div>
-    </div>
-    <div class="prijs-voet">
-      {# 8 oktober (Nino, akkoord): Watch heeft de 14 gratis dagen als garantie; geld terug alleen bij Fix. #}
-      <div><strong>Watch: 14 days free, cancel before day 15 and you pay nothing. Fix: not happy in the first 14 days, money back.</strong></div>
-    </div>
-    {# 15 oktober (Nino): de App Store-link stond direct onder de zoekbalk en oogde
-       amateuristisch. Hij hoort bij de prijzen: daar kiest een winkelier HOE hij
-       begint, en voor een Shopify-winkel is de app de kortste weg. #}
-    {% if shopify_app_store_url is defined and shopify_app_store_url() %}
-    <div class="prijs-shopify" style="display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:18px;font-size:14px;color:var(--c-grey,#6E7079)">
-      {% if logo_bestaat is defined and logo_bestaat('shopify') %}<img src="/static/logos/shopify.svg" alt="" width="18" height="18">{% endif %}
-      <span>Store on Shopify? Watch and Fix are also in the Shopify App Store, billed on your Shopify invoice.</span>
-      <a href="{{ shopify_app_store_url() }}" target="_blank" rel="noopener" style="color:var(--c-ink,#0A0A0B);font-weight:600;text-decoration:underline">View in the App Store</a>
-    </div>
-    {% endif %}
+  <div class="k9-binnen" style="text-align:center">
+    <span class="k9-label">PRICING</span>
+    <h2 class="k9-h2" style="margin:10px auto 10px">See the problem for free. Let Krillo fix it.</h2>
+    <p class="k9-p" style="margin:0 auto 22px;max-width:620px">Watch from &euro;49/mo with 14 days free, Fix from &euro;149/mo, and a plan for agencies. Nothing to set up: your category is already measured.</p>
+    <a class="k-knop zwart groot" href="/pricing">See plans and pricing &rarr;</a>
+    <a id="watchCheckoutBtn" href="/pricing" hidden aria-hidden="true" tabindex="-1" data-maand="Start Watch free for 14 days" data-jaar="Start Watch">Start Watch</a>
+    <a id="fixCheckoutBtn" href="/pricing" hidden aria-hidden="true" tabindex="-1">Start Fix</a>
   </div>
 </section>
+<script>
+(function(){
+  // Oude links naar /#pricing of /#prijzen (uit mails en het menu): naar /pricing,
+  // behalve als ?plan= meekomt, dan opent het afrekenvenster zoals altijd.
+  var h = window.location.hash, q = new URLSearchParams(window.location.search);
+  if ((h === '#pricing' || h === '#prijzen') && !q.get('plan')) { window.location.replace('/pricing'); }
+})();
+</script>
 
 <div class="c-k k10-home">
 <div class="c-rail">
@@ -2607,7 +2544,7 @@
       html += '<div class="zt-slot">These are five questions at one moment. AI answers shift from day to day, ' +
               'so a single measurement is a snapshot and not a verdict. We have not yet told you what is wrong ' +
               'on your own site, which other pages matter, or whether what AI says about you is true.</div>';
-      html += '<a href="#pricing" class="scan-cta-btn">See what you can do about it &rarr;</a>';
+      html += '<a href="/pricing" class="scan-cta-btn">See what you can do about it &rarr;</a>';
     }
     html += '</div>';
     blok.innerHTML = html;

@@ -329,6 +329,13 @@
     <a class="heroknop" href="{{ thema_link }}" target="_top">Turn on AI data</a>
   </section>
   {% endif %}
+  {% if badge_link %}
+  {# Stap 369: de badge. Elke badge is een link naar je plek in de index. #}
+  <section class="vlak" id="badge" style="text-align:center;">
+    <p style="margin:0 0 12px;"><strong>Show your rank in your store.</strong> Add the Krillo Index badge to your homepage or footer: it shows your rank in {{ beeld.categorienaam if beeld.categorienaam is defined else 'your category' }} and links to the public ranking. It updates itself every month.</p>
+    <a class="heroknop" href="{{ badge_link }}" target="_top">Add the badge</a>
+  </section>
+  {% endif %}
   {% if review_url %}
   <section class="vlak" id="review" style="text-align:center;">
     <p style="margin:0 0 12px;"><strong>Was this useful?</strong> A short review in the Shopify App Store helps other store owners find Krillo. It takes a minute.</p>
