@@ -2617,6 +2617,13 @@ def wis_shopify_winkel(winkel):
                 rij = cur.fetchone()
                 webshop_url = (rij or {}).get("webshop_url")
                 cur.execute("DELETE FROM shopify_winkels WHERE winkel = %s", (winkel,))
+                # 15 oktober: ook de bestellingen uit AI per maand (stap 375). Die
+                # kregen we alleen via de app, dus ze gaan altijd weg, ook bij een
+                # klant die via de site betaalt. Zelfde sleutel als
+                # shopify_aiverkoop._sleutel (hier uitgeschreven, geen kringimport).
+                if webshop_url:
+                    cur.execute("DELETE FROM instellingen WHERE sleutel = %s",
+                                ("shopify_ai:" + webshop_url.strip().lower()[:200],))
 
                 # BETAALT DEZE WINKEL VIA DE SITE (Mollie), dan is hij onze
                 # eigen klant en niet alleen een Shopify-installatie (27
