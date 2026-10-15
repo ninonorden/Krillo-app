@@ -35,7 +35,7 @@
     <p>Open het draadje, lees de vraag en de andere antwoorden, en pas het antwoord aan waar het niet past. Plaats het vanaf je eigen account (op Reddit eerst een paar dagen gewoon meedoen zonder Krillo te noemen; een account zonder geschiedenis wordt weggefilterd). Daarna Geplaatst of Overslaan.</p>
     {% for k in kansen %}
     <div style="border-top:1px solid #E7E7E4; padding:12px 0;">
-      <b>{{ k.titel or k.url }}</b> <span class="grijs">{{ k.plek }} &middot; {{ k.gevonden_op }}</span><br>
+      <b>{{ k.titel or k.url }}</b> <span class="grijs">{{ k.plek }} &middot; {% if k.datum %}geplaatst {{ k.datum }}{% else %}gevonden {{ k.gevonden_op }} (laatste maand){% endif %}</span><br>
       <a href="{{ k.url }}" target="_blank" rel="noopener">{{ k.url }}</a>
       <pre id="kans-{{ loop.index }}">{{ k.antwoord }}</pre>
       <button type="button" class="licht" onclick="navigator.clipboard.writeText(document.getElementById('kans-{{ loop.index }}').innerText);this.textContent='Gekopieerd'">Kopieer het antwoord</button>
