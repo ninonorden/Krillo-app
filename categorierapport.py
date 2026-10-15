@@ -28,6 +28,10 @@ def maak_tabellen(cur):
                        token TEXT NOT NULL,
                        aangevraagd_op TIMESTAMPTZ NOT NULL DEFAULT now(),
                        UNIQUE (email, land, categorie))""")
+    # Stap 381 (15 oktober): de maandelijkse verzending. Welke meting hij het
+    # laatst kreeg, en of hij gestopt is.
+    cur.execute("ALTER TABLE rapport_aanvragen ADD COLUMN IF NOT EXISTS laatste_ronde TEXT")
+    cur.execute("ALTER TABLE rapport_aanvragen ADD COLUMN IF NOT EXISTS gestopt_op TIMESTAMPTZ")
 
 
 def leg_vast(email, land, categorie, maandelijks=False):
@@ -99,7 +103,7 @@ def _naam(r):
 
 
 def rapport_html(categorienaam, landnaam, lijst, mediaan=None, vragen_met_namen=(), bronnen=(),
-                 imago_een=None, pagina_url=""):
+                 imago_een=None, pagina_url="", stop_url=None):
     """(onderwerp, html). lijst = de ranglijst van db.ranglijst_per_land."""
     import emailing
     rijen = [r for r in lijst.get("rijen") or [] if (r.get("genoemd") or 0) > 0][:10]
@@ -131,5 +135,73 @@ def rapport_html(categorienaam, landnaam, lijst, mediaan=None, vragen_met_namen=
     body += emailing._score_button("https://krilloai.com/#scan", "Check my store")
     if pagina_url:
         body += emailing._p(f'The full ranking: <a href="{e(pagina_url)}">{e(pagina_url)}</a>', zacht=True)
+    if stop_url:
+        body += emailing._p(f'You get this every month because you asked for it. '
+                            f'<a href="{e(stop_url)}">Stop these emails</a>.', zacht=True)
     titel = f"Who AI recommends: {categorienaam}, {landnaam}"
     return titel, emailing._base_html(titel, "From the Krillo Index, measured this month.", body)
+
+
+# ---------------------------------------------------------------------------
+# Stap 381 (15 oktober 2026): het rapport elke maand, aan wie erom vroeg.
+# Wie "elke maand" aanvinkte, kreeg tot nu toe alleen het eerste rapport. Dat
+# zijn de warmste mensen die we hebben (een winkelier, bureau of journalist die
+# zelf zijn adres gaf), en we hoorden daarna niets meer van ons. Nu: na elke
+# nieuwe meting van die categorie het nieuwe rapport, een keer per meting, met
+# een stoplink in elke mail. Zonder toestemming (alleen het eerste rapport)
+# sturen we niets.
+# ---------------------------------------------------------------------------
+PER_RONDE = 25
+
+
+def _sql(opdracht, waarden=None, alles=True):
+    from psycopg2.extras import RealDictCursor
+    conn = db._get_connection()
+    if conn is None:
+        return [] if alles else None
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                maak_tabellen(cur)
+                cur.execute(opdracht, waarden)
+                if cur.description is None:
+                    return cur.rowcount
+                return [dict(r) for r in cur.fetchall()] if alles else (dict(cur.fetchone() or {}) or None)
+    finally:
+        conn.close()
+
+
+def maandelijkse_aanvragen():
+    return _sql("""SELECT id, email, land, categorie, token, laatste_ronde FROM rapport_aanvragen
+                   WHERE maandelijks AND gestopt_op IS NULL ORDER BY id""") or []
+
+
+def te_versturen(ranglijst_van, aanvragen=None):
+    """[(aanvraag, lijst)] voor wie een nieuwere meting heeft dan hij laatst kreeg.
+    Het eerste rapport kreeg hij al bij de aanvraag: zonder laatste_ronde telt de
+    meting van toen als verstuurd (zie markeer bij de eerste ronde hieronder)."""
+    uit = []
+    for a in (aanvragen if aanvragen is not None else maandelijkse_aanvragen()):
+        lijst = ranglijst_van(a["categorie"], a["land"])
+        ronde = str((lijst or {}).get("ronde") or "")
+        if not ronde:
+            continue
+        if not a.get("laatste_ronde"):
+            markeer(a["id"], ronde)          # het eerste rapport ging al mee bij de aanvraag
+            continue
+        if a["laatste_ronde"] != ronde:
+            uit.append((a, lijst))
+        if len(uit) >= PER_RONDE:
+            break
+    return uit
+
+
+def markeer(aanvraag_id, ronde):
+    _sql("UPDATE rapport_aanvragen SET laatste_ronde = %s WHERE id = %s", (str(ronde), aanvraag_id))
+
+
+def stop(token):
+    """Stopt de maandelijkse mail. Geeft True als er iets gestopt werd."""
+    n = _sql("UPDATE rapport_aanvragen SET gestopt_op = now() WHERE token = %s AND gestopt_op IS NULL",
+             (token,))
+    return bool(n)

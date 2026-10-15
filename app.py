@@ -31,7 +31,7 @@ from urllib.parse import quote
 
 from flask import (Flask, request, jsonify, render_template, redirect, Response, send_from_directory,
                    has_request_context, session, url_for)
-from markupsafe import escape
+from markupsafe import Markup, escape
 import scan_engine
 from scan_engine import run_scan
 import payments
@@ -1594,6 +1594,8 @@ def gratis_tool_api(slug):
         uit = gratistools.leverancierstekst_check(url)
     elif slug == "product-data-check":
         uit = gratistools.productdata_check(url)
+    elif slug == "product-pages-check":
+        uit = gratistools.productpaginas_check(url)
     else:
         uit = gratistools.index_check(url)
     gratistools.bewaar_gebruik(slug, url, uit.get("oordeel") or ("fout" if uit.get("fout") else "ok"))
@@ -2112,6 +2114,29 @@ def partners_aanvraag():
                      f"Bericht: {escape(bericht or '-')}. Goedkeuren of afwijzen op /admin/doorverwijzen "
                      f"(voorgestelde code: {escape(code)}).")
     return jsonify({"ok": True})
+
+
+@app.route("/pricing")
+@app.route("/prijzen")
+def prijspagina():
+    """15 oktober: de prijzen op een eigen pagina (Nino, naar het voorbeeld van
+    Peec), met de volledige vergelijking. De homepage verwijst hierheen."""
+    import prijspagina as pp
+    if request.path == "/prijzen":
+        return redirect("/pricing", code=301)
+    def bedrag(pakket, soort="prijs"):
+        w = payments.PAKKETTEN[pakket].get(soort) or payments.PAKKETTEN[pakket]["prijs"]
+        return "{:,}".format(int(float(w["value"])))
+    try:
+        cijfers = (_thuisgegevens().get("index") or {}).get("cijfers") or {}
+    except Exception as e:
+        print(f"Indexcijfers voor /pricing mislukt: {e}")
+        cijfers = {}
+    return render_template("pricing.html", basis_url=get_base_url().rstrip("/"),
+                           prijs={p: bedrag(p) for p in ("watch", "fix", "merken")},
+                           jaarprijs={p: bedrag(p, "jaarprijs") for p in ("watch", "fix")},
+                           vergelijking=pp.VERGELIJKING, vragen=pp.VRAGEN, faq_ld=pp.faq_ld(),
+                           cijfers=cijfers, shopify_url=shopify_app_store_url())
 
 
 @app.route("/agencies")
@@ -3133,7 +3158,7 @@ def _bouw_sitemap():
     # winkel met naam en toenaam en horen niet in Google.
     vast = ["/", "/articles", "/how-we-measure", "/faq",
             "/index", "/demo", "/about", "/proof", "/terms", "/privacy",
-            "/withdrawal", "/tools", "/compare", "/partners", "/changelog"]
+            "/withdrawal", "/tools", "/compare", "/partners", "/changelog", "/pricing"]
     import trackerpaginas
     vast += [f"/{slug}" for slug in trackerpaginas.PAGINAS]
     regels = [(p, nieuwste) for p in vast]
@@ -6539,6 +6564,25 @@ def _wachtklok_tik(nu=None):
                 print(f"Kansenagent mislukt: {e}")
         threading.Thread(target=_kansen, daemon=True).start()
         gedaan.append("kansenagent")
+    # Stap 369 (15 oktober): de badge-gegevens in Shopify-winkels, een keer per dag.
+    if 4 <= nu.hour < 7 and db.claim_moment("shopify_badges", 20 * 3600):
+        def _badges():
+            try:
+                print(f"Shopify-badges bijgewerkt: {_shopify_badges()}")
+            except Exception as e:
+                print(f"Shopify-badges mislukt: {e}")
+        threading.Thread(target=_badges, daemon=True).start()
+        gedaan.append("shopify badges")
+    # Stap 381 (15 oktober): het categorierapport elke maand aan wie het vroeg,
+    # zodra er een nieuwe meting is. Een keer per dag kijken is genoeg.
+    if 10 <= nu.hour < 17 and db.claim_moment("maandrapporten", 20 * 3600):
+        def _maandrap():
+            try:
+                print(f"Maandrapporten verstuurd: {_maandrapporten()}")
+            except Exception as e:
+                print(f"Maandrapporten mislukt: {e}")
+        threading.Thread(target=_maandrap, daemon=True).start()
+        gedaan.append("maandrapporten")
     # 14 oktober (stap 375): een keer per dag de bestellingen uit AI ophalen bij
     # Shopify-winkels die het recht read_orders gaven (zie shopify_aiverkoop.py).
     if 3 <= nu.hour < 6 and db.claim_moment("shopify_aiverkoop", 20 * 3600):
@@ -6580,6 +6624,36 @@ def _shopify_aiverkoop():
                 klaar += 1
         except Exception as e:
             print(f"AI-verkoop ophalen mislukt voor {rij.get('winkel')}: {e}")
+    return klaar
+
+
+def _shopify_badges(maximaal=40):
+    """Stap 369: elke dag de badge-gegevens bijwerken bij Shopify-winkels, alleen
+    als er een nieuwe meting is (instelling badge_ronde:<winkel>)."""
+    import shopify_werk
+    klaar = 0
+    basis = get_base_url().rstrip("/")
+    for rij in db.get_shopify_winkels(alleen_actief=True):
+        if klaar >= maximaal:
+            break
+        try:
+            url = scan_engine.normalize_url(rij.get("webshop_url") or "")
+            sleutel = _shopify_sleutel(rij)
+            if not (url and sleutel and rij.get("actief")):
+                continue
+            beeld = klantbeeld.bouw(url)
+            ronde = str((beeld or {}).get("ronde") or "geen")
+            if db.get_instelling("badge_ronde:" + rij["winkel"]) == ronde:
+                continue
+            badge = shopify_werk.badge_van(
+                beeld, categorieen.naam_en(beeld["categorie"]) if beeld else "",
+                sitetaal.landnaam(beeld.get("land"), "en") if beeld and beeld.get("land") else "",
+                f"{basis}/index/{beeld['land']}/{beeld['categorie']}/{_winkel_slug(url)}" if beeld and beeld.get("land") else "")
+            if shopify_werk.zet_badge_gegevens(rij["winkel"], sleutel, badge).get("gelukt"):
+                db.zet_instelling("badge_ronde:" + rij["winkel"], ronde)
+                klaar += 1
+        except Exception as e:
+            print(f"Badge bijwerken mislukt voor {rij.get('winkel')}: {e}")
     return klaar
 
 
@@ -8790,6 +8864,52 @@ def api_plekmelding():
     return jsonify({"ok": True})
 
 
+def _categorierapport_mail(slug, land, lijst, stop_url=None):
+    """(onderwerp, html) van het categorierapport (stap 137), ook voor de maandelijkse mail (stap 381)."""
+    import categorierapport
+    genoemd = [r for r in lijst["rijen"] if (r.get("genoemd") or 0) > 0]
+    imago_een = _imago(lijst["ronde"], genoemd[0]["webshop_url"], _winkel_naam(genoemd[0]), land=land,
+                       rijen=genoemd) if genoemd else None
+    basis = get_base_url().rstrip("/")
+    return categorierapport.rapport_html(
+        categorieen.naam_en(slug), sitetaal.landnaam(land, "en"), lijst, mediaan=_mediaan_genoemd(lijst["rijen"]),
+        vragen_met_namen=categorierapport.vragen_met_namen(db.antwoorden_van_ronde(lijst["ronde"])),
+        bronnen=_bronnen_van_ronde(lijst["ronde"]), imago_een=imago_een,
+        pagina_url=f"{basis}/index/{land}/{slug}", stop_url=stop_url)
+
+
+def _maandrapporten(verstuur=None):
+    """Stap 381: na een nieuwe meting het rapport aan wie het elke maand wilde."""
+    import categorierapport
+    verstuur = verstuur or emailing.send_email
+    basis = get_base_url().rstrip("/")
+    gestuurd = 0
+    for a, lijst in categorierapport.te_versturen(_ranglijst_bewaard):
+        if len(lijst.get("rijen") or []) < MINIMUM_PER_LAND:
+            continue
+        # Eerst afvinken: nooit twee keer, ook niet als het versturen hapert.
+        categorierapport.markeer(a["id"], lijst["ronde"])
+        onderwerp, html = _categorierapport_mail(a["categorie"], a["land"], lijst,
+                                                 stop_url=f"{basis}/rapport/stop/{a['token']}")
+        if verstuur(a["email"], onderwerp, html):
+            gestuurd += 1
+    return gestuurd
+
+
+@app.route("/rapport/stop/<token>", methods=["GET", "POST"])
+def rapport_stop(token):
+    """Stoplink in de maandelijkse rapportmail. GET toont alleen een knop
+    (mailprogramma's openen links vooraf), POST stopt."""
+    import categorierapport
+    if request.method == "POST":
+        categorierapport.stop(token[:64])
+        return render_template("fout.html", titel="Stopped",
+                               bericht="You will not get the monthly ranking email any more.")
+    return render_template("fout.html", titel="Stop the monthly ranking email?",
+                           bericht=Markup('<form method="post"><button type="submit" class="k-knop zwart groot">'
+                                          'Stop these emails</button></form>'))
+
+
 @app.route("/api/rapport", methods=["POST"])
 def api_rapport():
     """Stap 137: de ranglijst van een categorie als rapport per mail (zie categorierapport.py)."""
@@ -8808,15 +8928,9 @@ def api_rapport():
     token, nieuw = categorierapport.leg_vast(email, land, slug, bool(data.get("maandelijks")))
     if not token:
         return jsonify({"fout": "Something went wrong. Try again in a moment."}), 500
-    genoemd = [r for r in lijst["rijen"] if (r.get("genoemd") or 0) > 0]
-    imago_een = _imago(lijst["ronde"], genoemd[0]["webshop_url"], _winkel_naam(genoemd[0]), land=land,
-                       rijen=genoemd) if genoemd else None
     basis = get_base_url().rstrip("/")
-    onderwerp, html = categorierapport.rapport_html(
-        categorieen.naam_en(slug), sitetaal.landnaam(land, "en"), lijst, mediaan=_mediaan_genoemd(lijst["rijen"]),
-        vragen_met_namen=categorierapport.vragen_met_namen(db.antwoorden_van_ronde(lijst["ronde"])),
-        bronnen=_bronnen_van_ronde(lijst["ronde"]), imago_een=imago_een,
-        pagina_url=f"{basis}/index/{land}/{slug}")
+    onderwerp, html = _categorierapport_mail(slug, land, lijst,
+                                             stop_url=f"{basis}/rapport/stop/{token}" if data.get("maandelijks") else None)
     if not emailing.send_email(email, onderwerp, html):
         return jsonify({"fout": "We could not send the email. Try again in a moment."}), 500
     if nieuw:
@@ -13122,6 +13236,12 @@ def _shopify_scherm(winkel, rij):
         thema_link=(f"https://{winkel}/admin/themes/current/editor?context=apps&activateAppId="
                     f"{os.environ.get('SHOPIFY_API_KEY', '')}/krillo-ai-data"
                     if os.environ.get("SHOPIFY_THEMA_UITBREIDING") == "ja" and os.environ.get("SHOPIFY_API_KEY") else ""),
+        # Stap 369: de badge in het thema. Pas na een nieuwe deploy van de
+        # uitbreiding (SHOPIFY_BADGE=ja in Render), en alleen als hij genoemd wordt.
+        badge_link=(f"https://{winkel}/admin/themes/current/editor?template=index&addAppBlockId="
+                    f"{os.environ.get('SHOPIFY_API_KEY', '')}/krillo-badge&target=newAppsSection"
+                    if os.environ.get("SHOPIFY_BADGE") == "ja" and os.environ.get("SHOPIFY_API_KEY")
+                    and beeld and not beeld.get("nul") and (beeld.get("genoemd") or 0) else ""),
         review_url=(shopify_app_store_url() + "#modal-show=WriteReviewModal"
                     if shopify_app_store_url() and int(rij.get("wijzigingen_ooit") or 0) >= 1 else ""),
         slot=slot,

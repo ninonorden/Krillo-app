@@ -64,6 +64,15 @@ TOOLS = {
         "invoer": "Your store address or one product page",
         "voorbeeld": "yourstore.com",
     },
+    # Stap 410 (15 oktober): welke productpagina's slaat AI over? Dezelfde keuring
+    # als in het dashboard (paginacheck.py, stap 331), voor een handvol pagina's.
+    "product-pages-check": {
+        "titel": "Which of your product pages does AI skip?",
+        "kort": "Reads your sitemap and checks a sample of your product pages: can AI read them, or do they "
+                "say noindex, show almost no text, or miss product data?",
+        "invoer": "Your store address",
+        "voorbeeld": "yourstore.com",
+    },
     "index-check": {
         "titel": "Is your store in the Krillo Index?",
         "kort": "Looks up your store's rank in the monthly Krillo Index.",
@@ -266,6 +275,8 @@ def index_check(url):
     return {"gevonden": True, "winkel": urlparse(url).netloc, "positie": beeld["positie"],
             "van": beeld.get("van"), "categorie": categorieen.naam_en(beeld["categorie"]),
             "land": land.upper(), "pagina": f"/index/{land}/{beeld['categorie']}" if land else "/index",
+            # 15 okt (WordPress-plugin): of AI hem noemt; de badge alleen dan.
+            "genoemd": not beeld.get("nul"),
             # 8 oktober: nul keer genoemd is geen plek (zie db.gelijk_bij_nul).
             "kop": (f"Not named by AI yet in {categorieen.naam_en(beeld['categorie'])}: "
                     f"{beeld.get('genoemde_winkels')} of {beeld.get('van')} stores are." if beeld.get("nul") else
@@ -392,3 +403,40 @@ def leverancierstekst_check(url, ophalen=None, zoek=None, vandaag=None, max_prod
             "advies": ("AI has no reason to name your store for a text a dozen other stores also have. Rewrite "
                        "these in your own words: who the product is for, what makes it different, the facts a "
                        "buyer asks about. Fix does this for you." if gekopieerd else "")}
+
+
+# ------------------------------------------------------- 5. productpagina's
+GRATIS_PRODUCTEN = 8
+
+
+def productpaginas_check(url, ophalen=None):
+    """Stap 410: een steekproef van GRATIS_PRODUCTEN productpagina's uit de
+    sitemap, gekeurd zoals in het dashboard. Geen AI, alleen ophalen."""
+    import paginacheck
+    url, fout = _schoon(url)
+    if fout:
+        return {"fout": fout}
+
+    def haal(u):
+        if scan_engine.is_intern_adres(u):
+            return None
+        r = _haal(u, ophalen)
+        return r.text if (r is not None and getattr(r, "status_code", 500) < 400) else None
+
+    adressen = paginacheck.productadressen(url, haal)
+    if not adressen:
+        return {"fout": "We found no product pages in your sitemap (yourstore.com/sitemap.xml). AI uses the "
+                        "sitemap too: check that it exists and lists your products."}
+    punten = []
+    for u in adressen[:GRATIS_PRODUCTEN]:
+        html = haal(u)
+        acties = paginacheck.keur_pagina(u, html)
+        if html and paginacheck._noindex(html, ""):
+            acties = ["This page says noindex: search engines and AI are told to skip it."] + acties[:2]
+        punten.append({"ok": not acties, "naam": urlparse(u).path or u,
+                       "waarom": acties[0] if acties else "AI can read this page and its product facts."})
+    goed = sum(1 for p in punten if p["ok"])
+    return {"kop": f"{goed} of {len(punten)} product pages are easy for AI to read "
+                   f"(a sample of the {len(adressen)} in your sitemap).",
+            "punten": punten, "oordeel": "goed" if goed == len(punten) else "werk",
+            "totaal": len(adressen)}
