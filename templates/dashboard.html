@@ -1587,6 +1587,19 @@
           {% if m.fragment %}<blockquote lang="{{ 'nl' if (beeld.land or 'nl') in ('nl', 'be') else 'und' }}">{{ m.fragment }}</blockquote>{% endif %}
         </div>
         {% endfor %}
+        {# Stap 191 (16 okt): wat AI zelf zocht voor het antwoordde (Fix). Met de
+           pagina van de winkel die erbij past, of: nog geen pagina. #}
+        {% if v.fanout and v.fanout.zoekopdrachten %}
+        <div class="antwoord">
+          <div class="wie"><strong>{{ 'Wat AI zelf zocht voor het antwoordde' if taal == 'nl' else 'What AI searched for before answering' }}</strong>
+            <span class="klein">({{ 'Gemini met Google Search, deze maand' if taal == 'nl' else 'Gemini with Google Search, this month' }})</span></div>
+          <ul style="margin:6px 0 0; padding-left:18px; font-size:13.5px; line-height:1.6;">
+            {% for z in v.fanout.zoekopdrachten %}<li><span lang="{{ vlang }}">&ldquo;{{ z.tekst }}&rdquo;</span>
+              &middot; {% if z.pagina %}{{ 'jouw pagina:' if taal == 'nl' else 'your page:' }} <a href="{{ z.pagina }}" rel="noopener" target="_blank">{{ z.pagina | replace('https://', '') | replace('http://', '') | truncate(60) }}</a>{% else %}<span class="klein">{{ 'nog geen pagina die hierop antwoordt' if taal == 'nl' else 'no page of yours answers this yet' }}</span>{% endif %}</li>{% endfor %}
+          </ul>
+          {% if v.fanout.bronnen %}<div class="klein" style="margin-top:6px;">{{ 'Gelezen bronnen:' if taal == 'nl' else 'Sources it read:' }} {{ v.fanout.bronnen | map(attribute='titel') | join(', ') }}</div>{% endif %}
+        </div>
+        {% endif %}
         {% if weg_url is defined and weg_url %}
         {# 8 oktober (Nino: "ik kan geen vraag wegzetten" op deze pagina). #}
         <div style="padding:0 0 14px;"><button type="button" class="vr-weg" data-vraag="{{ v.vraag }}"

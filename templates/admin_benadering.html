@@ -210,14 +210,17 @@
      mails er van beide versies gestuurd zijn"): de vaste regel is weg. Nu wat
      er echt aanstaat (MAIL_VARIANTEN in Render) en per versie de telling. #}
   <div class="kaart">
-    <b>Mailversies.</b> Aan in Render: <b>{{ mail_varianten_aan }}</b>.
+    <b>Mailversies.</b> Aan: <b>{{ mail_varianten_aan }}</b>.
+    {% if mail_varianten_uit %}Afgevallen (de minste echte reacties): <b>{{ mail_varianten_uit }}</b>.
+    <form method="post" style="display:inline;"><input type="hidden" name="actie" value="mailversies_terug">
+      <button type="submit" style="font-size:12.5px;">Laat ze weer meedoen</button></form>{% endif %}
     {% if varianten and varianten.rijen %}
     <table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:13.5px;">
       <tr style="text-align:left; color:#6E7079;"><th>Versie</th><th style="text-align:right">Gemaild</th>
         <th style="text-align:right">Echte mensen</th><th style="text-align:right">Naar prijzen</th>
         <th style="text-align:right">Antwoorden</th><th style="text-align:right">Klant</th><th style="text-align:right">Nog tot {{ minimum_per_versie }}</th></tr>
       {% for r in varianten.rijen %}
-      <tr style="border-top:1px solid #EEE;"><td><b>{{ r.variant }}</b>{% if r.variant == 'e' %} (Nederlands, antwoord met ja){% elif r.variant == 'c' %} (ben jij een van de drie){% endif %}</td>
+      <tr style="border-top:1px solid #EEE;{% if r.uit %} color:#9A9CA3;{% endif %}"><td><b>{{ r.variant }}</b>{% if r.uit %} (afgevallen){% endif %}{% if r.variant == 'e' %} (Nederlands, antwoord met ja){% elif r.variant == 'c' %} (ben jij een van de drie){% endif %}</td>
         <td style="text-align:right">{{ r.gemaild }}</td>
         <td style="text-align:right">{{ r.mensen }} ({{ r.mens_pct }}%)</td>
         <td style="text-align:right">{{ r.doorgeklikt }}</td>
