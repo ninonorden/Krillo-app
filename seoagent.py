@@ -233,7 +233,8 @@ def ochtendregel():
     if not st:
         regel += " Search Console is nog niet gelezen (dat gebeurt elke ochtend tussen 7 en 10 uur)."
     elif st.get("fout"):
-        regel += f" Search Console lezen mislukte op {st.get('op')}: {st['fout']}."
+        regel += (f" Search Console lezen mislukte op {st.get('op')}: {st['fout']}. Open /admin/seo-check: "
+                  "die zegt precies wat er nog moet gebeuren.")
     else:
         regel += (f" Gelezen op {st.get('op')}: {st.get('paginas', 0)} eigen pagina's in Google, "
                   f"{st.get('genoeg_vertoningen', 0)} met minstens {MIN_VERTONINGEN} vertoningen in 14 dagen, "
@@ -272,3 +273,52 @@ def haal_op(dagen=14, eind=None):
         return [dict(zip(dimensies, rij.get("keys") or []), clicks=rij.get("clicks"), impressions=rij.get("impressions"),
                      ctr=rij.get("ctr"), position=rij.get("position")) for rij in r.json().get("rows") or []]
     return vraag(["page"]), vraag(["page", "query"])
+
+
+def controleer(info=None, get=None):
+    """16 oktober (403 in Google Cloud): welke Search Console-properties het
+    serviceaccount ziet, en of GSC_SITE daarbij zit. Schrijft niets.
+    {"ok", "site", "account", "zichtbaar": [...], "uitleg"}."""
+    info = info if info is not None else os.environ.get("GSC_SERVICE_ACCOUNT_JSON")
+    site = os.environ.get("GSC_SITE", "sc-domain:krilloai.com")
+    if not info:
+        return {"ok": False, "site": site, "account": None, "zichtbaar": [],
+                "uitleg": "GSC_SERVICE_ACCOUNT_JSON staat niet in Render."}
+    try:
+        gegevens = json.loads(info)
+    except ValueError:
+        return {"ok": False, "site": site, "account": None, "zichtbaar": [],
+                "uitleg": "GSC_SERVICE_ACCOUNT_JSON is geen geldige JSON. Plak de hele tekst, van { tot }."}
+    account = gegevens.get("client_email")
+    try:
+        if get is None:
+            import requests
+            from google.oauth2 import service_account
+            from google.auth.transport.requests import Request
+            cred = service_account.Credentials.from_service_account_info(
+                gegevens, scopes=["https://www.googleapis.com/auth/webmasters.readonly"])
+            cred.refresh(Request())
+            r = requests.get("https://www.googleapis.com/webmasters/v3/sites",
+                             headers={"Authorization": f"Bearer {cred.token}"}, timeout=30)
+            status, data = r.status_code, (r.json() if r.content else {})
+        else:
+            status, data = get()
+    except Exception as e:
+        return {"ok": False, "site": site, "account": account, "zichtbaar": [],
+                "uitleg": f"Inloggen bij Google mislukt: {str(e)[:160]}"}
+    if status == 403:
+        return {"ok": False, "site": site, "account": account, "zichtbaar": [],
+                "uitleg": "Google weigert (403). Zet de Google Search Console API aan in het Google Cloud-project "
+                          "van dit serviceaccount (API's en services, Bibliotheek)."}
+    zichtbaar = [e.get("siteUrl") for e in (data or {}).get("siteEntry") or [] if e.get("siteUrl")]
+    if site in zichtbaar:
+        return {"ok": True, "site": site, "account": account, "zichtbaar": zichtbaar,
+                "uitleg": "Alles goed: het serviceaccount ziet de property. De agent leest hem elke ochtend."}
+    if not zichtbaar:
+        uitleg = (f"Het serviceaccount ziet nog geen enkele property. Voeg {account} toe in Search Console: "
+                  "Instellingen, Gebruikers en rechten, Gebruiker toevoegen, rechten Beperkt. Doe dat bij de "
+                  "property " + site.replace("sc-domain:", "") + " (soort Domein).")
+    else:
+        uitleg = (f"Het serviceaccount ziet {', '.join(zichtbaar)}, maar GSC_SITE staat op {site}. "
+                  f"Zet GSC_SITE in Render op een van deze, precies zo geschreven.")
+    return {"ok": False, "site": site, "account": account, "zichtbaar": zichtbaar, "uitleg": uitleg}
