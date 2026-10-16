@@ -115,3 +115,26 @@ def ochtendregel(rijen):
     return ("Warme lijst, de beste kansen van vandaag (48 uur): "
             + "; ".join(f"{r['winkel']} {r['zin']}" for r in rijen)
             + ". Pak ze vandaag op: antwoorden op /admin/antwoorden, opvolging op /admin/verkoop")
+
+
+def stel_opvolging_voor(rijen):
+    """Een voorstel (akkoord met een tik in het ochtendbericht) om ook echte
+    mensen op te volgen die alleen hun uitslag openden. Alleen als die er
+    zijn en de schakelaar nog uit staat. Een nee houdt 30 dagen (voorstellen.py)."""
+    n = sum(1 for r in rijen or [] if r["soort"] == "uitslag")
+    if not n:
+        return None
+    try:
+        import verkoopagent as va
+        if va.ook_mens():
+            return None
+        import voorstellen
+        return voorstellen.stel_voor(
+            "warme lijst", "actie", "Volg ook echte mensen op die hun uitslag openden",
+            waarom=(f"{n} winkel(s) op de warme lijst openden hun uitslag als echt mens maar klikten niet naar "
+                    "de prijzen. Die krijgen nu geen opvolging. Met akkoord maakt de verkoopagent ook voor hen "
+                    "een concept; jij keurt elk concept nog zelf goed op /admin/verkoop."),
+            actie="verkoop_ook_mens")
+    except Exception as e:
+        print(f"Warme lijst, voorstel mislukt: {e}")
+        return None

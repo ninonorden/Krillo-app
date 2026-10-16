@@ -361,7 +361,15 @@ def _opbouw_hoger():
     return f"het doel van de koude mail gaat van {oud} naar {nieuw} per dag, stap voor stap per week"
 
 
+def _verkoop_ook_mens():
+    import verkoopagent as va
+    db.zet_instelling(va.SLEUTEL_OOK_MENS, "ja")
+    return "de verkoopagent maakt nu ook een concept voor echte mensen die hun uitslag openden"
+
+
 ACTIES = {
+    # 16 oktober: zie verkoopagent.SLEUTEL_OOK_MENS. Concepten blijven langs Nino gaan.
+    "verkoop_ook_mens": {"naam": "Verkoopagent volgt ook echte mensen op", "doe": _verkoop_ook_mens},
     "verkoop_zelf": {"naam": "Verkoopagent verstuurt zelf", "doe": _verkoop_zelf},
     "bureau_auto": {"naam": "Bureau-agent mailt zelf", "doe": _bureau_auto},
     "opbouw_hoger": {"naam": "Meer koude mail per dag", "doe": _opbouw_hoger},

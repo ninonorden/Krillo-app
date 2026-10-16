@@ -57,9 +57,25 @@ def _sql(opdracht, waarden=None, alles=False):
         conn.close()
 
 
+# 16 oktober (Nino: "we moeten nu echt klanten krijgen"): sinds 1 oktober
+# volgt de agent alleen wie doorklikte naar de prijzen. Toen konden we een mens
+# en een mailscanner nog slecht uit elkaar houden. Nu telt mens_op alleen wie
+# echt scrolde of tikte. Met deze schakelaar (op /admin/verkoop, standaard UIT,
+# want het draait een besluit van 1 oktober terug) krijgt ook een echt mens die
+# zijn uitslag opende, maar niet naar de prijzen ging, een opvolging. Nino
+# keurt elk concept nog steeds zelf goed.
+SLEUTEL_OOK_MENS = "verkoop_ook_mens"
+
+
+def ook_mens():
+    return (db.get_instelling(SLEUTEL_OOK_MENS) or "nee").lower() == "ja"
+
+
 def warme_winkels(limiet=50, nu=None):
     """Wie er nu aan de beurt is voor een (eerste of tweede) opvolging."""
     nu = nu or datetime.now(timezone.utc)
+    if ook_mens():
+        return _warm_met_mens(limiet, nu)
     return _sql("""
         SELECT b.webshop_url, b.naam, b.email, b.bekeken_op, b.doorgeklikt_op,
                b.opvolg_aantal, b.opvolg_op, b.opvolg_stand
@@ -84,6 +100,30 @@ def warme_winkels(limiet=50, nu=None):
              OR (b.opvolg_aantal = 1 AND b.opvolg_op < %s)
            )
       ORDER BY b.doorgeklikt_op DESC
+         LIMIT %s""",
+        (MAX_OPVOLGINGEN, nu - timedelta(hours=EERSTE_NA_UUR),
+         nu - timedelta(days=TWEEDE_NA_DAGEN), limiet), alles=True) or []
+
+
+def _warm_met_mens(limiet, nu):
+    """Zelfde regels als warme_winkels, maar een echt mens op de uitslag telt ook."""
+    return _sql("""
+        SELECT b.webshop_url, b.naam, b.email, b.bekeken_op, b.doorgeklikt_op,
+               b.opvolg_aantal, b.opvolg_op, b.opvolg_stand
+          FROM benadering b
+         WHERE (b.doorgeklikt_op IS NOT NULL OR b.mens_op IS NOT NULL)
+           AND b.email IS NOT NULL
+           AND NOT b.afgemeld
+           AND b.bounce_op IS NULL
+           AND b.antwoord_op IS NULL
+           AND b.opvolg_aantal < %s
+           AND (b.opvolg_stand IS NULL OR b.opvolg_stand NOT IN ('concept'))
+           AND NOT EXISTS (SELECT 1 FROM klanten k WHERE k.webshop_url = b.webshop_url)
+           AND (
+                (b.opvolg_aantal = 0 AND coalesce(b.doorgeklikt_op, b.mens_op) < %s)
+             OR (b.opvolg_aantal = 1 AND b.opvolg_op < %s)
+           )
+      ORDER BY (b.doorgeklikt_op IS NOT NULL) DESC, coalesce(b.doorgeklikt_op, b.mens_op) DESC
          LIMIT %s""",
         (MAX_OPVOLGINGEN, nu - timedelta(hours=EERSTE_NA_UUR),
          nu - timedelta(days=TWEEDE_NA_DAGEN), limiet), alles=True) or []
