@@ -3569,6 +3569,20 @@ def api_scan():
     herkomst = data.get("herkomst") or _herkomst()
     _onthoud_doorverwijzing(url, data)
     result = run_scan(url)
+    # 16 oktober (wijnen.nl): 19 checks, score 91, en daarna "weigerde ons
+    # bezoek" (403). Een site die ons eerst wel binnenliet, weert ons nu,
+    # meestal omdat zijn beveiliging herhaalde bezoeken van dezelfde server
+    # tegenhoudt. Dan is "AI wordt waarschijnlijk ook geweigerd" niet eerlijk.
+    # Nu: is er een geslaagde check van de laatste 30 dagen, dan tonen we die,
+    # met de datum erbij en een eerlijke zin waarom.
+    if "error" in result and result.get("weigering") in (401, 403, 406, 429, 503):
+        eerder = _laatste_goede_check(url)
+        if eerder:
+            db.bewaar_gratis_scan(url, gelukt=False, foutsoort=(result["error"] + " (eerdere uitslag getoond)")[:200],
+                                  herkomst=herkomst)
+            eerder["eerder_op"] = eerder.pop("_op", None)
+            eerder["rang"] = _rang_voor_gratis_check(eerder.get("url"))
+            return jsonify(eerder)
     if "error" in result:
         db.bewaar_gratis_scan(url, gelukt=False, foutsoort=result["error"][:200], herkomst=herkomst)
         # 5 oktober: iemand probeerde het vijf keer en niemand wist het. Nu een
@@ -3597,6 +3611,7 @@ def api_scan():
         return jsonify(checktaal.naar_het_engels(result)), 400
 
     db.bewaar_gratis_scan(result["url"], score=result.get("score"), herkomst=herkomst)
+    _onthoud_goede_check(result)
 
     previous = db.get_previous_score(result["url"])
     if previous:
@@ -3615,6 +3630,37 @@ def api_scan():
     if not result["rang"]:
         result["buiten_markt"] = markten.buiten_de_index(result.get("url"))
     return jsonify(result)
+
+
+# 16 oktober: na api_scan gezet (POST), zodat test_geenschrijfbijladen ze niet bij een GET-route telt.
+GOEDE_CHECK_DAGEN = 30
+
+
+def _onthoud_goede_check(result):
+    """De laatste geslaagde gratis check per winkel (zie api_scan, 16 oktober)."""
+    try:
+        import json as _json
+        kopie = {k: v for k, v in result.items() if k not in ("rang", "buiten_markt", "vorige_score", "verschil")}
+        kopie["_op"] = datetime.now(timezone.utc).isoformat()
+        tekst = _json.dumps(kopie, default=str)
+        if len(tekst) < 200000:
+            db.zet_instelling("gratis_goed:" + scan_engine.normalize_url(result["url"])[:180], tekst)
+    except Exception as e:
+        print(f"Goede check onthouden mislukt: {e}")
+
+
+def _laatste_goede_check(url):
+    """De laatste geslaagde check van de laatste GOEDE_CHECK_DAGEN dagen, of None."""
+    try:
+        import json as _json
+        r = _json.loads(db.get_instelling("gratis_goed:" + scan_engine.normalize_url(url)[:180]) or "null")
+        if not r or not r.get("_op"):
+            return None
+        if datetime.now(timezone.utc) - datetime.fromisoformat(r["_op"]) > timedelta(days=GOEDE_CHECK_DAGEN):
+            return None
+        return r
+    except Exception:
+        return None
 
 
 @app.route("/api/handcheck", methods=["POST"])
