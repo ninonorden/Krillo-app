@@ -2821,6 +2821,7 @@ BEHEER_GROEPEN = [
         ("/admin/agents", "Commandocentrum", "Alle agents met hun schakelaars"),
         ("/admin/controle", "Nachtcontrole", "Wat de controleagent vond, en nu draaien"),
         ("/admin/traag", "Trage pagina's", "Welke pagina's traag waren, en waarom"),
+        ("/admin/seo-check", "Search Console-koppeling", "Of de SEO-agent Search Console kan lezen, en wat er anders nog moet gebeuren"),
         ("/admin/merken", "Merken en platforms", "Wat het opschonen als merk aanmerkte"),
         ("/admin/beoordelingen", "Beoordelingen", "Wat er uit de antwoorden gehaald is"),
         ("/admin/benchmark", "Benchmark", "Alle gemeten winkels bij elkaar"),
@@ -7058,6 +7059,29 @@ def _benader_totaal():
         return sum((db.tel_benaderingen().get("per_stand") or {}).values())
     except Exception:
         return None
+
+
+@app.route("/admin/seo-check")
+def admin_seo_check():
+    """16 oktober (403 in Google Cloud): controleert de koppeling met Search
+    Console op dit moment, zonder iets te bewaren, en zegt in gewone taal wat
+    er nog moet gebeuren."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return _naar_inloggen()
+    if doorsturen:
+        return redirect(doorsturen)
+    import seoagent
+    c = seoagent.controleer()
+    kleur = "#067647" if c["ok"] else "#B42318"
+    zichtbaar = "".join(f"<li>{escape(z)}</li>" for z in c["zichtbaar"]) or "<li>geen</li>"
+    return (f"<!doctype html><meta charset='utf-8'><meta name='robots' content='noindex'>"
+            f"<title>Search Console-koppeling</title><div style='font-family:system-ui;max-width:640px;margin:40px auto;"
+            f"padding:0 16px;line-height:1.55'><h1 style='font-size:22px'>Search Console-koppeling</h1>"
+            f"<p style='color:{kleur};font-weight:600'>{escape(c['uitleg'])}</p>"
+            f"<p>Serviceaccount: {escape(c['account'] or '-')}<br>GSC_SITE: {escape(c['site'])}</p>"
+            f"<p>Properties die het serviceaccount ziet:</p><ul>{zichtbaar}</ul>"
+            f"<p><a href='/admin/bezoek'>Terug</a></p></div>")
 
 
 @app.route("/admin/benadering", methods=["GET", "POST"])

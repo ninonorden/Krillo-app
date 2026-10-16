@@ -488,6 +488,15 @@ def verzamel(basis_url):
             doen.insert(0, (regel, f"{basis_url}/admin/benadering"))
     except Exception as e:
         print(f"Ochtendbericht, mailalarm mislukt: {e}")
+    # 16 oktober (Nino: "we moeten nu echt klanten krijgen"): de warme lijst,
+    # hoogstens vijf winkels die de laatste 48 uur zelf iets deden.
+    try:
+        import warmelijst
+        regel = warmelijst.ochtendregel(warmelijst.lijst())
+        if regel:
+            doen.insert(0, (regel, f"{basis_url}/admin/antwoorden"))
+    except Exception as e:
+        print(f"Ochtendbericht, warme lijst mislukt: {e}")
     # Stap 365 deel 2 (15 oktober): een land met genoeg vraag. Openen kost
     # meetgeld (elke categorie een meting), dus Nino beslist; het bericht aan
     # de wachtlijst gaat daarna vanzelf (wachtlijst.ronde).
