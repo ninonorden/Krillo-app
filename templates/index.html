@@ -2188,6 +2188,11 @@
     html += '<div class="k10r-kaart k10r-tech">';
     html += '<div class="k10r-techkop"><div class="k10r-score"><b>' + data.score + '</b><span>/100</span></div>';
     html += '<div><h3>Can AI read your store?</h3><p>How well AI can read and understand ' + veilig((data.url || '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')) + '. Not a chance of being recommended: that is your rank above.</p>';
+    // 16 oktober: de site weert ons nu, maar liet ons eerder binnen. Dan de
+    // eerdere uitslag, eerlijk met datum.
+    if(data.eerder_op){
+      html += '<p class="k10r-grijs">Your site blocked our visit just now (its security stops repeated checks). This is your result from ' + veilig(String(data.eerder_op).slice(0, 10)) + '.</p>';
+    }
     if(typeof data.vorige_score !== 'undefined'){
       var verschil = data.verschil, teken = verschil > 0 ? '+' : '';
       html += '<p class="k10r-grijs">Previous score ' + data.vorige_score + ' &rarr; now ' + data.score + ' (' + teken + verschil + ')</p>';
