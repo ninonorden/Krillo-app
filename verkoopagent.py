@@ -213,7 +213,7 @@ def beslis_uitdager():
     if not w or not c or w["verstuurd"] < MIN_PER_VERSIE or c["verstuurd"] < MIN_PER_VERSIE:
         return None
     verschil = c["score"] - w["score"]
-    if verschil >= 0.05 and (c["doorgeklikt"] + c["klant"]) - (w["doorgeklikt"] + w["klant"]) >= 3:
+    if verschil >= 0.05 and c["acties"] - w["acties"] >= 3:
         extra = _extra()
         extra[u["versie"]] = u["tekst"]
         db.zet_instelling(SLEUTEL_EXTRA, json.dumps(extra))
@@ -229,16 +229,30 @@ def beslis_uitdager():
 
 
 def scorebord():
-    """Per versie: verstuurd, doorgeklikt na de opvolging, betaald."""
+    """Per versie: verstuurd, en wat er NA de opvolging gebeurde.
+
+    16 oktober (Nino: "0 doorgeklikt bij 102 opvolgingen, werkt dit wel?"):
+    het telde "doorgeklikt_op > opvolg_op", maar doorgeklikt_op is de EERSTE
+    klik, en iedereen kreeg de opvolging juist omdat hij al eerder klikte. Dat
+    getal kon dus nooit boven 0 komen. Nu, allemaal na de opvolging:
+    - terug: kwam als echt mens terug op zijn uitslag (mens_op, elke keer bijgewerkt);
+    - doorgeklikt: klikte (opnieuw) naar de prijzen (prijzen_laatst_op, sinds 16 okt);
+    - antwoord: mailde terug;
+    - klant: werd klant.
+    acties is de som; daarop kiest de agent de winnaar."""
     rijen = _sql("""SELECT opvolg_variant AS versie, count(*) AS verstuurd,
-                           count(*) FILTER (WHERE doorgeklikt_op > opvolg_op) AS doorgeklikt,
+                           count(*) FILTER (WHERE mens_op > opvolg_op) AS terug,
+                           count(*) FILTER (WHERE prijzen_laatst_op > opvolg_op) AS doorgeklikt,
+                           count(*) FILTER (WHERE antwoord_op > opvolg_op) AS antwoord,
                            count(*) FILTER (WHERE EXISTS (SELECT 1 FROM klanten k
                                             WHERE k.webshop_url = benadering.webshop_url)) AS klant
                       FROM benadering
                      WHERE opvolg_variant IS NOT NULL AND opvolg_stand = 'verstuurd'
                   GROUP BY opvolg_variant ORDER BY opvolg_variant""", alles=True) or []
     for r in rijen:
-        r["score"] = (r["doorgeklikt"] + 3 * r["klant"]) / r["verstuurd"] if r["verstuurd"] else 0
+        r["acties"] = r["terug"] + r["doorgeklikt"] + r["antwoord"] + r["klant"]
+        r["score"] = ((r["terug"] + 2 * r["doorgeklikt"] + 3 * r["antwoord"] + 5 * r["klant"]) / r["verstuurd"]
+                      if r["verstuurd"] else 0)
     return rijen
 
 
@@ -254,7 +268,7 @@ def kies_winnaar():
     a, b = bord["a"], bord["b"]
     # Pas een winnaar als het verschil minstens 5 procentpunt is en minstens 3 mensen.
     verschil = a["score"] - b["score"]
-    if abs(verschil) >= 0.05 and abs((a["doorgeklikt"] + a["klant"]) - (b["doorgeklikt"] + b["klant"])) >= 3:
+    if abs(verschil) >= 0.05 and abs(a["acties"] - b["acties"]) >= 3:
         winnaar = "a" if verschil > 0 else "b"
         db.zet_instelling(SLEUTEL_WINNAAR, winnaar)
         return winnaar
