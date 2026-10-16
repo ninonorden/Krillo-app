@@ -80,7 +80,8 @@ VERGELIJKING = [
         {"wat": "Monthly report by email", "waarden": [False, True, True, True]},
         {"wat": "Report as PDF", "waarden": [False, True, True, True]},
         {"wat": "Export to Excel (CSV)", "waarden": [False, True, True, True]},
-        {"wat": "Alerts in Slack", "waarden": [False, True, True, True]},
+        # 16 okt (Nino akkoord): Slack alleen bij Fix en Agencies; Watch krijgt de melding per mail.
+        {"wat": "Alerts in Slack", "waarden": [False, False, True, True]},
         {"wat": "Reports under your own name and logo", "waarden": [False, False, False, True]},
     ]},
     {"naam": "Results", "rijen": [

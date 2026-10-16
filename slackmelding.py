@@ -17,6 +17,21 @@ import re
 import db
 
 SLEUTEL = "slack_webhook:"
+# 16 oktober (Nino akkoord): Slack-meldingen horen bij Fix (en Agencies), niet
+# bij Watch. Watch houdt de mail. Ook in de app, niet alleen op /pricing:
+# een Watch-klant kan niet koppelen en krijgt geen Slack-bericht.
+PAKKETTEN = {"fix", "merken", "bureau", "agency"}
+
+
+def mag(pakket):
+    return (pakket or "").lower() in PAKKETTEN
+
+
+def _mag_token(klant_token):
+    try:
+        return mag((db.get_klant(klant_token) or {}).get("pakket"))
+    except Exception:
+        return False
 _GELDIG = re.compile(r"^https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{20,200}$")
 
 
@@ -41,6 +56,8 @@ def stuur(klant_token, tekst, link=None, post=None):
     """Stuurt een bericht als de klant Slack koppelde. Geeft True/False/None (niet gekoppeld)."""
     url = van(klant_token)
     if not url or not geldig(url):
+        return None
+    if not _mag_token(klant_token):
         return None
     if post is None:
         import requests

@@ -333,7 +333,32 @@ def maak_concept(winkel, beeld, vraag=None, link_url="", nummer=1, categorienaam
         alineas.append("Your page shows every question you lose, with the real answer. "
                        "You can try Watch free for 14 days. Questions? Just reply to this email.")
     return {"onderwerp": onderwerp, "alineas": alineas, "link": link_url, "nummer": nummer,
-            "versie": versie}
+            "versie": versie, "kaart": kaart_van(naam, cat, beeld, vraag, ontbreekt)}
+
+
+# 16 oktober (Nino: "de mail ziet er niet goed uit, een paar standaard regels,
+# niet in Krillo-stijl en geen gegevens"). Scorebord: 104 opvolgingen, 1 kwam
+# terug, 3 antwoorden. Wie zijn uitslag al bekeek, verdient geen kale brief
+# maar zijn eigen cijfers, net als het dashboard: zijn plek, hoe vaak genoemd,
+# wie boven hem staat en welke vragen hij verliest met wie AI wel noemde. Alles
+# uit dezelfde meting als de ranglijst; niets verzonnen. De opbouw van de mail
+# staat in emailing.send_opvolging (kaart). De gewone alinea's blijven: die
+# keurt de controleagent, en die staan in de voorvertoning op /admin/verkoop.
+def kaart_van(naam, cat, beeld, vraag=None, ontbreekt=None):
+    if not beeld:
+        return None
+    gemist = [v for v in beeld.get("gemiste_vragen") or [] if v.get("vraag") and v.get("concurrenten")]
+    if vraag and vraag.get("concurrenten"):
+        gemist = [vraag] + [v for v in gemist if v.get("vraag") != vraag.get("vraag")]
+    boven = [{"positie": b.get("positie"), "naam": b.get("naam") or _kaal(b.get("webshop_url"))}
+             for b in (beeld.get("boven_mij") or [])][-3:]
+    return {"winkel": naam, "categorie": cat, "positie": beeld.get("positie"), "van": beeld.get("van") or 0,
+            "nul": bool(beeld.get("nul")), "genoemd": beeld.get("genoemd") or 0,
+            "telbaar": beeld.get("telbaar") or 0, "aanbevolen": beeld.get("aanbevolen") or 0,
+            "boven": boven,
+            "vragen": [{"vraag": v["vraag"], "namen": v["concurrenten"][:3]} for v in gemist[:3]],
+            "ontbreekt": ontbreekt,
+            "eerste_vraag": gemist[0]["vraag"] if gemist else None}
 
 
 def _vraag_voor(webshop_url, beeld):
@@ -384,7 +409,8 @@ def verstuur(webshop_url, basis_url):
     token = db.get_benchmark_token(webshop_url)
     afmeld = f"{basis_url}/afmelden/{token}" if token else None
     gelukt = emailing.send_opvolging(rij["email"], concept.get("onderwerp"), concept.get("alineas"),
-                                     concept.get("link"), afmeld_url=afmeld)
+                                     concept.get("link"), afmeld_url=afmeld, kaart=concept.get("kaart"),
+                                     nummer=concept.get("nummer") or 1)
     if gelukt:
         _sql("""UPDATE benadering SET opvolg_aantal = opvolg_aantal + 1, opvolg_op = now(),
                                       opvolg_stand = 'verstuurd', opvolg_variant = %s
