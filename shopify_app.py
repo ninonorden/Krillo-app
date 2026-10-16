@@ -55,14 +55,20 @@ import requests
 # verouderd, en een nieuwe app indienen met een verouderde mutatie is vragen om
 # een afkeuring.
 #
-# Wat wij bewust NIET vragen: klantgegevens, bestellingen, en de kassa. Daar
+# Wat wij bewust NIET vragen: klantgegevens (namen, adressen, mail) en de kassa.
+# Bestellingen alleen voor herkomst en totaal (read_orders, zie hieronder). Daar
 # heeft dit niets mee te maken, en elke extra rechtenvraag is een reden voor een
 # winkelier om af te haken en een vraag bij de beoordeling van Shopify.
 #
 # LET OP bij het bijwerken: deze regel moet gelijk staan aan de rechten in je
 # app-instellingen bij Shopify (shopify.app.toml en het partnerscherm). Staan ze
 # niet gelijk, dan krijg je bij het schrijven een 403 die nergens op lijkt.
-SCOPES = "read_products,write_products,read_content,write_content,write_files"
+# 16 oktober: read_orders erbij. Shopify keurde de toegang tot beschermde
+# klantgegevens niveau 1 goed (stap 375). We lezen per bestelling alleen de
+# herkomst (bijvoorbeeld ChatGPT) en het totaal, nooit naam, adres of mail
+# (shopify_aiverkoop.py). Met de beheerde installatie vraagt Shopify bestaande
+# winkels zelf om akkoord op het nieuwe recht als ze de app openen.
+SCOPES = "read_products,write_products,read_content,write_content,write_files,read_orders"
 
 # De versie van de Shopify-API waar wij mee praten.
 #
