@@ -111,7 +111,7 @@ def stuur_voor(webshop_url, email, klant_token, basis_url="https://krilloai.com"
                       knop="Open my dashboard"))
 
 
-def verloren_alineas(verloren, maximaal=5):
+def verloren_alineas(verloren, maximaal=5, terugwin=None):
     """De alinea's van de 'werd genoemd, nu niet meer'-mail, of None.
 
     Een regel per vraag en assistent, met wie er nu in jouw plaats genoemd
@@ -125,11 +125,17 @@ def verloren_alineas(verloren, maximaal=5):
         wie = v.get("anderen") or []
         instead = (f" It now names {', '.join(wie[:3])} instead." if wie else " It names other stores instead.")
         uit.append(f"{v['assistent']} named you for “{v['vraag']}” last time, but not now.{instead}")
+    if terugwin:
+        # 16 okt (Fix): wat wij er deze week al aan deden.
+        uit.append(f"Because you have Fix, we already wrote a new buying-guide page for “{terugwin}”. It is on "
+                   f"your Fixes page. On Shopify it goes live with your weekly changes, unless you turned those off, and "
+                   f"you can undo it in one click.")
     uit.append("Open the question in your dashboard to see why you lost it and what to change.")
     return uit
 
 
-def stuur_verloren(webshop_url, email, klant_token, basis_url="https://krilloai.com", stuur=None, verloren=None):
+def stuur_verloren(webshop_url, email, klant_token, basis_url="https://krilloai.com", stuur=None, verloren=None,
+                   terugwin=None):
     """Na de snelmeting: een korte mail als een vraag is weggevallen. Geeft True
     als er een mail uitging.
 
@@ -149,7 +155,7 @@ def stuur_verloren(webshop_url, email, klant_token, basis_url="https://krilloai.
     if verloren is None:
         import snelmeting
         verloren = snelmeting.verloren_per_assistent(webshop_url)
-    tekst = verloren_alineas(verloren)
+    tekst = verloren_alineas(verloren, terugwin=terugwin)
     if not tekst:
         return False
     # Pas claimen als er echt iets te melden is, anders blokkeert een lege week de volgende.

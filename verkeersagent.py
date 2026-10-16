@@ -32,6 +32,10 @@ ACTIE_VAN_BRON = {
     "google.com": "seo", "google.nl": "seo", "google.be": "seo", "bing.com": "seo", "duckduckgo.com": "seo",
     "chatgpt.com": "ai", "perplexity.ai": "ai", "gemini.google.com": "ai",
     "koude_mail": "mail", "krillo": "shopify", "apps.shopify.com": "shopify",
+    # 16 oktober: de Meta-advertentie (uit sinds 14 oktober) viel onder "overig",
+    # waardoor de daling van 520 mensen geen naam had.
+    "facebook.com": "meta", "instagram.com": "meta", "facebook": "meta", "fb": "meta",
+    "instagram": "meta", "ig": "meta", "meta": "meta",
 }
 # Een actie die na zoveel pogingen 0 mensen opleverde, gaat van de dagtaken.
 STOP_NA_POGINGEN = {"dm": 40, "kansen": 20}
@@ -138,7 +142,16 @@ def beeld(vandaag=None, telling=None, gedaan=None):
 
 NAAM = {"kansen": "antwoorden op Reddit en fora", "dm": "LinkedIn-berichten", "seo": "Google",
         "linkedin": "LinkedIn-posts", "mail": "koude mail", "shopify": "Shopify", "ai": "AI-assistenten",
-        "direct": "direct", "overig": "overige sites"}
+        "direct": "direct", "overig": "overige sites", "meta": "Meta (Facebook en Instagram)"}
+
+
+def grootste_daling(b, minimaal=20):
+    """(actie, verschil) van de bron die het meest zakte tegen de week ervoor,
+    of None. 16 oktober: "520 minder" zonder bron liet je raden waarom."""
+    dalingen = [(a, b["deze_week"].get(a, {}).get("mensen", 0) - c.get("mensen", 0))
+                for a, c in b["vorige_week"].items()]
+    dalingen = [d for d in dalingen if d[1] <= -minimaal]
+    return min(dalingen, key=lambda d: d[1]) if dalingen else None
 
 
 def ochtendregel(b):
@@ -150,6 +163,9 @@ def ochtendregel(b):
                         for a, c in delen if c["mensen"] or c["checks"])
     regel = (f"Verkeer, 7 dagen: {b['mensen']} echte mensen ({teken}{verschil} tegen de week ervoor), "
              f"{b['checks']} checks." + (f" Per bron: {bronnen}." if bronnen else ""))
+    daling = grootste_daling(b)
+    if daling:
+        regel += f" Grootste daling: {NAAM.get(daling[0], daling[0])} ({daling[1]})."
     if b["gestopt"]:
         regel += " Gestopt omdat het na genoeg pogingen niets opleverde: " + \
                  ", ".join(NAAM.get(a, a) for a in b["gestopt"]) + "."
