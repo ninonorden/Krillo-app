@@ -108,6 +108,20 @@ def lees_site(url, ophalen=None, waarom=None):
 # klopt de link in de mail misschien echt niet. Hoogstens ZOEK_PER_RONDE per
 # ronde (een zoekopdracht kost ongeveer een halve cent).
 ZOEK_PER_RONDE = int(os.environ.get("CATEGORIECHECK_ZOEK_PER_RONDE", "25"))
+# 16 oktober (Nino: "wordt dit niet te duur?"): de ronde draait elk uur, dus
+# 25 per ronde kon in theorie 600 per dag worden (2,70 euro). Nu ook een
+# daggrens: hoogstens 60 per dag, ongeveer 27 cent.
+ZOEK_PER_DAG = int(os.environ.get("CATEGORIECHECK_ZOEK_PER_DAG", "60"))
+SLEUTEL_ZOEK_DAG = "categoriecheck_zoek:"
+
+
+def _zoek_vandaag(nu=None):
+    from datetime import datetime, timezone
+    dag = (nu or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
+    try:
+        return dag, int(db.get_instelling(SLEUTEL_ZOEK_DAG + dag) or 0)
+    except Exception:
+        return dag, 0
 
 
 def lees_via_zoekmachine(url, zoek=None):
@@ -316,6 +330,8 @@ def ronde(hoeveel=None, ophalen=None, vraag_model=None, zoek=None):
     verslag = {"bekeken": 0, "klopt": 0, "verplaatst": [], "geen_webshop": [], "twijfel": 0,
                "via_zoekmachine": 0}
     gezocht = 0
+    dag, vandaag_gezocht = _zoek_vandaag()
+    ruimte = max(0, min(ZOEK_PER_RONDE, ZOEK_PER_DAG - vandaag_gezocht))
     lijst = kandidaten(hoeveel)
     if not lijst:
         return verslag
@@ -328,8 +344,12 @@ def ronde(hoeveel=None, ophalen=None, vraag_model=None, zoek=None):
     for w in lijst:
         waarom = {}
         site = lees_site(w["webshop_url"], ophalen, waarom)
-        if site is None and waarom.get("status") and gezocht < ZOEK_PER_RONDE:
+        if site is None and waarom.get("status") and gezocht < ruimte:
             gezocht += 1
+            try:
+                db.zet_instelling(SLEUTEL_ZOEK_DAG + dag, vandaag_gezocht + gezocht)
+            except Exception:
+                pass
             site = lees_via_zoekmachine(w["webshop_url"], zoek)
             if site is not None:
                 verslag["via_zoekmachine"] += 1

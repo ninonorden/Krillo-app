@@ -42,6 +42,9 @@ VERGELIJKING = [
         # 16 okt (stap 240): zoekmachine en AI naast elkaar.
         {"wat": "Your place in web search next to AI", "uitleg": "Per buying question, every month",
          "waarden": [False, True, True, True]},
+        # 16 okt (stap 191): de zoekopdrachten van AI zelf, alleen Fix (kost per vraag).
+        {"wat": "What AI searched for before answering", "uitleg": "With the page of yours that should answer it",
+         "waarden": [False, False, True, True]},
     ]},
     {"naam": "Fix", "rijen": [
         {"wat": "Every fix written out, in order", "waarden": [False, True, True, True]},

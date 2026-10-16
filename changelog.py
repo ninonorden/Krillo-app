@@ -12,6 +12,10 @@ Deze lijst wordt ook getest (test_changelog.py): elke link erin moet laden.
 # (datum, titel, tekst, link of None). Nieuwste eerst.
 REGELS = [
     # 16 oktober: Fix doet meer (akkoord Nino), en de prijzen op een eigen pagina.
+    ("2026-10-16", "See what AI searched for before it answered",
+     "With Fix, every lost buying question now shows the searches AI ran before answering, with the page of yours "
+     "that should answer each one, or a note that no page does yet. Measured once a month with Gemini and Google "
+     "Search.", "/pricing"),
     ("2026-10-16", "Fix does more of the work",
      "Fix now writes two new buying-guide pages a month for questions you lose (on Shopify we publish them, and "
      "you can undo them), measures 15 questions every week instead of 5, gives you a ready-to-send message for every "

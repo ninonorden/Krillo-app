@@ -741,15 +741,33 @@ def d_geschikt(beeld):
     return genoemd >= 3 and aanbevolen * 3 <= genoemd
 
 
+# Stap 69 (16 oktober): een versie die duidelijk verliest valt vanzelf af.
+# Tot nu toe zei /admin/benadering "zet MAIL_VARIANTEN op ..." en moest Nino
+# dat in Render doen; dat gebeurde niet, dus liep de zwakste versie gewoon
+# door. Nu bewaart de app zelf welke versies afgevallen zijn. Terugzetten kan
+# met een knop op /admin/benadering. Nieuwe teksten schrijft dit NIET: een
+# nieuwe versie gaat altijd eerst langs Nino.
+SLEUTEL_AFGEVALLEN = "mail_varianten_uit"
+
+
+def afgevallen_versies():
+    try:
+        import db
+        return [v for v in (db.get_instelling(SLEUTEL_AFGEVALLEN) or "").split(",") if v]
+    except Exception:
+        return []
+
+
 def kies_variant(webshop_url, d_mag=False, e_mag=False):
     """Welke versie een winkel krijgt. Vast per winkel (zelfde adres, zelfde
     versie), zodat een tweede mail aan dezelfde winkel nooit de telling
     vervuilt. Welke versies meedoen staat in MAIL_VARIANTEN (Render),
     standaard alle vier. Versie d alleen als d_mag (zie d_geschikt)."""
     import hashlib
+    uit = afgevallen_versies()
     actief = [v.strip() for v in (os.environ.get("MAIL_VARIANTEN") or "a,b,c,d").split(",")
               if v.strip() in MAILVARIANTEN and (d_mag or v.strip() != "d")
-              and (e_mag or v.strip() != "e")] or ["a"]
+              and (e_mag or v.strip() != "e") and v.strip() not in uit] or ["a"]
     getal = int(hashlib.sha256((webshop_url or "").encode()).hexdigest(), 16)
     return actief[getal % len(actief)]
 

@@ -5201,6 +5201,19 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                                            if (_b.get("land") or "nl") in ("nl", "de", "fr") else "nl")
                     except Exception as e:
                         print(f"Zoekplek mislukt voor {c['webshop_url']}: {e}")
+                    # Stap 191 (16 okt): Fix, eens per maand, welke zoekopdrachten AI
+                    # deed bij de verloren vragen (fanout.py).
+                    if c.get("plan") == "fix":
+                        try:
+                            import fanout
+                            import dashboardpaginas as _dp2
+                            _b2 = klantbeeld.bouw(c["webshop_url"], max_vragen=1)
+                            if _b2:
+                                _vo2 = _dp2.vragen_overzicht(_b2["ronde"], c["webshop_url"], _b2.get("naam"))
+                                fanout.ronde(c["webshop_url"], [x["vraag"] for x in _vo2.get("vragen", [])
+                                                                if not x.get("gewonnen")])
+                        except Exception as e:
+                            print(f"Fan-out mislukt voor {c['webshop_url']}: {e}")
                     # 2 oktober (stap 180): de eigen vragen van de klant mee.
                     try:
                         import eigenvragen
@@ -6046,6 +6059,13 @@ def _dagbericht_sturen():
         # 1 oktober: het geheugen en of de nacht afkwam. Na de herstart van die
         # nacht kwam er geen bericht en wist niemand waarom.
         # 2 oktober: de nachtregel staat nu bovenaan (ochtendbericht.nachtregel).
+        # Stap 69 (16 oktober): de zwakste mailversie valt vanzelf af.
+        try:
+            zin = _mailversies_bijwerken()
+            if zin:
+                regels = list(regels) + [zin]
+        except Exception as e:
+            print(f"Mailversies bijwerken mislukt: {e}")
         onderwerp, body = ochtendbericht.tekst(
             ochtendbericht.verzamel(get_base_url().rstrip("/")), extra_regels=regels)
         if emailing.send_email(ontvanger, onderwerp, body):
@@ -6195,8 +6215,15 @@ def _varianten_met_oordeel():
     def _score(r):
         # 14 oktober: antwoorden tellen mee (versie e vraagt erom), direct na klant.
         return ((r.get("klant") or 0), r.get("antwoord_pct") or 0, r["door_pct"], r["mens_pct"])
-    groot = [r for r in rijen if (r.get("gemaild") or 0) >= MINIMUM_MAILS_PER_VERSIE]
+    # 16 oktober (stap 69): een afgevallen versie doet niet meer mee in het
+    # oordeel, anders blijft hij voor altijd "de slechtste" en valt er nooit
+    # een volgende af.
+    uit = emailing.afgevallen_versies()
+    for r in rijen:
+        r["uit"] = r.get("variant") in uit
+    groot = [r for r in rijen if (r.get("gemaild") or 0) >= MINIMUM_MAILS_PER_VERSIE and not r["uit"]]
     oordeel = None
+    afvaller = None
     if len(rijen) >= 2 and len(groot) < 2:
         oordeel = (f"Nog geen winnaar: pas vanaf {MINIMUM_MAILS_PER_VERSIE} mails per versie "
                    "is een verschil meer dan toeval.")
@@ -6212,6 +6239,8 @@ def _varianten_met_oordeel():
     elif len(groot) >= 2:
         beste = max(groot, key=_score)
         slechtste = min(groot, key=_score)
+        if _score(beste) != _score(slechtste):
+            afvaller = slechtste["variant"]
         if _score(beste) == _score(slechtste):
             oordeel = "Gelijkspel. Laat ze allebei lopen."
         elif beste["variant"] == "d":
@@ -6222,9 +6251,44 @@ def _varianten_met_oordeel():
             oordeel = (f"Versie d wint bij de winkels waar hij past. Zet in Render MAIL_VARIANTEN op "
                        f"\"d,{tweede}\": d voor wie vaak genoemd en zelden aangeraden wordt, {tweede} voor de rest.")
         else:
-            oordeel = (f"Versie {beste['variant']} wint. Zet in Render MAIL_VARIANTEN op "
-                       f"\"{beste['variant']}\" om versie {slechtste['variant']} te laten afvallen.")
-    return {"rijen": rijen, "oordeel": oordeel}
+            oordeel = (f"Versie {beste['variant']} wint. Versie {slechtste['variant']} valt bij het volgende "
+                       "ochtendbericht vanzelf af (hoogstens een per week, er blijven er minstens twee lopen).")
+    return {"rijen": rijen, "oordeel": oordeel, "afvaller": afvaller}
+
+
+MAILVERSIES_MINIMAAL_AAN = 2      # er blijven altijd minstens twee versies lopen
+MAILVERSIE_AFVALLEN_NA_DAGEN = 7  # hoogstens een versie per week
+
+
+def _mailversies_bijwerken(nu=None, oordeel=None):
+    """Laat de duidelijk zwakste mailversie afvallen (stap 69). Geeft een zin
+    voor het ochtendbericht, of None als er niets veranderde.
+
+    Alleen als het oordeel een winnaar heeft op genoeg mails en genoeg echte
+    acties (zelfde regels als /admin/benadering), hoogstens een per week, en
+    er blijven er altijd minstens twee lopen: de winnaar en een uitdager."""
+    nu = nu or datetime.now(timezone.utc)
+    o = oordeel if oordeel is not None else _varianten_met_oordeel()
+    afvaller = o.get("afvaller")
+    if not afvaller:
+        return None
+    uit = emailing.afgevallen_versies()
+    aan = [v.strip() for v in (os.environ.get("MAIL_VARIANTEN") or "a,b,c,d").split(",")
+           if v.strip() and v.strip() not in uit]
+    if afvaller not in aan or len(aan) - 1 < MAILVERSIES_MINIMAAL_AAN:
+        return None
+    laatst = db.get_instelling("mail_variant_afgevallen_op")
+    if laatst:
+        try:
+            if nu - datetime.fromisoformat(laatst) < timedelta(days=MAILVERSIE_AFVALLEN_NA_DAGEN):
+                return None
+        except ValueError:
+            pass
+    db.zet_instelling(emailing.SLEUTEL_AFGEVALLEN, ",".join(uit + [afvaller]))
+    db.zet_instelling("mail_variant_afgevallen_op", nu.isoformat())
+    over = [v for v in aan if v != afvaller]
+    return (f"Mailversie {afvaller} is afgevallen: hij haalde de minste echte reacties op genoeg mails. "
+            f"Nu lopen: {', '.join(over)}. Terugzetten kan op /admin/benadering.")
 
 
 KANDIDATEN_FACTOR = 6
@@ -6667,6 +6731,12 @@ def _wachtklok_tik(nu=None):
                     _bewaard_opslag.clear()
             except Exception as e:
                 print(f"SEO-agent mislukt: {e}")
+                try:
+                    import seoagent
+                    seoagent.noteer_laatste({"op": datetime.now(timezone.utc).date().isoformat(),
+                                             "fout": str(e)[:160]})
+                except Exception:
+                    pass
         threading.Thread(target=_seo, daemon=True).start()
         gedaan.append("seoagent")
     # 15 oktober: de kansenagent zoekt elke werkdag draadjes waar winkeliers zelf
@@ -7033,6 +7103,10 @@ def admin_benadering():
                 melding = (f"{url} wordt nu gemeten en daarna gemaild. Dit duurt een "
                            f"paar minuten. Ververs deze pagina, de uitkomst komt in "
                            f"het logboek hierboven te staan.")
+        elif actie == "mailversies_terug":
+            # 16 oktober (stap 69): afgevallen mailversies weer laten meedoen.
+            db.zet_instelling(emailing.SLEUTEL_AFGEVALLEN, "")
+            melding = "Alle mailversies doen weer mee."
         elif actie == "scanners_terug":
             # 9 oktober (Nino: "ja, graag terugzetten"): alleen in de index,
             # nooit terug op de maillijst.
@@ -7068,7 +7142,8 @@ def admin_benadering():
         varianten=_varianten_met_oordeel(),
         minimum_per_versie=MINIMUM_MAILS_PER_VERSIE,
         mail_varianten_aan=", ".join(v.strip() for v in (os.environ.get("MAIL_VARIANTEN") or "a,b,c,d").split(",")
-                                     if v.strip()),
+                                     if v.strip() and v.strip() not in emailing.afgevallen_versies()),
+        mail_varianten_uit=", ".join(emailing.afgevallen_versies()),
         verslagen=benadering.rondeverslagen(),
         meetfouten=benadering.meetfouten(),
         wachtrij=len(_demo_wachtrij),
@@ -9243,6 +9318,14 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                             _v["zoekplek"] = zoekplek.label(_zb, _v["vraag"], taal)
                     except Exception as e:
                         print(f"Zoekplek voor het dashboard mislukt: {e}")
+                    # Stap 191: de zoekopdrachten van AI per verloren vraag (Fix).
+                    try:
+                        import fanout
+                        _fb = fanout.lees(webshop_url)
+                        for _v in gegevens["vragen"].get("vragen", []):
+                            _v["fanout"] = fanout.voor_vraag(_fb, _v["vraag"])
+                    except Exception as e:
+                        print(f"Fan-out voor het dashboard mislukt: {e}")
             except Exception as e:
                 print(f"Vragen voor het dashboard mislukt voor {webshop_url}: {e}")
                 gegevens["vragen"] = {"vragen": [], "gewonnen": 0, "verloren": 0, "totaal": 0,
