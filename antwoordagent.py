@@ -604,7 +604,12 @@ def verstuur(nr, tekst):
     onderwerp = rij.get("onderwerp") or "Krillo"
     if not onderwerp.lower().startswith("re:"):
         onderwerp = "Re: " + onderwerp
-    gelukt = emailing.send_antwoord(rij["van"], onderwerp, _schoon(tekst))
+    # 16 oktober: het ja-pakket gaat in Krillo-stijl; een gewoon antwoord blijft
+    # een kale, persoonlijke mail (zo ziet een antwoord van een mens eruit).
+    if rij.get("soort") == "ja":
+        gelukt = emailing.send_japakket(rij["van"], onderwerp, _schoon(tekst))
+    else:
+        gelukt = emailing.send_antwoord(rij["van"], onderwerp, _schoon(tekst))
     if gelukt:
         _sql("UPDATE antwoorden SET stand = 'verstuurd', concept = %s, afgehandeld_op = now() WHERE id = %s",
              (_schoon(tekst), nr))

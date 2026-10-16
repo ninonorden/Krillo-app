@@ -1744,6 +1744,76 @@ def send_antwoord(to_email, onderwerp, tekst):
 
 
 
+def japakket_html(tekst):
+    """Het ja-pakket in Krillo-stijl (16 oktober, Nino: "zijn de ja-pakket mails
+    in Krillo-stijl?"). Het concept blijft platte tekst, zodat Nino het op
+    /admin/antwoorden kan aanpassen; hier wordt het opgemaakt:
+    - de tweede alinea ("Top, hier is de ene wijziging...") wordt de titel;
+    - de genummerde stappen een nette lijst;
+    - het voorbeeld (Titel/Title ...) een grijs vak, zoals op het dashboard;
+    - de link naar de gratis proef een zwarte knop, de link naar de pagina een gewone link.
+    Alles uit de tekst wordt ge-escaped."""
+    e = _html.escape
+    delen = [d.strip() for d in (tekst or "").split("\n\n") if d.strip()]
+    if delen and re.match(r"^(hoi|hi|hallo|hello),?$", delen[0], re.I):
+        delen = delen[1:]
+    nl = bool(re.search(r"\b(hier is|wat je doet|vragen\?|gratis)\b", tekst or "", re.I))
+    titel = e(delen[0]) if delen else "The one change"
+    url_re = re.compile(r"https?://\S+")
+    body, knop, voorbeeld, slot = "", None, [], ""
+    for d in delen[1:]:
+        if re.match(r"^(vragen\?|questions\?)", d, re.I):
+            slot = _p(e(d), zacht=True)
+            continue
+        if re.match(r"^(titel|title):", d, re.I) or re.match(r"^(vraag|q|antwoord|a|eerste alinea|first paragraph):", d, re.I):
+            voorbeeld.append(d)
+            continue
+        if voorbeeld:
+            body += _voorbeeld_vak(voorbeeld)
+            voorbeeld = []
+        regels = d.split("\n")
+        if len(regels) > 1 and all(re.match(r"^\d\. ", r) for r in regels[1:]):
+            items = "".join(f'<li style="margin:0 0 8px;">{e(r[3:])}</li>' for r in regels[1:])
+            body += (f'<div style="font-size:14.5px; font-weight:600; margin:4px 0 6px;">{e(regels[0])}</div>'
+                     f'<ol style="padding-left:20px; margin:0 0 18px; font-size:14.5px; line-height:1.55; color:{INKT};">{items}</ol>')
+            continue
+        urls = url_re.findall(d)
+        if urls and "plan=watch" in urls[-1]:
+            knop = (url_re.sub("", d).strip().rstrip(":"), urls[-1])
+            continue
+        tekst_html = e(d).replace("\n", "<br>")
+        for u in urls:
+            tekst_html = tekst_html.replace(e(u), f'<a href="{e(u)}" style="color:{BLAUW}; font-weight:600;">'
+                                                  f'{"Bekijk je pagina" if nl else "See your page"} &rarr;</a>')
+        body += _p(tekst_html)
+    if voorbeeld:
+        body += _voorbeeld_vak(voorbeeld)
+    if knop:
+        body += _p(e(knop[0]), zacht=True) + _score_button(knop[1], "Start 14 dagen gratis" if nl else "Start 14 days free")
+    body += slot
+    html = _base_html(titel, None, body)
+    if nl:
+        html = html.replace(VOETTEKST, "Vragen? Antwoord gewoon op deze mail, een mens leest mee.<br>"
+                                       "Krillo &middot; Gerard Doustraat 22-3V, 1072 VW Amsterdam &middot; KVK 78439620", 1)
+    return html
+
+
+def _voorbeeld_vak(blokken):
+    e = _html.escape
+    regels = "\n".join(blokken).split("\n")
+    html = "".join(
+        (f'<div style="font-size:13.5px; line-height:1.55; margin:0 0 8px;"><span style="color:#6E7079;">'
+         f'{e(r.split(":", 1)[0])}:</span> {e(r.split(":", 1)[1].strip())}</div>' if ":" in r
+         else f'<div style="font-size:13.5px; line-height:1.55; margin:0 0 8px; color:#6E7079;">{e(r)}</div>')
+        for r in regels if r.strip())
+    return (f'<div style="background:{VLAK}; border-radius:10px; padding:14px 16px; margin:4px 0 20px;">{html}</div>')
+
+
+def send_japakket(to_email, onderwerp, tekst):
+    """Het ja-pakket versturen in Krillo-stijl (zie japakket_html)."""
+    return send_email(to_email, onderwerp, japakket_html(tekst))
+
+
 def send_badge(to_email, onderwerp, alinea_s, embedcode, slot, link_url, afmeld_url=None):
     """De felicitatie met badge (stap 89). Zelfde kale, persoonlijke vorm als de
     opvolging, met de code om te plakken in een vak dat je makkelijk selecteert."""
