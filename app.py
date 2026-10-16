@@ -2821,6 +2821,7 @@ BEHEER_GROEPEN = [
         ("/admin/agents", "Commandocentrum", "Alle agents met hun schakelaars"),
         ("/admin/controle", "Nachtcontrole", "Wat de controleagent vond, en nu draaien"),
         ("/admin/traag", "Trage pagina's", "Welke pagina's traag waren, en waarom"),
+        ("/admin/verkoop/voorbeeld", "Voorbeeld opvolgmail", "Een opvolging zoals de winkel hem krijgt (open hem vanaf /admin/verkoop)"),
         ("/admin/seo-check", "Search Console-koppeling", "Of de SEO-agent Search Console kan lezen, en wat er anders nog moet gebeuren"),
         ("/admin/merken", "Merken en platforms", "Wat het opschonen als merk aanmerkte"),
         ("/admin/beoordelingen", "Beoordelingen", "Wat er uit de antwoorden gehaald is"),
@@ -5974,7 +5975,7 @@ def _persoonlijke_opvolging(lead):
     if not concept:
         return None, None, False
     gelukt = emailing.send_opvolging(lead["email"], concept["onderwerp"], concept["alineas"],
-                                     concept["link"], afmeld_url=afmeld)
+                                     concept["link"], afmeld_url=afmeld, kaart=concept.get("kaart"))
     return gelukt, beeld.get("ronde"), True
 
 
@@ -6003,8 +6004,11 @@ def _stuur_maandberichten():
         afmeld, pagina = _afmeldlink(url)
         bericht = va.maak_maandbericht(beeld, link_url=pagina,
                                        categorienaam=categorieen.naam_en(beeld["categorie"]))
+        # 16 okt: ook de maandmail na de gratis check met zijn eigen cijfers in Krillo-stijl.
+        kaart = va.kaart_van(va._kaal(url), categorieen.naam_en(beeld["categorie"]), beeld) if bericht else None
         gelukt = bool(bericht) and emailing.send_opvolging(
-            lead["email"], bericht["onderwerp"], bericht["alineas"], bericht["link"], afmeld_url=afmeld)
+            lead["email"], bericht["onderwerp"], bericht["alineas"], bericht["link"], afmeld_url=afmeld,
+            kaart=kaart, nummer=2)
         # Ook mislukt afvinken: hetzelfde adres elke ronde opnieuw proberen
         # sloopt de reputatie van het domein.
         db.markeer_maandbericht(lead["id"], True)
@@ -6720,6 +6724,16 @@ def _wachtklok_tik(nu=None):
                 print(f"Oplevering vanzelf mislukt: {e}")
         threading.Thread(target=_oplever, daemon=True).start()
         gedaan.append("oplevering")
+    # 16 oktober: het ja-pakket. Elke tik (5 minuten) kijken of er een ja-antwoord
+    # langer dan japakket.WACHT_MINUTEN klaarstaat; dan gaat het weg (als dat aanstaat).
+    try:
+        import japakket
+        n = japakket.ronde(binnen_kantooruren=benadering.binnen_kantooruren())
+        if n:
+            print(f"Ja-pakket: {n} verstuurd")
+            gedaan.append("japakket")
+    except Exception as e:
+        print(f"Ja-pakket mislukt: {e}")
     # 15 oktober: de SEO-agent, elke ochtend voor het ochtendbericht (seoagent.py).
     # Alleen als Search Console gekoppeld is (GSC_SERVICE_ACCOUNT_JSON in Render).
     if 5 <= nu.hour < 8 and os.environ.get("GSC_SERVICE_ACCOUNT_JSON") and db.claim_moment("seoagent_klok", 20 * 3600):
@@ -9395,6 +9409,7 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                 pakket = (db.get_klant(klant_token) or {}).get("pakket")
                 gegevens["koppelingen"] = {
                     "token": klant_token, "slack": bool(slackmelding.van(klant_token)),
+                    "slack_mag": slackmelding.mag(pakket),
                     "witlabel_mag": witlabel.mag(pakket), "witlabel": witlabel.van(klant_token) or {},
                     "melding": request.args.get("slack") or request.args.get("witlabel") or ""}
             except Exception as e:
@@ -10767,6 +10782,9 @@ def klant_slack(klant_token):
     if not klant:
         return render_template("fout.html", titel="This link no longer works",
                                bericht="Open your dashboard and try again."), 404
+    if not slackmelding.mag(klant.get("pakket")):
+        # 16 oktober: Slack hoort bij Fix.
+        return redirect(f"/mijn/{klant_token}/plan#slack", code=303)
     ok = slackmelding.zet(klant_token, request.form.get("webhook"))
     if ok and request.form.get("webhook"):
         slackmelding.stuur(klant_token, "Krillo is connected. You will hear it here when your place in the "
@@ -12579,7 +12597,9 @@ def admin_verkoop():
             f"{escape(str(c.get('bekeken_op'))[:16])}</div>"
             f"<div style='font-weight:700;margin:6px 0'>{escape(k.get('onderwerp') or '')}</div>"
             f"<div style='font-size:14.5px;line-height:1.55'>{tekst}"
-            f"<p><a href='{escape(k.get('link') or '')}'>Open my Krillo page</a></p></div>"
+            f"<p><a href='{escape(k.get('link') or '')}'>Open my Krillo page</a> &middot; "
+            f"<a href='/admin/verkoop/voorbeeld?url={quote(c['webshop_url'], safe='')}' target='_blank'>"
+            f"Bekijk de mail zoals de winkel hem krijgt</a></p></div>"
             f"<form method='post' style='display:inline'><input type='hidden' name='url' value='{escape(c['webshop_url'])}'>"
             f"<button name='actie' value='versturen' style='padding:8px 14px;background:#1B3FE0;color:#fff;border:0;border-radius:6px'>Versturen</button> "
             f"<button name='actie' value='overslaan' style='padding:8px 14px'>Overslaan</button> "
@@ -12607,6 +12627,27 @@ def admin_verkoop():
             f"<h2 style='margin-top:28px'>Concepten ({len(lijst)})</h2>{blokken}</body>")
 
 
+@app.route("/admin/verkoop/voorbeeld")
+def admin_verkoop_voorbeeld():
+    """16 oktober: de opvolging precies zoals de winkel hem krijgt, voor je op
+    Versturen klikt. Leest alleen."""
+    mag, doorsturen = _mag_bij_beheer()
+    if not mag:
+        return _naar_inloggen()
+    if doorsturen:
+        return redirect(doorsturen)
+    import verkoopagent as va
+    url = (request.args.get("url") or "").strip()
+    c = next((r for r in va.concepten() if r["webshop_url"] == url), None)
+    if not c:
+        return "Geen concept voor deze winkel.", 404
+    k = c["concept"]
+    if k.get("kaart"):
+        return emailing.opvolging_kaart_html(k["kaart"], k.get("link"), None, k.get("nummer") or 1,
+                                             alineas=k.get("alineas"))
+    return "".join(f"<p>{a}</p>" for a in emailing.alina_s_veilig(k.get("alineas")))
+
+
 @app.route("/admin/antwoorden", methods=["GET", "POST"])
 def admin_antwoorden():
     """De antwoordagent (stap 126): wie terugmailde, met een concept-antwoord."""
@@ -12630,6 +12671,11 @@ def admin_antwoorden():
         elif actie == "klaar" and nr:
             aa.klaar(nr)
             melding = "Op klaar gezet, er gaat niets uit."
+        elif actie in ("ja_aan", "ja_uit"):
+            import japakket
+            db.zet_instelling(japakket.SLEUTEL_ZELF, "ja" if actie == "ja_aan" else "nee")
+            melding = ("Ja-antwoorden gaan voortaan vanzelf weg." if actie == "ja_aan"
+                       else "Ja-antwoorden wachten weer op jou.")
         elif actie == "uit_index":
             # 30 september (bel-air.be): "wij zijn geen webshop". Meteen uit elke
             # ranglijst en uit de post, en nooit meer gemaild.
@@ -12688,11 +12734,18 @@ def admin_antwoorden():
     reply = (os.environ.get("SMTP_REPLY_TO") or "").strip()
     stand = ("gekoppeld aan " + escape(aa.domein())) if gekoppeld else "nog niet gekoppeld"
     reply_ok = reply.lower().endswith("@" + aa.domein())
+    import japakket as _japakket
     return (f"<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
             f"<title>Antwoorden | Krillo</title><body style='font-family:Arial,sans-serif;max-width:760px;"
             f"margin:40px auto;padding:0 16px;line-height:1.5'><h1>Antwoordagent</h1>"
             f"<p>Wie op een mail van ons antwoordt, komt hier. Afmelden gaat vanzelf; al het andere krijgt "
             f"een concept dat pas weggaat als jij op Versturen drukt.</p>"
+            f"<form method='post' style='background:#F7F7F5;border-radius:10px;padding:12px 14px'>"
+            f"<strong>Ja-pakket.</strong> Wie kort ja of yes antwoordt, krijgt meteen de ene wijziging voor zijn "
+            f"site, zijn eigen pagina en 14 dagen gratis Watch. Stand: <strong>"
+            f"{'gaat na ' + str(_japakket.WACHT_MINUTEN) + ' minuten vanzelf weg (binnen kantooruren)' if _japakket.zelf_versturen() else 'wacht op jouw goedkeuring'}"
+            f"</strong>. <button name='actie' value='{'ja_uit' if _japakket.zelf_versturen() else 'ja_aan'}'>"
+            f"{'Zelf versturen uit' if _japakket.zelf_versturen() else 'Zelf versturen aan'}</button></form>"
             f"<p>Brevo: <strong>{stand}</strong>. Antwoordadres in Render (SMTP_REPLY_TO): "
             f"<strong>{escape(reply) or 'niet ingevuld'}</strong>"
             f"{'' if reply_ok else ' (antwoorden komen nog NIET hier)'}.</p>"

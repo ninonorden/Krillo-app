@@ -488,6 +488,15 @@ def verzamel(basis_url):
             doen.insert(0, (regel, f"{basis_url}/admin/benadering"))
     except Exception as e:
         print(f"Ochtendbericht, mailalarm mislukt: {e}")
+    # 16 oktober: op koers naar het doel (koers.py), als allerbovenste regel na de
+    # warme lijst, zodat je elke dag ziet of het lukt.
+    try:
+        import koers
+        k = koers.regel()
+        if k:
+            doen.insert(0, (k, f"{basis_url}/admin/verkoop"))
+    except Exception as e:
+        print(f"Ochtendbericht, koers mislukt: {e}")
     # 16 oktober (Nino: "we moeten nu echt klanten krijgen"): de warme lijst,
     # hoogstens vijf winkels die de laatste 48 uur zelf iets deden.
     try:

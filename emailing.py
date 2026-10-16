@@ -1592,7 +1592,61 @@ def handtekening_html():
       </table>"""
 
 
-def send_opvolging(to_email, onderwerp, alinea_s, link_url, afmeld_url=None):
+def opvolging_kaart_html(kaart, link_url, afmeld_url=None, nummer=1, alineas=None):
+    """De opvolging als Krillo-kaart (16 oktober). Zelfde kader als elke andere
+    Krillo-mail (_base_html), met zijn eigen cijfers. Namen en vragen komen uit
+    AI-antwoorden, dus alles geëscaped."""
+    e = _html.escape
+    k = kaart
+    w = e(k["winkel"])
+    cat = e(k.get("categorie") or "your category")
+    if k.get("nul"):
+        titel = f"AI did not name {w} this month"
+    else:
+        titel = f"{w} is #{k['positie']} of {k['van']} in {cat}"
+    # De persoonlijke opening uit het concept ("You looked at your Krillo page",
+    # "A few days ago you checked ...", of de beweging in de maandmail) blijft staan.
+    eigen = [a for a in alina_s_veilig(alineas) if a.strip().rstrip(",") not in ("Hi", "Hoi")]
+    if eigen:
+        # "One thing stood out" past bij de oude korte brief; de kaart laat alles zien.
+        intro = eigen[0].replace(" One thing stood out to me.", " Here is where you stand this month.")
+    else:
+        intro = ("You looked at your Krillo page, so here are your numbers from this month's measurement, "
+                 "in one place." if nummer == 1 else
+                 f"A short follow-up with where {w} stands in {cat} this month.")
+    feiten = [("Your place", "not named yet" if k.get("nul") else f"#{k['positie']} of {k['van']}"),
+              ("Buying questions where AI named you", f"{k['genoemd']} of {k['telbaar']}"),
+              ("Times AI recommended you", str(k.get("aanbevolen") or 0))]
+    body = _feiten(feiten)
+    if k.get("vragen"):
+        rijen = "".join(
+            f'<tr><td style="padding:12px 0; border-top:{"0" if n == 0 else "1px solid " + LIJN};">'
+            f'<div style="font-size:14px; color:{INKT}; font-weight:600; line-height:1.45;">&ldquo;{e(v["vraag"])}&rdquo;</div>'
+            f'<div style="font-size:13px; color:#6E7079; margin-top:3px;">AI named {e(", ".join(v["namen"]))}, not you</div></td></tr>'
+            for n, v in enumerate(k["vragen"]))
+        body += (f'<div style="font-size:12px; letter-spacing:0.08em; color:#6E7079; font-family:\'Courier New\', monospace; '
+                 f'margin:6px 0 4px;">QUESTIONS YOU LOSE</div>'
+                 f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" '
+                 f'style="margin:0 0 20px;">{rijen}</table>')
+    if k.get("boven") and not k.get("nul"):
+        body += _p("Just above you: " + ", ".join(f"#{b['positie']} {e(b['naam'])}" for b in k["boven"]) + ".", zacht=True)
+    if k.get("ontbreekt"):
+        body += _p(f"<strong>What is missing on your site:</strong> {e(k['ontbreekt'])}")
+    if nummer > 1:
+        # Een tweede brief of de maandmail: wat erin staat (de beweging) hoort er volledig in.
+        body += "".join(_p(a) for a in eigen[1:])
+    body += _score_button(link_url, "See every question and the fix")
+    if k.get("eerste_vraag"):
+        body += _p(f'<br>Or reply <strong>&ldquo;yes&rdquo;</strong> and I will send you the one change that would get '
+                   f'{w} named for &ldquo;{e(k["eerste_vraag"])}&rdquo;. No call, no obligation. '
+                   f'You can also try Watch free for 14 days.', zacht=True)
+    afmelden = (f'<a href="{afmeld_url}" style="color:#8A8C96;">No more email from us</a>'
+                if afmeld_url else "Reply 'stop' and we remove you the same day.")
+    html = _base_html(titel, intro, body)
+    return html.replace(VOETTEKST, f"{afmelden}<br>{VOETTEKST}", 1)
+
+
+def send_opvolging(to_email, onderwerp, alinea_s, link_url, afmeld_url=None, kaart=None, nummer=1):
     """De persoonlijke opvolging van de verkoopagent (stap 125).
 
     Bewust een gewone, korte mail zonder grote blokken: dit is een briefje van
@@ -1600,6 +1654,13 @@ def send_opvolging(to_email, onderwerp, alinea_s, link_url, afmeld_url=None):
     alinea's komen uit verkoopagent.maak_concept en zijn al nagekeken."""
     if not _gekeurd(onderwerp, alinea_s, "opvolging"):
         return False
+    if kaart:
+        # 16 oktober: met cijfers en in Krillo-stijl (opvolging_kaart_html).
+        koppen = ({"List-Unsubscribe": f"<{afmeld_url}>",
+                   "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"} if afmeld_url else None)
+        return send_email(to_email, onderwerp,
+                          opvolging_kaart_html(kaart, link_url, afmeld_url, nummer, alineas=alinea_s),
+                          koppen=koppen)
     e = _html.escape
     naam = (os.environ.get("AFZENDER_NAAM") or "").strip()
     g = BEDRIJFSGEGEVENS

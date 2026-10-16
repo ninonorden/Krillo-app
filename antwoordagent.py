@@ -23,7 +23,9 @@ REGELS DIE NOOIT LOSSEN
   mailen" verkeerd leest, betekent een klacht.
 - Een antwoord gaat NOOIT vanzelf weg. Dit is een gesprek met een echte
   winkelier; een AI die daar iets belooft wat niet klopt, kost meer dan een
-  uur wachten.
+  uur wachten. ENIGE UITZONDERING (16 oktober, op verzoek van Nino): een kort
+  "ja"/"yes" krijgt het vaste ja-pakket (japakket.py), en dat mag na 20
+  minuten vanzelf weg als de schakelaar op /admin/antwoorden aan staat.
 - Het concept gebruikt alleen vaste feiten (prijzen uit payments.py, zijn
   eigen plek uit de meting). Geen beloftes over resultaat.
 """
@@ -286,6 +288,14 @@ def soort_van(onderwerp, tekst, model=None, van=None, kop_automatisch=False):
     if kop_automatisch or AFZENDER_AUTOMATISCH.search(van or "") \
             or ONTVANGSTBEVESTIGING.search(onderwerp or "") or ONTVANGSTBEVESTIGING.search((tekst or "")[:600]):
         return "automatisch"
+    # 16 oktober: een kort "ja"/"yes" krijgt het ja-pakket (japakket.py). Op
+    # vaste woorden, net als afmelden: geen AI-gok over wat iemand bedoelt.
+    try:
+        import japakket
+        if japakket.is_ja(tekst):
+            return "ja"
+    except Exception as e:
+        print(f"Ja herkennen mislukt: {e}")
     if model is not None:
         try:
             s = model(onderwerp, tekst)
@@ -535,6 +545,26 @@ def verwerk(data, basis_url, melden, client=None):
                    f"<em>{_html.escape(b['tekst'][:800])}</em><br><br>Er staat een kort concept klaar op "
                    f"{basis_url}/admin/antwoorden dat vraagt om door te sturen naar de eigenaar of marketing. "
                    f"Opvolgmails naar dit adres zijn gestopt. Het is geen warme lead, geen haast.")
+        elif soort == "ja" and url:
+            # 16 oktober: het ja-pakket, meteen klaar (japakket.py).
+            import japakket
+            try:
+                concept = japakket.concept(url, basis_url, nl=_nederlandse_winkel(url, b["van"], b["tekst"]),
+                                           client=client)
+            except Exception as e:
+                print(f"Ja-pakket mislukt: {e}")
+                concept = None
+            if not concept:
+                concept = schrijf_concept(b, feiten(url, basis_url), "interesse", client=client) \
+                    if client else vast_concept("interesse", b["naam"], feiten(url, basis_url))
+            _sql("UPDATE antwoorden SET concept = %s, stand = 'concept' WHERE id = %s", (concept, nr))
+            zelf = japakket.zelf_versturen()
+            melden("Een winkel zei ja",
+                   f"<strong>{_html.escape(url)}</strong> antwoordde: <em>{_html.escape(b['tekst'][:300])}</em><br><br>"
+                   + (f"Het ja-pakket (de ene wijziging, hun pagina en 14 dagen gratis Watch) gaat over "
+                      f"{japakket.WACHT_MINUTEN} minuten vanzelf weg. Aanpassen of tegenhouden kan op "
+                      f"{basis_url}/admin/antwoorden." if zelf else
+                      f"Het ja-pakket staat klaar op {basis_url}/admin/antwoorden. Keur het liefst binnen het uur goed."))
         else:
             try:
                 concept = schrijf_concept(b, feiten(url, basis_url), soort, client=client)
