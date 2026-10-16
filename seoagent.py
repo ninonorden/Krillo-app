@@ -139,7 +139,9 @@ def ronde(per_pagina, per_vraag, vandaag=None, vraag_model=None):
         pad = pad_van(r.get("page"))
         if pad and r.get("query"):
             vragen_van.setdefault(pad, []).append(r["query"])
-    verslag = {"gehouden": [], "teruggezet": [], "gestart": [], "onderwerpen": 0}
+    verslag = {"gehouden": [], "teruggezet": [], "gestart": [], "onderwerpen": 0,
+               "paginas": len(cijfers),
+               "genoeg_vertoningen": sum(1 for r in cijfers.values() if (r.get("impressions") or 0) >= MIN_VERTONINGEN)}
     lijst, lessen = proeven(), geleerd()
 
     # 1. Lopende proeven afronden.
@@ -196,9 +198,29 @@ def ronde(per_pagina, per_vraag, vandaag=None, vraag_model=None):
     db.zet_instelling(SLEUTEL_ONDERWERPEN, json.dumps([{"vraag": q, "vertoningen": n} for q, n in top]))
     verslag["onderwerpen"] = len(top)
 
+    verslag["kandidaten"] = len(kandidaten)
     db.zet_instelling(SLEUTEL_PROEVEN, json.dumps(lijst[-100:]))
     db.zet_instelling(SLEUTEL_GELEERD, json.dumps(lessen[-100:]))
+    noteer_laatste({"op": vandaag.isoformat(), "paginas": verslag["paginas"],
+                    "genoeg_vertoningen": verslag["genoeg_vertoningen"], "kandidaten": len(kandidaten)})
     return verslag
+
+
+# 16 oktober (Nino: "0 proeven, klopt dit na een dag?"): de regel zei niet of
+# de agent wel gedraaid had. Nu staat erbij wanneer hij Search Console las,
+# hoeveel van onze pagina's hij zag en waarom er geen proef startte, of de fout.
+SLEUTEL_LAATSTE = "seo_laatste"
+
+
+def noteer_laatste(stand):
+    try:
+        db.zet_instelling(SLEUTEL_LAATSTE, json.dumps(stand))
+    except Exception:
+        pass
+
+
+def laatste():
+    return _json(SLEUTEL_LAATSTE, None)
 
 
 def ochtendregel():
@@ -206,7 +228,18 @@ def ochtendregel():
     lopend = sum(1 for p in lijst if p.get("stand") == "loopt")
     gewonnen = sum(1 for l in lessen if l["gehouden"])
     regel = (f"SEO-agent: {lopend} titelproef/proeven lopen, {gewonnen} van {len(lessen)} afgeronde proeven "
-             f"gaven meer klikken.")
+             f"gaven meer klikken (een proef duurt {PROEF_DAGEN} dagen).")
+    st = laatste()
+    if not st:
+        regel += " Search Console is nog niet gelezen (dat gebeurt elke ochtend tussen 7 en 10 uur)."
+    elif st.get("fout"):
+        regel += f" Search Console lezen mislukte op {st.get('op')}: {st['fout']}."
+    else:
+        regel += (f" Gelezen op {st.get('op')}: {st.get('paginas', 0)} eigen pagina's in Google, "
+                  f"{st.get('genoeg_vertoningen', 0)} met minstens {MIN_VERTONINGEN} vertoningen in 14 dagen, "
+                  f"{st.get('kandidaten', 0)} die te weinig klikken voor hun plek.")
+        if not st.get("kandidaten") and not lopend:
+            regel += " Nog geen proef: er is (nog) geen pagina met genoeg vertoningen en te weinig klikken."
     if ond:
         regel += " Zoekvragen zonder goede pagina: " + ", ".join(f"\"{o['vraag']}\"" for o in ond[:3]) + "."
     return regel
