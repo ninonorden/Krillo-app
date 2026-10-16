@@ -703,6 +703,11 @@ def init_db():
                 # opvolgmail van de verkoopagent.
                 cur.execute("ALTER TABLE benadering "
                             "ADD COLUMN IF NOT EXISTS mens_op TIMESTAMPTZ;")
+                # 16 oktober: elke klik naar de prijzen, niet alleen de eerste
+                # (doorgeklikt_op). Zonder dit kon het scorebord van de
+                # verkoopagent nooit een klik na de opvolging zien.
+                cur.execute("ALTER TABLE benadering "
+                            "ADD COLUMN IF NOT EXISTS prijzen_laatst_op TIMESTAMPTZ;")
                 # Welke versie van de koude mail deze winkel kreeg (stap 56).
                 # Zonder dit weet je wel HOEVEEL mensen klikken, maar niet door
                 # WELKE mail. Dan kun je twee versies nooit eerlijk vergelijken.
@@ -2314,10 +2319,15 @@ def noteer_doorgeklikt(webshop_url):
     try:
         with conn:
             with conn.cursor() as cur:
+                # De eerste klik blijft staan (trechter, telt een keer); de
+                # laatste klik altijd bij (scorebord van de verkoopagent).
                 cur.execute("""UPDATE benadering SET doorgeklikt_op = now()
                                 WHERE webshop_url = %s
                                   AND doorgeklikt_op IS NULL""", (webshop_url,))
-                return cur.rowcount > 0
+                eerste = cur.rowcount > 0
+                cur.execute("UPDATE benadering SET prijzen_laatst_op = now() WHERE webshop_url = %s",
+                            (webshop_url,))
+                return eerste
     except Exception as e:
         print(f"Doorklik noteren mislukt voor {webshop_url}: {e}")
         return False

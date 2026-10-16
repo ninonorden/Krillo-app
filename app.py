@@ -12556,13 +12556,17 @@ def admin_verkoop():
     lijst = va.concepten()
     goed = va.aantal_goedgekeurd()
     winnaar = db.get_instelling(va.SLEUTEL_WINNAAR)
-    regels = "".join(f"<tr><td>{escape(r['versie'])}</td><td>{r['verstuurd']}</td><td>{r['doorgeklikt']}</td>"
+    regels = "".join(f"<tr><td>{escape(r['versie'])}</td><td>{r['verstuurd']}</td><td>{r['terug']}</td>"
+                     f"<td>{r['doorgeklikt']}</td><td>{r['antwoord']}</td>"
                      f"<td>{r['klant']}</td></tr>" for r in va.scorebord())
     bord = (f"<p>Twee versies van de uitleg lopen naast elkaar. Na {va.MIN_PER_VERSIE} briefjes per versie "
             f"en een duidelijk verschil kiest de agent zelf de winnaar. "
             f"{'Winnaar: versie ' + escape(winnaar) + '.' if winnaar else 'Nog geen winnaar.'}</p>"
             f"<table cellpadding='6' style='border-collapse:collapse'><tr><th>Versie</th><th>Verstuurd</th>"
-            f"<th>Doorgeklikt</th><th>Klant</th></tr>{regels or '<tr><td colspan=4>Nog niets verstuurd.</td></tr>'}</table>")
+            f"<th>Kwam terug (echt mens)</th><th>Naar de prijzen</th><th>Antwoord</th><th>Klant</th></tr>"
+            f"{regels or '<tr><td colspan=6>Nog niets verstuurd.</td></tr>'}</table>"
+            f"<p style='font-size:13px;color:#666'>Alles telt pas NA de opvolging. 'Naar de prijzen' telt "
+            f"sinds 16 oktober (daarvoor werd alleen de eerste klik bewaard).</p>")
     zelf = va.zelf_versturen()
     blokken = ""
     for c in lijst:
