@@ -127,7 +127,52 @@ class _Geleend:
     def __getattr__(self, naam):
         return getattr(self._conn, naam)
 
+    # 16 oktober (ochtendbericht: 39 keer "connection already closed" in 24 uur).
+    # De controle bij het uitlenen ziet een lijn die Neon een tel later laat
+    # vallen niet. Dan faalde de eerste opdracht, en het afsluiten erna gaf
+    # "connection already closed". Nu: faalt de EERSTE opdracht van een lening
+    # omdat de verbinding dood is, dan een verse verbinding en een keer opnieuw.
+    # Alleen de eerste: daarvoor is er in deze lening nog niets gebeurd, dus
+    # opnieuw doen kan geen dubbel werk opleveren.
+    _uitgevoerd = False
+
+    def cursor(self, *args, **kwargs):
+        return _VeiligeCursor(self, args, kwargs)
+
+    def _vervang(self):
+        """Gooi de dode verbinding weg en leen een verse (zelfde pool)."""
+        try:
+            self._pool.putconn(self._conn, close=True)
+        except Exception:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+        # De pool kan nog een dode lijn hebben liggen (Neon sluit vaak meerdere
+        # tegelijk), dus de vervanger wel even controleren. Hoogstens 3 pogingen.
+        for poging in range(3):
+            nieuw = self._pool.getconn()
+            try:
+                if not nieuw.closed:
+                    with nieuw.cursor() as c:
+                        c.execute("SELECT 1")
+                    nieuw.rollback()
+                    break
+            except Exception:
+                pass
+            try:
+                self._pool.putconn(nieuw, close=True)
+            except Exception:
+                pass
+        else:
+            raise psycopg2.OperationalError("geen werkende databaseverbinding na 3 pogingen")
+        self._conn = nieuw
+        _noteer_db("hersteld", 1)
+
     def __enter__(self):
+        # Al dicht bij het begin van "with conn:": dan meteen een verse.
+        if self._conn.closed and not self._uitgevoerd:
+            self._vervang()
         self._conn.__enter__()
         return self
 
@@ -155,6 +200,58 @@ class _Geleend:
                 self._conn.close()
             except Exception:
                 pass
+
+
+class _VeiligeCursor:
+    """Cursor van een geleende verbinding: de eerste opdracht mag een keer
+    opnieuw op een verse verbinding als de lijn dood bleek (zie _Geleend)."""
+
+    def __init__(self, geleend, args, kwargs):
+        self._g, self._args, self._kwargs = geleend, args, kwargs
+        try:
+            self._cur = geleend._conn.cursor(*args, **kwargs)
+        except psycopg2.InterfaceError:
+            # Al dicht voordat er iets gebeurde: meteen een verse.
+            if geleend._uitgevoerd:
+                raise
+            geleend._vervang()
+            self._cur = geleend._conn.cursor(*args, **kwargs)
+
+    def __getattr__(self, naam):
+        return getattr(self._cur, naam)
+
+    def __iter__(self):
+        return iter(self._cur)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *fout):
+        try:
+            self._cur.close()
+        except Exception:
+            pass
+        return False
+
+    def _doe(self, methode, *args, **kwargs):
+        try:
+            uit = getattr(self._cur, methode)(*args, **kwargs)
+        except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
+            dood = isinstance(e, psycopg2.InterfaceError) or self._g._conn.closed
+            if self._g._uitgevoerd or not dood:
+                raise
+            print(f"Database: dode verbinding bij de eerste opdracht, opnieuw op een verse ({str(e).splitlines()[0][:120]})")
+            self._g._vervang()
+            self._cur = self._g._conn.cursor(*self._args, **self._kwargs)
+            uit = getattr(self._cur, methode)(*args, **kwargs)
+        self._g._uitgevoerd = True
+        return uit
+
+    def execute(self, *args, **kwargs):
+        return self._doe("execute", *args, **kwargs)
+
+    def executemany(self, *args, **kwargs):
+        return self._doe("executemany", *args, **kwargs)
 
 
 def _iets_op_de_lijn(conn):
@@ -7950,7 +8047,11 @@ ADRES_REDENEN = [
     # krijgt nooit een eigen plek: rol_ketens_op telt hem bij het hoofdadres.
     # Hij stond tot nu bij "gemeten, maar staat er niet in" en leek vast te zitten.
     ("keten", "tweede adres van een keten (het hoofdadres krijgt de post)"),
-    ("site_niet_nagekeken", "site nog niet nagekeken door de categoriecheck (of twijfel)"),
+    ("site_niet_nagekeken", "site nog niet nagekeken door de categoriecheck"),
+    # 16 oktober: twijfel apart. Het ochtendbericht zei "149 nog niet nagekeken
+    # (of twijfel)", en zo zag je niet of de check achterliep of dat dezelfde
+    # sites steeds niet openden. Dat vraagt elk een andere oplossing.
+    ("site_twijfel", "site nagekeken, maar twijfel (opende niet of onduidelijk); komt na enkele dagen opnieuw langs"),
     ("geen_plek", "in de index, maar zonder bruikbare plek voor de mail (een week overgeslagen)"),
     ("geen_categorie", "nog geen categorie"),
     ("niet_gemeten", "categorie nog niet gemeten"),
@@ -7986,7 +8087,9 @@ def adres_uitsplitsing():
                                     WHERE u.webshop_url = b.webshop_url AND coalesce(u.telbaar, 0) >= 3
                                       AND r.afgerond_op IS NOT NULL
                                       AND (u.categorie = b.categorie OR u.categorie = ANY(ARRAY(SELECT jsonb_array_elements_text(%(fam)s::jsonb -> b.categorie)))))
-                           AND b.categorie_klopt IS NOT TRUE THEN 'site_niet_nagekeken'
+                           AND b.categorie_klopt IS NOT TRUE
+                           THEN CASE WHEN b.categorie_gecheckt_op IS NULL THEN 'site_niet_nagekeken'
+                                     ELSE 'site_twijfel' END
                       WHEN EXISTS (SELECT 1 FROM categorie_uitkomsten u JOIN categorie_rondes r ON r.id = u.ronde
                                     WHERE u.webshop_url = b.webshop_url AND coalesce(u.telbaar, 0) >= 3
                                       AND r.afgerond_op IS NOT NULL

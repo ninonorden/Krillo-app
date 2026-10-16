@@ -15,7 +15,8 @@ REGELS = [
     ("2026-10-16", "Fix does more of the work",
      "Fix now writes two new buying-guide pages a month for questions you lose (on Shopify we publish them, and "
      "you can undo them), measures 15 questions every week instead of 5, gives you a ready-to-send message for every "
-     "review and comparison site AI cites, and shows the hours of work we did for you.", "/pricing"),
+     "review and comparison site AI cites, and shows the hours of work we did for you. Lose a question and Fix writes "
+     "a page for it the same week; your monthly email shows what AI answered before and after.", "/pricing"),
     ("2026-10-15", "A pricing page with every feature side by side",
      "All plans and everything in them on one page, with monthly or yearly prices.", "/pricing"),
     ("2026-10-15", "All your product pages checked",

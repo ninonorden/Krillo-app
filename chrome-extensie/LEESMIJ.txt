@@ -1,0 +1,15 @@
+CHROME-EXTENSIE (stap 136, 16 oktober 2026)
+
+Wat hij doet: op elke webshop klik je op het blauwe K-icoon en zie je de plek in
+de Krillo Index, met een knop naar de gratis check. Alleen het adres van de site
+gaat naar krilloai.com, en alleen bij een klik.
+
+Indienen (eenmalig 5 dollar registratie):
+1. Ga naar chrome.google.com/webstore/devconsole en log in met je Google-account.
+2. Betaal de eenmalige registratie van 5 dollar als daarom gevraagd wordt.
+3. Klik "New item" en upload krillo-chrome.zip (zit los bij de levering).
+4. Vul in: categorie "Shopping" of "Tools", taal Engels, de korte omschrijving uit
+   manifest.json, en minstens een schermafdruk van 1280x800.
+5. Privacy: "Website content" niet verzamelen; doel: de plek van de site opzoeken.
+   Privacybeleid: https://krilloai.com/privacy
+6. Indienen. De keuring duurt meestal een paar dagen.

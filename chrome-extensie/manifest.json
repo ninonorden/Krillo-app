@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Krillo: AI rank of any online store",
+  "short_name": "Krillo",
+  "version": "1.0.0",
+  "description": "See with one click where ChatGPT and Gemini rank the online store you are on, in the monthly Krillo Index.",
+  "action": {"default_popup": "popup.html", "default_title": "Krillo: AI rank of this store",
+             "default_icon": {"16": "icon16.png", "48": "icon48.png", "128": "icon128.png"}},
+  "icons": {"16": "icon16.png", "48": "icon48.png", "128": "icon128.png"},
+  "permissions": ["activeTab"],
+  "host_permissions": ["https://krilloai.com/*"]
+}

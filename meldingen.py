@@ -371,6 +371,11 @@ def na_meting(ronde, categorie, verstuur=False, basis=None):
                     z = uren.zin(uren.deze_maand(klant["webshop_url"]), taal)
                     if z:
                         klant["groei"] = list(klant.get("groei") or []) + [z]
+                    # 16 okt (idee, akkoord Nino): voor en na van een koopgids.
+                    import contentmotor
+                    ez = contentmotor.effect_zin(contentmotor.effect(klant["webshop_url"]), taal)
+                    if ez:
+                        klant["groei"] = list(klant.get("groei") or []) + [ez]
             except Exception as e:
                 print(f"Groeirapport in de maandmail mislukt: {e}")
             try:

@@ -44,9 +44,31 @@ def pagina_s(webshop_url):
     return list(reversed(_lees(webshop_url)))
 
 
-def deze_maand(webshop_url, nu=None):
+def deze_maand(webshop_url, nu=None, ook_terugwin=False):
+    """De pagina's van deze maand. Terugwinpagina's tellen niet mee voor de
+    maandgrens (PER_MAAND): die komen erbij, zie terugwin_vraag."""
     nu = nu or datetime.now(timezone.utc)
-    return [p for p in _lees(webshop_url) if (p.get("op") or "")[:7] == nu.strftime("%Y-%m")]
+    return [p for p in _lees(webshop_url) if (p.get("op") or "")[:7] == nu.strftime("%Y-%m")
+            and (ook_terugwin or p.get("soort") != "terugwin")]
+
+
+# 16 oktober (Nino: "is Fix echt 100 euro meer waard?"): TERUGWINNEN BINNEN EEN
+# WEEK. Watch krijgt een seintje als AI hem bij een vraag niet meer noemt. Fix
+# krijgt dezelfde week een nieuwe pagina voor precies die vraag, bovenop de twee
+# per maand. Hoogstens een per week, en niet opnieuw voor een vraag waar al een
+# pagina voor is.
+def terugwin_vraag(webshop_url, verloren, nu=None):
+    """De verloren vraag waar deze week een pagina voor komt, of None."""
+    nu = nu or datetime.now(timezone.utc)
+    week = nu.strftime("%G-%V")
+    lijst = _lees(webshop_url)
+    if any(p.get("soort") == "terugwin" and p.get("week") == week for p in lijst):
+        return None
+    al = {p.get("vraag") for p in lijst}
+    for v in verloren or []:
+        if v.get("vraag") and v["vraag"] not in al:
+            return v["vraag"]
+    return None
 
 
 def slug(tekst):
@@ -111,7 +133,7 @@ def maak_html(uit):
     return "".join(delen), "\n\n".join(x for x in leesbaar if x).replace("—", ",")
 
 
-def schrijf(webshop_url, vraag, winkelnaam, producten, taal, vraag_json, nu=None):
+def schrijf(webshop_url, vraag, winkelnaam, producten, taal, vraag_json, nu=None, soort="maand"):
     """Schrijft een pagina en bewaart hem. vraag_json(prompt) -> dict. Geeft de pagina of None."""
     nu = nu or datetime.now(timezone.utc)
     uit = vraag_json(prompt(vraag, winkelnaam, producten, taal))
@@ -120,7 +142,7 @@ def schrijf(webshop_url, vraag, winkelnaam, producten, taal, vraag_json, nu=None
     body, leesbaar = maak_html(uit)
     pagina = {"vraag": vraag, "titel": str(uit["titel"]).replace("—", ",")[:120], "html": body,
               "leesbaar": leesbaar, "op": nu.isoformat(), "handle": HANDLE_BEGIN + slug(vraag),
-              "geplaatst": False}
+              "geplaatst": False, "soort": soort, "week": nu.strftime("%G-%V")}
     _schrijf(webshop_url, _lees(webshop_url) + [pagina])
     return pagina
 
@@ -140,3 +162,94 @@ def voorstel(pagina, winkel_link):
             "titel": pagina["titel"], "handle": pagina["handle"], "wat": "Buying guide page",
             "waar": pagina["titel"], "link": winkel_link, "afbeelding": "", "oud": "",
             "nieuw": pagina["leesbaar"], "nieuw_html": pagina["html"]}
+
+
+# 16 oktober (idee, akkoord Nino): VOOR EN NA VAN EEN KOOPGIDS in de maandmail.
+# Een Fix-klant ziet met eigen ogen of het werk effect heeft: voor een gids die
+# minstens een week staat, wat AI op die vraag antwoordde voor de gids er was,
+# en wat bij de laatste wekelijkse meting. Alleen uit de bewaarde snelmetingen,
+# alleen als de vraag voor en na gemeten is. Geen effect gezien: dat zeggen we.
+EFFECT_NA_DAGEN = 7
+
+
+def _snelrijen(webshop_url, vraag):
+    from psycopg2.extras import RealDictCursor
+    conn = db._get_connection()
+    if conn is None:
+        return []
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""SELECT ronde_op, assistent, genoemd, anderen FROM snelmetingen
+                               WHERE webshop_url = %s AND vraag = %s ORDER BY ronde_op""", (webshop_url, vraag))
+                return [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f"Contentmotor, effect ophalen mislukt: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def _namen(rij):
+    a = rij.get("anderen") or []
+    if isinstance(a, str):
+        try:
+            a = json.loads(a)
+        except ValueError:
+            a = []
+    return [str(x) for x in a][:3]
+
+
+def effect(webshop_url, nu=None, rijen_van=None):
+    """{"vraag", "titel", "op", "voor": {"genoemd", "anderen"}, "na": {...}} of None."""
+    nu = nu or datetime.now(timezone.utc)
+    rijen_van = rijen_van or (lambda v: _snelrijen(webshop_url, v))
+    for p in pagina_s(webshop_url):
+        try:
+            op = datetime.fromisoformat(p["op"])
+        except (KeyError, ValueError):
+            continue
+        if (nu - op).days < EFFECT_NA_DAGEN:
+            continue
+        rijen = rijen_van(p["vraag"])
+        voor = [r for r in rijen if r["ronde_op"] < op]
+        na = [r for r in rijen if r["ronde_op"] > op]
+        if not voor or not na:
+            continue
+        laatste_voor = [r for r in voor if r["ronde_op"] == voor[-1]["ronde_op"]]
+        laatste_na = [r for r in na if r["ronde_op"] == na[-1]["ronde_op"]]
+
+        def samen(rs):
+            namen = []
+            for r in rs:
+                for n in _namen(r):
+                    if n not in namen:
+                        namen.append(n)
+            return {"genoemd": [r["assistent"] for r in rs if r.get("genoemd")], "anderen": namen[:3]}
+        return {"vraag": p["vraag"], "titel": p.get("titel"), "op": op, "voor": samen(laatste_voor),
+                "na": samen(laatste_na)}
+    return None
+
+
+def effect_zin(e, taal="en"):
+    """Een alinea voor de maandmail, of None."""
+    if not e:
+        return None
+    datum = e["op"].strftime("%-d %B")
+    voor = (f"AI named {', '.join(e['voor']['anderen'])}" if e["voor"]["anderen"] else "AI named other stores") \
+        if not e["voor"]["genoemd"] else f"{' and '.join(e['voor']['genoemd'])} already named you"
+    if e["na"]["genoemd"]:
+        na = f"At the last weekly check, {' and '.join(e['na']['genoemd'])} named you."
+    else:
+        na = ("At the last weekly check, AI did not name you yet"
+              + (f" (it named {', '.join(e['na']['anderen'])})" if e["na"]["anderen"] else "")
+              + ". A new page often takes a few weeks to be picked up.")
+    if taal == "nl":
+        voor_nl = (f"noemde AI {', '.join(e['voor']['anderen'])}" if e["voor"]["anderen"] else "noemde AI andere winkels") \
+            if not e["voor"]["genoemd"] else f"noemde {' en '.join(e['voor']['genoemd'])} je al"
+        na_nl = (f"Bij de laatste wekelijkse meting noemde {' en '.join(e['na']['genoemd'])} jou." if e["na"]["genoemd"]
+                 else "Bij de laatste wekelijkse meting noemde AI je nog niet"
+                 + (f" (wel {', '.join(e['na']['anderen'])})" if e["na"]["anderen"] else "")
+                 + ". Een nieuwe pagina wordt vaak pas na een paar weken opgepikt.")
+        return f"Onze koopgids voor “{e['vraag']}” staat er sinds {e['op'].strftime('%-d-%-m')}. Daarvoor {voor_nl}. {na_nl}"
+    return f"Our buying guide for “{e['vraag']}” has been up since {datum}. Before it, {voor}. {na}"

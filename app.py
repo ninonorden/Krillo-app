@@ -2173,6 +2173,52 @@ def api_merken_check():
     return jsonify({"ok": True, "uitkomst": _pitch_uitkomst(winkels)})
 
 
+@app.route("/api/agencies/pitch", methods=["POST"])
+def api_merken_pitch():
+    """Stap 185: een pitchlink voor een winkel uit de index, met de naam van het bureau."""
+    import gratistools
+    import pitch
+    data = request.get_json(silent=True) or {}
+    if not gratistools.mag_nu("pitch:" + (_bezoeker_kenmerk() or request.remote_addr or "?")):
+        return jsonify({"fout": "You made a lot of links in a short time. Try again in ten minutes."}), 429
+    url = scan_engine.normalize_url((data.get("winkel") or "").strip()[:200])
+    try:
+        beeld = klantbeeld.bouw(url) if url else None
+    except Exception:
+        beeld = None
+    if not beeld:
+        return jsonify({"fout": "This store is not in the index yet, so there is nothing to show."}), 404
+    token = pitch.maak(url, data.get("bureau"), data.get("email"), data.get("website"))
+    if not token:
+        return jsonify({"fout": "Enter your agency name and a valid work email."}), 400
+    try:
+        _meld_aan_beheer("Bureau maakte een pitchlink (warme lead)",
+                         f"{escape(data.get('bureau') or '')} ({escape(data.get('email') or '')}) maakte een pitchlink voor "
+                         f"{escape(url)}. Een bureau dat Krillo in zijn verkoop gebruikt: kandidaat voor het bureaupakket.")
+    except Exception as e:
+        print(f"Melding pitch mislukt: {e}")
+    return jsonify({"ok": True, "link": f"{get_base_url().rstrip('/')}/pitch/{token}",
+                    "dagen": pitch.GELDIG_DAGEN})
+
+
+@app.route("/pitch/<token>")
+def pitch_pagina(token):
+    """Stap 185: de pagina die een bureau naar een prospect stuurt. Schrijft niets."""
+    import pitch
+    p = pitch.lees(token)
+    if not p:
+        return render_template("fout.html", titel="This link has expired",
+                               bericht="Pitch links work for 14 days. Ask the agency that sent it for a new one."), 404
+    beeld = klantbeeld.bouw(p["url"])
+    if not beeld:
+        return render_template("fout.html", titel="No ranking yet",
+                               bericht="This store is not in the current ranking."), 404
+    return render_template("pitch.html", p=p, beeld=beeld, categorienaam=categorieen.naam_en(beeld["categorie"]),
+                           landnaam=sitetaal.landnaam(beeld.get("land"), "en") if beeld.get("land") else "",
+                           bronnen=(_bronnen_van_ronde(beeld["ronde"]) or [])[:4],
+                           winkelnaam=_winkelnaam(p["url"]))
+
+
 @app.route("/api/agencies", methods=["POST"])
 def api_merken_aanvraag():
     """Het korte formulier op /agencies: bewaren, Nino een seintje, de aanvrager
@@ -4964,14 +5010,17 @@ def _shopify_abonnees():
     return uit
 
 
-def _contentmotor_site(webshop_url):
+def _contentmotor_site(webshop_url, vragen=None, soort="maand"):
     """Stap 239 voor Fix-klanten zonder Shopify: de koopgidsen van deze maand
-    schrijven; ze staan klaar op Fixes om te plakken (of via WordPress)."""
+    schrijven; ze staan klaar op Fixes om te plakken (of via WordPress).
+    Met vragen en soort="terugwin": de pagina voor een vraag die deze week wegviel
+    (ook bij Shopify; de automatische ronde zet hem daarna live)."""
     import contentmotor
     import productkaart
     import shopify_werk
     beeld = klantbeeld.bouw(webshop_url)
-    vragen = contentmotor.onderwerpen(webshop_url, (beeld or {}).get("gemiste_vragen"))
+    if vragen is None:
+        vragen = contentmotor.onderwerpen(webshop_url, (beeld or {}).get("gemiste_vragen"))
     if not vragen:
         return 0
     client, fout = shopify_werk._model(webshop_url)
@@ -4983,7 +5032,8 @@ def _contentmotor_site(webshop_url):
     gemaakt = 0
     for vraag in vragen:
         if contentmotor.schrijf(webshop_url, vraag, (beeld or {}).get("naam") or webshop_url, producten, taal,
-                                lambda t: shopify_werk._vraag_json(client, t, webshop_url, "contentmotor", 3000)):
+                                lambda t: shopify_werk._vraag_json(client, t, webshop_url, "contentmotor", 3000),
+                                soort=soort):
             gemaakt += 1
     return gemaakt
 
@@ -5139,6 +5189,18 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                     v = snelmeting.meet(c["webshop_url"], aantal=snelmeting.AANTAL_FIX if c.get("plan") == "fix"
                                         else snelmeting.AANTAL)
                     print(f"Snelmeting {c['webshop_url']}: {v}")
+                    # 16 okt (stap 240): eens per maand per koopvraag ook de plek in de zoekmachine.
+                    try:
+                        import zoekplek
+                        import dashboardpaginas as _dp
+                        _b = klantbeeld.bouw(c["webshop_url"], max_vragen=1)
+                        if _b:
+                            _vo = _dp.vragen_overzicht(_b["ronde"], c["webshop_url"], _b.get("naam"))
+                            zoekplek.ronde(c["webshop_url"], [x["vraag"] for x in _vo.get("vragen", [])],
+                                           land=(_b.get("land") or "nl"), taal=(_b.get("land") or "nl")
+                                           if (_b.get("land") or "nl") in ("nl", "de", "fr") else "nl")
+                    except Exception as e:
+                        print(f"Zoekplek mislukt voor {c['webshop_url']}: {e}")
                     # 2 oktober (stap 180): de eigen vragen van de klant mee.
                     try:
                         import eigenvragen
@@ -5150,8 +5212,22 @@ def _draai_wekelijkse_scans(base_url, alles=False):
                         import weekmail
                         weekmail.stuur_voor(c["webshop_url"], c.get("email"), klant_token, base_url)
                         # 8 oktober: apart seintje als een vraag is weggevallen.
+                        # 16 okt (Fix): terugwinnen binnen een week. Een vraag die wegviel
+                        # krijgt deze week een eigen pagina, en de mail zegt dat.
+                        terug = None
+                        if c.get("plan") == "fix":
+                            try:
+                                import contentmotor
+                                terug = contentmotor.terugwin_vraag(c["webshop_url"],
+                                                                    snelmeting.verloren_per_assistent(c["webshop_url"]))
+                                if terug and not _contentmotor_site(c["webshop_url"], [terug], soort="terugwin"):
+                                    terug = None
+                            except Exception as e:
+                                terug = None
+                                print(f"Terugwinnen mislukt voor {c['webshop_url']}: {e}")
                         try:
-                            weekmail.stuur_verloren(c["webshop_url"], c.get("email"), klant_token, base_url)
+                            weekmail.stuur_verloren(c["webshop_url"], c.get("email"), klant_token, base_url,
+                                                    terugwin=terug)
                         except Exception as e:
                             print(f"Weggevallen-vragen mail mislukt voor {c['webshop_url']}: {e}")
                 except Exception as e:
@@ -9158,6 +9234,15 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
         if pagina in ("overzicht", "vragen"):
             try:
                 gegevens["vragen"] = dp.vragen_overzicht(beeld["ronde"], webshop_url, winkelnaam)
+                # Stap 240: de plek in de zoekmachine per vraag, alleen voor klanten.
+                if klant_token and not proef:
+                    try:
+                        import zoekplek
+                        _zb = zoekplek.lees(webshop_url)
+                        for _v in gegevens["vragen"].get("vragen", []):
+                            _v["zoekplek"] = zoekplek.label(_zb, _v["vraag"], taal)
+                    except Exception as e:
+                        print(f"Zoekplek voor het dashboard mislukt: {e}")
             except Exception as e:
                 print(f"Vragen voor het dashboard mislukt voor {webshop_url}: {e}")
                 gegevens["vragen"] = {"vragen": [], "gewonnen": 0, "verloren": 0, "totaal": 0,
@@ -9224,6 +9309,7 @@ def _dashboard(webshop_url, land=None, voorbeeld=False, klant_token=None, beheer
                     import uren
                     gegevens["gidsen"] = contentmotor.pagina_s(webshop_url)[:6]
                     gegevens["uren_zin"] = uren.zin(uren.deze_maand(webshop_url), taal)
+                    gegevens["gids_effect"] = contentmotor.effect_zin(contentmotor.effect(webshop_url), taal)
             except Exception as e:
                 print(f"Fix-werk voor het dashboard mislukt: {e}")
             # 15 oktober (voorstel 3): werkte de nieuwe titel of tekst? (tekstproef.py)

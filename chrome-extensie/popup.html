@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- Stap 136 (16 oktober 2026): de Chrome-extensie. Alleen het adres van het
+     tabblad gaat naar krilloai.com, en alleen als je op het icoon klikt. -->
+<style>
+  body{width:300px; margin:0; font:14px/1.45 system-ui, -apple-system, sans-serif; color:#0A0A0B; background:#F7F7F5;}
+  .w{padding:16px;}
+  .merk{font-weight:700; letter-spacing:-0.03em; font-size:16px;} .merk i{font-style:normal; font:500 10px monospace; color:#6E7079; margin-left:6px;}
+  .winkel{font-size:12.5px; color:#6E7079; margin:6px 0 12px; word-break:break-all;}
+  .kop{font-weight:600; font-size:15px; margin:0 0 8px;}
+  .klein{font-size:12.5px; color:#4A4A55;}
+  a.knop{display:block; text-align:center; margin-top:12px; padding:10px; border-radius:10px; background:#0A0A0B; color:#fff; text-decoration:none; font-weight:500;}
+  a.licht{display:block; text-align:center; margin-top:8px; color:#0A0A0B; font-size:13px;}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="merk">KRILLO<i>INDEX</i></div>
+  <div class="winkel" id="winkel"></div>
+  <div class="kop" id="kop">Looking this store up...</div>
+  <div class="klein" id="uitleg"></div>
+  <a class="knop" id="knop" href="https://krilloai.com/#scan" target="_blank" rel="noopener">See the questions it loses</a>
+  <a class="licht" id="lijst" href="https://krilloai.com/index" target="_blank" rel="noopener" hidden>See the full ranking</a>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

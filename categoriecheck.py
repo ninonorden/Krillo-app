@@ -43,8 +43,11 @@ _WINKELTEKENS = re.compile(
 _PRIJS = re.compile(r"(€|eur)\s?\d+[.,]\d{2}|\d+[.,]\d{2}\s?(€|eur)", re.I)
 
 
-def lees_site(url, ophalen=None):
-    """Wat de homepage over zichzelf zegt, of None als hij niet opent."""
+def lees_site(url, ophalen=None, waarom=None):
+    """Wat de homepage over zichzelf zegt, of None als hij niet opent.
+    waarom (een dict, optioneel) krijgt "status" als de server WEL antwoordde
+    maar weigerde (403, 429, 503: vaak een robotmuur), anders "fout"."""
+    waarom = {} if waarom is None else waarom
     try:
         if ophalen is not None:
             r = ophalen(url)
@@ -53,11 +56,34 @@ def lees_site(url, ophalen=None):
             # 14 oktober: twee pogingen. Een site die een keer niet opende, wachtte
             # daarna dagen als "twijfel" en kreeg zo lang geen post.
             r = scan_engine.fetch(url, pogingen=2)
-    except Exception:
+    except Exception as e:
+        waarom["fout"] = type(e).__name__
         return None
-    if r is None or getattr(r, "status_code", 500) >= 400:
+    if r is None:
+        # Certificaat zonder tussenschakel: open voor elke browser, alleen
+        # Python weigert hem (5 oktober). Dus wel een levende site.
+        try:
+            import scan_engine
+            ssl = any(scan_engine.LAATSTE_SSL_FOUT.get(a) for a in (url, url.replace("://", "://www.", 1)))
+        except Exception:
+            ssl = False
+        if ssl:
+            waarom["status"] = "ssl"
+        else:
+            waarom["fout"] = "geen antwoord"
+        return None
+    if getattr(r, "status_code", 500) >= 400:
+        waarom["status"] = getattr(r, "status_code", 500)
         return None
     html = r.text or ""
+    try:
+        import scan_engine
+        if scan_engine.lijkt_op_blokkadepagina(html):
+            # Een robotmuur met status 200: de tekst zegt niets over de winkel.
+            waarom["status"] = "blokkade"
+            return None
+    except Exception:
+        pass
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "html.parser")
     titel = (soup.title.string or "").strip() if soup.title and soup.title.string else ""
@@ -72,6 +98,45 @@ def lees_site(url, ophalen=None):
             "prijzen": len(_PRIJS.findall(html))}
 
 
+# 16 oktober: 149 winkels met een plek en een mailadres zaten vast op "twijfel".
+# Veel webshops weren onze server (Cloudflare en dergelijke geven 403 of 503),
+# terwijl ze voor een klant gewoon open zijn. Die sites lazen we nooit, dus nooit
+# post. Nu: antwoordt de server wel maar weigert hij, dan lezen we wat de
+# zoekmachine over de site weet (titel en omschrijving van de eigen pagina's).
+# Dat is wat de site zelf over zichzelf schrijft, dus het model oordeelt nog
+# steeds op de tekst. Een site die helemaal niet antwoordt blijft twijfel: daar
+# klopt de link in de mail misschien echt niet. Hoogstens ZOEK_PER_RONDE per
+# ronde (een zoekopdracht kost ongeveer een halve cent).
+ZOEK_PER_RONDE = int(os.environ.get("CATEGORIECHECK_ZOEK_PER_RONDE", "25"))
+
+
+def lees_via_zoekmachine(url, zoek=None):
+    """Zelfde vorm als lees_site, uit de zoekresultaten van de eigen site, of None."""
+    host = _host(url)
+    if not host:
+        return None
+    try:
+        if zoek is None:
+            import bronnen
+            if not bronnen.beschikbaar():
+                return None
+            zoek = bronnen.zoek
+        resultaten = zoek(f"site:{host}", webshop_url=url) or []
+    except Exception:
+        return None
+    eigen = [r for r in resultaten if _host(r.get("url")) in (host,) or _host(r.get("url")).endswith("." + host)]
+    if not eigen:
+        return None
+    alles = " ".join(f"{r.get('titel', '')} {r.get('omschrijving', '')} {r.get('url', '')}" for r in eigen)
+    return {"titel": (eigen[0].get("titel") or "")[:200],
+            "omschrijving": (eigen[0].get("omschrijving") or "")[:300],
+            "koppen": [(r.get("titel") or "")[:120] for r in eigen[1:7]],
+            "tekst": re.sub(r"\s+", " ", " ".join(r.get("omschrijving") or "" for r in eigen[1:]))[:700],
+            "winkeltekens": bool(_WINKELTEKENS.search(alles)),
+            "prijzen": len(_PRIJS.findall(alles)),
+            "via": "zoekmachine"}
+
+
 def _prompt(groep, categorieen_lijst):
     regels = []
     for w in groep:
@@ -79,7 +144,9 @@ def _prompt(groep, categorieen_lijst):
         regels.append(json.dumps({
             "url": w["webshop_url"], "nu_in": w["categorie"], "titel": s["titel"],
             "omschrijving": s["omschrijving"], "koppen": s["koppen"], "tekst": s["tekst"],
-            "winkelmand_op_de_site": s["winkeltekens"], "prijzen_op_de_homepage": s["prijzen"]},
+            "winkelmand_op_de_site": s["winkeltekens"], "prijzen_op_de_homepage": s["prijzen"],
+            **({"gelezen_via": "search engine results for this site (the site blocks robots)"}
+               if s.get("via") == "zoekmachine" else {})},
             ensure_ascii=False))
     cats = ", ".join(f"{slug} ({naam})" for slug, naam in categorieen_lijst)
     return f"""Below are websites with what their homepage says. For each, decide from THE TEXT
@@ -175,6 +242,11 @@ def dode_categorieen(gemeten=None):
 OPSCHOON_SINDS = "2026-10-15 10:00:00+00"
 
 
+# 16 oktober: wie voor de zoekmachine-terugval op twijfel kwam, komt meteen
+# opnieuw langs en hoeft niet de 5 dagen uit te zitten (149 winkels).
+TWIJFEL_OPNIEUW_SINDS = "2026-10-16 09:00:00+00"
+
+
 def bovencategorieen():
     import categorieen
     return sorted({ouder for _, _, ouder in categorieen.CATEGORIEEN if ouder})
@@ -198,6 +270,7 @@ def kandidaten(hoeveel):
                        AND (b.categorie_gecheckt_op IS NULL
                             OR (b.categorie_klopt IS NULL
                                 AND b.categorie_gecheckt_op < now() - interval '{OPNIEUW_NA_DAGEN} days')
+                            OR (b.categorie_klopt IS NULL AND b.categorie_gecheckt_op < %s::timestamptz)
                             OR (b.categorie = ANY(%s) AND b.categorie_gecheckt_op < %s::timestamptz)
                             OR ((b.categorie = ANY(%s) OR NOT (b.categorie = ANY(%s)))
                                 AND b.email IS NOT NULL AND b.email <> '' AND b.gemaild_op IS NULL
@@ -207,7 +280,7 @@ def kandidaten(hoeveel):
                             AND b.stand IN ('adres', 'meten', 'gemeten'))
                            OR EXISTS (SELECT 1 FROM categorie_uitkomsten u WHERE u.webshop_url = b.webshop_url))
                   ORDER BY (b.email IS NOT NULL AND b.gemaild_op IS NULL) DESC, b.toegevoegd_op
-                     LIMIT %s""", (bovencategorieen(), OPSCHOON_SINDS, dood, geldig, int(hoeveel)))
+                     LIMIT %s""", (TWIJFEL_OPNIEUW_SINDS, bovencategorieen(), OPSCHOON_SINDS, dood, geldig, int(hoeveel)))
                 return [{"webshop_url": r[0], "categorie": r[1]} for r in cur.fetchall()]
     except Exception as e:
         print(f"Categoriecheck, kandidaten mislukt: {e}")
@@ -236,10 +309,13 @@ def _leg_vast(url, klopt, soort=None, categorie=None):
         conn.close()
 
 
-def ronde(hoeveel=None, ophalen=None, vraag_model=None):
-    """Een ronde. Geeft een verslag: {"bekeken", "klopt", "verplaatst", "geen_webshop", "twijfel"}."""
+def ronde(hoeveel=None, ophalen=None, vraag_model=None, zoek=None):
+    """Een ronde. Geeft een verslag: {"bekeken", "klopt", "verplaatst", "geen_webshop",
+    "twijfel", "via_zoekmachine"}."""
     hoeveel = CHECK_PER_RONDE if hoeveel is None else hoeveel
-    verslag = {"bekeken": 0, "klopt": 0, "verplaatst": [], "geen_webshop": [], "twijfel": 0}
+    verslag = {"bekeken": 0, "klopt": 0, "verplaatst": [], "geen_webshop": [], "twijfel": 0,
+               "via_zoekmachine": 0}
+    gezocht = 0
     lijst = kandidaten(hoeveel)
     if not lijst:
         return verslag
@@ -250,7 +326,13 @@ def ronde(hoeveel=None, ophalen=None, vraag_model=None):
         dood = set()
     te_beoordelen = []
     for w in lijst:
-        site = lees_site(w["webshop_url"], ophalen)
+        waarom = {}
+        site = lees_site(w["webshop_url"], ophalen, waarom)
+        if site is None and waarom.get("status") and gezocht < ZOEK_PER_RONDE:
+            gezocht += 1
+            site = lees_via_zoekmachine(w["webshop_url"], zoek)
+            if site is not None:
+                verslag["via_zoekmachine"] += 1
         if site is None:
             # Opent niet: geen post (de link in de mail moet werken), later opnieuw.
             _leg_vast(w["webshop_url"], None)

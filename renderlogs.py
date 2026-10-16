@@ -17,7 +17,10 @@ import re
 from datetime import datetime, timedelta, timezone
 
 API = "https://api.render.com/v1"
-ZOEK = ("Traceback", "Error", "mislukt", "Out of memory", "BEGRENZING", "Instance failed", "WORKER TIMEOUT")
+# 16 oktober: "BEGRENZING" eruit. Dat is de rem die werkt (een sitemap van
+# eleiko was groter dan 5 MB en werd netjes afgekapt), geen fout. Hij stond
+# bovenaan de foutenlijst en verdrong echte fouten.
+ZOEK = ("Traceback", "Error", "mislukt", "Out of memory", "Instance failed", "WORKER TIMEOUT")
 PER_ZOEK = 100
 _eigenaar = {}
 

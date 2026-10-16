@@ -39,6 +39,9 @@ VERGELIJKING = [
         {"wat": "What AI names in your place, word for word", "waarden": [False, True, True, True]},
         {"wat": "The sites AI sends shoppers to", "waarden": [False, True, True, True]},
         {"wat": "Ready to buy versus still comparing", "uitleg": "Per question", "waarden": [False, True, True, True]},
+        # 16 okt (stap 240): zoekmachine en AI naast elkaar.
+        {"wat": "Your place in web search next to AI", "uitleg": "Per buying question, every month",
+         "waarden": [False, True, True, True]},
     ]},
     {"naam": "Fix", "rijen": [
         {"wat": "Every fix written out, in order", "waarden": [False, True, True, True]},
@@ -51,6 +54,8 @@ VERGELIJKING = [
         # 16 okt (Fix waard maken): wat Fix nu extra doet.
         {"wat": "New buying-guide pages for questions you lose", "uitleg": "Written in your language, from your products",
          "waarden": [False, "Topics only", f"{contentmotor.PER_MAAND} written a month", "Topics only"]},
+        {"wat": "Lost a question? A new page the same week", "uitleg": "On top of the monthly pages",
+         "waarden": [False, "An email", True, "An email"]},
         {"wat": "Product pages fixed for you", "uitleg": "Image descriptions and product texts",
          "waarden": [False, False, f"Up to {shopify_werk.AUTOMATISCH_PER_WEEK} a week", False]},
         {"wat": "Ready-to-send messages to get listed", "uitleg": "Per review and comparison site AI cites",
@@ -59,6 +64,8 @@ VERGELIJKING = [
          "waarden": [False, False, True, False]},
         {"wat": "Before and after per change", "uitleg": "Measured with your weekly questions",
          "waarden": [False, True, True, True]},
+        {"wat": "What AI answered before and after each new page", "uitleg": "In your dashboard and monthly email",
+         "waarden": [False, False, True, False]},
     ]},
     {"naam": "Pages", "rijen": [
         {"wat": "Website checks AI cares about", "waarden": ["13 checks", "Weekly", "Weekly", "Weekly"]},

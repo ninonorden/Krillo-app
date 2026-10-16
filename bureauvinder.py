@@ -29,6 +29,8 @@ import re
 import secrets
 from urllib.parse import urljoin, urlparse
 
+import requests
+
 import db
 
 BUREAU_MIN = int(os.environ.get("BUREAU_MIN", "3"))
@@ -198,6 +200,11 @@ def ronde(haal=None, zoek_adres=None, limiet=PER_RONDE):
     for url in nog_te_bekijken(limiet):
         try:
             gevonden = herken(haal(url), url)
+        except requests.exceptions.RequestException as e:
+            # 16 oktober: een bureausite die niet meer bestaat is geen fout van
+            # ons. Als "mislukt" vulde hij de foutenlijst in het ochtendbericht.
+            print(f"Bureau zoeken: {url} onbereikbaar, overgeslagen ({type(e).__name__})")
+            gevonden = None
         except Exception as e:
             print(f"Bureau zoeken mislukt voor {url}: {e}")
             gevonden = None
