@@ -26,6 +26,7 @@
   .knop-groot:disabled{opacity:.6; cursor:default;}
   .fout{color:#B42318;} .goed{color:var(--groen); font-weight:600;}
   .twee{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .check input{width:100%; box-sizing:border-box; border-radius:8px; border:1.5px solid #D8D8DE; padding:12px 14px; font-family:var(--body); font-size:15px; background:#fff;}
   @media(max-width:600px){ .twee{grid-template-columns:1fr;} }
   .check{background:var(--paper-raised, #fff); border:1px solid var(--line, #E4E2DA); border-radius:12px; padding:18px;}
   .check textarea{width:100%; box-sizing:border-box; border-radius:8px; border:1.5px solid #D8D8DE; padding:12px;
@@ -167,11 +168,34 @@
           return '<tr><td><strong>' + tekst(u.winkel) + '</strong><br><span class="klein">' + tekst(u.categorieen)
                + ' categor' + (u.categorieen === 1 ? 'y' : 'ies') + '</span></td>'
                + '<td>' + plek + '<br><a class="klein" href="' + tekst(b.pad) + '">' + tekst(b.categorienaam) + ', ' + tekst(b.land.toUpperCase()) + '</a></td>'
-               + '<td>' + wie + '</td></tr>';
+               + '<td>' + wie + '<br><button type="button" class="pitchknop" data-pitch="' + tekst(u.winkel) + '" style="margin-top:6px; font:inherit; font-size:13px; padding:5px 10px; border-radius:8px; border:1px solid #D8D8DE; background:#fff; cursor:pointer;">Make a pitch link</button><div class="klein pitchuit"></div></td></tr>';
         }).join('');
+        // Stap 185 (16 okt): de pitchlink. Een pagina voor de prospect, 14 dagen
+        // geldig, met de naam van het bureau en een knop naar het bureau.
         el('m_uitkomst').innerHTML = '<table class="uitkomst"><tr><th>Store</th><th>Best rank</th><th>Who wins</th></tr>'
-          + rijen + '</table><p class="klein" style="margin-top:10px;">Want this every month, per store, with the fixes? '
-          + '<a href="#aanvragen">Get started</a>.</p>';
+          + rijen + '</table>'
+          + '<div class="check" style="margin-top:14px;"><strong>Pitch links</strong><p class="klein" style="margin:4px 0 10px;">A page for your prospect with their rank, who AI names instead and the questions they lose, under your agency name and with a button to you. Valid for 14 days.</p>'
+          + '<div class="twee"><input id="p_bureau" placeholder="Your agency name"><input id="p_email" type="email" placeholder="Your work email"></div>'
+          + '<input id="p_site" placeholder="Your website (optional)" style="margin-top:10px; width:100%; box-sizing:border-box; border-radius:8px; border:1.5px solid #D8D8DE; padding:12px 14px;">'
+          + '<p class="klein fout" id="p_fout"></p></div>'
+          + '<p class="klein" style="margin-top:10px;">Want this every month, per store, with the fixes? <a href="#aanvragen">Get started</a>.</p>';
+        document.querySelectorAll('.pitchknop').forEach(function(k){
+          k.addEventListener('click', function(){
+            var uit = k.parentNode.querySelector('.pitchuit'); el('p_fout').textContent = '';
+            var body = {winkel: k.getAttribute('data-pitch'), bureau: el('p_bureau').value.trim(),
+                        email: el('p_email').value.trim(), website: el('p_site').value.trim()};
+            if(!body.bureau || !body.email){ el('p_fout').textContent = 'Enter your agency name and work email first.'; el('p_bureau').focus(); return; }
+            k.disabled = true;
+            fetch('/api/agencies/pitch', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+              .then(function(r){ return r.json(); })
+              .then(function(d){
+                k.disabled = false;
+                if(!d.ok){ uit.textContent = d.fout || 'Something went wrong.'; return; }
+                uit.innerHTML = '<a href="' + tekst(d.link) + '" target="_blank" rel="noopener">' + tekst(d.link) + '</a>';
+              })
+              .catch(function(){ k.disabled = false; uit.textContent = 'Something went wrong. Try again in a moment.'; });
+          });
+        });
       })
       .catch(function(){ knop.disabled = false; knop.textContent = 'Check these stores';
                          el('m_checkfout').textContent = 'Something went wrong. Try again in a moment.'; });
@@ -186,7 +210,7 @@
     fetch('/api/agencies', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
       .then(function(r){ return r.json(); })
       .then(function(d){
-        if(d.ok){ el('m_form').innerHTML = '<p class="goed">Thanks. Check your inbox for a confirmation; de eigenaar replies within one working day.</p>'; }
+        if(d.ok){ el('m_form').innerHTML = '<p class="goed">Thanks. Check your inbox for a confirmation; we reply within one working day.</p>'; }
         else { fout.textContent = d.fout || 'Something went wrong.'; knop.disabled = false; knop.textContent = 'Send'; }
       })
       .catch(function(){ fout.textContent = 'Something went wrong. Email hello@krilloai.com.'; knop.disabled = false; knop.textContent = 'Send'; });

@@ -1566,6 +1566,8 @@
           <span class="vraag"><span lang="{{ vlang }}">{{ v.vraag }}</span>{% if v.label %} <span class="vraaglabel">{{ labelnaam(v.label, taal) }}</span>{% endif %}</span>
           <span class="stippen">
             {% for m in v.per_model %}<span class="asst {{ 'ja' if m.genoemd else 'nee' }}" title="{{ m.assistent }}">{{ m.assistent }} {{ '&#10003;'|safe if m.genoemd else '&#10005;'|safe }}</span>{% endfor %}
+            {# Stap 240 (16 okt): de plek in de zoekmachine naast AI. #}
+            {% if v.zoekplek %}<span class="asst" title="{{ 'Plek in de zoekresultaten, eens per maand gemeten' if taal == 'nl' else 'Place in search results, measured monthly' }}">{{ v.zoekplek }}</span>{% endif %}
           </span>
         </summary>
         {% if v.slot %}
@@ -1755,6 +1757,7 @@
     <div class="kaartblok">
       <div class="kaartkop">{{ 'DOOR KRILLO GEDAAN' if taal == 'nl' else 'DONE FOR YOU' }}
         {% if uren_zin %}<span class="uitleg">{{ uren_zin }}</span>{% endif %}</div>
+      {% if gids_effect is defined and gids_effect %}<div class="binnen" style="font-size:14px;">{{ gids_effect }}</div>{% endif %}
       {% if gidsen %}
       {% for g in gidsen %}
       <div class="binnen" style="{{ 'border-top:1px solid var(--lijnz);' if not loop.first }}">
