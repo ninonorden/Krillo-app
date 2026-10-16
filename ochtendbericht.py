@@ -492,9 +492,13 @@ def verzamel(basis_url):
     # hoogstens vijf winkels die de laatste 48 uur zelf iets deden.
     try:
         import warmelijst
-        regel = warmelijst.ochtendregel(warmelijst.lijst())
+        warm = warmelijst.lijst()
+        regel = warmelijst.ochtendregel(warm)
         if regel:
             doen.insert(0, (regel, f"{basis_url}/admin/antwoorden"))
+        # Staan er echte mensen op de lijst die alleen hun uitslag openden, en
+        # volgt de verkoopagent die nog niet op? Dan een voorstel ter akkoord.
+        warmelijst.stel_opvolging_voor(warm)
     except Exception as e:
         print(f"Ochtendbericht, warme lijst mislukt: {e}")
     # Stap 365 deel 2 (15 oktober): een land met genoeg vraag. Openen kost

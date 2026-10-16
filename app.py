@@ -12544,6 +12544,10 @@ def admin_verkoop():
         elif actie == "zelf_uit":
             db.zet_instelling(va.SLEUTEL_ZELF, "nee")
             melding = "Zelf versturen staat uit. Alles wacht weer op jou."
+        elif actie in ("mens_aan", "mens_uit"):
+            db.zet_instelling(va.SLEUTEL_OOK_MENS, "ja" if actie == "mens_aan" else "nee")
+            melding = ("Voortaan krijgt ook een echt mens die zijn uitslag opende een concept."
+                       if actie == "mens_aan" else "Alleen wie naar de prijzen doorklikte krijgt nog een concept.")
         elif actie == "nu":
             verslag = va.ronde(get_base_url().rstrip("/"), lambda u: klantbeeld.bouw(u),
                                categorienaam=lambda b: categorieen.naam_en(b["categorie"]),
@@ -12590,6 +12594,10 @@ def admin_verkoop():
             f"Stand: <strong>{'verstuurt zelf' if zelf else 'wacht op jouw goedkeuring'}</strong>.</p>"
             f"<p style='color:#0B7C5E'>{escape(melding)}</p>"
             f"<form method='post'>{schakelaar} <button name='actie' value='nu'>Nu een ronde draaien</button></form>"
+            f"<form method='post' style='margin-top:10px'><p style='margin:0 0 6px'>Wie krijgt een concept: "
+            f"<strong>{'wie naar de prijzen klikte, of als echt mens zijn uitslag opende' if va.ook_mens() else 'alleen wie naar de prijzen doorklikte'}</strong>.</p>"
+            f"<button name='actie' value='{'mens_uit' if va.ook_mens() else 'mens_aan'}'>"
+            f"{'Alleen nog doorklikkers' if va.ook_mens() else 'Ook echte mensen die hun uitslag openden'}</button></form>"
             f"<p><a href='/admin/antwoorden'>Antwoorden van winkels</a></p>"
             f"<h2 style='margin-top:28px'>Scorebord</h2>{bord}"
             f"<h2 style='margin-top:28px'>Concepten ({len(lijst)})</h2>{blokken}</body>")
