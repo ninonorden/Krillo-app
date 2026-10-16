@@ -1978,11 +1978,17 @@
       <div class="binnen" style="border-top:1px solid var(--lijnz);">
         <div style="font-weight:600;">Slack</div>
         <p class="klein" style="margin:4px 0 8px;">{{ 'Krijg een bericht in je Slack-kanaal als je plek verandert. In Slack: Apps, zoek "Incoming Webhooks", kies een kanaal en kopieer de Webhook URL.' if taal == 'nl' else 'Get a message in your Slack channel when your place changes. In Slack: Apps, search "Incoming Webhooks", pick a channel and copy the Webhook URL.' }}</p>
+        {% if not koppelingen.slack_mag %}
+        {# 16 oktober: Slack-meldingen horen bij Fix. #}
+        <p class="klein" style="margin:0;">{{ 'Slack-meldingen horen bij Fix. Met Watch krijg je dezelfde melding per mail.' if taal == 'nl' else 'Slack alerts are part of Fix. With Watch you get the same alert by email.' }}
+          <a href="/pricing">{{ 'Bekijk Fix' if taal == 'nl' else 'See Fix' }} &rarr;</a></p>
+        {% else %}
         <form method="post" action="/mijn/{{ koppelingen.token }}/slack" style="display:flex; gap:8px; flex-wrap:wrap;">
           <input type="url" name="webhook" placeholder="https://hooks.slack.com/services/..." style="flex:1; min-width:220px; height:40px; border:1px solid var(--lijnz); border-radius:8px; padding:0 10px;">
           <button type="submit" class="knop">{{ 'Koppelen' if taal == 'nl' else 'Connect' }}</button>
         </form>
         {% if koppelingen.slack %}<p class="klein" style="margin:6px 0 0;">{{ 'Gekoppeld. Leeg opslaan ontkoppelt.' if taal == 'nl' else 'Connected. Save it empty to disconnect.' }}</p>{% endif %}
+        {% endif %}
       </div>
       {% if koppelingen.witlabel_mag %}
       <div class="binnen" id="witlabel" style="border-top:1px solid var(--lijnz);">
