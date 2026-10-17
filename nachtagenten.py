@@ -52,7 +52,15 @@ def bekijk_lijst(naam, rijen, soorten=None):
     if rijen and not any((r.get("genoemd") or 0) > 0 for r in rijen):
         uit.append(f"{naam}: niemand genoemd in de laatste meting (koopvragen nakijken)")
     for r in rijen:
-        if r.get("vorige_positie") and abs(r["positie"] - r["vorige_positie"]) >= SPRONG:
+        # 17 oktober (speelgoed nl, twee dagen "sprong van #5 naar #20"): een winkel
+        # die AI niet noemde, deelt een plek ("nog niet genoemd", de eerste na de
+        # genoemde winkels). Werden er de vorige keer 4 winkels genoemd en nu 19,
+        # dan schuift die gedeelde plek van #5 naar #20 zonder dat de winkel iets
+        # verloor. Alleen een echte plek (genoemd, nu en de vorige keer) telt als sprong.
+        nul_nu = r.get("nul") or not ((r.get("genoemd") or 0) or (r.get("aanbevolen") or 0))
+        nul_vorig = "vorige_telling" in r and not r.get("vorige_telling")
+        if r.get("vorige_positie") and not nul_nu and not nul_vorig \
+                and abs(r["positie"] - r["vorige_positie"]) >= SPRONG:
             uit.append(f"{naam}: {_kaal(r['webshop_url'])} sprong van #{r['vorige_positie']} naar #{r['positie']}")
         soort = (soorten or {}).get(r["webshop_url"])
         if soort in ("platform", "merk") and (r.get("genoemd") or 0) > 0:

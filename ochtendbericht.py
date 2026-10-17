@@ -303,7 +303,15 @@ def noteer_start(nu=None):
         oud = json.loads(db.get_instelling(HERSTART_SLEUTEL) or "[]")
     except (TypeError, ValueError):
         oud = []
-    nieuw = [t for t in oud if isinstance(t, (int, float)) and nu - t < 7 * 86400][-60:] + [int(nu)]
+    # 17 oktober: ook de versie (RENDER_GIT_COMMIT, die zet Render zelf). Een
+    # nieuwe versie is een upload; dezelfde versie opnieuw is een echte herstart.
+    import os
+    versie = (os.environ.get("RENDER_GIT_COMMIT") or "")[:12]
+
+    def _tijd(x):
+        return x[0] if isinstance(x, list) else x
+    nieuw = [x for x in oud if isinstance(_tijd(x), (int, float)) and nu - _tijd(x) < 7 * 86400][-60:] \
+        + [[int(nu), versie]]
     db.zet_instelling(HERSTART_SLEUTEL, json.dumps(nieuw))
 
 
@@ -313,13 +321,27 @@ def herstartregel(nu=None):
     import time
     nu = nu or time.time()
     try:
-        starts = [t for t in json.loads(db.get_instelling(HERSTART_SLEUTEL) or "[]") if nu - t < 86400]
+        alles = json.loads(db.get_instelling(HERSTART_SLEUTEL) or "[]")
     except (TypeError, ValueError):
         return None
+    alles = [x if isinstance(x, list) else [x, None] for x in alles]
+    starts = [x for x in alles if nu - x[0] < 86400]
     if len(starts) <= HERSTART_GRENS:
         return None
-    return (f"De site startte {len(starts)} keer opnieuw in 24 uur (een upload telt ook mee). "
-            f"Kijk in Render bij Events of er 'Instance failed' staat, en stuur het door")
+    # 17 oktober (Nino: "0 failed, alleen herstart door uploaden"): uploads
+    # apart. Een start met een andere versie dan de start ervoor is een upload.
+    uploads = 0
+    vorige = None
+    for i, (t, versie) in enumerate(alles):
+        if versie and vorige is not None and versie != vorige and nu - t < 86400:
+            uploads += 1
+        vorige = versie or vorige
+    echt = len(starts) - uploads
+    if any(v for _, v in starts) and echt <= HERSTART_GRENS:
+        return None
+    return (f"De site startte {len(starts)} keer opnieuw in 24 uur"
+            + (f", waarvan {uploads} door een upload" if uploads else " (een upload telt ook mee)")
+            + ". Kijk in Render bij Events of er 'Instance failed' staat, en stuur het door")
 
 
 def voorraadregel(klaar, doel=None, delen=None):

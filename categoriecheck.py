@@ -258,7 +258,8 @@ OPSCHOON_SINDS = "2026-10-15 10:00:00+00"
 
 # 16 oktober: wie voor de zoekmachine-terugval op twijfel kwam, komt meteen
 # opnieuw langs en hoeft niet de 5 dagen uit te zitten (149 winkels).
-TWIJFEL_OPNIEUW_SINDS = "2026-10-16 09:00:00+00"
+# 17 oktober: opnieuw, nu met de tweede kans (zoekmachine bij twijfel van het model).
+TWIJFEL_OPNIEUW_SINDS = "2026-10-17 09:00:00+00"
 
 
 def bovencategorieen():
@@ -359,41 +360,88 @@ def ronde(hoeveel=None, ophalen=None, vraag_model=None, zoek=None):
             verslag["twijfel"] += 1
             continue
         te_beoordelen.append(dict(w, site=site))
-    for begin in range(0, len(te_beoordelen), CHECK_PER_AANROEP):
-        groep = te_beoordelen[begin:begin + CHECK_PER_AANROEP]
+    import categorieen as _c
+
+    def beoordeel(groep):
+        """Het model over een groep; geeft {url: uitkomst} of None bij een fout."""
         try:
             ruw = (vraag_model or _vraag_model)(_prompt(groep, _categorieen_lijst()))
             m = re.search(r"\{.*\}", ruw or "", re.S)
-            uitkomst = {u.get("url"): u for u in json.loads(m.group(0)).get("uitkomst", [])} if m else {}
+            return {u.get("url"): u for u in json.loads(m.group(0)).get("uitkomst", [])} if m else {}
         except Exception as e:
             print(f"Categoriecheck, beoordelen mislukt: {e}")
-            break   # geen oordeel is geen oordeel: niets vastleggen, volgende ronde opnieuw
+            return None   # geen oordeel is geen oordeel: niets vastleggen, volgende ronde opnieuw
+
+    def beslis(w, u, laatste_kans):
+        """Legt het oordeel vast. Geeft False als het twijfel is en er nog een kans is."""
+        soort = (u.get("soort") or "onbekend").lower()
+        nieuw = u.get("categorie") if u.get("categorie") in geldig else None
+        # Een winkel in een categorie zonder ranglijst (dood) verhuist ook
+        # binnen de familie, zie DOOD_OPNIEUW_NA_DAGEN hierboven.
+        vast_in_dood = (w["categorie"] in dood or w["categorie"] not in _c.GELDIG) and nieuw not in dood
+        # Stap 299: uit een bovencategorie naar een deelcategorie met ranglijst.
+        uit_ouder = (w["categorie"] in _c.OUDER.values() and _c.OUDER.get(nieuw) == w["categorie"]
+                     and nieuw not in dood)
+        if soort == "winkel" and nieuw and nieuw != w["categorie"] and (
+                vast_in_dood or uit_ouder or (nieuw not in _familie(w["categorie"])
+                                              and w["categorie"] not in _familie(nieuw))):
+            _leg_vast(w["webshop_url"], True, categorie=nieuw)
+            verslag["verplaatst"].append(f"{w['webshop_url']}: {w['categorie']} -> {nieuw}")
+        elif soort == "winkel":
+            _leg_vast(w["webshop_url"], True)
+            verslag["klopt"] += 1
+        elif soort in ("geen_webshop", "merk", "platform"):
+            _leg_vast(w["webshop_url"], False, soort={"geen_webshop": SOORT_GEEN_WEBSHOP}.get(soort, soort))
+            verslag["geen_webshop"].append(f"{w['webshop_url']} ({soort})")
+        elif not laatste_kans:
+            return False
+        else:
+            _leg_vast(w["webshop_url"], None)
+            verslag["twijfel"] += 1
+        return True
+
+    # 17 oktober (ochtendbericht: 129 op twijfel, 3 klaar). Veel sites openen wel,
+    # maar de tekst zegt te weinig (een site die alles met JavaScript laadt geeft
+    # ons een lege pagina). Dan zei het model "onbekend" en bleef de winkel
+    # dagen op twijfel. Nu: twijfelt het model, dan vullen we aan met wat de
+    # zoekmachine over de eigen pagina's van die site weet, en vragen het een
+    # keer opnieuw. Zelfde daggrens als hierboven.
+    tweede_kans = []
+    for begin in range(0, len(te_beoordelen), CHECK_PER_AANROEP):
+        groep = te_beoordelen[begin:begin + CHECK_PER_AANROEP]
+        uitkomst = beoordeel(groep)
+        if uitkomst is None:
+            break
         for w in groep:
-            u = uitkomst.get(w["webshop_url"]) or {}
-            soort = (u.get("soort") or "onbekend").lower()
-            nieuw = u.get("categorie") if u.get("categorie") in geldig else None
             verslag["bekeken"] += 1
-            # Een winkel in een categorie zonder ranglijst (dood) verhuist ook
-            # binnen de familie, zie DOOD_OPNIEUW_NA_DAGEN hierboven.
-            import categorieen as _c
-            vast_in_dood = (w["categorie"] in dood or w["categorie"] not in _c.GELDIG) and nieuw not in dood
-            # Stap 299: uit een bovencategorie naar een deelcategorie met ranglijst.
-            uit_ouder = (w["categorie"] in _c.OUDER.values() and _c.OUDER.get(nieuw) == w["categorie"]
-                         and nieuw not in dood)
-            if soort == "winkel" and nieuw and nieuw != w["categorie"] and (
-                    vast_in_dood or uit_ouder or (nieuw not in _familie(w["categorie"])
-                                     and w["categorie"] not in _familie(nieuw))):
-                _leg_vast(w["webshop_url"], True, categorie=nieuw)
-                verslag["verplaatst"].append(f"{w['webshop_url']}: {w['categorie']} -> {nieuw}")
-            elif soort == "winkel":
-                _leg_vast(w["webshop_url"], True)
-                verslag["klopt"] += 1
-            elif soort in ("geen_webshop", "merk", "platform"):
-                _leg_vast(w["webshop_url"], False, soort={"geen_webshop": SOORT_GEEN_WEBSHOP}.get(soort, soort))
-                verslag["geen_webshop"].append(f"{w['webshop_url']} ({soort})")
-            else:
+            kan_nog = w["site"].get("via") != "zoekmachine" and gezocht < ruimte
+            if not beslis(w, uitkomst.get(w["webshop_url"]) or {}, laatste_kans=not kan_nog):
+                gezocht += 1
+                try:
+                    db.zet_instelling(SLEUTEL_ZOEK_DAG + dag, vandaag_gezocht + gezocht)
+                except Exception:
+                    pass
+                extra = lees_via_zoekmachine(w["webshop_url"], zoek)
+                if extra is None:
+                    beslis(w, {}, laatste_kans=True)
+                    continue
+                s0 = w["site"]
+                samen = dict(s0, koppen=(s0.get("koppen") or []) + [extra["titel"]] + extra["koppen"],
+                             tekst=((s0.get("tekst") or "") + " " + extra["omschrijving"] + " " + extra["tekst"])[:900],
+                             winkeltekens=s0.get("winkeltekens") or extra["winkeltekens"],
+                             prijzen=(s0.get("prijzen") or 0) + extra["prijzen"], via="zoekmachine")
+                tweede_kans.append(dict(w, site=samen))
+    for begin in range(0, len(tweede_kans), CHECK_PER_AANROEP):
+        groep = tweede_kans[begin:begin + CHECK_PER_AANROEP]
+        uitkomst = beoordeel(groep)
+        if uitkomst is None:
+            for w in groep:
                 _leg_vast(w["webshop_url"], None)
                 verslag["twijfel"] += 1
+            continue
+        for w in groep:
+            verslag["via_zoekmachine"] += 1
+            beslis(w, uitkomst.get(w["webshop_url"]) or {}, laatste_kans=True)
     return verslag
 
 
