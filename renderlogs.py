@@ -76,10 +76,24 @@ def haal(uren=24, get=None, nu=None):
     return berichten
 
 
+# 17 oktober: regels die geen fout van ons zijn, en die de echte fouten
+# verdrongen (22 keer het databasevangnet, 17 keer een dode bureausite).
+# - "Database: dode verbinding": het vangnet van 16 oktober deed zijn werk; de
+#   bezoeker merkte niets. Die tellen we apart (vangnet_aantal).
+# - "Bureau zoeken: ... onbereikbaar": een bureausite die niet meer bestaat.
+GEEN_FOUT = ("Database: dode verbinding", "Bureau zoeken: ")
+
+
+def vangnet_aantal(berichten):
+    return sum(1 for b in berichten or [] if (b or "").startswith("Database: dode verbinding"))
+
+
 def samenvatting(berichten, top=5):
-    """[(patroon, keer, voorbeeld)] meeste eerst."""
+    """[(patroon, keer, voorbeeld)] meeste eerst, zonder de regels uit GEEN_FOUT."""
     groepen = {}
     for b in berichten or []:
+        if (b or "").startswith(GEEN_FOUT):
+            continue
         p = patroon(b)
         if not p:
             continue
@@ -94,14 +108,18 @@ def ochtendregel(get=None):
         return ("Render-logboeken: niet gekoppeld. Zet RENDER_API_KEY in Render (Account Settings, API Keys) "
                 "en Claude leest elke ochtend de fouten mee", None)
     try:
-        s = samenvatting(haal(get=get))
+        berichten = haal(get=get)
+        s = samenvatting(berichten)
+        vangnet = vangnet_aantal(berichten)
     except Exception as e:
         return (f"Render-logboeken lezen mislukt: {e}", None)
+    extra = (f" Het databasevangnet nam {vangnet} keer een verse verbinding (geen fout voor bezoekers)."
+             if vangnet else "")
     if not s:
-        return ("Render-logboeken: geen foutregels in 24 uur", None)
+        return ("Render-logboeken: geen foutregels in 24 uur." + extra, None)
     totaal = sum(n for _, n, _ in s)
     # Met " | " en niet met regeleindes: het ochtendbericht is HTML en voegt die samen.
     tekst = "Fouten uit de Render-logboeken van de laatste 24 uur, meeste eerst: " + " | ".join(
         f"{n} keer: {v}" for _, n, v in s)
-    return (f"Render-logboeken: {totaal} foutregels in 24 uur, {len(s)} soorten. Geef de tekst hieronder aan "
+    return (f"Render-logboeken: {totaal} foutregels in 24 uur, {len(s)} soorten.{extra} Geef de tekst hieronder aan "
             "Claude", tekst)
